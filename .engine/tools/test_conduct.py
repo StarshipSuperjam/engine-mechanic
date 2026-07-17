@@ -134,7 +134,12 @@ class TestConductLoadsInTheWakeupFloor(unittest.TestCase):
                           f"the active root CLAUDE.md must @import {imp} so the engine wakes up with its conduct")
 
     def test_deployed_floor_imports_conduct(self):
-        text = self._floor_text("CLAUDE.deployed.md")
+        # The deployed floor lives in CLAUDE.deployed.md in this construction repo; first-run's swap-in
+        # (#272) makes the floor the root CLAUDE.md and removes CLAUDE.deployed.md. Read it wherever it
+        # lives — mirroring test_boot._floor_text — so this holds post-swap in a generated repo too.
+        name = ("CLAUDE.deployed.md"
+                if os.path.isfile(os.path.join(validate.ROOT, "CLAUDE.deployed.md")) else "CLAUDE.md")
+        text = self._floor_text(name)
         for imp in self._IMPORTS:
             self.assertIn(imp, text)
 

@@ -1317,7 +1317,6 @@
           "operation:engine-team-switch",
           "operation:engine-upgrade",
           "operation:external-contribution-submit",
-          "operation:first-run",
           "operation:knowledge-impact-check",
           "operation:module-add",
           "operation:module-remove",
@@ -1364,7 +1363,6 @@
           "operation:engine-team-switch",
           "operation:engine-upgrade",
           "operation:external-contribution-submit",
-          "operation:first-run",
           "operation:knowledge-impact-check",
           "operation:module-add",
           "operation:module-remove",
@@ -1758,7 +1756,6 @@
           "skill:engine-help",
           "skill:engine-parts",
           "skill:engine-routine",
-          "skill:engine-setup",
           "skill:engine-start",
           "skill:engine-status",
           "skill:engine-tune"
@@ -1795,7 +1792,6 @@
           "skill:engine-help",
           "skill:engine-parts",
           "skill:engine-routine",
-          "skill:engine-setup",
           "skill:engine-start",
           "skill:engine-status",
           "skill:engine-tune"
@@ -3126,26 +3122,6 @@
       "type": "operation"
     },
     {
-      "id": "operation:first-run",
-      "name": ".engine/operations/first-run.md",
-      "owner": "core",
-      "predicates": {
-        "governed_by": [
-          "schema:operation.v1"
-        ],
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "first-run",
-      "source": {
-        "fingerprint": "sha256:2f00d9f489dba47e03e0e0f738d63940c2cb31bdc2894d5c385607c198f0eb71",
-        "path": ".engine/operations/first-run.md"
-      },
-      "status": "active",
-      "type": "operation"
-    },
-    {
       "id": "operation:knowledge-impact-check",
       "name": ".engine/operations/knowledge-impact-check.md",
       "owner": "core",
@@ -4136,28 +4112,6 @@
       "type": "skill"
     },
     {
-      "id": "skill:engine-setup",
-      "invocation": "operator-typed",
-      "name": ".claude/skills/engine-setup/SKILL.md",
-      "owner": "core",
-      "predicates": {
-        "governed_by": [
-          "schema:skill.v1"
-        ],
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "engine-setup",
-      "source": {
-        "fingerprint": "sha256:171998f47315e5c3f37e48da8069ac5c12d23d8f63cda26140f436d5706d499e",
-        "path": ".claude/skills/engine-setup/SKILL.md"
-      },
-      "status": "active",
-      "title": "engine-setup",
-      "type": "skill"
-    },
-    {
       "id": "skill:engine-start",
       "invocation": "operator-typed",
       "name": ".claude/skills/engine-start/SKILL.md",
@@ -4683,23 +4637,6 @@
       "type": "tool"
     },
     {
-      "id": "tool:demo_467_deployment_eadr_namespace",
-      "name": ".engine/tools/demo_467_deployment_eadr_namespace.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_467_deployment_eadr_namespace",
-      "source": {
-        "fingerprint": "sha256:b3244cb21cc2de95d766298fd51cb4480551fcf6cbdf595529156d498f2796c3",
-        "path": ".engine/tools/demo_467_deployment_eadr_namespace.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
       "id": "tool:demo_actionlint",
       "name": ".engine/tools/demo_actionlint.py",
       "owner": "core",
@@ -4712,210 +4649,6 @@
       "source": {
         "fingerprint": "sha256:fd8e79457701e664efc9d4f5bb45a377482c7ceb76fb48655cb9eed759430d12",
         "path": ".engine/tools/demo_actionlint.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_attention_live_dials",
-      "name": ".engine/tools/demo_attention_live_dials.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_attention_live_dials",
-      "source": {
-        "fingerprint": "sha256:6be97b0de86f05e9fc6c6d1c685aa3580e8f22b5934cd26c070bafe2f0c72565",
-        "path": ".engine/tools/demo_attention_live_dials.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_audit_concern_list",
-      "name": ".engine/tools/demo_audit_concern_list.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_audit_concern_list",
-      "source": {
-        "fingerprint": "sha256:35d8ffa4d07b0d445bec63d9f66cd52503e67185e6363889665492ee6b3df51c",
-        "path": ".engine/tools/demo_audit_concern_list.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_audit_digest",
-      "name": ".engine/tools/demo_audit_digest.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_audit_digest",
-      "source": {
-        "fingerprint": "sha256:04c82c90a43020607ed7b4134dd0a246ebed36bc2f3c26f8c9e39f08698c4da0",
-        "path": ".engine/tools/demo_audit_digest.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_audit_soft_findings",
-      "name": ".engine/tools/demo_audit_soft_findings.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_audit_soft_findings",
-      "source": {
-        "fingerprint": "sha256:9f21ca05b4b426582fde412fc1ee22f1cd6b337ef415f8eaafa245b3bcf1ae3d",
-        "path": ".engine/tools/demo_audit_soft_findings.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_audit_soft_promote",
-      "name": ".engine/tools/demo_audit_soft_promote.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_audit_soft_promote",
-      "source": {
-        "fingerprint": "sha256:2887c1d727f9f28540f61169c41ac6bb93035808c546a9b143603d166a2e9706",
-        "path": ".engine/tools/demo_audit_soft_promote.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_boot_alarm_collapse",
-      "name": ".engine/tools/demo_boot_alarm_collapse.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_boot_alarm_collapse",
-      "source": {
-        "fingerprint": "sha256:9c4fb03f9160e42e631e026c34d813afa2212f87256884ae0fa317ede8d93e57",
-        "path": ".engine/tools/demo_boot_alarm_collapse.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_boot_set_aside_readout",
-      "name": ".engine/tools/demo_boot_set_aside_readout.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_boot_set_aside_readout",
-      "source": {
-        "fingerprint": "sha256:b846e723f2a663c7124d014034c42c66d51b995cac8dd3ed04bc7b8695117ce6",
-        "path": ".engine/tools/demo_boot_set_aside_readout.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_boot_slice",
-      "name": ".engine/tools/demo_boot_slice.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_boot_slice",
-      "source": {
-        "fingerprint": "sha256:7dcc2e541d1432501c39ebc196845b651616239e1de66255c0f5210782da192d",
-        "path": ".engine/tools/demo_boot_slice.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_build_entry_depth_gate",
-      "name": ".engine/tools/demo_build_entry_depth_gate.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_build_entry_depth_gate",
-      "source": {
-        "fingerprint": "sha256:2dcf31f43072650ac17fb8e712de4f41a0f0413fc6ab0be2baaa54c5ea47b63f",
-        "path": ".engine/tools/demo_build_entry_depth_gate.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_ci_author_exempt",
-      "name": ".engine/tools/demo_ci_author_exempt.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_ci_author_exempt",
-      "source": {
-        "fingerprint": "sha256:e6e862c432cd49c4826c7c0647461a0e124901cb36681c3e86c10fbaef02f01f",
-        "path": ".engine/tools/demo_ci_author_exempt.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_contract_rate",
-      "name": ".engine/tools/demo_contract_rate.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_contract_rate",
-      "source": {
-        "fingerprint": "sha256:1ae097bc91bf91433718d6b04e3c5679ad92683cad74f6411986c4b276213c9b",
-        "path": ".engine/tools/demo_contract_rate.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_derived_reconcile",
-      "name": ".engine/tools/demo_derived_reconcile.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_derived_reconcile",
-      "source": {
-        "fingerprint": "sha256:1e4ed21e99ee73a7cb5a0407eb9902000c7bb5068a9d924485df3a60e7cf9f51",
-        "path": ".engine/tools/demo_derived_reconcile.py"
       },
       "status": "active",
       "type": "tool"
@@ -4938,91 +4671,6 @@
       "type": "tool"
     },
     {
-      "id": "tool:demo_focus_read",
-      "name": ".engine/tools/demo_focus_read.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_focus_read",
-      "source": {
-        "fingerprint": "sha256:4e94b123da6ea6a3ffb321026d1529a64a4a85ad66500b7bbe6bec7c2cd5379e",
-        "path": ".engine/tools/demo_focus_read.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_hook_runner",
-      "name": ".engine/tools/demo_hook_runner.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_hook_runner",
-      "source": {
-        "fingerprint": "sha256:8655b47a120beb8d32165c39edef26f6d34a5c47fdbedf9fb0906d6a818c41f6",
-        "path": ".engine/tools/demo_hook_runner.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_inbox_drain",
-      "name": ".engine/tools/demo_inbox_drain.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_inbox_drain",
-      "source": {
-        "fingerprint": "sha256:263917e2668602bbbd0891a684711cc748ec06d6b6b5a6dc38cb324a47c3681f",
-        "path": ".engine/tools/demo_inbox_drain.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_map_reachability",
-      "name": ".engine/tools/demo_map_reachability.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_map_reachability",
-      "source": {
-        "fingerprint": "sha256:1eb08bb6d4fae3797a8cfa55932115026aceba8569fffb8a58a328f063b1a968",
-        "path": ".engine/tools/demo_map_reachability.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_memory_degradation_backup",
-      "name": ".engine/tools/demo_memory_degradation_backup.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_memory_degradation_backup",
-      "source": {
-        "fingerprint": "sha256:c29482d8cbc2149266f0d89fa6f71dfbbf3a3325799e927b12b3683d99d8cb04",
-        "path": ".engine/tools/demo_memory_degradation_backup.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
       "id": "tool:demo_pr_reconcile",
       "name": ".engine/tools/demo_pr_reconcile.py",
       "owner": "core",
@@ -5035,91 +4683,6 @@
       "source": {
         "fingerprint": "sha256:1456b8d222daf757799fcd60766221cf3095053b14d931e873bcdf668548e306",
         "path": ".engine/tools/demo_pr_reconcile.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_release_cut",
-      "name": ".engine/tools/demo_release_cut.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_release_cut",
-      "source": {
-        "fingerprint": "sha256:d4cfac8823b67ec22b8cb882ccdf40949dba2ea030cb4d27a2218b693213589e",
-        "path": ".engine/tools/demo_release_cut.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_release_pr_mergeable",
-      "name": ".engine/tools/demo_release_pr_mergeable.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_release_pr_mergeable",
-      "source": {
-        "fingerprint": "sha256:fcab3a3cb5f6bf05cb2c2bf62315cb4b5d5228aafef5dfb5c03dfe6ad26b84cc",
-        "path": ".engine/tools/demo_release_pr_mergeable.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_release_terminal",
-      "name": ".engine/tools/demo_release_terminal.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_release_terminal",
-      "source": {
-        "fingerprint": "sha256:f98888d3dc335a49cb2c377bd6e71c000821163d2cbc414b65707851ee50cf43",
-        "path": ".engine/tools/demo_release_terminal.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_remember_this",
-      "name": ".engine/tools/demo_remember_this.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_remember_this",
-      "source": {
-        "fingerprint": "sha256:af1ccd35378884bec2576774a6ce74fc27854aaa0abfff28c83b0a7a7a53a6a4",
-        "path": ".engine/tools/demo_remember_this.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_reverse_adjacency",
-      "name": ".engine/tools/demo_reverse_adjacency.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_reverse_adjacency",
-      "source": {
-        "fingerprint": "sha256:a0efa0b9e3c45af78cfee1e115ef75b1ee08843b2845db1a88f48120579586aa",
-        "path": ".engine/tools/demo_reverse_adjacency.py"
       },
       "status": "active",
       "type": "tool"
@@ -5154,57 +4717,6 @@
       "source": {
         "fingerprint": "sha256:88ef28ae79d5a32ee99451a3ef305fee6f7622af5f47839303b6daa1874bd70f",
         "path": ".engine/tools/demo_security_floor.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_security_seed",
-      "name": ".engine/tools/demo_security_seed.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_security_seed",
-      "source": {
-        "fingerprint": "sha256:6286b4f62ac0d6223ea5b720821ebe7f6d7f6e8c2e4812ac550976a1bba9b8d6",
-        "path": ".engine/tools/demo_security_seed.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_state_cursor_honesty",
-      "name": ".engine/tools/demo_state_cursor_honesty.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_state_cursor_honesty",
-      "source": {
-        "fingerprint": "sha256:456ddb795bed192cb79488df5c15decde0e6edb32951164d96d42e20b301af45",
-        "path": ".engine/tools/demo_state_cursor_honesty.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:demo_weakening_guard_narrowed_set",
-      "name": ".engine/tools/demo_weakening_guard_narrowed_set.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "demo_weakening_guard_narrowed_set",
-      "source": {
-        "fingerprint": "sha256:76cb059b785b7463033853fddcf8d9b18ccf81c1c7f15cb1f5ecf052240e9e91",
-        "path": ".engine/tools/demo_weakening_guard_narrowed_set.py"
       },
       "status": "active",
       "type": "tool"
@@ -5460,23 +4972,6 @@
       "source": {
         "fingerprint": "sha256:9bc050c213548fc5c2b611411f8a8c42279e8d90901539b41841b0fe8bfcdfa7",
         "path": ".engine/tools/memory/index.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:instantiator",
-      "name": ".engine/tools/instantiator.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "instantiator",
-      "source": {
-        "fingerprint": "sha256:274277f3cc10c128ddea118cfa26962e283bf435413da8fb7ec7a51901992cd8",
-        "path": ".engine/tools/instantiator.py"
       },
       "status": "active",
       "type": "tool"
@@ -6784,7 +6279,7 @@
       },
       "slug": "test_conduct",
       "source": {
-        "fingerprint": "sha256:e3c6112e4d8abc59b3e96c5b1dacdbc3abf67c9adec0181317627556fac5f7fa",
+        "fingerprint": "sha256:afff8925184db6cbc3f73e6930882e199866498f1bd8172c01f47c3ebe814866",
         "path": ".engine/tools/test_conduct.py"
       },
       "status": "active",
@@ -7126,23 +6621,6 @@
       "source": {
         "fingerprint": "sha256:d85ca794b852657938f4c822dbd9cbdf073e93cbc42f459d454688052feaa243",
         "path": ".engine/tools/memory/test_index.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:test_instantiator",
-      "name": ".engine/tools/test_instantiator.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "test_instantiator",
-      "source": {
-        "fingerprint": "sha256:d63c65c6442ad3c0e23789565a9d1109300553afbc4b869572cc13830cadf358",
-        "path": ".engine/tools/test_instantiator.py"
       },
       "status": "active",
       "type": "tool"
@@ -7908,23 +7386,6 @@
       "source": {
         "fingerprint": "sha256:75e53dc3a9e35130cc338b9f9db857c4e3236644911c173be52d44ca7f35a211",
         "path": ".engine/tools/test_security_floor.py"
-      },
-      "status": "active",
-      "type": "tool"
-    },
-    {
-      "id": "tool:test_security_seed",
-      "name": ".engine/tools/test_security_seed.py",
-      "owner": "core",
-      "predicates": {
-        "provided_by": [
-          "module:core"
-        ]
-      },
-      "slug": "test_security_seed",
-      "source": {
-        "fingerprint": "sha256:b2d13bff283af8be348ff70458d316fc2007377aa90325f1c30f4c7af1c070c6",
-        "path": ".engine/tools/test_security_seed.py"
       },
       "status": "active",
       "type": "tool"
