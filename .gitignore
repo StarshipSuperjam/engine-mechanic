@@ -1,0 +1,36 @@
+# The engine's own tool-runtime (a `uv sync` derivative of the committed pyproject.toml + uv.lock) and the
+# platform's per-session worktree directories — kept out of git so they never clutter your repository or
+# your `git status` (repository-topology Law 5; D-156/D-189). This is a single engine-managed block: the
+# engine places it and reverses it on removal, so it travels with the template and a generated repo ignores
+# these before first-run setup even materializes them.
+# BEGIN engine-managed block: foundation-ignores - do not edit inside
+.engine/.venv/
+.engine/.uv/
+.claude/worktrees/
+# END engine-managed block: foundation-ignores
+
+# Python bytecode cache (regenerable; never committed)
+__pycache__/
+*.pyc
+
+# Pytest's run-cache (regenerable; never committed). Mirrors the .engine/.pytest_cache/ carve-out in
+# the catalog-coverage check, so a local test run never leaves a stray "surface" directory behind.
+.pytest_cache/
+
+# macOS
+.DS_Store
+# BEGIN engine-managed block: core-knowledge-cache - do not edit inside
+.engine/knowledge/.cache/
+# END engine-managed block: core-knowledge-cache
+# BEGIN engine-managed block: core-telemetry-cache - do not edit inside
+.engine/telemetry/.cache/
+# END engine-managed block: core-telemetry-cache
+# BEGIN engine-managed block: memory-substrate-ledger - do not edit inside
+.engine/memory/
+# END engine-managed block: memory-substrate-ledger
+# BEGIN engine-managed block: github-projects-sync-board-config - do not edit inside
+.engine/projects-sync/
+# END engine-managed block: github-projects-sync-board-config
+# BEGIN engine-managed block: core-boot-presentation-ledger - do not edit inside
+.engine/boot/.cache/
+# END engine-managed block: core-boot-presentation-ledger

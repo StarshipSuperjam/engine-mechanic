@@ -1,0 +1,42 @@
+# engine-guard — the guardrail-weakening classifier (required check #2).
+# Runs on pull_request_target so the guard logic is read from the protected base
+# branch: a pull request cannot tamper with the guard that judges it. It reads
+# the diff via the API and NEVER checks out the pull request's head code — the
+# workflow checks out only the base (trusted) branch. The job name `engine-guard`
+# is the FROZEN check context bound in the branch ruleset; renaming it is itself
+# a guardrail-weakening change (stage-0-harness §3; D-051 / D-134).
+#
+# Core slice 5b re-homed the guard onto the engine: the final step now invokes it
+# through the validation dispatcher as the `custom/script` rule
+# engine/check/guardrail-weakening, run BY ID (`validate.py --check`) rather than as
+# part of the CI suite. The trigger, the base-only checkout, the permissions, and the
+# env are UNCHANGED — only how the guard is invoked changed, never where or how it
+# runs — so the D-051 "a pull request cannot run its own edited guard" property holds.
+name: engine-guard
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  engine-guard:
+    name: engine-guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the base (trusted) branch — never the PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Set up uv (pinned)
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: "0.11.8"
+      - name: Materialize the engine tool-runtime
+        run: uv sync --directory .engine --frozen
+      - name: Guardrail-weakening classifier (reads the diff via API; never checks out head)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: uv run --directory .engine --frozen -- python tools/validate.py --check engine/check/guardrail-weakening

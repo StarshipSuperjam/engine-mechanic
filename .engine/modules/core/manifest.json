@@ -1,0 +1,274 @@
+{
+  "id": "core",
+  "version": "0.1.0",
+  "status": "required",
+  "provides": {
+    "check": [
+      ".engine/check/guardrail-weakening.json",
+      ".engine/check/protection.json"
+    ],
+    "schema": [
+      ".engine/schemas/*.json"
+    ],
+    "tool": [
+      ".engine/tools/*.py",
+      ".engine/tools/*.sh"
+    ],
+    "interface": [
+      ".engine/interfaces/*.json"
+    ],
+    "operation": [
+      ".engine/operations/boot-session-start.md",
+      ".engine/operations/build-orchestration.md",
+      ".engine/operations/close-turn.md",
+      ".engine/operations/conduct-author.md",
+      ".engine/operations/control-plane-bootstrap.md",
+      ".engine/operations/engine-arrival.md",
+      ".engine/operations/engine-remove.md",
+      ".engine/operations/engine-team-switch.md",
+      ".engine/operations/engine-upgrade.md",
+      ".engine/operations/first-run.md",
+      ".engine/operations/knowledge-impact-check.md",
+      ".engine/operations/module-add.md",
+      ".engine/operations/module-remove.md",
+      ".engine/operations/onboarding-read.md",
+      ".engine/operations/operating-modes.md",
+      ".engine/operations/tune-policy.md"
+    ],
+    "skill": [
+      ".claude/skills/engine-conduct/SKILL.md",
+      ".claude/skills/engine-help/SKILL.md",
+      ".claude/skills/engine-parts/SKILL.md",
+      ".claude/skills/engine-setup/SKILL.md",
+      ".claude/skills/engine-start/SKILL.md",
+      ".claude/skills/engine-status/SKILL.md",
+      ".claude/skills/engine-tune/SKILL.md"
+    ],
+    "doc": [
+      ".engine/docs/getting-started.md"
+    ],
+    "state": [
+      ".engine/state/*.json"
+    ],
+    "knowledge": [
+      ".engine/knowledge/*.json"
+    ],
+    "contract": [
+      ".engine/contracts/*.md"
+    ],
+    "policy": [
+      ".engine/policies/attention.md",
+      ".engine/policies/contract-threshold.md",
+      ".engine/policies/escalation.md",
+      ".engine/policies/finding-disposition.md",
+      ".engine/policies/triage-threshold.md"
+    ],
+    "conduct": [
+      ".engine/conduct/defaults.md"
+    ],
+    "template": [
+      ".engine/templates/*.md"
+    ],
+    "foundation": [
+      ".engine/suites.json",
+      ".engine/self-map.md"
+    ],
+    "provisioning": [
+      ".engine/provisioning/first-run-assets.json",
+      ".engine/provisioning/module-catalog.json"
+    ]
+  },
+  "wires": [
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "startup",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/boot.py\""
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "resume",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/boot.py\""
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "clear",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/boot.py\""
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "startup",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-ambient"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "resume",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-ambient"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "startup",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-episodic"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "resume",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-episodic"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "startup",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" drain-inbox"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "SessionStart",
+      "matcher": "resume",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" drain-inbox"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PreToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/modes.py\""
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PreToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/knowledge_gen.py\" hook"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PreToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/self_map.py\" hook"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PreToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/validate.py\" hook"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PostToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/modes.py\" accept-hook"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "PostToolUse",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/validate.py\" accept-hook"
+      }
+    },
+    {
+      "type": "hook",
+      "event": "Stop",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/close.py\""
+      }
+    },
+    {
+      "type": "hook",
+      "event": "UserPromptSubmit",
+      "matcher": "",
+      "hook": {
+        "type": "command",
+        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/scent.py\""
+      }
+    },
+    {
+      "type": "mcp",
+      "name": "engine-knowledge-graph",
+      "definition": {
+        "command": "uv",
+        "args": [
+          "run",
+          "--directory",
+          "${CLAUDE_PROJECT_DIR:-.}/.engine",
+          "--frozen",
+          "--",
+          "python",
+          "tools/knowledge_mcp_server.py"
+        ]
+      }
+    },
+    {
+      "type": "gitignore",
+      "key": "core-knowledge-cache",
+      "lines": [
+        ".engine/knowledge/.cache/"
+      ]
+    },
+    {
+      "type": "gitignore",
+      "key": "core-telemetry-cache",
+      "lines": [
+        ".engine/telemetry/.cache/"
+      ]
+    },
+    {
+      "type": "gitignore",
+      "key": "core-boot-presentation-ledger",
+      "lines": [
+        ".engine/boot/.cache/"
+      ]
+    }
+  ],
+  "depends": {}
+}

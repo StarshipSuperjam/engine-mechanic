@@ -1,0 +1,378 @@
+"""Tests for the negative-fixture meta-check (#286) — hard_check_bite_check.
+
+The meta-check is LIVE in the CI suite (S5): its rule ships suites: ["CI"], so it runs at the merge gate. These
+tests drive the testable `evaluate(...)` core against controlled rosters, drive the whole script through the real
+`validate.run_unit` subprocess path for self-coverage, and assert the FULL live roster (every committed fixture +
+the self-entry via its committed target.json) is clean — the go-live regression. Assertions are by set-membership
+on (severity, message token), never order/count.
+"""
+from __future__ import annotations
+import glob as _glob
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import validate  # noqa: E402
+import hard_check_bite_check as hcb  # noqa: E402
+
+ROOT = validate.ROOT
+LIVE_FIXTURES = os.path.join(ROOT, ".engine", "_fixtures")
+CHECK_DIR = os.path.join(ROOT, ".engine", "check")
+RULE_PATH = os.path.join(ROOT, ".engine", "check", "hard-check-bite.json")
+CLOSED_KINDS = sorted(k for k in validate.REGISTRY if k != "custom/script")
+
+
+def _live_hard_script_rules() -> list:
+    """Every live hard custom/script rule (the meta-check's roster(b) population)."""
+    rules = []
+    for rp in sorted(_glob.glob(os.path.join(CHECK_DIR, "*.json"))):
+        r = validate.load_json(rp)
+        if r.get("kind") == "custom/script" and r.get("tier") == "hard":
+            rules.append(r)
+    return rules
+
+
+def _write(path: str, text: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+
+class TestLiveFixturesBite(unittest.TestCase):
+    """The committed fixtures all bite — the real-repo regression. An empty check_dir keeps roster(b) out (the
+    live custom/script instances are backfilled in a later slice), so this proves roster(a) + the custom/script
+    fail-closed modes against the shipped fixtures."""
+
+    def test_every_kind_and_failclosed_mode_bites(self):
+        with tempfile.TemporaryDirectory() as empty:
+            found = hcb.evaluate(check_dir=empty, fixture_root=LIVE_FIXTURES)
+        self.assertEqual(found, [], f"a committed fixture failed to bite: {found}")
+
+    def test_each_closed_kind_bites_individually(self):
+        # Per-kind, so a regression localizes to the kind whose fixture stopped biting.
+        for kind in CLOSED_KINDS:
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as empty:
+                found = hcb.evaluate(check_dir=empty, fixture_root=LIVE_FIXTURES, kinds=[kind])
+                self.assertEqual(found, [], f"the '{kind}' fixture did not bite")
+
+    def test_custom_script_failclosed_modes_bite(self):
+        with tempfile.TemporaryDirectory() as empty:
+            found = hcb.evaluate(check_dir=empty, fixture_root=LIVE_FIXTURES, kinds=["custom/script"])
+        self.assertEqual(found, [])
+
+
+class TestMissingAndNonBiting(unittest.TestCase):
+    """The two failure modes the meta-check must itself catch: a unit with no fixture, and a unit whose
+    fixture does not bite."""
+
+    def test_missing_fixture_fails_closed(self):
+        with tempfile.TemporaryDirectory() as empty_fix, tempfile.TemporaryDirectory() as empty_chk:
+            found = hcb.evaluate(check_dir=empty_chk, fixture_root=empty_fix, kinds=["presence"])
+        self.assertTrue(any(f["severity"] == "hard" and "no negative test fixture" in f["message"]
+                            for f in found), found)
+
+    def test_non_biting_fixture_fails_closed(self):
+        # A presence fixture whose input is COMPLETE (the check will not fire) but whose expect.json demands a
+        # bite → the meta-check must report it did not catch.
+        with tempfile.TemporaryDirectory() as fix, tempfile.TemporaryDirectory() as chk:
+            fdir = os.path.join(fix, "kind-presence")
+            _write(os.path.join(fdir, "rule.json"), json.dumps(
+                {"id": "f/p", "kind": "presence", "tier": "hard", "target": {},
+                 "params": {"sections": ["Purpose"]}, "message": "m"}))
+            _write(os.path.join(fdir, "input.md"), "## Purpose\n\nComplete — nothing missing.\n")
+            _write(os.path.join(fdir, "expect.json"),
+                   json.dumps({"severity": "hard", "message_contains": "Required section"}))
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=["presence"])
+        self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
+
+
+class TestNotApplicableCarveOut(unittest.TestCase):
+    """The only admissible carve-out is the exact bounded property; anything else is rejected (no silent
+    self-classification)."""
+
+    def _scenario(self, disclosure: dict):
+        fix = tempfile.mkdtemp()
+        fdir = os.path.join(fix, "kind-presence")
+        _write(os.path.join(fdir, "not-applicable.json"), json.dumps(disclosure))
+        return fix
+
+    def test_exact_property_is_honored_as_a_soft_note(self):
+        fix = self._scenario({"property": hcb._NA_PROPERTY, "reason": "presence has a CI failure path; this is a test."})
+        with tempfile.TemporaryDirectory() as chk:
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=["presence"])
+        self.assertTrue(any(f["severity"] == "soft" and "NOT APPLICABLE" in f["message"] for f in found))
+        self.assertFalse(any(f["severity"] == "hard" for f in found))
+
+    def test_wrong_property_is_rejected_hard(self):
+        fix = self._scenario({"property": "too-hard-to-write-a-fixture", "reason": "lazy"})
+        with tempfile.TemporaryDirectory() as chk:
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=["presence"])
+        self.assertTrue(any(f["severity"] == "hard" and "only admissible reason" in f["message"] for f in found))
+
+
+class TestRosterBInstances(unittest.TestCase):
+    """Roster (b): every custom/script INSTANCE in the check directory is proven, by id-stem fixture."""
+
+    def test_instance_with_no_fixture_fails_closed(self):
+        with tempfile.TemporaryDirectory() as chk, tempfile.TemporaryDirectory() as fix:
+            _write(os.path.join(chk, "foo.json"), json.dumps(
+                {"id": "engine/check/foo", "kind": "custom/script", "tier": "hard", "target": {"context": "x"},
+                 "params": {"script": ".engine/tools/validate.py"}, "suites": [], "message": "m"}))
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=[])
+        self.assertTrue(any(f["severity"] == "hard" and "engine/check/foo" in f["message"]
+                            and "no negative test fixture" in f["message"] for f in found), found)
+
+    def test_instance_bites_its_fixture(self):
+        # A controlled instance whose script is a committed fail-closed fixture script (it exits non-zero), with
+        # an id-stem fixture asserting that token → the instance bites. Proves roster(b) witnesses a real bite.
+        crash = ".engine/_fixtures/kind-custom-script/nonzero/crash.py"
+        with tempfile.TemporaryDirectory() as chk, tempfile.TemporaryDirectory() as fix:
+            _write(os.path.join(chk, "bar.json"), json.dumps(
+                {"id": "engine/check/bar", "kind": "custom/script", "tier": "hard", "target": {"context": "x"},
+                 "params": {"script": crash}, "suites": [], "message": "m"}))
+            _write(os.path.join(fix, "bar", "expect.json"),
+                   json.dumps({"severity": "hard", "message_contains": "exited with an error"}))
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=[])
+        self.assertEqual(found, [], f"the instance fixture did not bite: {found}")
+
+
+class TestSelfCoverageThroughSubprocess(unittest.TestCase):
+    """The meta-check runs as one more roster entry through the REAL run_unit subprocess path, pointed at its
+    committed self-fixture mini-scenario — proving self-falsifiability the way it runs live (S5), and that the
+    run terminates (the mini-scenario contains no custom/script instance and not the meta-check itself). It drives
+    the SAME committed target.json the live self-entry uses, so the test and the live configuration cannot drift."""
+
+    def test_meta_check_bites_its_own_self_fixture_via_committed_target(self):
+        rule = validate.load_json(RULE_PATH)
+        target = validate.load_json(os.path.join(LIVE_FIXTURES, "hard-check-bite", "target.json"))
+        passed, found = validate.run_unit(rule, target, {})
+        self.assertFalse(passed)
+        self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
+
+    def test_committed_roster_dir_is_instance_free(self):
+        """The committed ENGINE_ROSTER_DIR must hold no top-level *.json — the termination guarantee rests on it,
+        so a stray check file dropped there (which would re-enter the self-run) is caught here, not in CI."""
+        target = validate.load_json(os.path.join(LIVE_FIXTURES, "hard-check-bite", "target.json"))
+        roster_dir = os.path.join(ROOT, target["env"]["ENGINE_ROSTER_DIR"])
+        self.assertEqual(_glob.glob(os.path.join(roster_dir, "*.json")), [],
+                         "the self-run roster dir must stay free of top-level *.json (see its README)")
+
+
+class TestRuleIsLiveAndWellFormed(unittest.TestCase):
+    """The committed rule is the LIVE (suites: ["CI"]) custom/script meta-check, conforming to check.v1.json."""
+
+    def test_rule_conforms_and_is_live(self):
+        from jsonschema import Draft202012Validator
+        rule = validate.load_json(RULE_PATH)
+        schema = validate.load_json(os.path.join(ROOT, ".engine", "schemas", "check.v1.json"))
+        self.assertEqual(list(Draft202012Validator(schema).iter_errors(rule)), [])
+        self.assertEqual(rule["suites"], ["CI"])
+        self.assertEqual(rule["kind"], "custom/script")
+        self.assertEqual(rule["params"]["script"], ".engine/tools/hard_check_bite_check.py")
+        # S6: the meta-check is a TOKEN CONDUIT. It makes no API call itself, but it must pass GITHUB_TOKEN
+        # to the disposition-issue-resolution grandchild it witnesses live (kind_custom_script strips the token
+        # on every hop unless the rule sets pass_token). Do not "clean this up" — without it the disposition
+        # unit runs token-less, emits unevaluable instead of the aimed unresolved bite, and this meta-check reds.
+        self.assertTrue(rule["params"]["pass_token"])
+
+
+class TestS4LiveRosterBackfill(unittest.TestCase):
+    """Real-repo regression: every in-scope hard custom/script INSTANCE either bites its committed fixture or is
+    honored as a disclosed not-applicable carve-out — the roster is whole. As of S5 the meta-check's own self-entry
+    is INCLUDED: it flows through the generic fixture path, loading its committed target.json so the self-run is
+    pointed at its mini-scenario (and terminates) rather than re-entering the live roster."""
+
+    def test_every_hard_instance_bites_or_is_disclosed_na(self):
+        for rule in _live_hard_script_rules():
+            stem = rule["id"].split("engine/check/")[-1]
+            na = os.path.join(LIVE_FIXTURES, stem, "not-applicable.json")
+            with self.subTest(check=stem):
+                if os.path.isfile(na):
+                    found = hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard")
+                    self.assertTrue(found and all(f["severity"] == "soft" for f in found),
+                                    f"{stem}: a not-applicable carve-out must yield only soft notes: {found}")
+                    self.assertTrue(any("NOT APPLICABLE" in (f.get("message") or "") for f in found), found)
+                elif stem == "disposition-issue-resolution":
+                    # The roster's first NON-OFFLINE unit (#292): its negative path is a live issue-API query
+                    # against the cited sentinel. With a token it bites (404 -> unresolved); offline/token-less
+                    # it emits the distinct unevaluable, so the aimed bite is witnessable only with a token. The
+                    # live witness is the CI `validate.py --suite CI` run (which has the token); skip otherwise.
+                    if not os.environ.get("GITHUB_TOKEN"):
+                        self.skipTest("disposition-issue-resolution needs a token for its live witness (CI)")
+                    self.assertEqual(hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard"), [])
+                elif stem == "memory-pointer-public-safety":
+                    # It reads its fixture via `git show HEAD:`, so it bites only once the fixture is committed
+                    # at HEAD (the live witness is the CI run on the committed pull request). Skip until then.
+                    committed = subprocess.run(
+                        ["git", "cat-file", "-e",
+                         "HEAD:.engine/_fixtures/memory-pointer-public-safety/pointer.json"],
+                        cwd=ROOT, capture_output=True).returncode == 0
+                    if not committed:
+                        self.skipTest("memory-pointer fixture not yet committed at HEAD (git show HEAD: read)")
+                    self.assertEqual(hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard"), [])
+                else:
+                    self.assertEqual(hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard"), [],
+                                     f"{stem}: did not bite its committed fixture")
+
+
+class TestS5GoLive(unittest.TestCase):
+    """The go-live regression: the meta-check, run over the FULL LIVE roster with no overrides (every committed
+    fixture, every disclosed carve-out, AND its own self-entry via the committed target.json), is clean. This is
+    what runs at the merge gate now that the rule is in the CI suite — proving the live check is green over the
+    real repo and that the self-entry both terminates and is non-vacuous through the real subprocess path."""
+
+    def test_full_live_roster_is_clean(self):
+        # The self-entry is in the live roster and is exercised here through its committed target.json.
+        stems = {r["id"].split("engine/check/")[-1] for r in _live_hard_script_rules()}
+        self.assertIn("hard-check-bite", stems, "the meta-check must be in its own live roster")
+        # The full evaluate() now includes the NON-OFFLINE disposition-issue-resolution unit (#292), whose live
+        # witness needs a token. Without one its sentinel resolves to unevaluable, not the aimed unresolved bite,
+        # so the full-roster green is a with-token property. The CI `validate.py --suite CI` step (which has the
+        # token) is the real witness; this regression runs there and locally with a token, and skips otherwise.
+        if not os.environ.get("GITHUB_TOKEN"):
+            self.skipTest("full-roster green needs a token for the non-offline disposition unit (CI / local+token)")
+        findings = hcb.evaluate()
+        # A merge is blocked only by a HARD finding; the disclosed carve-outs are loud SOFT notes by design.
+        hard = [f for f in findings if f["severity"] == "hard"]
+        self.assertEqual(hard, [], "the live meta-check must produce no hard finding over the real repo (every "
+                         "covered check bites or is a disclosed carve-out, and the self-entry terminates)")
+        # The carve-outs are surfaced loudly so the reviewer can re-derive them at the gate (not silently skipped).
+        na_notes = [f for f in findings if "NOT APPLICABLE" in (f.get("message") or "")]
+        self.assertEqual(len(na_notes), 4, f"expected the 4 disclosed N/A notes to be surfaced, got: {na_notes}")
+
+
+class TestS4TierFilter(unittest.TestCase):
+    """Roster(b) is scoped to HARD instances: a soft
+    custom/script with no fixture is NOT enumerated — so a soft no-op is never escalated to a hard 'missing
+    fixture' meta-finding — while a hard one with no fixture still fails closed."""
+
+    def _rule(self, tier: str) -> dict:
+        return {"id": f"engine/check/x-{tier}", "kind": "custom/script", "tier": tier,
+                "target": {"context": "x"}, "params": {"script": ".engine/tools/validate.py"},
+                "suites": [], "message": "m"}
+
+    def test_soft_instance_without_fixture_yields_no_finding(self):
+        with tempfile.TemporaryDirectory() as chk, tempfile.TemporaryDirectory() as fix:
+            _write(os.path.join(chk, "x-soft.json"), json.dumps(self._rule("soft")))
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=[])
+        self.assertEqual(found, [], f"a soft instance must not be enumerated: {found}")
+
+    def test_hard_instance_without_fixture_fails_closed(self):
+        with tempfile.TemporaryDirectory() as chk, tempfile.TemporaryDirectory() as fix:
+            _write(os.path.join(chk, "x-hard.json"), json.dumps(self._rule("hard")))
+            found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=[])
+        self.assertTrue(any(f["severity"] == "hard" and "no negative test fixture" in f["message"]
+                            for f in found), found)
+
+
+class TestS4NotApplicableDisclosuresAreArgued(unittest.TestCase):
+    """Each shipped N/A disclosure carries the exact locked property AND a reason that argues it (names the
+    live external substrate and the false-witness point) — not a bare category assertion."""
+
+    NA_CHECKS = ("protection", "dependency-review", "guardrail-weakening", "product-lock-integrity")
+
+    def test_each_na_disclosure_is_honored_and_reasoned(self):
+        for stem in self.NA_CHECKS:
+            with self.subTest(check=stem):
+                disclosure = validate.load_json(os.path.join(LIVE_FIXTURES, stem, "not-applicable.json"))
+                self.assertEqual(disclosure["property"], hcb._NA_PROPERTY)
+                reason = disclosure.get("reason", "")
+                self.assertIn("false witness", reason.lower(),
+                              f"{stem}: the reason must argue why fixturing the fail-closed path is a false witness")
+
+
+class TestEnvOverridePathSeam(unittest.TestCase):
+    """The one shared seam helper (validate.env_override_path): UNSET -> the caller's default (production
+    byte-unchanged); a relative value -> resolved under ROOT; an absolute value -> used as-is."""
+
+    VAR = "ENGINE_TEST_SEAM_VAR_DO_NOT_SET"
+
+    def tearDown(self):
+        os.environ.pop(self.VAR, None)
+
+    def test_unset_returns_default(self):
+        os.environ.pop(self.VAR, None)
+        self.assertIsNone(validate.env_override_path(self.VAR))
+        self.assertEqual(validate.env_override_path(self.VAR, "/x/default"), "/x/default")
+
+    def test_relative_resolves_under_root(self):
+        os.environ[self.VAR] = ".engine/foo.json"
+        self.assertEqual(validate.env_override_path(self.VAR), os.path.join(validate.ROOT, ".engine/foo.json"))
+
+    def test_absolute_used_as_is(self):
+        os.environ[self.VAR] = "/abs/path.json"
+        self.assertEqual(validate.env_override_path(self.VAR), "/abs/path.json")
+
+
+class TestModuleKindBite(unittest.TestCase):
+    """Leg 3 (#405): a module-provided kind is rostered from the same resolved registry the dispatcher reads, and
+    its bite is proven by a GENERIC driver (the fixture declares its own target) — not the closed-kind driver,
+    which would raise on a non-core kind. Proven with a synthetic kind in a temp dir via the ENGINE_KIND_DIR seam;
+    a present kind with no fixture fails closed."""
+
+    _KIND = (
+        "def check(rule, ctx):\n"
+        "    if ctx.get('value') == 'bad':\n"
+        "        return False, [{'severity': 'hard', 'message': 'foo caught bad input', 'location': None}]\n"
+        "    return True, []\n"
+    )
+
+    def _kind_dir(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(tmp, ignore_errors=True))
+        d = os.path.join(tmp, "mymod")
+        os.makedirs(d)
+        _write(os.path.join(d, "kind_foo.py"), self._KIND)
+        return tmp
+
+    def test_discovered_kind_is_rostered_and_its_fixture_bites(self):
+        kind_dir = self._kind_dir()
+        with tempfile.TemporaryDirectory() as fix, tempfile.TemporaryDirectory() as chk:
+            fdir = os.path.join(fix, "kind-foo")
+            _write(os.path.join(fdir, "rule.json"),
+                   json.dumps({"id": "f/foo", "kind": "foo", "tier": "hard", "message": "m"}))
+            _write(os.path.join(fdir, "target.json"), json.dumps({"ctx": {"value": "bad"}}))
+            _write(os.path.join(fdir, "expect.json"),
+                   json.dumps({"severity": "hard", "message_contains": "foo caught bad input"}))
+            with mock.patch.dict(os.environ, {"ENGINE_KIND_DIR": kind_dir}):
+                # The kind IS in the resolved roster (evaluate's default registry = resolved_registry())...
+                self.assertIn("foo", validate.resolved_registry())
+                found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=["foo"])
+        self.assertEqual(found, [], f"the discovered kind's fixture should bite green: {found}")
+
+    def test_discovered_kind_missing_fixture_fails_closed(self):
+        kind_dir = self._kind_dir()
+        with tempfile.TemporaryDirectory() as empty_fix, tempfile.TemporaryDirectory() as chk, \
+                mock.patch.dict(os.environ, {"ENGINE_KIND_DIR": kind_dir}):
+            found = hcb.evaluate(check_dir=chk, fixture_root=empty_fix, kinds=["foo"])
+        self.assertTrue(any(f["severity"] == "hard" and "no negative test fixture" in f["message"]
+                            for f in found), found)
+
+    def test_discovered_kind_non_biting_fixture_fails_closed(self):
+        kind_dir = self._kind_dir()
+        with tempfile.TemporaryDirectory() as fix, tempfile.TemporaryDirectory() as chk:
+            fdir = os.path.join(fix, "kind-foo")
+            _write(os.path.join(fdir, "rule.json"),
+                   json.dumps({"id": "f/foo", "kind": "foo", "tier": "hard", "message": "m"}))
+            _write(os.path.join(fdir, "target.json"), json.dumps({"ctx": {"value": "fine"}}))  # not bad -> no bite
+            _write(os.path.join(fdir, "expect.json"),
+                   json.dumps({"severity": "hard", "message_contains": "foo caught bad input"}))
+            with mock.patch.dict(os.environ, {"ENGINE_KIND_DIR": kind_dir}):
+                found = hcb.evaluate(check_dir=chk, fixture_root=fix, kinds=["foo"])
+        self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
+
+    def test_live_roster_is_unchanged_when_no_module_kind_is_present(self):
+        # With no ENGINE_KIND_DIR, the meta-check rosters exactly the core kinds + custom/script — no module kind.
+        env = {k: v for k, v in os.environ.items() if k != "ENGINE_KIND_DIR"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            roster = sorted(validate.resolved_registry())
+        self.assertEqual(roster, sorted(validate.REGISTRY))
+
+
+if __name__ == "__main__":
+    unittest.main()
