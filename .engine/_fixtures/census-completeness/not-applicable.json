@@ -1,0 +1,4 @@
+{
+  "property": "no statically-decidable failure path in the CI environment",
+  "reason": "census-completeness is construction-scoped: census_completeness_check._is_construction_repo() reads the real root CLAUDE.md for the construction marker, which the first-run floor swap permanently removed in this deployed repo. The check therefore no-ops unconditionally here, so its negative fixture has no failure path that can be triggered in this repo's CI (it bites only in the construction repo, engine-template). The proper source fix is to make hard-check-bite construction-aware so it carves construction-scoped checks out only outside the construction repo; tracked upstream."
+}
