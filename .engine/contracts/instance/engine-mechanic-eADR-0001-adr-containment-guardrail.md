@@ -21,8 +21,10 @@ scanner, its self-tests, and its falsification demo) plus the product-owned work
 `.github/workflows/adr-containment.yml`, which runs the tree scan, the disposition-map
 completeness proof, the falsification demo, and the self-tests on every pull request. The
 outbound legs are invoked at the point of travel: `outgoing <base>` inside the engine-template
-checkout before any submission (also wired as that checkout's local, uncommitted pre-push
-hook), and `scan-file` over any drafted issue or pull-request body before it is posted.
+checkout before any submission — also installed by hand as that checkout's local, uncommitted
+pre-push hook, whose reviewed source is `tools/adr-containment/hooks/pre-push` here (the hook
+is a bonus layer: absent on other clones, bypassable, never the wall) — and `scan-file` over
+any drafted issue or pull-request body before it is posted.
 Issues filed to engine-template are written self-contained, through plain `gh`, never through
 this deployment's engine issue tooling, and never citing this repository's decision numbers.
 
@@ -34,9 +36,12 @@ release-integrity check, and one listed in packages makes every engine upgrade r
 no release can carry an instance-specific module. Product territory is untouched by engine
 upgrades **by contract** (the engine/product wall), and the workflow file sits under the
 engine weakening-guard's watched workflows prefix, so a change that edits or deletes it trips
-that alarm on the pull request where it happens. Future sessions must not re-attempt an
-engine-side home for this rule, and must re-apply this record if the product files are ever
-found missing.
+that alarm on the pull request where it happens. One bound stated plainly: the scanner and
+its tests under `tools/adr-containment/` sit outside every alarm — a pull request that edits
+them (and their falsification demo in the same stroke) is itself a guardrail change nothing
+mechanical flags, so the operator reads any diff touching that directory as
+guardrail-touching at review. Future sessions must not re-attempt an engine-side home for
+this rule, and must re-apply this record if the product files are ever found missing.
 
 ## Rationale
 
@@ -59,5 +64,11 @@ meaningless and confusing — the wall must live where the work on engine-templa
 
 ## Status
 
-Accepted. After every engine upgrade, verify the guardrail survived: the workflow file and
-`tools/adr-containment/` present, and the workflow green on the upgrade pull request.
+Accepted. After every engine upgrade, verify: (1) the workflow file and
+`tools/adr-containment/` present, workflow green on the upgrade pull request; (2) the
+knowledge-coverage self-test still admits the deployment-eADR stream — this deployment
+carries a local patch to the engine's own `.engine/tools/test_knowledge.py` (upstream defect
+filed as engine-template issue 530) that the upgrade overlay will overwrite; if the upstream
+fix has not landed in the release, CI fails on that test and the one-line union must be
+re-applied; (3) the local pre-push hook in the engine-template checkout still matches its
+reviewed source here.

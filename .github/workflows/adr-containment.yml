@@ -15,6 +15,9 @@
 #
 # ADVISORY at the merge (not in the branch ruleset's required-check list) — a red run is
 # surfaced on the pull request for the operator to weigh; the review gate stays the wall.
+# One honest bound: this workflow runs the scanner from the pull request's own copy of
+# tools/adr-containment/, and nothing mechanical alarms an edit to that directory — a PR
+# touching it is itself a guardrail change and must be read as such at review.
 
 name: adr-containment
 

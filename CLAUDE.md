@@ -93,8 +93,11 @@ imitated — rationale in `docs/adr/index.md` and the founding record it opens w
 
 Those decision-record numbers are deployment-local and must never travel to engine-template
 or its deployed repos. Before any submission from the engine-template checkout, run from that
-checkout: `python3 <this-repo>/tools/adr-containment/check.py outgoing <base>` — any finding
-is a stop. Any drafted issue or pull-request body bound for engine-template goes through
-`check.py scan-file <path>` before posting, and such issues are written self-contained (no
-decision numbers, no links into this repo). The full rule and its why:
-`.engine/contracts/instance/engine-mechanic-eADR-0001`.
+checkout: `python3 <this-repo>/tools/adr-containment/check.py outgoing <base>` — where
+`<this-repo>` is this checkout's absolute path and `<base>` is the upstream branch the
+submission will merge into (normally `origin/main`, freshly fetched); any finding is a stop.
+Any drafted issue or pull-request body bound for engine-template goes through
+`python3 <this-repo>/tools/adr-containment/check.py scan-file <path>` before posting, and
+such issues are written self-contained (no decision numbers, no links into this repo). The
+full rule and its why:
+`.engine/contracts/instance/engine-mechanic-eADR-0001-adr-containment-guardrail.md`.

@@ -2630,7 +2630,7 @@
       },
       "slug": "instance.engine-mechanic-eADR-0001-adr-containment-guardrail",
       "source": {
-        "fingerprint": "sha256:84bdc89455597323e5ccf6b33b277106efbc0bf81cd30cd24296df9cb166adeb",
+        "fingerprint": "sha256:6ba1277603d6a4f4c0521b8aca8b5ba637b7fd8d890699a33a9c348091681951",
         "path": ".engine/contracts/instance/engine-mechanic-eADR-0001-adr-containment-guardrail.md"
       },
       "status": "accepted",

@@ -117,4 +117,5 @@ records, readable before anyone retools a law blind.
 Every build step drives the slice it touches to full spec capability; build order stages the work,
 never a deferral of capability. A capability is in-spec unless a locked document or a logged
 decision scopes it out — a build session may not reclassify to dodge building. This binds the
-engine to the engine's spec; the operator alone decides how much of their product is frozen ground.
+engine to the engine's spec; the operator alone decides how much of their product is frozen ground
+(ADR-0064).

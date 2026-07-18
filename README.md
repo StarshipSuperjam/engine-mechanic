@@ -21,6 +21,15 @@ freshly-generated repo would hit surface here first and get fixed at the source.
 - **Governs its own changes.** Every change lands through the protected-branch review gate on `main`; the
   operator's merge is the binding approval.
 
+## Where the design lives
+
+The design record for engine-template lives here, distilled to laws: the capability spec in
+[docs/spec/](docs/spec/index.md), the cross-cutting laws in [docs/principles.md](docs/principles.md)
+and [docs/architecture.md](docs/architecture.md), and the product decision records in
+[docs/adr/](docs/adr/index.md). Those decision-record numbers are deployment-local — they never
+travel to engine-template or its deployed repos, and a containment check on every pull request
+holds that wall.
+
 ## Working with it
 
 - `/engine-status` — where the project stands and what needs attention.

@@ -78,6 +78,7 @@ New records: copy `TEMPLATE.md`, take the next free number, add a ledger row her
 | [ADR-0061](ADR-0061-board-projection.md) | The work board is a one-way projection that renders only computed verdicts | D-099, D-318 |
 | [ADR-0062](ADR-0062-depends-axis.md) | A depends edge is derived from what the module inspects | D-129 |
 | [ADR-0063](ADR-0063-postv1-stubs.md) | Named future modules with engine-observable triggers; no expression-contracts surface | D-191, D-255, D-095, D-105 |
+| [ADR-0064](ADR-0064-spec-is-the-standing-target.md) | The spec is the standing target — no construction milestone licenses an under-build | D-266, D-267 |
 
 ## Where every retired source went
 
@@ -94,7 +95,7 @@ document-level completeness is reviewable — nothing was dropped silently.
 | systems/lifecycle/ | distilled → [lifecycle](../spec/lifecycle.md) |
 | systems/surfaces/ | distilled → [surfaces](../spec/surfaces.md) |
 | modules/ (catalog + 17 packaging docs) | distilled → [modules](../spec/modules.md) |
-| principles.md (§1–§20), constraints.md, goals-and-quality.md | distilled → [principles](../principles.md) |
+| principles.md (§1–§20), constraints.md, goals-and-quality.md | distilled → [principles](../principles.md) (consolidated to 18 laws; source §8 and §9 relocated into the guardrails and grammar spec documents) |
 | engine-architecture.md | distilled → [architecture](../architecture.md) |
 | glossary.md | load-bearing terms distilled into the spec documents; the rest deliberately dropped |
 | scenarios/ (9 walkthroughs) | mined for acceptance criteria in the spec documents; not carried as documents |
@@ -108,9 +109,13 @@ document-level completeness is reviewable — nothing was dropped silently.
 
 ## Disposition of every retired decision
 
-Every engine-planning decision, exactly once. "Engine-canon" means the surviving content already
-lives in the engine's own founding records under `.engine/contracts/` and is deliberately not
-duplicated here.
+Every engine-planning decision, exactly once. The dispositions: **carried** — the decision is
+the backbone of the named record; **collapsed into** — merged into that record alongside others
+(superseded links folded into their terminal decision); **engine-canon** — the surviving content
+already lives in the engine's own founding records under `.engine/contracts/` and is deliberately
+not duplicated; **construction-era — not carried** — governed the planning/build process itself,
+nothing product-governing survives; **moot — build diverged** — overtaken entirely by how the
+build actually went.
 
 | Decision | Title | Disposition |
 | --- | --- | --- |
@@ -244,7 +249,7 @@ duplicated here.
 | D-128 | Reconcile routine-mode's stance-marker framing to D-088 | construction-era — not carried |
 | D-129 | Reconcile dependency-discipline to depends: core / L2 (target-axis discriminator) | carried → ADR-0062 |
 | D-130 | Reconcile every designed-module status section to current truth | construction-era — not carried |
-| D-131 | Slim module status sections to one-line pointers | moot — build diverged |
+| D-131 | Slim module status sections to one-line pointers | construction-era — not carried |
 | D-132 | Own the engine-label scheme in control-plane; resolve Q28 | engine-canon (eADR-0021) |
 | D-133 | Type the cron audit persona: role-to-trigger spine, the audit role; resolve Q29 | collapsed into ADR-0022 |
 | D-134 | Pin the §15 weakening-merge consent as a distinct deliberate acknowledgment (Q22) | engine-canon (eADR-0011) |
@@ -286,7 +291,7 @@ duplicated here.
 | D-170 | Resolve eADR-canon re-litigation; five foundations re-locked | construction-era — not carried |
 | D-171 | Correct falsified "platform ignores PreToolUse deny" claim | engine-canon (eADR-0005) |
 | D-172 | Resolve deny-claim correction; capability-discovery; modes+hooks re-locked | engine-canon (eADR-0005, eADR-0011) |
-| D-173 | Open Q37: post-v1 optional hackathon divergent-exploration module | moot — build diverged |
+| D-173 | Open Q37: post-v1 optional hackathon divergent-exploration module | construction-era — not carried |
 | D-174 | Memory & validators-core are hand-governed Builder-A builds | construction-era — not carried |
 | D-175 | Correct D-174 validators-core timing: online mid-core | construction-era — not carried |
 | D-176 | Sharpen D-175: module lands mid-core, corpus accretes | construction-era — not carried |
@@ -379,8 +384,8 @@ duplicated here.
 | D-263 | Resolve: re-lock validators-core (disposition check) | construction-era — not carried |
 | D-264 | Pre-migration memory snapshot = retained git tag | carried → ADR-0016 |
 | D-265 | Resolve: coupled re-lock memory + sqlite-fts5 bundle (snapshot tag) | construction-era — not carried |
-| D-266 | §20: no construction milestone licenses an under-build | construction-era — not carried |
-| D-267 | Clarify §20: conformance capability ships; only build-apparatus retires | construction-era — not carried |
+| D-266 | §20: no construction milestone licenses an under-build | carried → ADR-0064 |
+| D-267 | Clarify §20: conformance capability ships; only build-apparatus retires | collapsed into ADR-0064 |
 | D-268 | §15 guarded set = enforcement-gate property, fail-safe derived roster | engine-canon (eADR-0011) |
 | D-269 | Resolve Q18: collapse-when-unchanged; boot's presentation ledger | engine-canon (eADR-0033) |
 | D-270 | Plan-acceptance made assistant-legible: set + inject; falsified hook claim corrected | carried → ADR-0042 |
