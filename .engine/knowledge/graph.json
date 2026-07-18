@@ -6741,7 +6741,7 @@
       },
       "slug": "test_knowledge",
       "source": {
-        "fingerprint": "sha256:fc5a74119f92692b8986d004ba2d071eb51eda389f06418fa67845026663eacd",
+        "fingerprint": "sha256:d8fa2a7958202fead9af830f827b73b98d4f4f9cd596b9334fcc2ec845cce0e7",
         "path": ".engine/tools/test_knowledge.py"
       },
       "status": "active",
