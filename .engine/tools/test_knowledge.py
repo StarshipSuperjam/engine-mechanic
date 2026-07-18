@@ -105,10 +105,13 @@ class TestLiveDerivation(unittest.TestCase):
                     self.assertIn(t, ids, f"{e['id']} {kind} -> dangling target {t}")
 
     def test_total_coverage_every_owned_surface_file_has_an_entity(self):
-        catalog, manifests, inventory, claims, _dc = knowledge_gen.load_sources()
+        # The deployment-eADR stream is entitized too (knowledge_gen Pass 1b) — it is in no
+        # module's `provides`, so it must be unioned in alongside the claims inventory.
+        catalog, manifests, inventory, claims, deployment_contracts = knowledge_gen.load_sources()
         surfaces = catalog.get("surfaces", {})
         expected = {rel for rel in inventory
                     if knowledge_gen._surface_for(rel, surfaces) and claims.get(rel)}
+        expected |= set(deployment_contracts)
         got = {e["source"]["path"] for e in self.entities if e["type"] != "module"}
         self.assertEqual(got, expected)
 
