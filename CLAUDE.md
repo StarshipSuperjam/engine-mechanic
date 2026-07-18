@@ -82,3 +82,19 @@ to shape any time with `/engine-conduct`.
 @.engine/conduct/defaults.md
 @.engine/conduct/operator.md
 <!-- END engine-managed block: floor -->
+
+## Where this project's design record lives — and the wall around it
+
+The product this repo builds is **engine-template**, and its design authority is
+**`docs/spec/`** (the settled description, laws not leaves) plus **`docs/adr/`** (the product
+decision records and the disposition map of every retired planning decision). Ground design
+work there; the retired engine-planning workspace is gone and must never be recreated or
+imitated — rationale in `docs/adr/index.md` and the founding record it opens with.
+
+Those decision-record numbers are deployment-local and must never travel to engine-template
+or its deployed repos. Before any submission from the engine-template checkout, run from that
+checkout: `python3 <this-repo>/tools/adr-containment/check.py outgoing <base>` — any finding
+is a stop. Any drafted issue or pull-request body bound for engine-template goes through
+`check.py scan-file <path>` before posting, and such issues are written self-contained (no
+decision numbers, no links into this repo). The full rule and its why:
+`.engine/contracts/instance/engine-mechanic-eADR-0001`.

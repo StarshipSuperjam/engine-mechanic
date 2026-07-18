@@ -602,7 +602,8 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:instance.engine-mechanic-eADR-0001-adr-containment-guardrail"
         ]
       },
       "slug": "contract-frontmatter",
@@ -662,7 +663,8 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:instance.engine-mechanic-eADR-0001-adr-containment-guardrail"
         ]
       },
       "slug": "contract-shape",
@@ -723,7 +725,8 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:instance.engine-mechanic-eADR-0001-adr-containment-guardrail"
         ]
       },
       "slug": "contract-threshold",
@@ -2612,6 +2615,23 @@
       "source": {
         "fingerprint": "sha256:95c19d8e9bab72d94d2f423c9f0ff7afaf0665d9ba98424e7c2cc29d2e1c6841",
         "path": ".engine/contracts/eADR-0033-boot-refresh-family.md"
+      },
+      "status": "accepted",
+      "type": "contract"
+    },
+    {
+      "id": "contract:instance.engine-mechanic-eADR-0001-adr-containment-guardrail",
+      "name": ".engine/contracts/instance/engine-mechanic-eADR-0001-adr-containment-guardrail.md",
+      "owner": "deployment",
+      "predicates": {
+        "governed_by": [
+          "schema:contract.v1"
+        ]
+      },
+      "slug": "instance.engine-mechanic-eADR-0001-adr-containment-guardrail",
+      "source": {
+        "fingerprint": "sha256:84bdc89455597323e5ccf6b33b277106efbc0bf81cd30cd24296df9cb166adeb",
+        "path": ".engine/contracts/instance/engine-mechanic-eADR-0001-adr-containment-guardrail.md"
       },
       "status": "accepted",
       "type": "contract"
