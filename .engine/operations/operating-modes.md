@@ -17,9 +17,10 @@ write-gate, and the `PostToolUse` plan-acceptance Build-entry trigger, wired as 
 `.claude/settings.json`. The stance lifecycle:
 
 1. **Every session boots in explore.** At session start, boot clears the stance signal first
-   (`modes.clear_stance`), so even a resumed session never inherits a prior build stance. When the
-   signal is absent, stale, or unreadable, the stance is explore — the safe default is the floor, never
-   the ceiling.
+   (`modes.clear_stance`), so a resumed session does not inherit a prior build stance. When the signal is
+   absent, unreadable, or unrecognized, the stance is explore — the safe default is the floor, never the
+   ceiling. (Any absent, unreadable, or unrecognized signal reliably resolves to explore; the boot clear
+   that removes a prior marker is best-effort, and the protected-branch merge is the absolute backstop.)
 2. **While exploring, the gate denies the building actions and allows everything else.** It denies the
    small enumerated set that begins building — editing files (Edit / Write / MultiEdit / NotebookEdit),
    creating a branch, committing, and opening a pull request (via `gh pr create` or the GitHub MCP
@@ -48,8 +49,13 @@ write-gate, and the `PostToolUse` plan-acceptance Build-entry trigger, wired as 
    explore at every SessionStart, so a copy of that directive replayed on a resumed session is inert — the
    session reports its stance from the live signal (explore), and the kickoff proceeds only if the live
    signal still reads build. Neither path is silent or self-elected — the model never flips its own stance.
-4. **Routine is unattended, scope-locked build work** entered by an operator-authored scheduled fire; it
-   never merges the protected branch (authored later). It is the same workflow, constrained.
+4. **Routine is unattended, scope-locked build work** entered by an operator-authored scheduled fire: a
+   scheduled automation (a Claude Desktop routine or a Codex Automation) runs the routine command, which enters
+   the Routine write-stance through `set-routine` — a **mechanical** gate that grants the stance only in a
+   proven-isolated worktree, never the operator's checkout — and which the run additionally declines to enter
+   when its start-of-session hooks did not fire (an honest-tier check the run follows, since on Codex the
+   write-gate is itself a hook that can be off). It never merges the protected branch. It is the same workflow,
+   constrained.
 
 To check the live stance, `python tools/modes.py stance` — it resolves the session from `--session` or
 `$CLAUDE_CODE_SESSION_ID`, and says `unknown` (non-zero) rather than a misleading `explore` when it cannot

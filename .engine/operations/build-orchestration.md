@@ -16,7 +16,11 @@ each gate exists.
 
 The review passes at each gate are **derived** by querying each installed review persona's own `role`/`lens`
 frontmatter — so a standalone operator- or module-authored persona is admitted and checked like any that
-arrives in a pack; none installed means a **disclosed no-op pass**, never a silent green. The one mechanical hook is the pull-request
+arrives in a pack; none installed means a **disclosed no-op pass**, never a silent green. The canonical
+persona set lives in `.claude/agents/` (on Codex the reviewers are the same personas' committed renders under
+`.codex/agents/`); a change to the engine's Codex adapter surfaces is judged against the engine's own
+decision records (`.engine/contracts/` — eADR-0034) and, after merge, the live pass in
+`.engine/operations/codex-validation.md`. The one mechanical hook is the pull-request
 **Review** section's presence-gate (the completeness check over `.github/pull_request_template.md`);
 everything else is a deliberate-effort nudge whose only wall is the protected-branch merge.
 
@@ -40,7 +44,10 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
    the change touches, **what will run** (the passes this depth runs, and what is missing — never a time or
    cost figure, which the engine cannot know; a made-up number is the false confidence the trust model
    refuses), the how-careful depth choice, and — only when the change weakens an engine guardrail — the
-   plain-language warning naming which protection weakens and what the AI could then do unwatched. The
+   plain-language warning naming which protection weakens and what the AI could then do unwatched.
+   Applying the `guardrail-ack` is the operator's act, never the engine's: when a change weakens a guardrail,
+   surface it and leave the gate red for the operator to clear — the engine never labels its own change to
+   clear its own gate. The
    operator iterates the plan to solid and approves the plan and the depth **before any work starts**. This
    plan gate (steps 1–2) *always runs as a shape*, even with zero review packs — its depth collapses to a
    single plain-language headline on the fast path (Notes), but the gate itself is never skipped.
@@ -55,7 +62,13 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
    tightly-coupled work; *parallel workers*, each in its own isolated worktree returning mechanical work
    product (not commits), when the work is loosely-coupled and decomposable and holding the whole result
    while generating it would lose grounding; *time-distributed routine* for large decomposable bulk work
-   (Notes). Delegation buys cohesion under context pressure, not speed.
+   (Notes). Delegation buys cohesion under context pressure, not speed. **Iterate with scoped test runs,
+   not the full suite.** While implementing, run just the test module(s) covering what you touched by
+   narrowing the discovery pattern — `uv run --directory .engine --frozen -- python -m unittest discover
+   -s tools -p 'test_<name>.py' -b` finishes in seconds. The full suite stays the pre-submission gate
+   (step 6), run once when the work is ready — serial (the proven command), and runnable in the background
+   so it never blocks the session. A scoped run accelerates the loop; it is never the merge signal — only
+   the full suite (step 6) and CI are.
 5. **Integrate — the orchestrator is the single writer.** Review each work product for correctness and fit,
    revise what does not cohere, and author the final commit(s) with the whole result in view. A failed
    worker leaves a missing planned commit the orchestrator re-dispatches or completes — no phantom-slot
@@ -73,7 +86,10 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
    discover -s tools -p 'test_*.py' -b` (the same commands CI runs) — cold review is not spent on code that
    fails its checks. The `--frozen` keeps a test run from quietly rewriting the locked `uv.lock`, and the `-b`
    keeps the `Ran N … OK` summary visible: it buffers each test's stdout so the walkthrough output the
-   `test_*.py` self-tests emit while exercising their demos does not bury the tail. Then
+   `test_*.py` self-tests emit while exercising their demos does not bury the tail. **The self-test suite
+   runs about 4 minutes (4,000+ tests, varying with machine and cache)** — run it with a generous timeout
+   or in the background: a tool whose command timeout defaults to ~2 minutes cuts it off mid-run, which
+   reads as a hang rather than a failure. Then
    the installed pre-submission passes run cold-context and findings are dispositioned. Validation reruns on
    every change including post-audit fixes; the cold review runs once at the agreed depth and does **not**
    rerun on those fixes unless the operator asks — but the orchestrator **advises re-audit when a post-audit
@@ -89,7 +105,10 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
 7. **Submit — mark the draft ready and hand to the human gate.** Fill the pull-request contract including
    the **Review** section by **reading `.github/pull_request_template.md` in full, never grepping it for
    headers** — each section is a bold summary line, then bullets, then an italic `*Impact:*` line, none of
-   which a header scan reveals. **Run the close-linkage pre-flight** (`close_linkage_preflight.py check`) and
+   which a header scan reveals. **Fill from the template's literal text, never reconstruct the body from
+   memory** — reconstruction silently drops the leading consent preamble (the blockquote above the first
+   heading), most often when a `Closes #N` / narration line is prepended; carry it verbatim and unwrapped
+   (the completeness gate matches its anchors, and a hard wrap inside one reads as absent). **Run the close-linkage pre-flight** (`close_linkage_preflight.py check`) and
    fold its lines into Review, applying any disclosed defang it emits (see Notes). **Mark the pull request
    ready** (`gh pr ready`) — the act that submits it —
    **only once** validation is green, the pre-submission review is clean (no unresolved `blocking` or
@@ -206,6 +225,14 @@ screen they click over a paste-this-command); and a step must be able to fail �
 surface, never a staged recipe that can only succeed (posture, not a gate). The resolution holds with or without the optional product-design
 module; a read failure is surfaced loudly, never read as "no description".
 
+**Authoring a product description is the intake's job, not this runbook's.** When the work is to *describe* a
+product — write up or plan what the operator wants built, with no settled description to realize yet — route
+to the [engine-design intake](product-intake.md) by default (the operator runs `engine-design`, or you follow
+`product-intake.md` with them); it produces the structured, checked description this runbook then realizes.
+**Do not hand-author a product description as free prose in its place** — a loosely-written spec skips the
+checks and the operator's settling. This is *product-description* work specifically: the ordinary small change
+and the trivial fast path realize a change directly and need no formal description.
+
 **The close-linkage pre-flight.** At submit, before marking ready, the orchestrator compares what the pull
 request **will** close — GitHub's computed linkage (`gh pr view --json closingIssuesReferences`, `gh api
 graphql` beneath it) **plus** the closing keywords in the integrated commit messages, which that field does
@@ -229,6 +256,15 @@ core/control-plane's; the step that ensures the engine-domain label exists is pr
 *human* web issue templates are a separate control-plane artifact a person files through. This runbook
 fixes only the distributed-implement *workflow shape* and the build-Issue *format*.
 
+**A cross-repo contribution runs these same gates (#562).** A change a deployment builds for ANOTHER repo (the
+mechanic contributing to its home engine-template, or a fork escalating an engine fix) is delivered through
+`external-contribution-submit`, not a session-owned draft — a path with no built-in gate linkage. So **run the
+plan-review and pre-submission passes above before submitting it**; the submit tool records on the prepared
+pull request and in its body whether that review ran — an honest disclosure, never a substitute for it. **When
+the target gates body completeness (engine-template does), author the full body to its template (as you would
+an in-repo PR's) and pass it via `submit(authored_body=...)`** (#557) — submit won't open an unfilled template
+against the engine's home, and only advises it elsewhere.
+
 **A recognized automation's pull request carries a disclosed not-applicable check — relay both decisions
 plainly.** Walking the operator to merge a dependency-update pull request from a recognized automation
 (Dependabot), the `engine-ci` green includes a **disclosed not-applicable pass** for the PR-body
@@ -244,10 +280,25 @@ section, surface any open **fail-open finding** the engine is carrying — a saf
 a **named line, distinct from an ordinary pass or fail**: "*a safety check could not run on this change:
 what it would have checked; this work was not verified for X*." It is **non-blocking** and only informs the
 operator's consent at the merge — never a new gate. If none is open, say nothing; this is a surfacing duty,
-not a section to always fill (`systems/infrastructure/hooks/README.md` §Fail-open-and-flag).
+not a section to always fill.
 
 **An engine live-helper (MCP substrate) that is off is surfaced here too** — the submit-time half of boot's same
-notice (`.engine/tools/boot.py` `MCP_AVAILABILITY_CHECK`; `module-system/README.md` §"MCP registration"). Check
+notice (`.engine/tools/boot.py` `MCP_AVAILABILITY_CHECK`). Check
 your own tools for `mcp__engine-memory__*` and `mcp__engine-knowledge-graph__*`; for any absent, add a **named,
 non-blocking line** — which helper is off, that the change was authored on the committed-file fallback, and the
 fix (approve the servers when the Claude app prompts, then fully restart Claude). If both are live, say nothing.
+
+**Build each slice to its full capability.** Each pull request drives the work it touches to its full agreed
+requirement — the settled description's acceptance criteria where one resolves, the slice's own complete
+behaviour otherwise. A partial or deferred build is a divergence, not a smaller change: a deferral is an
+explicitly recorded decision (a tracked issue or a logged carve-out), never a quiet stub or a leg left
+unwired, and a change is measured by the capability it delivers, not by effort or count. The pre-submission
+spec-conformance and divergence-hunter passes flag an under-build as a divergence; this is the intent the
+builder holds *before* that catch. This is the full statement; the conduct floor carries its terse form.
+
+**Ground-truth load-bearing claims first-hand.** Before resting a gate, an escalation, or a merge consent on a
+claim, verify it against the source yourself: read the locked or settled specification directly rather than a
+summary of it; check a platform or harness capability against the installed binary, not its documentation; and
+re-verify a subagent's finding or a code comment's implied authority before relaying it — a code comment
+carries no design authority, and a delegated reader's reach to the source is proven, not assumed. The evidence
+bundle is only as strong as the ground truth beneath it.

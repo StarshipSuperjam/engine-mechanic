@@ -21,6 +21,7 @@ from unittest import mock
 
 import audit_digest
 import boot
+import boot_alarm_ledger
 import hooks
 import modes
 import module_coherence
@@ -77,28 +78,171 @@ def _assert_ai_briefing(t, pack):
 
 
 # A complete, valid signals dict for the pure renderers (render_dashboard / present_marker_line / must_push).
+# counts_state defaults to "offline" so the default healthy card reads the calm "all clear" marker; a test that
+# provides both counts gets "both"/total derived in _signals below.
 _SIGNALS = {"state": {"schema_version": 1, "standing_situation": {}, "integration_debt": {}},
             "refused": False, "gate": "on", "reason": None, "finding_count": 0, "unrated_count": 0, "register": "",
-            "finding_fingerprint": None,
+            "total_open": None, "counts_state": "offline", "all_open_register": None,
+            "blocking_findings": [], "blocking_finding_fingerprint": None,
             "debt_count": 0, "debt_as_of": None, "att_lines": [],
             "att_degraded": [], "shipped": [], "stance": "Exploring", "strand": None,
             "behind_origin": None, "off_main": None,
-            "pr_conflict": None, "restore_offer": None, "migration_revert": None, "audit_stale": None,
+            "pr_conflict": None, "restore_offer": None, "migration_revert": None, "staged_update": None,
+            "audit_stale": None,
             "live_standing": None, "neighborhood": None, "map_rebuilt": False, "map_corrupt": False,
             "ledger_malformed": None, "migration_stalled": False, "recall_offline": False,
-            "set_aside": None}
+            "set_aside": None, "foreign_license": None, "first_run": None, "greenfield_intake": None,
+            "operator_backlog_count": None, "operator_backlog_register": None,
+            "operator_backlog_degraded": False}
 
 
 def _signals(**over):
     s = dict(_SIGNALS)
     s.update(over)
-    # Derive a fingerprint matching the count unless a test set one explicitly, so the count-based
-    # collapse / worse / improvement tests exercise the identity-SET ledger value faithfully (gather_signals
-    # couples them: a real count>=1 carries a real list; degraded -> both None).
-    if "finding_fingerprint" not in over:
-        n = s.get("finding_count") or 0
-        s["finding_fingerprint"] = [f"#{i}" for i in range(n)] if n else None
+    # When a test provides BOTH counts (and didn't set the headline explicitly), derive the whole-backlog total
+    # and the "both" counts_state the way gather_signals does, so the marker/dashboard headline tests exercise
+    # the real decision rather than a hand-seeded one.
+    if ("counts_state" not in over and "total_open" not in over
+            and s.get("finding_count") is not None and s.get("operator_backlog_count") is not None):
+        s["counts_state"] = "both"
+        s["total_open"] = s["finding_count"] + s["operator_backlog_count"]
+    # Derive the BLOCKING fingerprint from the blocking_findings a test set, unless it set the fingerprint
+    # explicitly — so the never-shed relay's collapse tests exercise the real identity-SET value.
+    if "blocking_finding_fingerprint" not in over:
+        s["blocking_finding_fingerprint"] = (
+            sorted(f"#{b['number']}" for b in (s.get("blocking_findings") or [])) or None)
     return s
+
+
+def _blocking(n):
+    """n blocking-finding rows ({number, title}) — what needs_attention surfaces for the never-shed relay and
+    its collapse fingerprint. Numbers 1..n, so the derived fingerprint is a stable identity set."""
+    return [{"number": str(i), "title": f"broken thing {i}"} for i in range(1, n + 1)]
+
+
+class TestFirstRunOffer(unittest.TestCase):
+    """#353: a fresh (or partway-set-up) copy of the template gets the onboarding OFFER pinned at the TOP of the
+    dashboard; a workshop / finished project shows nothing; and the offer suppresses the redundant safety-gate-off
+    offer, since first-run setup is exactly what turns the gate on."""
+
+    _FIRST_RUN = {"present": True, "main": "/proj", "home": "StarshipSuperjam/engine-template", "own": "acme/widgets"}
+
+    def test_offer_shows_when_first_run_pending(self):
+        dash = boot.render_dashboard(_signals(first_run=self._FIRST_RUN)).lower()
+        self.assertIn("set up my project", dash)
+        self.assertIn("first-time setup hasn't finished", dash)
+
+    def test_offer_pins_at_the_top_above_other_alarms(self):
+        # The onboarding offer frames every other signal, so it pins FIRST — above e.g. a stranded-checkout alarm.
+        dash = boot.render_dashboard(_signals(first_run=self._FIRST_RUN, strand=True)).lower()
+        self.assertIn("set up my project", dash)
+        self.assertIn("drifted into a broken state", dash)
+        self.assertLess(dash.index("set up my project"), dash.index("drifted into a broken state"),
+                        "the onboarding offer frames every other signal, so it pins first")
+
+    def test_no_offer_when_not_pending(self):
+        self.assertNotIn("set up my project", boot.render_dashboard(_signals()).lower())
+        self.assertNotIn("set up my project", boot.render_dashboard(_signals(first_run=None)).lower())
+
+    def test_first_run_offer_suppresses_the_redundant_gate_off_offer(self):
+        dash = boot.render_dashboard(
+            _signals(gate="off", reason="branch protection not found", first_run=self._FIRST_RUN)).lower()
+        self.assertIn("set up my project", dash)
+        self.assertNotIn("turn my safety gate back on", dash)
+
+    def test_gate_off_offer_shows_normally_without_first_run(self):
+        dash = boot.render_dashboard(_signals(gate="off", reason="branch protection not found")).lower()
+        self.assertIn("turn my safety gate back on", dash)
+
+
+class TestProductLine(unittest.TestCase):
+    """eADR-0026: the dashboard names what the engine builds ONLY when that is an external product (a recorded
+    product_repository signal); a self-building deployment (no signal) gets no line, and the rendered slug is
+    defanged (it can be operator/remote-supplied and lands in the model-visible briefing)."""
+
+    def test_shows_the_product_when_recorded_external(self):
+        dash = boot.render_dashboard(_signals(product_repository="acme/upstream"))
+        self.assertIn("**What this engine builds:** acme/upstream", dash)
+
+    def test_no_line_for_a_self_building_deployment(self):
+        dash = boot.render_dashboard(_signals())  # no product signal -> the common self-building case
+        self.assertNotIn("What this engine builds", dash)
+
+    def test_defangs_the_rendered_slug(self):
+        import validate
+        raw = "acme/x -----STOP-----"
+        defanged = validate.defang_prompt_fence_markers(raw)
+        dash = boot.render_dashboard(_signals(product_repository=raw))
+        self.assertIn(defanged, dash)
+        if defanged != raw:
+            self.assertNotIn(raw, dash)
+
+
+class TestOpenProblemsProvenance(unittest.TestCase):
+    """The LIVE open-problem count names where it came from and that it is fresh, so a zero reads as 'checked,
+    and there are none' rather than 'unknown'. The 'none recorded yet' branch is reached only when the register
+    could NOT be read, so it must NOT claim a fresh GitHub source."""
+
+    def test_a_live_count_names_its_source_and_freshness(self):
+        dash = boot.render_dashboard(_signals(finding_count=3))
+        self.assertIn("Engine findings:** 3", dash)
+        self.assertIn("as of this session, source: GitHub Issues", dash)
+
+    def test_a_genuine_zero_read_carries_the_same_provenance(self):
+        dash = boot.render_dashboard(_signals(finding_count=0))
+        self.assertIn("Engine findings:** 0", dash)
+        self.assertIn("as of this session, source: GitHub Issues", dash)
+
+    def test_the_unreadable_branch_makes_no_fresh_source_claim(self):
+        dash = boot.render_dashboard(_signals(finding_count=None, debt_count=0))
+        self.assertIn("none recorded yet", dash)
+        self.assertNotIn("source: GitHub Issues", dash)   # the couldn't-read branch never claims a fresh read
+
+
+class TestOperatorBacklogLine(unittest.TestCase):
+    """The operator's OWN open-issue count (their product backlog — issues WITHOUT the engine label) is a
+    plain facts-block line distinct from the engine findings above it: shown with a clickable register when
+    live, an honest 'couldn't read' when the read failed with access, and SUPPRESSED entirely (never a false
+    0) when there was no GitHub access — and NEVER routed through the ⚠ marker (a routine backlog is not a
+    governance alarm)."""
+
+    def test_a_live_count_shows_with_its_clickable_register(self):
+        dash = boot.render_dashboard(_signals(
+            operator_backlog_count=40,
+            operator_backlog_register="https://github.com/o/r/issues?q=is:open+is:issue+-label:engine"))
+        self.assertIn("**Your open issues:** 40", dash)
+        self.assertIn("as of this session, source: GitHub Issues", dash)
+        self.assertIn("your own filed work", dash)   # names ownership; "Engine findings" above carries the contrast
+        self.assertIn("issues?q=is:open+is:issue+-label:engine", dash)   # the count is actionable
+
+    def test_a_genuine_zero_backlog_reads_as_checked_none(self):
+        dash = boot.render_dashboard(_signals(operator_backlog_count=0,
+                                              operator_backlog_register="https://github.com/o/r/issues"))
+        self.assertIn("**Your open issues:** 0", dash)   # a live 0 is shown, never suppressed
+
+    def test_a_read_that_failed_with_access_says_so_never_silently_vanishes(self):
+        # The solo-operator-read-failure case the shared-outage att_degraded notice does NOT cover: say it
+        # plainly rather than dropping the line the operator has learned to expect.
+        dash = boot.render_dashboard(_signals(operator_backlog_count=None, operator_backlog_degraded=True))
+        self.assertIn("**Your open issues:**", dash)
+        self.assertIn("couldn't read your issue backlog", dash)
+        self.assertNotIn("Your open issues:** 0", dash)   # a failed read is NEVER a false 0
+
+    def test_no_github_access_suppresses_the_line_entirely(self):
+        dash = boot.render_dashboard(_signals(operator_backlog_count=None, operator_backlog_degraded=False))
+        self.assertNotIn("Your open issues", dash)   # no token -> silent, like every GitHub-derived line
+
+    def test_the_backlog_total_leads_the_marker_calmly_never_as_an_alarm(self):
+        # The whole-backlog total leads the marker now (deliberately reversing #564's "backlog never on the
+        # marker" guard), but as a CALM ▸ line — never a ⚠ governance alarm. A backlog is work to see, not an
+        # alarm. The engine share rides in parentheses; the total folds in the engine findings.
+        marker = boot.present_marker_line(_signals(finding_count=10, operator_backlog_count=40))
+        self.assertEqual(marker, f"▸ {boot.PRESENT_MARKER}: 50 open issues (10 are engine-health)")
+        self.assertNotIn("⚠", marker)
+
+    def test_a_zero_backlog_reads_all_clear_calmly(self):
+        marker = boot.present_marker_line(_signals(finding_count=0, operator_backlog_count=0))
+        self.assertEqual(marker, f"▸ {boot.PRESENT_MARKER}: all clear")
 
 
 class TestDegradedNotice(unittest.TestCase):
@@ -281,6 +425,21 @@ class TestDegradedNotice(unittest.TestCase):
         self.assertTrue(relayed["recall_offline"])          # the detector's signal is relayed verbatim
         self.assertFalse(failed["recall_offline"])          # a detector fault degrades quietly to False, never breaks
 
+    def test_gather_relays_the_product_signal_and_degrades_quietly(self):
+        # eADR-0026: the recorded external product is RELAYED from the checkout_health substrate (boot reads no
+        # manifest itself); a reader fault degrades this one signal to None, never breaking the pack.
+        patchers = _offline()
+        try:
+            with mock.patch("checkout_health.recorded_product_repository", return_value="acme/upstream"):
+                relayed = boot.gather_signals()
+            with mock.patch("checkout_health.recorded_product_repository", side_effect=Exception("boom")):
+                failed = boot.gather_signals()
+        finally:
+            for p in patchers:
+                p.stop()
+        self.assertEqual(relayed["product_repository"], "acme/upstream")  # relayed verbatim from the substrate
+        self.assertIsNone(failed["product_repository"])                   # a reader fault degrades quietly to None
+
     def test_gather_relays_the_stalled_migration_signal_and_degrades_quietly(self):
         patchers = _offline()
         try:
@@ -293,6 +452,37 @@ class TestDegradedNotice(unittest.TestCase):
                 p.stop()
         self.assertTrue(relayed["migration_stalled"])       # the detector's signal is relayed verbatim
         self.assertFalse(failed["migration_stalled"])       # a detector fault degrades quietly to False, never breaks
+
+    def test_gather_relays_the_staged_update_signal_and_degrades_quietly(self):
+        patchers = _offline()
+        try:
+            with mock.patch("module_manager._staged_upgrade_dirty", return_value=True):
+                relayed = boot.gather_signals()
+            with mock.patch("module_manager._staged_upgrade_dirty", side_effect=Exception("boom")):
+                failed = boot.gather_signals()
+        finally:
+            for p in patchers:
+                p.stop()
+        self.assertTrue(relayed["staged_update"])           # a stuck/half-applied update is surfaced at startup
+        self.assertIsNone(failed["staged_update"])          # a detector fault degrades quietly to None, never breaks
+
+    def test_staged_update_offer_shows_in_the_dashboard_and_marker(self):
+        dash = boot.render_dashboard(_signals(staged_update=True)).lower()
+        self.assertIn("half-finished", dash)                # the plain state, leading with "nothing was merged"
+        self.assertIn("/engine-upgrade", dash)              # routes to the one command that finishes or undoes it
+        marker = boot.present_marker_line(_signals(staged_update=True)).lower()
+        self.assertIn("half-finished", marker)
+
+    def test_a_staged_update_suppresses_the_competing_memory_ahead_offer(self):
+        # When both fire (a stall between a data migration and the version bump), the staged undo puts memory
+        # back too — so the standalone memory-ahead offer must not compete, and must not lead the operator to
+        # restore memory while the code is still half-staged. Staged-first, matching the marker + diagnosis.
+        dash = boot.render_dashboard(_signals(staged_update=True, migration_revert={"tag": "x"})).lower()
+        self.assertIn("half-finished", dash)                       # the staged offer shows
+        self.assertNotIn("restore my memory from before the update", dash)   # the memory-ahead offer is suppressed
+        # with no staged update, the memory-ahead offer shows normally
+        dash2 = boot.render_dashboard(_signals(migration_revert={"tag": "x"})).lower()
+        self.assertIn("restore my memory from before the update", dash2)
 
 
 class TestPresentMarker(unittest.TestCase):
@@ -357,7 +547,11 @@ class TestMcpAvailabilitySurfacing(unittest.TestCase):
         # sequence — never beside the don't-relay faculty note.
         patchers = _offline()
         try:
-            pack = boot.assemble_pack()
+            # Cap patched wide: this fixture's dashboard is big enough that the real #495 cap guard
+            # sheds the orientation tier (its own behavior is pinned in TestPackCapGuard); this test
+            # pins CONTENT ORDER, so it needs the orientation tier present.
+            with mock.patch.object(boot.hooks, "HOOK_OUTPUT_CAP", 10**6):
+                pack = boot.assemble_pack()
         finally:
             for p in patchers:
                 p.stop()
@@ -463,8 +657,8 @@ class TestRefusedState(unittest.TestCase):
                 p.stop()
         _assert_ai_briefing(self, pack)
         self.assertIn("couldn't read where the project stands", pack)
-        # the refused branch shows NO standing lines at all — neither "Where we are" nor "Milestone"
-        self.assertNotIn("Where we are", pack)
+        # the refused branch shows NO standing lines at all — neither "What merged last" nor "Milestone"
+        self.assertNotIn("What merged last", pack)
         self.assertNotIn("**Milestone:**", pack)
 
     def test_healthy_empty_reads_differently_from_refused(self):
@@ -480,22 +674,22 @@ class TestRefusedState(unittest.TestCase):
         # offline (no repo/token) the live derive is skipped, so the card shows the cached standing lines —
         # an absent milestone renders as the honest normal "No milestone is open", and it is stale-labelled.
         self.assertIn("No milestone is open", pack)
-        self.assertIn("Where we are", pack)
+        self.assertIn("What merged last", pack)
         self.assertIn("may be out of date", pack)   # the cached read names that it couldn't be refreshed
         self.assertNotIn("couldn't read where the project stands", pack)
 
 
 class TestWhereWeAreLiveOrCached(unittest.TestCase):
-    """The 'Where we are' line obeys the boot rendering law: show ONE of live-or-cached, never
+    """The 'What merged last' line obeys the boot rendering law: show ONE of live-or-cached, never
     both; the live line when the GitHub derive succeeded; otherwise the committed offline cache, named with
     WHEN it was cached and that it may be stale; `none set` is an honest normal state, never an error."""
 
     def test_live_lines_shown_when_live_standing_present(self):
         dash = boot.render_dashboard(_signals(
-            live_standing={"milestone": "Ship the beta", "phase": "Wire the login (issue #7)"},
-            state={"standing_situation": {"milestone": "STALE", "phase": "STALE (issue #1)",
+            live_standing={"milestone": "Ship the beta", "phase": "Wire the login (PR #7)"},
+            state={"standing_situation": {"milestone": "STALE", "phase": "STALE (PR #1)",
                                           "as_of": "2020-01-01T00:00:00Z"}}))
-        self.assertIn("**Where we are:** Wire the login (issue #7)", dash)   # the active work
+        self.assertIn("**What merged last:** Wire the login (PR #7)", dash)   # the active work
         self.assertIn("**Milestone:** Ship the beta", dash)                 # the plan marker, its own line
         self.assertNotIn("STALE", dash)                 # the live answer wins; the cache is not shown
         self.assertNotIn("may be out of date", dash)    # a live read carries no staleness caveat
@@ -503,9 +697,9 @@ class TestWhereWeAreLiveOrCached(unittest.TestCase):
     def test_cached_lines_are_stale_labelled_with_their_as_of_when_live_is_none(self):
         dash = boot.render_dashboard(_signals(
             live_standing=None,
-            state={"standing_situation": {"milestone": None, "phase": "Wire the login (issue #7)",
+            state={"standing_situation": {"milestone": None, "phase": "Wire the login (PR #7)",
                                           "as_of": "2026-06-15T12:00:00Z"}}))
-        self.assertIn("**Where we are:** Wire the login (issue #7)", dash)
+        self.assertIn("**What merged last:** Wire the login (PR #7)", dash)
         self.assertIn("**Milestone:** No milestone is open", dash)          # absent milestone, plain language
         self.assertIn("as of 2026-06-15T12:00:00Z", dash)   # names WHEN it was cached (the provenance law)
         self.assertIn("may be out of date", dash)
@@ -515,7 +709,7 @@ class TestWhereWeAreLiveOrCached(unittest.TestCase):
             live_standing=None,
             state={"standing_situation": {"milestone": None, "phase": None}}))  # no as_of -> honest fallback
         self.assertIn("as of an earlier session", dash)
-        self.assertIn("**Where we are:** nothing in progress yet", dash)     # no tracked work -> plain phrase
+        self.assertIn("**What merged last:** nothing merged yet", dash)     # no tracked work -> plain phrase
 
     def test_exactly_one_where_we_are_line_is_rendered(self):
         # never both a live and a cached block — the law's "show one"
@@ -523,17 +717,59 @@ class TestWhereWeAreLiveOrCached(unittest.TestCase):
             dash = boot.render_dashboard(_signals(
                 live_standing=live, state={"standing_situation": {"milestone": "C", "phase": "C2",
                                                                    "as_of": "2026-06-15T00:00:00Z"}}))
-            self.assertEqual(dash.count("**Where we are:**"), 1)
+            self.assertEqual(dash.count("**What merged last:**"), 1)
             self.assertEqual(dash.count("**Milestone:**"), 1)
 
     def test_absent_milestone_renders_as_normal_not_an_error(self):
-        dash = boot.render_dashboard(_signals(live_standing={"milestone": None, "phase": "Do the thing (issue #9)"}))
-        self.assertIn("**Where we are:** Do the thing (issue #9)", dash)
+        dash = boot.render_dashboard(_signals(live_standing={"milestone": None, "phase": "Do the thing (PR #9)"}))
+        self.assertIn("**What merged last:** Do the thing (PR #9)", dash)
         self.assertIn("**Milestone:** No milestone is open", dash)
         self.assertNotIn("none set", dash)              # the old confusing wording is gone
         for jargon in ("error", "⚠", "⛔"):             # an absent milestone is normal — no alarm framing
             mline = next(ln for ln in dash.splitlines() if ln.startswith("**Milestone"))
             self.assertNotIn(jargon, mline)
+
+    def test_several_open_milestones_are_all_named_electing_none(self):
+        # #496: GitHub has no single "current" milestone, so when several (up to the cap) are open the engine
+        # names them ALL under a plural label and elects none — never a silent pick of one. #558: each is quoted
+        # so a comma or "and" inside a title cannot blur where one ends and the next begins.
+        dash = boot.render_dashboard(_signals(
+            live_standing={"milestone": ["Alpha", "Beta", "Gamma"], "phase": "Do the thing (PR #9)"}))
+        self.assertIn('**Milestones:** "Alpha", "Beta" and "Gamma"', dash)  # every open one, quoted, plural label
+        self.assertEqual(dash.count("**What merged last:**"), 1)           # still exactly one standing block
+
+    def test_many_open_milestones_soft_capped_with_honest_count_electing_none(self):
+        # #558: past a glanceable few the line names the first CAP and discloses the true total in the engine's
+        # own label — a sample, not a silent truncation and not an election. Seven open, cap five.
+        dash = boot.render_dashboard(_signals(
+            live_standing={"milestone": [f"M{i}" for i in range(1, 8)], "phase": "Do the thing (PR #9)"}))
+        self.assertIn('**Milestones (showing 5 of 7 open):** "M1", "M2", "M3", "M4", "M5"', dash)
+        self.assertNotIn('"M6"', dash)                        # beyond-cap titles are not named...
+        self.assertNotIn('"M7"', dash)
+        self.assertNotIn("**Milestone:**", dash)              # ...and none is elected as the singular "current"
+
+    def test_open_milestone_titles_with_commas_are_quoted_not_blurred(self):
+        # #558's second edge: a title containing a comma or "and" must not read as more than one milestone.
+        dash = boot.render_dashboard(_signals(
+            live_standing={"milestone": ["Ship, test and deploy", "Launch"], "phase": "P"}))
+        self.assertIn('**Milestones:** "Ship, test and deploy" and "Launch"', dash)  # quoted boundaries
+        # the ambiguous un-quoted run-on ("...deploy and Launch") must NOT appear
+        self.assertNotIn("deploy and Launch", dash)
+
+    def test_open_milestone_title_with_embedded_quote_cannot_spoof_boundary(self):
+        # #558: a title's own double-quote is neutralized so it cannot forge the engine's boundary quoting.
+        dash = boot.render_dashboard(_signals(
+            live_standing={"milestone": ['Launch "v2"', "Beta"], "phase": "P"}))
+        self.assertIn('**Milestones:** "Launch \'v2\'" and "Beta"', dash)  # embedded " defanged to '
+
+    def test_legacy_single_string_milestone_still_renders(self):
+        # A cursor written by a pre-#496 engine stored one name as a bare string; boot reads it tolerantly so
+        # an in-place upgrade never breaks the card before the cache refreshes to the list shape.
+        dash = boot.render_dashboard(_signals(
+            live_standing=None,
+            state={"standing_situation": {"milestone": "Ship the beta", "phase": "P",
+                                          "as_of": "2026-06-15T00:00:00Z"}}))
+        self.assertIn("**Milestone:** Ship the beta", dash)
 
 
 class TestConsumesAttentionNeverReRanks(unittest.TestCase):
@@ -556,7 +792,7 @@ class TestConsumesAttentionNeverReRanks(unittest.TestCase):
         ], "degraded_inputs": []}
         with mock.patch.object(boot.attention, "derive_focus", return_value=([], 0)), \
                 mock.patch.object(boot.attention, "rank_live", return_value=result):
-            lines, degraded, _, _, _ = boot.needs_attention({})
+            lines, degraded, _, _, _, _ = boot.needs_attention({})
         self.assertEqual(degraded, [])
         self.assertEqual(len(lines), 2)
         # in_flight line first (it was first in the array), debt line second — array order preserved.
@@ -565,7 +801,7 @@ class TestConsumesAttentionNeverReRanks(unittest.TestCase):
 
     def test_standing_situation_is_not_surfaced_as_an_action_line(self):
         # The orientation standing-situation pointer is ranked (for the budget model) but NOT shown as an
-        # action nudge: the live "Where we are" line (and its own stale-warning) already cover it, so a
+        # action nudge: the live "What merged last" line (and its own stale-warning) already cover it, so a
         # separate "confirm where you stand" line would be redundant boilerplate every session.
         result = {"partition": [
             {"category": "orientation", "precedence_rank": 5,
@@ -573,7 +809,7 @@ class TestConsumesAttentionNeverReRanks(unittest.TestCase):
         ], "degraded_inputs": []}
         with mock.patch.object(boot.attention, "derive_focus", return_value=([], 0)), \
                 mock.patch.object(boot.attention, "rank_live", return_value=result):
-            lines, _, _, _, _ = boot.needs_attention({})
+            lines, _, _, _, _, _ = boot.needs_attention({})
         self.assertEqual(lines, [])   # no action line — the orientation pointer is not nagged
 
     def test_caps_members_per_category_without_reordering(self):
@@ -585,7 +821,7 @@ class TestConsumesAttentionNeverReRanks(unittest.TestCase):
                                  "members": members}], "degraded_inputs": []}
         with mock.patch.object(boot.attention, "derive_focus", return_value=([], 0)), \
                 mock.patch.object(boot.attention, "rank_live", return_value=result):
-            lines, _, _, _, _ = boot.needs_attention({})
+            lines, _, _, _, _, _ = boot.needs_attention({})
         self.assertEqual(len(lines), boot.NEEDS_ATTENTION_CAP)  # a bounded prefix
         self.assertIn("0 (k)", lines[0])                        # member 0 first (the prefix, in order)
         self.assertIn(f"{boot.NEEDS_ATTENTION_CAP - 1} (k)", lines[-1])  # ...through member CAP-1
@@ -602,7 +838,7 @@ class TestConsumesAttentionNeverReRanks(unittest.TestCase):
         ], "degraded_inputs": []}
         with mock.patch.object(boot.attention, "derive_focus", return_value=([], 0)), \
                 mock.patch.object(boot.attention, "rank_live", return_value=result):
-            lines, _, _, _, _ = boot.needs_attention({})
+            lines, _, _, _, _, _ = boot.needs_attention({})
         self.assertEqual(len(lines), 2)                  # only the 2 budgeted in_flight items
         self.assertIn("0 (k)", lines[0])
         self.assertIn("1 (k)", lines[1])
@@ -643,7 +879,7 @@ class TestFocusedNeighborhood(unittest.TestCase):
         with mock.patch.object(boot.attention, "derive_focus", return_value=(["tool:attention"], 1)), \
                 mock.patch.object(boot.attention, "rank_live", return_value=self._partition()), \
                 mock.patch.object(boot.attention, "neighborhood_of", return_value=self._summary()):
-            lines, degraded, nb, _, _ = boot.needs_attention({})
+            lines, degraded, nb, _, _, _ = boot.needs_attention({})
         self.assertTrue(any("161" in ln for ln in lines))      # the in_flight item IS an action line
         self.assertFalse(any("core" in ln for ln in lines))    # the neighbours are NOT (they are the AI block)
         self.assertEqual(degraded, ["telemetry"])
@@ -695,7 +931,7 @@ class TestFocusedNeighborhood(unittest.TestCase):
         with mock.patch.object(boot.attention, "derive_focus", return_value=([], 0)), \
                 mock.patch.object(boot.attention, "rank_live",
                                   return_value={"partition": [], "degraded_inputs": []}):
-            _, _, nb, _, _ = boot.needs_attention({})
+            _, _, nb, _, _, _ = boot.needs_attention({})
         self.assertIsNone(nb)                                             # no work in hand -> no neighbourhood
 
     def test_pack_carries_the_neighborhood_block_when_focus_present(self):
@@ -703,7 +939,8 @@ class TestFocusedNeighborhood(unittest.TestCase):
         try:
             with mock.patch.object(boot.attention, "derive_focus", return_value=(["tool:attention"], 1)), \
                     mock.patch.object(boot.attention, "rank_live", return_value=self._partition()), \
-                    mock.patch.object(boot.attention, "neighborhood_of", return_value=self._summary()):
+                    mock.patch.object(boot.attention, "neighborhood_of", return_value=self._summary()), \
+                    mock.patch.object(boot.hooks, "HOOK_OUTPUT_CAP", 10**6):
                 pack = boot.assemble_pack()
         finally:
             for p in patchers:
@@ -740,19 +977,19 @@ class TestFocusedNeighborhood(unittest.TestCase):
 
 
 class TestGovernanceAlarms(unittest.TestCase):
-    def _pack_with(self, gate, findings):
+    def _pack_with(self, gate, findings, *, severity=None):
         count, register = findings
-        fp = [f"#{i}" for i in range(count)] if count else None   # open_findings 3rd value: the fingerprint
-        low = None if count is None else 0   # 4th value: low-severity count (0 here -> no pressure line)
-        # 5th value: the per-issue rows the ranking grades one blocking-debt candidate from each. Unmarked
-        # severity (a pre-severity Issue) rides the bar, so each is surfaced as blocking. None when the read
-        # degraded, so all five track together.
-        rows = None if count is None else [{"number": i, "source_id": None, "severity": None}
+        low = None if count is None else 0   # low-severity count (0 here -> no pressure line)
+        # The per-issue rows the ranking grades. With the default severity=None (an unmarked, pre-severity
+        # Issue) each grades to a DEFERRAL — mentioned in the open-problems count but never blocking, so a
+        # routine finding count neither pins nor relays. Pass severity=boot.telemetry.TRUST_CRITICAL to exercise
+        # a genuinely BLOCKING finding (the never-shed relay + the bang action line). None count -> degraded.
+        rows = None if count is None else [{"number": i, "source_id": None, "severity": severity}
                                            for i in range(count)]
         patchers = _offline()
         try:
             with mock.patch.object(boot, "protected_branch_signal", return_value=gate), \
-                 mock.patch.object(boot, "open_findings", return_value=(count, register, fp, low, rows)), \
+                 mock.patch.object(boot, "open_findings", return_value=(count, register, low, rows)), \
                  mock.patch.object(boot, "read_state",
                                    return_value=({"schema_version": 1, "standing_situation": {},
                                                   "integration_debt": {"open_count": 0}}, False)):
@@ -765,7 +1002,7 @@ class TestGovernanceAlarms(unittest.TestCase):
         pack = self._pack_with(("off", "a pull request is not required"), (0, "u"))
         lines = pack.splitlines()
         alarm = next(i for i, ln in enumerate(lines) if ln.startswith("> ") and "safety gate is off" in ln.lower())
-        facts = next(i for i, ln in enumerate(lines) if ln.startswith("**Where we are"))
+        facts = next(i for i, ln in enumerate(lines) if ln.startswith("**What merged last"))
         self.assertLess(alarm, facts, "the governance alarm must pin above the status facts")
 
     def test_gate_unknown_is_never_a_green_all_clear(self):
@@ -777,10 +1014,20 @@ class TestGovernanceAlarms(unittest.TestCase):
         pack = self._pack_with(("on", None), (0, "u"))
         self.assertNotIn("safety gate", pack.lower())
 
-    def test_open_findings_pin_when_present(self):
+    def test_routine_findings_do_not_pin_or_relay_only_a_quiet_fact(self):
+        # A routine (unmarked) finding count is the engine's own housekeeping: no ⚠ pin, no must-push relay —
+        # it appears only as the quiet "Engine findings" facts line, folded into the whole-backlog total.
         pack = self._pack_with(("on", None), (2, "https://example/issues"))
-        self.assertIn("2 open engine finding", pack)
-        self.assertIn("https://example/issues", pack)
+        self.assertNotIn("open engine finding(s) about", pack)   # no governance relay for routine findings
+        self.assertNotIn("open engine finding(s)** about", pack)  # no dashboard ⚠ pin
+        self.assertIn("**Engine findings:** 2", pack)            # the quiet facts line is present
+
+    def test_a_blocking_finding_pins_a_relay_and_surfaces_with_a_bang(self):
+        # A genuinely blocking (trust-critical) finding keeps a never-shed relay and a ❗ action line.
+        pack = self._pack_with(("on", None), (1, "https://example/issues"),
+                               severity=boot.telemetry.TRUST_CRITICAL)
+        self.assertIn("BLOCKING", pack)                          # the never-shed governance relay
+        self.assertIn("❗", pack)                                 # the action-line bang in "Needs your attention"
 
     def test_gate_off_dashboard_offers_the_built_fix_not_a_manual_repair(self):
         # #392 defect 1: the protection-off alarm must OFFER the already-built one-click fix, not hand a
@@ -880,7 +1127,7 @@ class TestRecentDecisionsRender(unittest.TestCase):
         # neither blocks nor counts toward the waiting-work meter. "Not rated" and "rated, not urgent" look
         # identical on the card and mean opposite things.
         card = boot.render_dashboard(_signals(finding_count=18, unrated_count=18, debt_count=18))
-        self.assertIn("**Open problems:** 18", card)
+        self.assertIn("**Engine findings:** 18", card)
         self.assertIn("None of these carries an urgency rating", card)
         self.assertIn("not a judgement that they are minor", card)
 
@@ -902,7 +1149,7 @@ class TestRecentDecisionsRender(unittest.TestCase):
         with mock.patch.object(boot.telemetry, "GitHubIssues") as gh:
             gh.return_value.list_open_engine_issues.return_value = rows
             gh.return_value.issues_query_url.return_value = "u"
-            count, _url, _fp, _low, findings = boot.open_findings("o/r", "t")
+            count, _url, _low, findings = boot.open_findings("o/r", "t")
         self.assertEqual(count, len(findings))
         self.assertEqual(sum(1 for f in findings if not f.get("severity")), 1)
 
@@ -1034,13 +1281,12 @@ class TestTriagePressureRender(unittest.TestCase):
     _GROWING = "self-monitoring backlog is growing"
 
     def _pack(self, count, low):
-        fp = [f"#{i}" for i in range(count)] if count else None
         rows = None if count is None else [{"number": i, "source_id": None, "severity": None}
-                                           for i in range(count)]   # 5th value: the per-issue rows (see above)
+                                           for i in range(count)]   # 4th value: the per-issue rows (see above)
         patchers = _offline()
         try:
             with mock.patch.object(boot, "protected_branch_signal", return_value=("on", None)), \
-                 mock.patch.object(boot, "open_findings", return_value=(count, "u", fp, low, rows)), \
+                 mock.patch.object(boot, "open_findings", return_value=(count, "u", low, rows)), \
                  mock.patch.object(boot, "read_state",
                                    return_value=({"schema_version": 1, "standing_situation": {},
                                                   "integration_debt": {"open_count": 0}}, False)):
@@ -1087,7 +1333,7 @@ class TestStrandSurfacing(unittest.TestCase):
         self.assertEqual(boot.present_marker_line(_signals(strand=self._STRAND)),
                          f"⚠ {boot.PRESENT_MARKER}: your project folder needs attention")
         self.assertEqual(boot.present_marker_line(_signals(strand=None)),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
         # a governance alarm still wins the marker even when the folder is ALSO stranded
         self.assertEqual(boot.present_marker_line(_signals(gate="off", strand=self._STRAND)),
                          "⚠ Your safety gate is off")
@@ -1157,7 +1403,7 @@ class TestBehindOriginSurfacing(unittest.TestCase):
         self.assertNotIn("isn't on your main line of work",
                          boot.present_marker_line(_signals(behind_origin=self._BEHIND)))
         self.assertEqual(boot.present_marker_line(_signals(behind_origin=None)),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
         # a strand (broken state) still wins the marker over a behind heads-up
         self.assertIn("needs attention",
                       boot.present_marker_line(_signals(strand={"states": ["detached"], "main": "/p"},
@@ -1236,9 +1482,9 @@ class TestOffMainSurfacing(unittest.TestCase):
     def test_present_marker_reflects_off_main_but_governance_outranks(self):
         self.assertIn("isn't on your main line of work",
                       boot.present_marker_line(_signals(off_main=self._OFF_MAIN)))
-        # a governance alarm still wins the marker
-        self.assertIn("open engine finding",
-                      boot.present_marker_line(_signals(finding_count=3, off_main=self._OFF_MAIN)))
+        # a governance alarm still wins the marker (findings no longer drive the marker at all)
+        self.assertEqual(boot.present_marker_line(_signals(gate="off", off_main=self._OFF_MAIN)),
+                         "⚠ Your safety gate is off")
 
     def test_marker_says_off_main_for_a_side_line_behind_but_fallen_behind_on_the_default(self):
         # the headline must match the state: off the main line (side-line behind) -> "isn't on your main line";
@@ -1402,9 +1648,9 @@ class TestSetAsideCollapseThreading(unittest.TestCase):
 
     def test_it_does_not_disturb_the_findings_relay_line(self):
         # the single-decide law: adding set_aside to the eligible set must leave the findings outcome intact.
-        s = _signals(finding_count=20, register="https://x/issues", set_aside=dict(self._SA))
+        s = _signals(blocking_findings=_blocking(20), register="https://x/issues", set_aside=dict(self._SA))
         first = boot._relay_lines(s)
-        self.assertTrue(any("20 open engine finding" in l for l in first))     # findings still relays full first
+        self.assertTrue(any("BLOCKING" in l for l in first))     # the blocking-findings relay still fires
 
 
 class TestPrConflictSurfacing(unittest.TestCase):
@@ -1435,7 +1681,7 @@ class TestPrConflictSurfacing(unittest.TestCase):
             boot.present_marker_line(_signals(pr_conflict=self._PR)),
             f"⚠ {boot.PRESENT_MARKER}: a pull request is stuck — say 'reconcile it' and I'll look into clearing it")
         self.assertEqual(boot.present_marker_line(_signals(pr_conflict=None)),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
         # a governance alarm (and a strand) still outranks the stuck-PR marker
         self.assertEqual(boot.present_marker_line(_signals(gate="off", pr_conflict=self._PR)),
                          "⚠ Your safety gate is off")
@@ -1482,10 +1728,10 @@ class TestRestoreOfferSurfacing(unittest.TestCase):
     def test_present_marker_reflects_the_offer_but_every_alarm_outranks(self):
         self.assertEqual(
             boot.present_marker_line(_signals(restore_offer=self._OFFER)),
-            f"{boot.PRESENT_MARKER}: your saved memory looks empty — say 'restore my memory' and I'll try to bring "
-            "back your backup")
+            f"▸ {boot.PRESENT_MARKER}: your saved memory looks empty — say 'restore my memory' and I'll try to "
+            "bring back your backup")
         self.assertEqual(boot.present_marker_line(_signals(restore_offer=None)),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
         # a governance alarm AND a stuck PR both outrank the offer marker (it is ranked last)
         self.assertEqual(boot.present_marker_line(_signals(gate="off", restore_offer=self._OFFER)),
                          "⚠ Your safety gate is off")
@@ -1543,7 +1789,7 @@ class TestMigrationRevertOffer(unittest.TestCase):
         self.assertIn("restore my memory from before the update", marker)
         self.assertNotIn("engine-snapshot/", marker)                  # no raw tag on the marker either
         self.assertEqual(boot.present_marker_line(_signals(migration_revert=None)),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
         self.assertEqual(boot.present_marker_line(_signals(gate="off", migration_revert=self._OFFER)),
                          "⚠ Your safety gate is off")                 # a governance alarm outranks the offer
 
@@ -1566,7 +1812,7 @@ class TestMigrationRevertOffer(unittest.TestCase):
 
 
 class TestAuditStaleness(unittest.TestCase):
-    """audit-library 3c: boot RELAYS audit_digest's self-review freshness on the operator's return. A SOFT
+    """boot RELAYS audit_digest's self-review freshness on the operator's return. A SOFT
     finding (hasn't-run-yet / has-gone-stale) surfaces gently in the needs-attention body — NEVER pinned, in
     the present-marker, or in must_push, so a never-armed repo still reads "all clear" and it never becomes a
     forced every-session alarm; a `note` (current) digest adds nothing; the read fails open to None."""
@@ -1591,7 +1837,7 @@ class TestAuditStaleness(unittest.TestCase):
         # else wrong — still reads all-clear, and the assistant is NOT compelled to relay it (raised with
         # judgment via the needs-attention headline, never the forced governance-critical must_push set).
         s = _signals(audit_stale=self._never_run())
-        self.assertEqual(boot.present_marker_line(s), f"{boot.PRESENT_MARKER}: all clear")
+        self.assertEqual(boot.present_marker_line(s), f"▸ {boot.PRESENT_MARKER}: all clear")
         self.assertEqual(boot.must_push(s), [])
 
     def test_a_stale_finding_renders_the_same_gentle_way(self):
@@ -1630,7 +1876,7 @@ class TestFailOpen(unittest.TestCase):
         patchers = _offline()
         try:
             with mock.patch.object(boot.attention, "rank_live", side_effect=Exception("down")):
-                lines, degraded, neighborhood, _, _ = boot.needs_attention({})
+                lines, degraded, neighborhood, _, _, _ = boot.needs_attention({})
                 pack = boot.assemble_pack()
         finally:
             for p in patchers:
@@ -1688,7 +1934,7 @@ class TestBriefingRelay(unittest.TestCase):
     AI renders first, the INFORM-marked must-push partition, and the clean pure dashboard."""
 
     def test_present_marker_line_all_clear_when_healthy(self):
-        self.assertEqual(boot.present_marker_line(_signals(gate="on")), f"{boot.PRESENT_MARKER}: all clear")
+        self.assertEqual(boot.present_marker_line(_signals(gate="on")), f"▸ {boot.PRESENT_MARKER}: all clear")
 
     def test_present_marker_line_is_the_alarm_when_gate_off(self):
         self.assertEqual(boot.present_marker_line(_signals(gate="off")), "⚠ Your safety gate is off")
@@ -1739,7 +1985,7 @@ class TestBriefingRelay(unittest.TestCase):
         dash = boot.render_dashboard(_signals(att_lines=["do X"], shipped=["#1 — a change"]))
         self.assertNotIn(boot.RELAY_MARKER, dash)
         self.assertNotIn("ENGINE BOOT BRIEFING", dash)
-        self.assertIn("**Where we are:**", dash)
+        self.assertIn("**What merged last:**", dash)
         self.assertIn("**Stance:**", dash)
         self.assertIn("- do X", dash)
 
@@ -1769,7 +2015,7 @@ class TestHookRegistration(unittest.TestCase):
 
     def test_every_sessionstart_command_points_into_engine_and_uses_the_venv(self):
         for g in self.settings["hooks"]["SessionStart"]:
-            for h in g["hooks"]:                             # boot's AND memory's co-registered sweep (3b)
+            for h in g["hooks"]:                             # boot's AND memory's co-registered sweep
                 self.assertEqual(h["type"], "command")
                 self.assertIn(".engine/", h["command"])      # the wiring guard
                 self.assertIn("/.venv/", h["command"])        # the runtime interpreter, never bare python
@@ -1868,7 +2114,8 @@ class TestStanceLine(unittest.TestCase):
         # work-gated #37 neighbourhood block.
         patchers = _offline()
         try:
-            pack = boot.assemble_pack()
+            with mock.patch.object(boot.hooks, "HOOK_OUTPUT_CAP", 10**6):   # see TestPackCapGuard
+                pack = boot.assemble_pack()
         finally:
             for p in patchers:
                 p.stop()
@@ -1919,27 +2166,26 @@ class TestAntiHabituationCollapse(unittest.TestCase):
         self._env.stop()
 
     def test_findings_alarm_collapses_when_unchanged_keeping_the_offer(self):
-        s = _signals(finding_count=20, register="https://x/issues")
+        s = _signals(blocking_findings=_blocking(20), register="https://x/issues")
         first = boot._relay_lines(s)                                    # no ledger -> full (neutral)
-        self.assertTrue(any("20 open engine finding" in l and "still" not in l.lower() for l in first))
+        self.assertTrue(any("BLOCKING" in l and "still" not in l.lower() for l in first))
         second = boot._relay_lines(s)                                   # same condition -> terse
-        terse = [l for l in second if "finding" in l][0]
+        terse = [l for l in second if "BLOCKING" in l][0]
         self.assertIn("still", terse.lower())
-        self.assertIn("review", terse.lower())                          # the offer is kept
         self.assertIn("issues", terse)                                  # the register link is kept
 
     def test_findings_worsening_relays_full_with_the_worse_label(self):
-        boot._relay_lines(_signals(finding_count=20, register="u"))     # seed
-        boot._relay_lines(_signals(finding_count=20, register="u"))     # collapse
-        worse = boot._relay_lines(_signals(finding_count=25, register="u"))
-        line = [l for l in worse if "finding" in l][0]
+        boot._relay_lines(_signals(blocking_findings=_blocking(20), register="u"))     # seed
+        boot._relay_lines(_signals(blocking_findings=_blocking(20), register="u"))     # collapse
+        worse = boot._relay_lines(_signals(blocking_findings=_blocking(25), register="u"))
+        line = [l for l in worse if "BLOCKING" in l][0]
         self.assertNotIn("still", line.lower())
         self.assertIn("grown", line.lower())                            # the lexical "got worse" signal
 
     def test_findings_improvement_relays_full_not_a_stale_still(self):
-        boot._relay_lines(_signals(finding_count=20, register="u"))     # seed
-        better = boot._relay_lines(_signals(finding_count=17, register="u"))
-        line = [l for l in better if "finding" in l][0]
+        boot._relay_lines(_signals(blocking_findings=_blocking(20), register="u"))     # seed
+        better = boot._relay_lines(_signals(blocking_findings=_blocking(17), register="u"))
+        line = [l for l in better if "BLOCKING" in l][0]
         self.assertIn("17", line)                                       # the new (lower) number is shown
         self.assertNotIn("still", line.lower())                         # never collapsed to a stale count
 
@@ -1947,14 +2193,14 @@ class TestAntiHabituationCollapse(unittest.TestCase):
         # #392 defect 3: a finding closing while a different one opens (SAME count, different
         # identities) is a real change — it must relay full, never mis-collapse to "unchanged". The bare-count
         # fingerprint could not tell these apart; the identity SET can.
-        boot._relay_lines(_signals(finding_count=3, register="u",
-                                   finding_fingerprint=["#1", "#2", "#3"]))            # seed (full)
-        changed = boot._relay_lines(_signals(finding_count=3, register="u",
-                                             finding_fingerprint=["#1", "#2", "#9"]))  # equal count, new set
-        line = [l for l in changed if "finding" in l][0]
+        boot._relay_lines(_signals(register="u",
+                                   blocking_findings=[{"number": n, "title": "x"} for n in ("1", "2", "3")]))
+        changed = boot._relay_lines(_signals(register="u",
+                                    blocking_findings=[{"number": n, "title": "x"} for n in ("1", "2", "9")]))
+        line = [l for l in changed if "BLOCKING" in l][0]
         self.assertNotIn("still", line.lower())                         # not mis-collapsed to a stale "still"
         self.assertNotIn("unchanged", line.lower())
-        self.assertIn("3 open engine finding", line)                    # the neutral full first-appearance form
+        self.assertIn("3 engine finding", line)                         # the neutral full first-appearance form
 
     def test_findings_old_int_ledger_degrades_to_full_never_crashes(self):
         # An operator upgrading from the bare-COUNT ledger has an INT on disk. The new list-valued fingerprint
@@ -1963,11 +2209,11 @@ class TestAntiHabituationCollapse(unittest.TestCase):
         path = boot.boot_alarm_ledger.ledger_path()
         with open(path, "w", encoding="utf-8") as fh:
             json.dump({"findings": {"value": 20, "shown_in_full": True}}, fh)
-        lines = boot._relay_lines(_signals(finding_count=20, register="u"))   # list current vs int prior
-        line = [l for l in lines if "finding" in l][0]
+        lines = boot._relay_lines(_signals(blocking_findings=_blocking(20), register="u"))  # list vs int prior
+        line = [l for l in lines if "BLOCKING" in l][0]
         self.assertNotIn("still", line.lower())        # not collapsed against the incompatible int prior
         self.assertNotIn("grown", line.lower())        # _worse guarded (int prior) -> neutral full, no crash
-        self.assertIn("20 open engine finding", line)
+        self.assertIn("20 engine finding", line)
 
     def test_gate_alarm_collapses_keeping_consequence_and_fix(self):
         s = _signals(gate="off", reason="no required checks")
@@ -1988,15 +2234,14 @@ class TestAntiHabituationCollapse(unittest.TestCase):
     def test_present_marker_never_collapses(self):
         # the #313 grounding invariant: the marker line is independent of the ledger and names the alarm
         # every session, even as the relay behind it collapses.
-        s = _signals(finding_count=7, register="u")
+        s = _signals(gate="off", reason="no required checks")
         boot._relay_lines(s); boot._relay_lines(s)                      # the relay collapses on the repeat
-        self.assertEqual(boot.present_marker_line(s),
-                         f"⚠ {boot.PRESENT_MARKER}: 7 open engine finding(s) to review")
+        self.assertEqual(boot.present_marker_line(s), "⚠ Your safety gate is off")
 
     def test_all_clear_never_collapses(self):
         self.assertEqual(boot._relay_lines(_signals(gate="on")), [])    # no eligible alarms -> empty relay
         self.assertEqual(boot.present_marker_line(_signals(gate="on")),
-                         f"{boot.PRESENT_MARKER}: all clear")
+                         f"▸ {boot.PRESENT_MARKER}: all clear")
 
     def test_hook_path_collapses_but_the_fresh_pack_cli_does_not(self):
         with mock.patch.object(boot, "gather_signals", return_value=_signals(gate="off", reason="x")):
@@ -2030,7 +2275,7 @@ class TestAntiHabituationCollapse(unittest.TestCase):
 
     def test_off_main_collapse_coexists_with_the_governance_baselines(self):
         # the single decide() call must collapse off-main WITHOUT dropping the gate/findings ledger entries
-        s = _signals(gate="off", reason="x", finding_count=4, register="u", off_main=dict(self._OM))
+        s = _signals(gate="off", reason="x", blocking_findings=_blocking(4), register="u", off_main=dict(self._OM))
         boot._relay_lines(s)                                # seed gate + findings + off-main together
         lines = boot._relay_lines(s)                        # repeat -> all three collapse, none dropped
         self.assertTrue(any("still off" in l.lower() for l in lines), "gate baseline must survive")
@@ -2119,3 +2364,217 @@ class RelayMarkerVariantTests(unittest.TestCase):
                                  "budget_size": 5}]}
         lines = boot._shipped_lines(result, read=lambda: [{"id": "shipped:9", "title": forged}])
         self.assertNotIn(boot.RELAY_MARKER, "\n".join(lines))
+
+
+class TestForeignLicenseOffer(unittest.TestCase):
+    """The leftover-template-LICENSE offer (#471): rendered below governance, private-by-default and accurate
+    for a public repo, retire-honored hook-side, and NEVER a governance-critical must-relay."""
+
+    _FIRE = {"present": True, "fingerprint": "22e2c095376d", "pr_open": False}
+
+    def test_full_offer_leads_with_ownership_reassurance(self):
+        dash = boot.render_dashboard(_signals(foreign_license=self._FIRE))
+        self.assertIn("yours by default", dash)
+        self.assertIn("license file copied in from the template", dash)
+
+    def test_offer_stays_accurate_for_a_public_repo(self):
+        # Never overclaim exposure. The lead must not assert current repo VISIBILITY ("your project is private" /
+        # "nothing is exposed") or draw the "all rights reserved" legal conclusion — all false for a public repo,
+        # which is the repo most likely to carry a leftover license. The accurate ownership hedge is what remains.
+        dash = boot.render_dashboard(_signals(foreign_license=self._FIRE)).lower()
+        self.assertNotIn("your project is private", dash)
+        self.assertNotIn("nothing is exposed", dash)
+        self.assertNotIn("all rights reserved", dash)
+        self.assertIn("until you choose to share it", dash)
+
+    def test_offer_routes_the_judgment_out_and_never_advises_a_license(self):
+        dash = boot.render_dashboard(_signals(foreign_license=self._FIRE))
+        self.assertIn("choosealicense.com", dash)
+        self.assertIn("a person to talk to", dash)   # routes legal judgment OUT, never advises a license
+
+    def test_offer_surfaces_the_intent_exit_invitation(self):
+        dash = boot.render_dashboard(_signals(foreign_license=self._FIRE))
+        self.assertIn("meant to keep", dash)
+
+    def test_offer_ranks_below_the_governance_alarms(self):
+        # gate-off is governance; the license offer is a lower-tier offer. The governance line must appear FIRST.
+        dash = boot.render_dashboard(_signals(gate="off", reason="ruleset absent", foreign_license=self._FIRE))
+        self.assertIn("safety gate is off", dash)
+        self.assertIn("license file", dash)
+        self.assertLess(dash.index("safety gate is off"), dash.index("license file"),
+                        "the leftover-license offer must rank BELOW the governance alarm")
+
+    def test_pr_open_reword_awaits_your_merge(self):
+        dash = boot.render_dashboard(_signals(foreign_license={**self._FIRE, "pr_open": True}))
+        self.assertIn("waiting for your review and merge", dash)
+        self.assertNotIn("yours by default", dash)   # the prepared-cleanup variant, not the first offer
+
+    def test_a_retired_finding_renders_nothing(self):
+        dash = boot.render_dashboard(_signals(foreign_license={**self._FIRE, "retired": True}))
+        self.assertNotIn("license file", dash)
+
+    def test_absent_signal_renders_nothing(self):
+        self.assertNotIn("license file", boot.render_dashboard(_signals(foreign_license=None)))
+
+    def test_offer_is_not_a_governance_critical_must_relay(self):
+        # It renders only in the dashboard, never in must_push (the "governance-critical, do not skip" set).
+        pushed = "\n".join(boot.must_push(_signals(foreign_license=self._FIRE)))
+        self.assertNotIn("license file", pushed)
+
+    def test_relay_lines_honors_a_retired_marker_hook_side(self):
+        # End-to-end: a live foreign-license signal + a retired marker for its fingerprint -> _relay_lines stamps
+        # `retired` and the dashboard shows nothing (the hook-side honor of a retired marker, which can never silence a governance alarm).
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {boot_alarm_ledger.ENV_DIR: tmp}):
+                boot_alarm_ledger.retire("22e2c095376d", "foreign_license")
+                s = _signals(foreign_license=self._FIRE)
+                boot._relay_lines(s)                       # hook-side: reads the ledger, stamps `retired`
+                self.assertTrue(s["foreign_license"].get("retired"))
+                self.assertNotIn("license file", boot.render_dashboard(s))
+
+    def test_relay_lines_offers_when_not_retired(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {boot_alarm_ledger.ENV_DIR: tmp}):
+                s = _signals(foreign_license=self._FIRE)
+                boot._relay_lines(s)                       # no marker -> not retired
+                self.assertFalse(s["foreign_license"].get("retired"))
+                self.assertIn("license file", boot.render_dashboard(s))
+
+
+class TestGreenfieldIntakeOffer(unittest.TestCase):
+    """The first-engagement greenfield-intake nudge (#553): rendered below governance, a pure offer (never an
+    action), retire-honored hook-side so the operator can dismiss it, collapses to terse, and NEVER a
+    governance-critical must-relay."""
+
+    _FIRE = {"greenfield": True, "fingerprint": "greenfield"}
+
+    def test_full_offer_invites_describing_what_to_build(self):
+        dash = boot.render_dashboard(_signals(greenfield_intake=self._FIRE))
+        self.assertIn("describing what you're building", dash)
+        self.assertIn("engine-design", dash)
+
+    def test_full_offer_surfaces_the_dismiss(self):
+        dash = boot.render_dashboard(_signals(greenfield_intake=self._FIRE))
+        self.assertIn("stop offering", dash)
+
+    def test_collapsed_offer_is_terse_and_names_the_dismiss(self):
+        dash = boot.render_dashboard(_signals(greenfield_intake={**self._FIRE, "collapsed": True}))
+        self.assertIn("unchanged since last session", dash)
+        self.assertIn("stop bringing it up", dash)
+
+    def test_offer_ranks_below_the_governance_alarms(self):
+        dash = boot.render_dashboard(_signals(gate="off", reason="ruleset absent", greenfield_intake=self._FIRE))
+        self.assertIn("safety gate is off", dash)
+        self.assertLess(dash.index("safety gate is off"), dash.index("describing what you're building"),
+                        "the greenfield offer must rank BELOW the governance alarm")
+
+    def test_a_retired_offer_renders_nothing(self):
+        dash = boot.render_dashboard(_signals(greenfield_intake={**self._FIRE, "retired": True}))
+        self.assertNotIn("describing what you're building", dash)
+
+    def test_absent_signal_renders_nothing(self):
+        self.assertNotIn("describing what you're building",
+                         boot.render_dashboard(_signals(greenfield_intake=None)))
+
+    def test_offer_is_not_a_governance_critical_must_relay(self):
+        pushed = "\n".join(boot.must_push(_signals(greenfield_intake=self._FIRE)))
+        self.assertNotIn("describing what you're building", pushed)
+
+    def test_relay_lines_honors_a_retired_marker_hook_side(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {boot_alarm_ledger.ENV_DIR: tmp}):
+                boot_alarm_ledger.retire("greenfield", "greenfield_intake")
+                s = _signals(greenfield_intake=self._FIRE)
+                boot._relay_lines(s)
+                self.assertTrue(s["greenfield_intake"].get("retired"))
+                self.assertNotIn("describing what you're building", boot.render_dashboard(s))
+
+    def test_relay_lines_collapses_an_unchanged_offer_on_the_second_session(self):
+        # The anti-nag collapse: the same greenfield state two sessions running -> the second renders terse.
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {boot_alarm_ledger.ENV_DIR: tmp}):
+                s1 = _signals(greenfield_intake=self._FIRE)
+                boot._relay_lines(s1)
+                self.assertFalse(s1["greenfield_intake"].get("collapsed"), "first session renders full")
+                s2 = _signals(greenfield_intake=self._FIRE)
+                boot._relay_lines(s2)
+                self.assertTrue(s2["greenfield_intake"].get("collapsed"), "second, unchanged, collapses to terse")
+
+
+class TestRecognitionSlice(unittest.TestCase):
+    """D-309 / #495: the pack reads the surface catalog's recognition slice — name and location per
+    surface, none of the authoring fields — on every render, and a broken catalog renders nothing."""
+
+    def test_slice_names_every_surface_with_location_only(self):
+        lines = boot.render_recognition_slice()
+        self.assertTrue(lines and lines[0].startswith("Surface recognition"))
+        catalog = boot.validate.load_json(boot.validate.CATALOG_PATH)
+        for name, rec in catalog["surfaces"].items():
+            self.assertIn(f"{name} in `{rec['location']}`", lines[0])
+        for authoring_field in ("authority", "lifecycle", "governing_schema", "template"):
+            for rec in catalog["surfaces"].values():
+                value = rec.get(authoring_field)
+                if isinstance(value, str) and value and value not in rec["location"]:
+                    self.assertNotIn(value, lines[0],
+                                     f"the recognition slice must not carry the authoring field "
+                                     f"{authoring_field!r}")
+
+    def test_unreadable_catalog_renders_nothing_never_fails(self):
+        with mock.patch.object(boot.validate, "CATALOG_PATH", "/no/such/catalog.json"):
+            self.assertEqual(boot.render_recognition_slice(), [])
+
+    def test_slice_reaches_the_pack_when_it_fits(self):
+        patchers = _offline()
+        try:
+            with mock.patch.object(boot.hooks, "HOOK_OUTPUT_CAP", 10**6):
+                pack = boot.assemble_pack()
+        finally:
+            for p in patchers:
+                p.stop()
+        self.assertIn("Surface recognition", pack)
+
+
+class TestPackCapGuard(unittest.TestCase):
+    """#495's owed-regardless leg: the pack is measured before injecting; the orientation tier sheds
+    first, the status dashboard second, and the pinned governance tier (marker + alarm relay) never —
+    with a relayed notice naming what was left out."""
+
+    def _pack(self, cap):
+        patchers = _offline()
+        try:
+            with mock.patch.object(boot.hooks, "HOOK_OUTPUT_CAP", cap):
+                return boot.assemble_pack()
+        finally:
+            for p in patchers:
+                p.stop()
+
+    def test_wide_cap_keeps_everything_no_notice(self):
+        pack = self._pack(10**6)
+        self.assertIn(boot.KNOWLEDGE_FACULTY_NOTE, pack)
+        self.assertIn("the full status (your grounding", pack)
+        self.assertNotIn("left out this session", pack)
+
+    def test_moderate_pressure_sheds_orientation_first_keeps_status(self):
+        wide = self._pack(10**6)
+        cap = len(wide) - 100                      # just too small for everything
+        pack = self._pack(cap)
+        self.assertLessEqual(len(pack), cap)
+        self.assertNotIn(boot.KNOWLEDGE_FACULTY_NOTE, pack)          # orientation shed
+        self.assertIn("the full status (your grounding", pack)       # dashboard kept
+        self.assertIn("left out this session", pack)                 # and the shed is named
+        self.assertIn("engine_status.py", pack)                      # with the recovery path
+        self.assertIn("Project status", pack)                        # the grounding marker survives
+
+    def test_extreme_pressure_sheds_status_too_never_the_governance_tier(self):
+        pack = self._pack(4000)
+        self.assertNotIn("the full status (your grounding", pack)
+        self.assertIn("Project status", pack)                        # marker pinned
+        self.assertIn("the status dashboard", pack)                  # named in the shed notice
+
+    def test_pinned_tier_survives_even_an_impossible_cap(self):
+        pack = self._pack(10)                                        # smaller than the pinned tier itself
+        self.assertIn("Project status", pack)                        # never truncated, even oversize
+
+
+if __name__ == "__main__":
+    unittest.main()

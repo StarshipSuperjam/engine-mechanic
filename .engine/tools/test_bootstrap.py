@@ -1,4 +1,4 @@
-"""Tests for the control-plane bootstrap (core slice 25a).
+"""Tests for the control-plane bootstrap.
 
 Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
 
@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bootstrap  # noqa: E402
 import protection_guard  # noqa: E402
 import weakening_guard  # noqa: E402  (ACK_LABEL — the frozen name bootstrap reuses when provisioning the label)
+import telemetry  # noqa: E402  (ENGINE_DOMAIN_LABEL — the engine label's canonical name/color/description)
 
 REPO = "you/proj"
 
@@ -110,6 +111,29 @@ def quiet(_text):
     """An announce sink so tests don't print operator copy."""
 
 
+class TestProvisionedLabelsMatchTheirOwners(unittest.TestCase):
+    """bootstrap re-types two externally-owned label identities as local mirrors, because it cannot import their
+    owning modules on the pre-venv first-run path (system Python, before the venv exists). These drift-guards hold
+    each mirror equal to its canonical home — they run in the venv, where importing the owner is free — so a rename
+    or recolour in the owning module that isn't reflected in bootstrap's mirror fails here, not silently in a
+    generated repo."""
+
+    def test_needs_reauthoring_label_matches_conformance_contract(self):
+        import issue_conformance_ci  # noqa: E402 — venv-side; canonical home of the needs-reauthoring identity
+        self.assertEqual(
+            (bootstrap.NEEDS_REAUTHORING_LABEL, bootstrap.NEEDS_REAUTHORING_LABEL_COLOR,
+             bootstrap.NEEDS_REAUTHORING_LABEL_DESCRIPTION),
+            (issue_conformance_ci.NEEDS_REAUTHORING_LABEL, issue_conformance_ci.NEEDS_REAUTHORING_LABEL_COLOR,
+             issue_conformance_ci.NEEDS_REAUTHORING_LABEL_DESCRIPTION))
+
+    def test_erasure_label_matches_the_memory_contract(self):
+        from memory import erasure_observer  # noqa: E402 — venv-side; canonical home of the engine-erasure identity
+        self.assertEqual(
+            (bootstrap.ERASURE_LABEL, bootstrap.ERASURE_LABEL_COLOR, bootstrap.ERASURE_LABEL_DESCRIPTION),
+            (erasure_observer.ERASURE_LABEL, erasure_observer.ERASURE_LABEL_COLOR,
+             erasure_observer.ERASURE_LABEL_DESCRIPTION))
+
+
 class TestFloorPayload(unittest.TestCase):
     def test_floor_satisfies_the_real_guard(self):
         # The decisive fidelity test: what the bootstrap WRITES must satisfy the SAME evaluation the
@@ -139,16 +163,25 @@ class TestApplyCreatesAndIsIdempotent(unittest.TestCase):
         self.assertTrue(result.is_protected())
         self.assertEqual([c[0] for c in fake.writes()], ["POST"])  # created, not repaired
         self.assertIn(bootstrap.ENGINE_RULESET_NAME, fake.names())
-        self.assertEqual(issues.ensured, 1)                        # engine label ensured (inherited)
-        # The guardrail-ack label is bootstrap-provisioned too (U12) — reuse the guard's frozen name (never a
-        # hardcoded string here, so a future rename can't silently drift the two apart), with its build-spec-leaf
-        # color + a plain-language description under GitHub's 100-char label cap.
-        self.assertEqual(len(issues.named), 1)
-        name, color, desc = issues.named[0]
-        self.assertEqual(name, weakening_guard.ACK_LABEL)
-        self.assertEqual(color, bootstrap.ACK_LABEL_COLOR)
-        self.assertEqual(desc, bootstrap.ACK_LABEL_DESCRIPTION)
-        self.assertLessEqual(len(desc), 100)                       # GitHub label-description hard limit
+        # Provisioning ensures the COMPLETE required-label set — all four via ensure_named_label, so the engine
+        # label no longer routes through the bare ensure_label (ensured stays 0). The four: the engine-domain
+        # label, guardrail-ack, needs-reauthoring, and engine-erasure.
+        self.assertEqual(issues.ensured, 0)
+        provisioned = {name: (color, desc) for name, color, desc in issues.named}
+        self.assertEqual(set(provisioned), {
+            telemetry.ENGINE_DOMAIN_LABEL,
+            weakening_guard.ACK_LABEL,
+            bootstrap.NEEDS_REAUTHORING_LABEL,
+            bootstrap.ERASURE_LABEL,
+        })
+        # ensure_labels emits EXACTLY the REQUIRED_LABELS table (the one auditable home), so a row dropped or
+        # mis-sourced there fails here; every description fits GitHub's 100-char label cap.
+        self.assertEqual(issues.named, list(bootstrap.REQUIRED_LABELS))
+        for name, color, desc in issues.named:
+            self.assertLessEqual(len(desc), 100, name)
+        # guardrail-ack keeps its build-spec-leaf identity (name from the guard, color/desc from bootstrap).
+        self.assertEqual(provisioned[weakening_guard.ACK_LABEL],
+                         (bootstrap.ACK_LABEL_COLOR, bootstrap.ACK_LABEL_DESCRIPTION))
 
     def test_already_protected_is_a_no_op(self):
         fake = FakeGitHub(floor_met=True, rulesets=[])
@@ -194,7 +227,7 @@ class TestVerifyAndDegrade(unittest.TestCase):
     def test_org_policy_403_routes_to_org_admin_banner(self):
         # A 403 whose body names an organization policy -> the org-policy cause, whose banner points the operator
         # at their org admin. It does NOT offer team mode as an escape: team's identity is deliberately non-admin
-        # (so it "cannot weaken at all"), so it cannot hold the org-blocked branch-protection permission — U11.
+        # (so it "cannot weaken at all"), so it cannot hold the org-blocked branch-protection permission.
         fake = FakeGitHub(scopes="repo", floor_met=False, rulesets=[],
                           deny_writes=2,  # both the first write and the post-refresh retry are blocked
                           deny_body={"message": "Organization ruleset policy prevents this change."})
@@ -252,7 +285,7 @@ class TestCapabilityAndConsent(unittest.TestCase):
         result = cp(fake, refresh_fn=refresh).apply(announce=announced.append)
         self.assertEqual(result.status, "applied")
         # the pre-bootstrap explanation was shown first, and it NAMES + defuses the felt-sweeping label
-        # rather than paraphrasing it away (U19).
+        # rather than paraphrasing it away.
         self.assertTrue(any("full control of your repositories" in a for a in announced))
         self.assertTrue(any("you already" in a and "control" in a for a in announced))
 
@@ -305,7 +338,7 @@ class TestCopySurface(unittest.TestCase):
         return " ".join(text.split())
 
     def test_before_you_approve_names_and_defuses_the_full_control_label(self):
-        # U19: the operator reads the TEMPLATE body at first run. It must NAME the sweeping,
+        # The operator reads the TEMPLATE body at first run. It must NAME the sweeping,
         # full-control-sounding wording GitHub's screen uses and defuse it (scoped to repos the operator
         # already controls) — never the forbidden milder paraphrase that lets the scary label land
         # uninterpreted. This locks the operator-visible surface, which no test guarded before.
@@ -334,8 +367,8 @@ class TestCopySurface(unittest.TestCase):
 
     def test_copy_leaks_no_raw_api_token(self):
         # A raw GitHub-API / protocol token in the operator copy signals a leaked implementation detail (a
-        # bug), not a word choice — this guards SYMBOLS, not vocabulary, so it is not a banned-word list
-        # (engine-planning D-225 / R30). Whether the prose leans on jargon is a judgment (the audit probe +
+        # bug), not a word choice — this guards SYMBOLS, not vocabulary, so it is not a banned-word list.
+        # Whether the prose leans on jargon is a judgment (the audit probe +
         # the per-PR review), never a filter.
         copy = bootstrap.load_copy(bootstrap.TEMPLATE_PATH)
         blob = " ".join(copy.values()).lower()
@@ -444,7 +477,7 @@ class TestDeBootstrap(unittest.TestCase):
 
 
 # ====================================================================================================
-# Brownfield augment + de-bootstrap (slice 6c). A purpose-built fake enforces the REAL list-vs-detail
+# Brownfield augment + de-bootstrap. A purpose-built fake enforces the REAL list-vs-detail
 # split — the list endpoint returns summaries WITHOUT rules, the full object (with rules) comes only from
 # GET /rulesets/{id}, and the evaluated per-branch endpoint tags each in-force rule with the ruleset_id it
 # came from — so these tests genuinely exercise ruleset_detail and the whitelist projection rather than

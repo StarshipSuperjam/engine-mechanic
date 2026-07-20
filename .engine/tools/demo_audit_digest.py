@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""Operator-runnable demonstration of the two rules that protect the engine's self-review file
+(engine/check/audit-digest-fingerprint and engine/check/audit-digest-staleness).
+
+Run it:  uv run --directory .engine -- python tools/demo_audit_digest.py
+
+The engine's periodic self-review writes a short, plain-language file — .engine/audits/audit-digest.md —
+that says what it looked at, what it found, and what it recommends. Two rules protect it: one catches the
+file being quietly edited by hand after the audit wrote it, and one warns when the self-review has gone too
+long without running (or hasn't run yet). This demo lets you SEE — without reading code — that both rules
+do what they claim.
+
+It works entirely on a THROWAWAY copy in a temp folder; your real repo is never touched. It uses the very
+same logic the real rules run. Vary it yourself: change the sample text, change the dates, and re-run — the
+verdicts follow. The sample below is also a fair picture of what a real self-review file reads like.
+
+Two later steps also show the read-only persona's other two inputs, both faked here (no network, no token),
+running the real logic: the audit-over-audit corroboration read (the self-review is handed its OWN recent
+reviews to read as corroboration only, degrading honestly when there is nothing to compare against), and the
+saved-memory coverage read (it reads the project's saved beliefs from their off-repo backup to review concern
+#1 — markers and superseded drafts dropped — or discloses the gap plainly when there is no backup to read,
+never claiming memory is empty).
+"""
+from __future__ import annotations
+import datetime
+import os
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import validate       # noqa: E402
+import audit_digest   # noqa: E402
+
+BANNER = "=" * 78
+
+# A realistic sample self-review, in the plain register a real digest uses (this is what a non-engineer
+# would open and read in the repo).
+SAMPLE_BODY = """# Engine self-review
+
+I reviewed your saved decisions, open debts, and how the installed parts are fitting together.
+
+**What I found**
+- Three saved decisions now contradict newer ones — here's which, and what I'd drop. (#231)
+- One open debt has sat untouched for 90 days and looks abandoned. (#232)
+
+**What looks healthy**
+- Your memory, project state, and knowledge map are all current.
+
+Nothing here changes anything on its own — each item above is a suggestion you decide on.
+"""
+
+
+def _verdict(f: dict) -> str:
+    return {"hard": "RED", "soft": "FLAGGED", "note": "clear"}.get(f["severity"], f["severity"])
+
+
+def _demo_saved_memory() -> bool:
+    """Concern #1 — saved memory, a REAL round-trip with only the network faked. Plant saved notes into a
+    throwaway memory cabinet, back them up to a FAKE vault, and prove the self-review reads back the durable
+    beliefs (the provenance markers and a superseded draft dropped by memory's OWN recall authority) — and that
+    with no backup it discloses the gap, never claiming memory is empty. Mirrors restore_vault's offline harness;
+    the real ledger and pointer are never touched."""
+    import json as _json
+    import time
+    from memory import backup_vault as bv
+    from memory import ledger
+    from memory import records as rec
+    old_root, old_engine, old_slug = validate.ROOT, getattr(validate, "ENGINE_DIR", None), bv._project_slug
+    with tempfile.TemporaryDirectory() as cabinet, tempfile.TemporaryDirectory() as root:
+        os.environ["ENGINE_MEMORY_DIR"] = cabinet
+        validate.ROOT = root
+        validate.ENGINE_DIR = os.path.join(root, ".engine")
+        os.makedirs(validate.ENGINE_DIR, exist_ok=True)
+        with open(os.path.join(validate.ENGINE_DIR, "engine.json"), "w", encoding="utf-8") as fh:
+            _json.dump({"engine_release": "0.0.0-dev"}, fh)
+        bv._project_slug = lambda: "demo-org/demo-project"
+        try:
+            # (a) No backup configured yet -> an honest disclosure, never "no memory exists".
+            no_backup = audit_digest.render_saved_memory()
+            print("   --- with NO memory backup set up, what the review says ---")
+            print("   | " + no_backup[:280])
+            disclosed = "for this review to read" in no_backup and "NEVER claim" in no_backup
+
+            # (b) Plant real saved memory: two live notes, a gist, a superseded draft, and provenance markers.
+            now = int(time.time())
+            b1, b2 = "b1" + "0" * 30, "b2" + "0" * 30
+            idC, idG = "c" * 32, "g" * 32
+            for r in [
+                {"v": 1, "kind": rec.EPISODIC_KIND, rec.RECORD_ID_KEY: "a" * 32, "session_id": "S", "ts": now - 10,
+                 "role": "decision", "text": "Ship the launch banner in the spring release.",
+                 "tags": [rec.DEFAULT_EPISODIC_TAG], rec.BATCH_KEY: b1},
+                {"v": 1, "kind": rec.EPISODIC_KIND, rec.RECORD_ID_KEY: "d" * 32, "session_id": "S", "ts": now - 500,
+                 "role": "lesson", "text": "Never deploy on a Friday.", "tags": [rec.DEFAULT_EPISODIC_TAG],
+                 rec.BATCH_KEY: b1},
+                {"v": 1, "kind": rec.EPISODIC_KIND, rec.RECORD_ID_KEY: idC, "session_id": "S", "ts": now - 2000,
+                 "role": "observation", "text": "An old draft note now folded into a summary.",
+                 "tags": [rec.DEFAULT_EPISODIC_TAG], rec.BATCH_KEY: b1},
+                {"v": 1, "kind": rec.MARKER_KIND, rec.RECORD_ID_KEY: "m" * 32, "session_id": "S", "ts": now - 5,
+                 "tags": [rec.MARKER_TAG], rec.BATCH_KEY: b1},
+                {"v": 1, "kind": rec.GIST_KIND, rec.RECORD_ID_KEY: idG, "ts": now - 100, "role": "observation",
+                 "text": "A summary of several older notes.", "tags": [rec.GIST_TAG, rec.DEFAULT_EPISODIC_TAG],
+                 rec.BATCH_KEY: b2, rec.SOURCE_IDS_KEY: [idC]},
+                {"v": 1, "kind": rec.SUPERSEDED_KIND, rec.RECORD_ID_KEY: "s" * 32, rec.TARGET_KEY: idC,
+                 rec.SUPERSEDED_BY_KEY: idG, rec.BATCH_KEY: b2, "ts": now - 100, "tags": []},
+                {"v": 1, "kind": rec.ROLLUP_KIND, rec.RECORD_ID_KEY: "r" * 32, rec.BATCH_KEY: b2, "ts": now - 100,
+                 "tags": []},
+                {"kind": "turn-delta", rec.RECORD_ID_KEY: "t" * 32, "role": "observation", "ts": now - 3,
+                 "text": "A raw in-the-moment note not yet summarized."},   # live, but not a durable belief
+            ]:
+                ledger.append(r)
+            fake = bv._FakeVault()
+            bv.setup(scope="shared", transport=fake.transport, consent="y")
+            old_vis = os.environ.get("MEMORY_AUDIT_REPO_VISIBILITY")
+            try:
+                # On a PRIVATE project the review may read your saved beliefs back by name.
+                os.environ["MEMORY_AUDIT_REPO_VISIBILITY"] = "private"
+                rendered = audit_digest.render_saved_memory(transport=fake.transport)
+                print("\n   --- on a PRIVATE project, the review reads your saved beliefs back ---")
+                for line in rendered.splitlines():
+                    print("   | " + line)
+                read_back = ("Ship the launch banner in the spring release." in rendered
+                             and "Never deploy on a Friday." in rendered
+                             and "A summary of several older notes." in rendered)          # the gist is kept
+                dropped = ("An old draft note now folded into a summary." not in rendered        # superseded raw
+                           and "A raw in-the-moment note not yet summarized." not in rendered)   # raw non-belief
+                plain = all(w not in rendered for w in ("episodic", "gist", "tier"))        # no backstage labels
+
+                # On a PUBLIC project the persona still SEES the notes (it must, to judge which look stale), but the
+                # header instructs it to commit ONLY the count and to offer the two safe levers — never a specific.
+                os.environ["MEMORY_AUDIT_REPO_VISIBILITY"] = "public"
+                public = audit_digest.render_saved_memory(transport=fake.transport)
+                print("\n   --- on a PUBLIC project, the notes are reviewed but only the count may be committed ---")
+                for line in public.splitlines()[:6]:
+                    print("   | " + line)
+                public_ok = ("Ship the launch banner in the spring release." in public          # the notes ARE fed…
+                             and "report ONLY HOW MANY" in public                                # …but commit only the count
+                             and "ordinary chat session" in public                               # lever 1: in-session review
+                             and "its own private memory vault" in public                        # lever 2: private / own vault
+                             and "DELIBERATELY withholding" not in public)                        # the #236 dead-end is gone
+            finally:
+                if old_vis is None:
+                    os.environ.pop("MEMORY_AUDIT_REPO_VISIBILITY", None)
+                else:
+                    os.environ["MEMORY_AUDIT_REPO_VISIBILITY"] = old_vis
+            ok = disclosed and read_back and dropped and plain and public_ok
+            print("\n   expected: no backup -> an honest gap (never 'no memory'); a configured PRIVATE backup -> your")
+            print("   live beliefs read back (provenance markers + superseded draft dropped); a PUBLIC project ->")
+            print(f"   the notes reviewed but only the count + levers committable (no specific, no dead-end) -> {ok}")
+            return ok
+        finally:
+            validate.ROOT = old_root
+            if old_engine is not None:
+                validate.ENGINE_DIR = old_engine
+            os.environ.pop("ENGINE_MEMORY_DIR", None)
+            bv._project_slug = old_slug
+
+
+def main() -> int:
+    today = datetime.date.today()
+    ok = True
+    with tempfile.TemporaryDirectory() as d:
+        digest = os.path.join(d, "audit-digest.md")
+
+        print(BANNER)
+        print("What this checks: the engine's self-review file must be exactly what the audit wrote (not")
+        print("quietly hand-edited afterwards), and it must be reasonably recent. Two rules enforce that.")
+        print(BANNER)
+
+        print("\n[1] Before any self-review has run, there is no file yet.")
+        print("-" * 78)
+        f = audit_digest.check(digest)
+        s = audit_digest.staleness(digest, now=today)
+        print(f"   seal rule:      {_verdict(f)}   ({validate.fmt(f)})")
+        print(f"   freshness rule: {_verdict(s)}   ({validate.fmt(s)})")
+        step1 = f["severity"] == "note" and s["severity"] == "soft"
+        print(f"   expected: seal rule passes (nothing to verify), freshness says 'hasn't run yet' -> {step1}")
+        ok = ok and step1
+
+        print("\n[2] The self-review runs today and writes its file. Both rules should be happy.")
+        print("-" * 78)
+        audit_digest.seal(digest, generated=today, body=SAMPLE_BODY)
+        print("   --- what got written (this is what you would open in the repo) ---")
+        for line in validate.read(digest).splitlines():
+            print("   | " + line)
+        f = audit_digest.check(digest)
+        s = audit_digest.staleness(digest, now=today)
+        print(f"\n   seal rule:      {_verdict(f)}   ({validate.fmt(f)})")
+        print(f"   freshness rule: {_verdict(s)}   ({validate.fmt(s)})")
+        step2 = f["severity"] == "note" and s["severity"] == "note"
+        print(f"   expected: both clear -> {step2}")
+        ok = ok and step2
+
+        print("\n[3] Now someone hand-edits the committed file after the fact. The seal rule should catch it.")
+        print("-" * 78)
+        with open(digest, "a", encoding="utf-8", newline="") as fh:
+            fh.write("\n(a line slipped in by hand that the audit never wrote)\n")
+        f = audit_digest.check(digest)
+        print(f"   seal rule: {_verdict(f)}   ({validate.fmt(f)})")
+        step3 = f["severity"] == "hard"
+        print(f"   expected: caught (RED) -> {step3}")
+        ok = ok and step3
+
+        print(f"\n[4] A self-review that ran but then stopped: its file is now {audit_digest.STALENESS_DAYS + 60}"
+              " days old.")
+        print("-" * 78)
+        old = today - datetime.timedelta(days=audit_digest.STALENESS_DAYS + 60)
+        audit_digest.seal(digest, generated=old, body=SAMPLE_BODY)
+        s = audit_digest.staleness(digest, now=today)
+        print(f"   freshness rule: {_verdict(s)}   ({validate.fmt(s)})")
+        step4 = s["severity"] == "soft"
+        print(f"   expected: flagged (so you're told to re-arm it) -> {step4}")
+        ok = ok and step4
+
+        print("\n[5] The scheduled run's own path: the self-review writes its words to a file, and the engine")
+        print("    seals THAT file in — the same --body-file step the workflow runs — and it verifies the same.")
+        print("-" * 78)
+        prose = os.path.join(d, "captured-prose.md")
+        with open(prose, "w", encoding="utf-8", newline="") as fh:
+            fh.write(SAMPLE_BODY)
+        produced = os.path.join(d, "from-body-file.md")
+        rc = audit_digest.main(["seal", produced, "--body-file", prose])
+        f = audit_digest.check(produced)
+        print(f"   sealed from the captured file -> CLI exit {rc}; seal rule: {_verdict(f)}")
+        step5 = rc == 0 and f["severity"] == "note"
+        print(f"   expected: sealed from the file and verifies (clear) -> {step5}")
+        ok = ok and step5
+
+        print("\n[6] When no self-review has run yet, the freshness notice doesn't just say 'set it up' — it")
+        print("    offers to set it up for you, and a plain-language setup guide travels with the project.")
+        print("    This step reads BOTH (read-only) so you can see the doorway-to-guide loop closes.")
+        print("-" * 78)
+        never_run = os.path.join(d, "never-run-here.md")  # a path with no file -> the 'hasn't run yet' notice
+        notice = audit_digest.staleness(never_run, now=today)
+        guide_path = os.path.join(validate.ENGINE_DIR, "audits", "self-review-setup.md")
+        guide_text = validate.read(guide_path)
+        print(f"   the boot notice you'd see: {validate.fmt(notice)}")
+        print(f"   the setup guide on disk:   {guide_path} ({len(guide_text)} characters)")
+        step6 = ("ask me to set it up" in notice["message"]
+                 and os.path.isfile(guide_path)
+                 and "CLAUDE_CODE_OAUTH_TOKEN" in guide_text)
+        print("   expected: the notice offers to set it up, and the guide names the exact secret to add ->"
+              f" {step6}")
+        ok = ok and step6
+
+        print("\n[7] Audit-over-audit: each run the self-review is also handed its OWN recent reviews, to read")
+        print("    as corroboration only (does a finding keep coming back?) — never as the decision itself.")
+        print("    This fakes the GitHub read (no network, no token) and shows the three things that happen.")
+        print("-" * 78)
+
+        def _fake_history(versions, *, fail=False):
+            # versions: list of (sha, date, body), NEWEST-FIRST (the order GitHub's commits API returns).
+            import base64 as _b64
+            order = [s for s, _d, _b in versions]
+            store = {s: f"---\ngenerated: {d}\nfingerprint: sha256:x\n---\n\n{b}\n" for s, d, b in versions}
+
+            def transport(method, path, body):
+                if fail:
+                    return 500, None          # a GitHub hiccup — the read must degrade honestly, not fabricate
+                if "/commits?" in path:
+                    return 200, [{"sha": s} for s in order]
+                sha = path.split("ref=")[1]
+                return 200, {"content": _b64.b64encode(store[sha].encode()).decode()}
+            return transport
+
+        present = audit_digest.render_prior_digests("you/proj", "tok", transport=_fake_history([
+            ("c2", "2026-06-08", "Module X still shows no sign of use."),
+            ("c1", "2026-06-01", "Module X shows no sign of use."),
+        ]))
+        none_yet = audit_digest.render_prior_digests("you/proj", "tok", transport=_fake_history([]))
+        degraded = audit_digest.render_prior_digests("you/proj", "tok", transport=_fake_history([], fail=True))
+        print("   --- with two earlier reviews on record (fed oldest-first, framed as corroboration) ---")
+        for line in present.splitlines():
+            print("   | " + line)
+        print("\n   --- with no earlier reviews yet ---")
+        print("   | " + none_yet)
+        print("   --- when the earlier reviews can't be read (a GitHub hiccup) ---")
+        print("   | " + degraded)
+        step7 = (present.index("2026-06-01") < present.index("2026-06-08")   # fed oldest-first
+                 and "corroboration" in present.lower()                       # framed as corroboration
+                 and "THIS cycle" in present                                  # the call rests on a fresh check
+                 and none_yet == audit_digest._PRIOR_NONE_MARKER              # no history -> honest plain marker
+                 and degraded.startswith("PRIOR SELF-REVIEWS: none"))         # read failure -> honest degrade
+        print("\n   expected: earlier reviews fed oldest-first as corroboration; both no-history and a failed")
+        print(f"   read degrade to an honest 'nothing to compare against' -> {step7}")
+        ok = ok and step7
+
+        print("\n[8] Concern #1 — saved memory: the review can't see your gitignored memory directly, so it")
+        print("    reads it from your off-repo BACKUP. This plants real saved notes, backs them up to a FAKE")
+        print("    vault (no network), and shows the review reads back your durable beliefs — or, with no")
+        print("    backup, discloses the gap without ever claiming your memory is empty.")
+        print("-" * 78)
+        step8 = _demo_saved_memory()
+        ok = ok and step8
+
+        print("\n" + BANNER)
+        print("In plain words: the seal rule passes on a freshly-written file and goes RED the moment the")
+        print("file is hand-edited; the freshness rule stays quiet while the self-review is recent and")
+        print("speaks up when it hasn't run in a while (or at all); the self-review reads its own recent")
+        print("reviews as corroboration, degrading honestly when there is nothing to compare against; and it")
+        print("reads your saved memory from its backup to review your saved decisions — disclosing the gap")
+        print("honestly when there's no backup to read, never pretending your memory is empty. Every step read")
+        print("a throwaway copy or a faked read and changed nothing. Your real repo was never touched.")
+        print(f"DEMO {'OK' if ok else 'FAILED'}")
+        print(BANNER)
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

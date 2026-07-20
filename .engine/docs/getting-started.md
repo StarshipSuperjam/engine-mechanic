@@ -24,14 +24,16 @@ You might say *"I want to start working on the booking page"* or *"remind me wha
 
 When you make a significant decision about how your Engine itself is set up — turning a feature on, adjusting one of its safety rules — you can ask it to record that decision (*"note that we decided to…"*). It keeps that as one of your own engine decisions, kept apart from the Engine's own built-in ones and held onto even when the Engine is later updated, so your reasoning is not lost.
 
+If your project builds its own safety-critical piece — say a script that guards something important — you can ask the Engine, in plain words, to protect it (*"treat this scanner as protected"*), or name a folder to cover everything inside it. The Engine keeps a short list of these for you and watches them alongside its own protections, so any change to one asks for your deliberate sign-off. Taking something back off that list later asks you to confirm too — removing a protection is a deliberate step, the same as adding one. The list is kept as yours and preserved across updates.
+
 When you ask for something that changes your project, the Engine works in careful steps and shows you what it plans before it does it, so nothing significant happens without your say-so.
 
 ## Finding the commands
 
-Alongside plain conversation, the Engine gives you a set of shortcuts — short typed commands, each beginning with **`/engine-`** so you can tell them apart from the other commands your assistant offers. There are three easy ways to see what's available:
+Alongside plain conversation, the Engine gives you a set of shortcuts — short typed commands that start with **`engine-`** so you can tell them apart from the other commands your assistant offers. The opening keystroke depends on where you're working: in **Claude Code** you type them as `/engine-…`; in **Codex** the same commands are `$engine-…`. There are three easy ways to see what's available:
 
-- Run **`/engine-help`** — it lists the Engine's commands and explains, in plain language, what each one is for. This is the simplest place to start.
-- Type **`/engine`** in the message box — the menu narrows to just the Engine's commands. (A bare `/` lists *every* command your assistant has, not only the Engine's; the `/engine-` start is how you spot them.)
+- Run **`/engine-help`** (in Codex: **`$engine-help`**) — it lists the Engine's commands in your runtime's own form and explains, in plain language, what each one is for. This is the simplest place to start.
+- Type the opening keystroke and **`engine`** in the message box (`/engine` in Claude Code, `$engine` in Codex) — the menu narrows to just the Engine's commands.
 - Or simply ask, in plain words — *"what can the Engine do?"*
 
 You never have to memorize anything; the list is always a few keystrokes or one question away.
@@ -47,3 +49,5 @@ This is routine upkeep: keeping only what still earns its place is part of how t
 ## Where to go next
 
 The simplest way to begin is to tell the Engine what you want to work on, in your own words. At the start of each session it will orient you — showing where your project stands — and from there you just keep the conversation going. When you want to know what else you can ask for, run `/engine-help`.
+
+If you're starting something new and would like it written down clearly before any building begins, the Engine can help you describe it first — laid out a piece at a time, in plain language, and checked so every part is present and well-formed (it checks the shape, never whether the idea is right — that stays your call). Just say so, or run `/engine-design`. It's optional, and on a fresh project the Engine will offer it at the start until you've either done it or told it you'd rather work without a written description.

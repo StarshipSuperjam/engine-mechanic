@@ -77,10 +77,14 @@ import boot_slice        # noqa: E402  (#37: boot's rung-1 knowledge cache; read
 import knowledge_gen     # noqa: E402  (REGEN_CMD: the one operator-facing regenerate-the-map command, cited not re-typed)
 import boot_alarm_ledger  # noqa: E402  (the standing-alarm presentation ledger; decide() fail-opens to full)
 import operator_overrides  # noqa: E402  (the operator policy-override file reader; boot loads it, passes the slice as DATA)
+import providers         # noqa: E402  (the provider seam: live-session marker + runtime detection)
 import telemetry         # noqa: E402  (read_state_debt / degraded_readout / the read-only Issue list)
 import protection_guard  # noqa: E402  (get_json + missing_floor: the protected-branch evaluation)
 import modes             # noqa: E402  (clear_stance + the stance vocabulary: the SessionStart clear + line)
 import checkout_health   # noqa: E402  (provisioning's operator-checkout strand detector; boot relays its detection)
+import license_health    # noqa: E402  (provisioning's leftover-template-LICENSE detector; boot relays its detection)
+import first_run_health  # noqa: E402  (#353: the un-finished-first-run detector; boot relays its detection and OFFERS setup)
+import greenfield_intake  # noqa: E402  (the first-engagement "no description yet" detector; boot relays + offers)
 import standing_situation  # noqa: E402  ("where we are" derived live from GitHub, read-only; boot displays, never writes)
 import audit_digest       # noqa: E402  (the self-review freshness signal; boot relays its staleness detection, never re-detects)
 import pr_reconcile       # noqa: E402  (#136: the stranded-PR conflict detector; boot relays its detection and OFFERS the fix)
@@ -294,40 +298,54 @@ def protected_branch_signal(repo: str | None, token: str | None) -> tuple[str, s
     return "on", None
 
 
-def open_findings(repo: str | None, token: str | None) -> tuple[int | None, str | None, list | None, int | None, list | None]:
+def open_findings(repo: str | None, token: str | None) -> tuple[int | None, str | None, int | None, list | None]:
     """The engine's open self-monitoring findings, RELAYED read-only from telemetry's debt register
     (the engine-labelled open Issues) via telemetry's own reader — NEVER the write loop. Returns
-    (count, register_url, fingerprint, low_severity_count, findings): count is None when the register could not be
-    read (degraded), 0 when the register is reachable and empty. `fingerprint` is the STRUCTURED-CONDITION
-    identity of the open set — a SORTED list of each finding's stable identity (its source_id, else
-    `#<issue-number>`) — the value the anti-habituation ledger compares, so a close+open at EQUAL count reads
-    as CHANGED and is never mis-collapsed to "unchanged". Duplicates are PRESERVED (two open
-    Issues sharing one source_id keep both tokens, so closing one still moves the fingerprint). `low_severity_
-    count` is the COMPLETE count of open low-impact (persistent-but-benign) engine Issues — the render-only
-    triage-pressure meter's authoritative input, read from the durable Issue set (each Issue's severity marker)
-    in this SAME single read, so it counts CI + ambient + every low-severity source, not the per-machine subset
-    a scoped triage pass could see. An Issue with no severity marker (a pre-severity Issue) is not counted
-    until telemetry next updates it. `findings` is the PER-ISSUE projection ({number, source_id, severity,
-    title}) the ranking grades into one blocking-debt candidate EACH — carried out of this SAME single read, so
-    attention's per-issue severities and the card header's count can never disagree and the SessionStart path
-    still makes no second GitHub call (`count == len(findings)` by construction). The `title` rides along
-    because a finding that surfaces needs to say WHICH problem it is: without it every finding line reads
-    identically but for its number, which is a wall to scan rather than something to triage. Only the
-    identifying fields travel; the Issue BODY never enters the pack. All five values are None when degraded,
+    (count, register_url, low_severity_count, findings): count is None when the register could not be
+    read (degraded), 0 when the register is reachable and empty. `low_severity_count` is the COMPLETE count of
+    open low-impact (persistent-but-benign) engine Issues — the render-only triage-pressure meter's
+    authoritative input, read from the durable Issue set (each Issue's severity marker) in this SAME single
+    read, so it counts CI + ambient + every low-severity source, not the per-machine subset a scoped triage
+    pass could see. An Issue with no severity marker (a pre-severity Issue) is not counted until telemetry next
+    updates it. `findings` is the PER-ISSUE projection ({number, source_id, severity, title}) the ranking grades
+    into one blocking-debt candidate EACH — carried out of this SAME single read, so attention's per-issue
+    severities and the card header's count can never disagree and the SessionStart path still makes no second
+    GitHub call (`count == len(findings)` by construction). It is also what the never-shed relay's BLOCKING
+    subset and its collapse fingerprint are derived from downstream (via the attention ranker). The `title`
+    rides along because a finding that surfaces needs to say WHICH problem it is: without it every finding line
+    reads identically but for its number, which is a wall to scan rather than something to triage. Only the
+    identifying fields travel; the Issue BODY never enters the pack. All four values are None when degraded,
     so they track together. Boot only reads; telemetry owns the register."""
     if not repo or not token:
-        return None, None, None, None, None
+        return None, None, None, None
     try:
         gh = telemetry.GitHubIssues(repo, token)
         issues = gh.list_open_engine_issues()
-        fingerprint = sorted((i.get("source_id") or f"#{i['number']}") for i in issues)
         low = sum(1 for i in issues if i.get("severity") == telemetry.PERSISTENT_BENIGN)
         findings = [{"number": i.get("number"), "source_id": i.get("source_id"),
                      "severity": i.get("severity"), "title": i.get("title") or ""}
                     for i in issues]
-        return len(issues), gh.issues_query_url(), fingerprint, low, findings
+        return len(issues), gh.issues_query_url(), low, findings
     except Exception:  # noqa: BLE001 — DegradedReadError or any transport failure -> unknown (degraded)
-        return None, None, None, None, None
+        return None, None, None, None
+
+
+def open_operator_count(repo: str | None, token: str | None) -> tuple[int | None, str | None]:
+    """The OPERATOR's own open issues — those WITHOUT the engine-domain label, their product backlog —
+    RELAYED read-only from telemetry's single Search-API count (never a backlog pagination, never the write
+    loop). Returns (count, register_url): count is None when there is no GitHub access (no repo/token) OR the
+    read degraded, and the register is the human-citable filtered list. A DELIBERATELY SEPARATE read from
+    `open_findings` — its own client, its own try/except — so the operator backlog and the engine's own
+    findings degrade independently and are never conflated (the engine/product wall). Whether a None means
+    'no access' (suppress) or 'read failed' (say so) is decided by the caller, which knows if repo/token were
+    present. Boot only reads; telemetry owns the count."""
+    if not repo or not token:
+        return None, None
+    try:
+        gh = telemetry.GitHubIssues(repo, token)
+        return gh.count_open_operator_issues(), gh.operator_issues_query_url()
+    except Exception:  # noqa: BLE001 — DegradedReadError or any transport failure -> None (degraded)
+        return None, None
 
 
 # ---- attention (consume the ranked partition; resolve member ids to plain language) ---------
@@ -340,7 +358,7 @@ def _resolve_member(member_id: str, state: dict | None, titles: dict | None = No
     {id, rank}) — the same channel the shipped digest and the knowledge neighbourhood need, for the same
     reason. Without it a register of open findings renders as lines identical but for a number."""
     if member_id == "state:standing-situation":
-        # NOT surfaced as an action line. The card already shows "Where we are" live in the facts block above
+        # NOT surfaced as an action line. The card already shows "What merged last" live in the facts block above
         # (fresh each session), and when that live read fails it carries its own stale-warning right there — so
         # a separate "confirm where you stand" nudge would be redundant in the fresh case and a duplicate of
         # that stale-warning in the failure case. Attention still ranks this orientation pointer for the budget
@@ -361,11 +379,15 @@ def _resolve_member(member_id: str, state: dict | None, titles: dict | None = No
             # the card. The title says WHICH problem it is: several blocking findings at once are a list to
             # triage, and without their names they are only distinguishable by a number the operator would have
             # to go look up. Defanged — a finding's title can quote a check-run name from outside the repo.
+            # The ❗ bang is unconditional here: only findings assign_partition graded blocking reach this line
+            # (sub-threshold and ungraded ones are dropped upstream), so every one is a real blocking item and
+            # earns the at-a-glance bang. The routine finding COUNT no longer alarms anywhere (it is a quiet
+            # facts line); this action line is where a genuinely blocking finding stays visible.
             name = validate.defang_prompt_fence_markers((titles or {}).get(member_id) or "")
             if name:
-                return (f"Engine finding #{slug} — {name} — is open and blocking; clear it before new work "
+                return (f"❗ Engine finding #{slug} — {name} — is open and blocking; clear it before new work "
                         f"piles on top.")
-            return f"Engine finding #{slug} is open and blocking — clear it before new work piles on top."
+            return f"❗ Engine finding #{slug} is open and blocking — clear it before new work piles on top."
         if kind == "pr":         # an open pull request in flight (the work record's GitHub layer)
             return f"Pull request #{slug} is open and in flight — pick it back up, or close it if it's done."
         if kind == "branch":     # the working branch in flight (the work record's local-git floor)
@@ -391,8 +413,54 @@ def _and_list(items: list) -> str:
     return f"{', '.join(items[:-1])} and {items[-1]}"
 
 
+# How many open milestones the card names before it switches to a named sample plus an honest count — a
+# build-spec-leaf cap decided with the maintainer (engine-template #558). It bounds only how many titles fit on
+# one glanceable card line; the full open set is never dropped (derive_milestone stays uncapped, and the count
+# discloses the true total). Independent of attention.FOCUS_CAP — the equal value is coincidental, not a coupling.
+_MILESTONE_NAME_CAP = 5
+
+
+def _milestone_line(value) -> str:
+    """The 'Milestone' card line, rendering the open milestones as they are (engine-template #496, #558): none
+    open reads as the honest-normal "No milestone is open"; a single open one is named plainly; several are named
+    under a plural label, still electing none. When more than a glanceable few are open the line names the first
+    `_MILESTONE_NAME_CAP` and moves the true total into the engine's own label — "Milestones (showing 5 of 21
+    open):" — a disclosed sample, never a silent truncation and never an election of a current one (#558). `value`
+    is the list of open titles (the current shape); a bare string (a cursor written by a pre-#496 engine) is read
+    as that one, and None/empty as none. This cap is a RENDER concern only: `derive_milestone` still returns every
+    open title, so the same capping applies honestly to the cached/offline list too (the count is the cached
+    total, and the staleness caveat still follows the line).
+
+    Milestone titles are GitHub-supplied and render into the model-visible briefing, so each is defanged — the
+    same guard the neighbouring 'What merged last' PR title and the product slug carry. The count lives in the
+    engine-controlled label, NOT a trailing clause, so an untrusted title cannot forge the disclosure the honesty
+    rests on; and in the quoted (multi-name) branches each title's own double-quotes are neutralized so a title
+    cannot spoof the engine's boundary quoting. The single/none branches are unquoted by design — one name has no
+    neighbour boundary to blur."""
+    if isinstance(value, str):
+        names = [value.strip()] if value.strip() else []
+    elif isinstance(value, list):
+        names = [t.strip() for t in value if isinstance(t, str) and t.strip()]
+    else:
+        names = []
+    names = [validate.defang_prompt_fence_markers(n) for n in names]
+    if not names:
+        return "**Milestone:** No milestone is open"
+    if len(names) == 1:
+        return f"**Milestone:** {names[0]}"
+    # Multi-name: quote each title so a comma or "and" inside a title cannot blur where one ends and the next
+    # begins; neutralize a title's own double-quotes first so it cannot spoof that boundary quoting.
+    quoted = [f'"{n.replace(chr(34), chr(39))}"' for n in names]
+    if len(quoted) <= _MILESTONE_NAME_CAP:
+        return f"**Milestones:** {_and_list(quoted)}"
+    # More open than fits: name the first few, disclose the true total in the engine's own label (out of reach of
+    # untrusted title text), and comma-join the shown sample — no "and", which would falsely read as a full list.
+    shown = ", ".join(quoted[:_MILESTONE_NAME_CAP])
+    return f"**Milestones (showing {_MILESTONE_NAME_CAP} of {len(names)} open):** {shown}"
+
+
 def needs_attention(state: dict | None, *, gh=None, live_findings: list | None = None,
-                    source=None) -> tuple[list, list, dict | None, list, list]:
+                    source=None) -> tuple[list, list, dict | None, list, list, list]:
     """Consume attention.rank_live and SPLIT its ranked partition into (1) operator ACTION lines, rendered in
     the GIVEN precedence order as plain language (a bounded prefix per category — boot renders, never
     re-orders), and (2) the knowledge NEIGHBORHOOD of the work in hand. The neighborhood is AI-orientation
@@ -400,7 +468,10 @@ def needs_attention(state: dict | None, *, gh=None, live_findings: list | None =
     block (assemble_pack) and never to the action list; `recent_decisions` are likewise routed out — its two
     halves to the "recently shipped" digest (merged PRs) and the recalled-decisions block (the memory recall),
     since what already happened is not something needing attention. Returns
-    (action_lines, degraded_inputs, neighborhood, shipped_lines, recalled_entries).
+    (action_lines, degraded_inputs, neighborhood, shipped_lines, recalled_entries, blocking_findings) — the
+    last being the finding: members the ranker graded blocking ({number, title} each), which boot needs
+    separately from the rendered action lines: a blocking finding keeps a never-shed session-start relay
+    (routine findings do not), and its identity set keys that relay's anti-habituation collapse.
 
     The focus is DERIVED here from the in-flight work record (#37): the files the work touches -> their owning
     entities -> a focused knowledge read. `gh` is the GitHub reader boot built from the live repo/token;
@@ -443,10 +514,21 @@ def needs_attention(state: dict | None, *, gh=None, live_findings: list | None =
                                      memory_recall=recall_rows, shipped=shipped_rows,
                                      budget_total=COLD_START_BUDGET)
     except Exception:  # noqa: BLE001 — attention unavailable -> no ranked lines, the rest of the pack stands
-        return [], ["attention"], None, [], []
+        return [], ["attention"], None, [], [], []
     # The finding names, from the SAME rows the ranking graded — so a line can never name a finding the
     # ranking did not rank, and no second read is made for the sake of the wording.
     finding_titles = {f"finding:{r.get('number')}": r.get("title") for r in (live_findings or [])}
+    # The BLOCKING findings: the finding: members the ranker SEATED (assign_partition already dropped the
+    # sub-threshold and ungraded ones, so every one here is blocking). Collected UNCAPPED — the display loop
+    # below caps per-kind, but the never-shed relay and its collapse fingerprint must reflect the TRUE blocking
+    # set, not the capped display slice. {number, title} each, the title defanged at render (relay/action line).
+    blocking_findings: list = []
+    for entry in result.get("partition", []):
+        for member in (entry.get("members") or []):
+            mid = member.get("id", "")
+            if mid.startswith("finding:"):
+                blocking_findings.append({"number": mid.split(":", 1)[1],
+                                          "title": finding_titles.get(mid) or ""})
     lines: list = []
     for entry in result.get("partition", []):
         if entry.get("category") == "structural_neighbors":
@@ -476,7 +558,7 @@ def needs_attention(state: dict | None, *, gh=None, live_findings: list | None =
         neighborhood["focus_total"] = focus_total   # the true count behind FOCUS_CAP, for honest disclosure (#165)
     return (lines, list(result.get("degraded_inputs") or []), neighborhood,
             _shipped_lines(result, read=(lambda: shipped_rows) if shipped_rows is not None else None),
-            _recalled_entries(result, recall_rows))
+            _recalled_entries(result, recall_rows), blocking_findings)
 
 
 # (predicate, direction) -> the plain-language relationship phrase for the AI orientation render. These
@@ -842,6 +924,76 @@ MCP_AVAILABILITY_CHECK = (
     "present, say nothing about this."
 )
 
+# The same consent-critical notice with the FIX instructions in the Codex runtime's own vocabulary
+# (project-scoped servers in .codex/config.toml, gated on the project being trusted — there is no
+# "reopen Claude" on Codex). Same detection (the model's own tool list), same must-relay force.
+MCP_AVAILABILITY_CHECK_CODEX = (
+    "Check your own available tools for the engine's two live helpers — each is a server registered for this "
+    "project that only runs once the operator trusts the project's configuration:\n"
+    "     - `mcp__engine-memory__*` — their saved memory (recall of past decisions and notes)\n"
+    "     - `mcp__engine-knowledge-graph__*` — the engine's wiring map (how the parts connect)\n"
+    "   For EACH of these families ABSENT from your tools this session, you MUST tell the operator, in plain "
+    "words (this is consent-critical — treat it like any must-relay alarm above, never as internal machinery): "
+    "that its live version isn't running this session, so you're working from their saved files instead — "
+    "which still works, but can be out of date; and that to switch it on they trust this project in Codex (the "
+    "engine registers the servers in the project's own `.codex/config.toml`), then restart Codex. If it still "
+    "doesn't appear, offer to help them turn it on — check their Codex MCP settings, or look into why the "
+    "server won't start. If BOTH families are present, say nothing about this."
+)
+
+
+def mcp_availability_check(provider: str | None = None) -> str:
+    """The live-helper availability notice in the current runtime's own fix vocabulary. Same
+    detection and force on both; only the switch-it-on instructions differ."""
+    p = provider or providers.detect()
+    return MCP_AVAILABILITY_CHECK_CODEX if p == providers.CODEX else MCP_AVAILABILITY_CHECK
+
+
+def capture_status_line() -> "str | None":
+    """One plain dashboard line when the LAST session's conversation could not be saved to this
+    project's memory — read from the gitignored capture-status marker the memory capture writes on
+    every attempt (capture owns the detection; boot only renders). None — say nothing — when the
+    marker is absent, unreadable, or reports a successful capture; boot never guesses a failure.
+    Read directly (a small JSON file), not through the memory package, so a repo without the memory
+    module renders nothing rather than failing."""
+    path = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "memory-capture.status")
+    try:
+        import json as _json
+        with open(path, encoding="utf-8") as fh:
+            record = _json.load(fh)
+    except (OSError, ValueError):
+        return None
+    state = record.get("state") if isinstance(record, dict) else None
+    if state in (None, "captured"):
+        return None
+    return ("**Last session's conversation wasn't saved to this project's memory** — the session "
+            "record couldn't be read, so that conversation won't be recallable later. Nothing in "
+            "your project was lost, and everything else still works. If this keeps happening the "
+            "engine will raise it as a tracked finding on its own.")
+
+
+def hooks_health_line() -> "str | None":
+    """One plain line when the live-session heartbeat shows NO recent evidence of the engine's hooks
+    running — the detector behind 'my hooks are silently off' (Codex skips untrusted hooks; either
+    runtime can have them unapproved). Detection is the marker boot's own SessionStart writes, so
+    this line can only be produced by a surface that runs WITHOUT hooks (the status verb is a plain
+    command — the disclosure channel survives the failure it reports). None — say nothing — when a
+    fresh marker exists. Deliberately worded for both causes on Codex (trust pending vs a version
+    without hook support), because the two are indistinguishable from outside."""
+    if providers.read_live_session() is not None:
+        return None
+    return ("**I can't see the engine's automatic hooks having run recently in this project.** If "
+            "this session just started and this line is here, the hooks are not running — on Codex "
+            "that usually means they're waiting for your approval (run /hooks and approve the "
+            "engine's hooks) or your Codex build predates hook support (hooks arrived in 2026 "
+            "builds, around v0.114); on Claude Code it usually means the project's hooks aren't "
+            "approved yet. Until they run, the parts that ride them are off: the write-gate, "
+            "session memory capture, and the automatic start-of-session status. One honest limit: "
+            "a session on EITHER runtime within the last day clears this line for the whole "
+            "project, so its absence is not per-session proof — the per-session check is whether "
+            "this session's start-of-session briefing actually arrived. This readout still works — "
+            "it runs as a plain command.")
+
 
 def gather_signals(session_id: str | None = None) -> dict:
     """Read + DETECT every signal the dashboard renders — the substrates' own detection, which boot only
@@ -851,7 +1003,11 @@ def gather_signals(session_id: str | None = None) -> dict:
     state, refused = read_state()
     repo, token = repo_slug(), gh_token()
     gate, reason = protected_branch_signal(repo, token)
-    finding_count, register, finding_fingerprint, low_severity_count, findings = open_findings(repo, token)
+    finding_count, register, low_severity_count, findings = open_findings(repo, token)
+    # The operator's OWN open-issue count (their product backlog — issues WITHOUT the engine label), a
+    # DELIBERATELY separate read from the engine findings above so the two degrade independently. None when
+    # there is no GitHub access or the read failed; the caller distinguishes those (operator_backlog_degraded).
+    operator_backlog_count, operator_backlog_register = open_operator_count(repo, token)
     # The render-only triage-pressure line: one plain-language
     # "backlog is growing" line once the COMPLETE open low-severity count crosses the governed threshold, else
     # None. Boot DISPLAYS it read-only (it never runs a triage pass); the count is the durable-Issue
@@ -889,7 +1045,7 @@ def gather_signals(session_id: str | None = None) -> dict:
     gh = telemetry.GitHubIssues(repo, token) if repo and token else None
     # Thread the live debt register boot ALREADY read (open_findings, above) into the ranking as the PER-ISSUE
     # rows, so the ranking grades each open finding on its own severity (making the policy's debt-blocking
-    # threshold and busy-session flex actually govern) while the "Open problems" header still reads the SAME
+    # threshold and busy-session flex actually govern) while the "Engine findings" header still reads the SAME
     # number off the SAME read — `finding_count == len(findings)`, so they cannot disagree — and the SessionStart
     # path makes no second GitHub call. None (no repo/token, or a failed read) -> telemetry degrades and the
     # committed count stands in -> boot raises the loud 'couldn't reach' notice.
@@ -904,8 +1060,33 @@ def gather_signals(session_id: str | None = None) -> dict:
     # (map_corrupt) — both ran orientation on a live rebuild, but the operator's repair reads differently, so
     # each earns its own honestly-named heads-up (eADR-0004 'name what is reduced'). Mutually exclusive.
     map_corrupt = bool(source and getattr(source, "from_corrupt", False))
-    att_lines, att_degraded, neighborhood, shipped, recalled = needs_attention(
+    att_lines, att_degraded, neighborhood, shipped, recalled, blocking_findings = needs_attention(
         state, gh=gh, live_findings=findings, source=source)
+    # The whole-backlog total the card leads with — the operator's own open issues PLUS the engine's own
+    # findings (its housekeeping folded in, never separately alarmed). Computed ONCE here so the marker and the
+    # dashboard headline read the same number and decide the degraded case identically (they only relay).
+    # `counts_state` is that single decision: both reads known / one known / both failed with a token (a real
+    # outage — never a false 'all clear') / no token at all (benign — 'all clear' is honest). finding_count is
+    # None for BOTH no-token and a failed read, so operator_backlog_degraded (token-present-but-failed) is what
+    # separates the outage from the benign-offline case.
+    _have_engine = finding_count is not None
+    _have_operator = operator_backlog_count is not None
+    if _have_engine and _have_operator:
+        counts_state = "both"
+        total_open = finding_count + operator_backlog_count
+    elif _have_engine or _have_operator:
+        counts_state = "partial"
+        total_open = None
+    elif bool(repo and token):
+        counts_state = "degraded"   # a token was present but both reads failed — must never read as all-clear
+        total_open = None
+    else:
+        counts_state = "offline"    # no GitHub access at all — a benign 'all clear' is honest here
+        total_open = None
+    # The all-open register (both engine + operator, no label term) the total links to, and the BLOCKING-finding
+    # identity set that keys the never-shed relay's collapse (a new/worsened blocking finding relays full).
+    all_open_register = gh.all_open_issues_query_url() if gh else None
+    blocking_finding_fingerprint = sorted(f"#{b.get('number')}" for b in blocking_findings) or None
     try:
         # Provisioning's strand detector, RELAYED (boot computes no new state). A strand-check failure is
         # low-stakes (a stranded local checkout cannot reach the protected branch), so it degrades QUIETLY
@@ -943,6 +1124,53 @@ def gather_signals(session_id: str | None = None) -> dict:
     except Exception:  # noqa: BLE001 — any detector failure degrades this one signal, never the pack
         absent_home = None
     try:
+        # The PRODUCT signal, RELAYED from checkout_health's OFFLINE manifest read (boot reads no manifest
+        # itself — its relay-only discipline). The recorded product repo is present ONLY when this engine
+        # builds a repo DIFFERENT from the one it is deployed into (eADR-0026); absent for the common
+        # self-building case, so the dashboard says nothing then. Degrades QUIETLY to None on any read failure.
+        product_repository = checkout_health.recorded_product_repository()
+    except Exception:  # noqa: BLE001 — a manifest read failure degrades this one signal, never the pack
+        product_repository = None
+    try:
+        # The leftover-template-LICENSE signal (#471), RELAYED from license_health's OFFLINE, READ-ONLY detection
+        # (boot computes no new state): the operator's main checkout still carries the engine's OWN template
+        # LICENSE at its committed root (a repo generated before the first-run clear shipped, or drifted back to
+        # the seed). No-op in the engine's own template repo; degrades QUIETLY to None otherwise. boot OFFERS a
+        # reviewed removal; the assistant lands it as a reviewed pull request on the operator's consent — never a
+        # boot-time delete. The open-removal-PR DEDUPE is a SEPARATE best-effort ONLINE step, kept OFF the
+        # offline detector's critical path; a network miss (pr_open None) just re-offers normally.
+        foreign_license = license_health.detect_foreign_license()
+        if foreign_license and foreign_license.get("present"):
+            foreign_license = {**foreign_license, "pr_open": bool(license_health.removal_pr_open(repo, token))}
+    except Exception:  # noqa: BLE001 — any detector/network failure degrades this one signal, never the pack
+        foreign_license = None
+    try:
+        # The un-finished-first-run signal (#353), RELAYED from first_run_health's OFFLINE, READ-ONLY detection
+        # (boot computes no new state): the operator's main checkout is still a construction-state copy of the
+        # template whose one-time setup hasn't finished, so it silently reports itself "already set up." boot
+        # OFFERS to walk /engine-setup; the assistant runs setup on the operator's consent — never a boot-time
+        # transform. No-op in the workshop (origin == home) and in a finished project (setup tool retired);
+        # degrades QUIETLY to None otherwise. The fork-parentage DEDUPE is a SEPARATE best-effort ONLINE step
+        # (forked_from_home), kept OFF the offline detector's critical path: it suppresses the offer ONLY for a
+        # confirmed fork of the engine home (a contributor's fork, not an adopter). A network miss offers normally.
+        first_run = first_run_health.detect_first_run_pending()
+        if first_run and first_run.get("present"):
+            # Pass the detector's OWN origin slug (read from the examined checkout's disk remote), not `repo`
+            # (env-first) — so the online fork check is about the same repository the offline verdict placed.
+            if first_run_health.forked_from_home(first_run.get("own"), token, first_run.get("home")) is True:
+                first_run = None
+    except Exception:  # noqa: BLE001 — any detector/network failure degrades this one signal, never the pack
+        first_run = None
+    try:
+        # The first-engagement nudge (#553), RELAYED from greenfield_intake's OFFLINE, READ-ONLY detection
+        # (boot computes no new state): the project has the engine-design intake installed but no product
+        # description yet, so boot OFFERS the intake so a non-engineer discovers it. Fires only when the intake
+        # is installed (never offers a command that isn't there) and no `docs/spec/` description exists (self-
+        # resolves the moment the intake runs); no-op in the engine's own construction repo. Degrades QUIETLY.
+        greenfield = greenfield_intake.detect_greenfield()
+    except Exception:  # noqa: BLE001 — a detector failure degrades this one signal, never the pack
+        greenfield = None
+    try:
         # The self-review freshness signal, RELAYED from audit_digest's own detection (boot computes no new
         # state). Called arg-less so it reads the committed digest + today and owns STALENESS_DAYS/the re-arm
         # copy itself — boot never re-detects or re-literals the bound. Low-stakes (a missing digest is the
@@ -979,6 +1207,17 @@ def gather_signals(session_id: str | None = None) -> dict:
     except Exception:  # noqa: BLE001 — any detector/import failure degrades this one signal, never the pack
         migration_revert = None
     try:
+        # A staged/stalled engine update left half-applied in the working tree — surfaced read-only so an
+        # update the operator walked away from is discoverable at STARTUP, not only when they re-run the command
+        # (the parallel to the memory-ahead offer above). module_manager is imported LAZILY (it is off the
+        # cold-start path, and its own `boot` use is lazy — no cycle). This is a cheap git read only
+        # (overlay-code dirty vs HEAD, NOT a coherence pass), so a stall that leaves the wiring applied but the
+        # tree half-built is still caught. Degrades QUIETLY to None — a clean tree is the normal state.
+        import module_manager as _mm
+        staged_update = bool(_mm._staged_upgrade_dirty())
+    except Exception:  # noqa: BLE001 — any detector/import failure degrades this one signal, never the pack
+        staged_update = None
+    try:
         # The memory-health signal (#396), RELAYED from memory's own LOCAL read (no network; boot computes
         # no new state). Reads the live ledger and reports how many lines are unreadable — a rotting store that
         # would otherwise lose recall line by line with no signal. Lazy import (memory off the cold-start path).
@@ -1010,7 +1249,7 @@ def gather_signals(session_id: str | None = None) -> dict:
     # (an unreadable store — surfaced by recall_offline above, never as a false "nothing set aside"); a report
     # means "read". Read-only; boot owns the wording, memory owns the mechanism.
     set_aside = _set_aside_recall()
-    # "Where we are" assembled LIVE from native GitHub sources, read-only: the online card is always
+    # "What merged last" assembled LIVE from native GitHub sources, read-only: the online card is always
     # current and cannot silently rot. ALL-OR-NOTHING — any read failure (or no repo/token) leaves this None,
     # and render falls back to the committed offline cache, rendered stale-labelled. boot DISPLAYS; it never
     # writes the cache (that rides telemetry's GitHub pass). A failure here NEVER reads as a confident "none set".
@@ -1023,7 +1262,19 @@ def gather_signals(session_id: str | None = None) -> dict:
     return {
         "state": state, "refused": refused,
         "gate": gate, "reason": reason,
-        "finding_count": finding_count, "register": register, "finding_fingerprint": finding_fingerprint,
+        "finding_count": finding_count, "register": register,
+        # The whole-backlog total + its all-open register + the ONE degraded-state decision (computed above), so
+        # the marker and the dashboard headline read the same number and degrade the same way (they only relay).
+        # blocking_findings ({number,title} each) + its identity fingerprint drive the never-shed blocking relay.
+        "total_open": total_open, "counts_state": counts_state, "all_open_register": all_open_register,
+        "blocking_findings": blocking_findings,
+        "blocking_finding_fingerprint": blocking_finding_fingerprint,
+        # The operator's own open-issue count + its clickable filtered register (their product backlog), or
+        # None. `operator_backlog_degraded` is True ONLY when GitHub access existed but the read failed — so
+        # render can tell "read failed, say so" from "no access, stay silent" and never show a false 0.
+        "operator_backlog_count": operator_backlog_count,
+        "operator_backlog_register": operator_backlog_register,
+        "operator_backlog_degraded": bool(repo and token) and operator_backlog_count is None,
         # How many open findings carry NO urgency rating — from the SAME read as the count above, so the two
         # can never disagree. None when the register could not be read (the card then says nothing about it
         # rather than guessing zero).
@@ -1031,6 +1282,12 @@ def gather_signals(session_id: str | None = None) -> dict:
                           else sum(1 for f in findings if not f.get("severity"))),
         "low_severity_count": low_severity_count, "triage_pressure_line": triage_pressure_line,
         "contract_rate_line": contract_rate_line,
+        # One plain line when the last capture attempt could NOT save a session's conversation to
+        # memory (the loud half of the fail-soft capture, eADR-0034); None when fine or no marker.
+        "capture_status_line": capture_status_line(),
+        # One plain line when there is no recent evidence of the hooks running (the silently-off
+        # detector — Codex trust-pending, unapproved hooks, or a pre-hooks version); None when fresh.
+        "hooks_health_line": hooks_health_line(),
         "debt_count": debt_count, "debt_as_of": debt_as_of,
         "att_lines": att_lines, "att_degraded": att_degraded,
         # True iff orientation ran on a LIVE-rebuilt map because the committed graph.json is absent (a distinct
@@ -1057,12 +1314,26 @@ def gather_signals(session_id: str | None = None) -> dict:
         "off_main": off_main,
         # the absent-update-home signal (#367): the engine's manifest records no home to fetch updates from, or None
         "absent_home": absent_home,
+        # the PRODUCT signal (eADR-0026): the repo this engine builds when it differs from the deployed-into
+        # repo, or None for the common self-building case (the dashboard then shows no product line)
+        "product_repository": product_repository,
+        # the leftover-template-LICENSE signal (#471): the main checkout's committed root LICENSE is still the
+        # engine's own template seed (with a best-effort `pr_open` dedupe flag), or None (healthy / the engine's
+        # own template repo / unresolvable). Rendered below the governance alarms; retire/collapse decided hook-side.
+        "foreign_license": foreign_license,
+        # the un-finished-first-run signal (#353): the main checkout is still a construction-state template copy
+        # whose one-time setup hasn't finished (origin != recorded home, setup tool still present), with the
+        # fork-of-home offer suppressed; or None (workshop / finished / a contributor's fork / unresolvable).
+        # Rendered as the top onboarding OFFER — the one thing to do before anything else on a fresh copy.
+        "first_run": first_run,
+        "greenfield_intake": greenfield,
         # a pull request stuck in a conflicting merge state on the two derived index files (#136), or None
         "pr_conflict": pr_conflict,
         # the memory auto-restore offer: local memory is empty + a backup is configured, or None
         "restore_offer": restore_offer,
         # the code-older-than-data offer (#303): the store is ahead of the engine after a reverted update, or None
         "migration_revert": migration_revert,
+        "staged_update": staged_update,
         # the memory-health count (#396): unreadable lines in the live ledger (>0 -> a rot heads-up), 0/None otherwise
         "ledger_malformed": ledger_malformed,
         # the stalled-migration signal (#396): True iff a memory migration didn't finish (orphaned marker) and
@@ -1089,6 +1360,25 @@ def gather_signals(session_id: str | None = None) -> dict:
 _RESTART_FIXABLE = {"telemetry", "knowledge"}
 
 
+def _backlog_lead_line(s: dict) -> str | None:
+    """The dashboard's calm opening headline — the whole open backlog (the operator's own issues + the engine's
+    own findings folded in) as a plain blockquote, never a ⚠, linking the all-open list. None when the counts
+    couldn't be fully read (the facts block below then carries the honest degraded lines instead of a
+    fabricated headline) or when the backlog is empty ('all clear' lives in the marker). Reads the SAME
+    counts_state the marker reads, so the two headlines can never disagree."""
+    if s.get("counts_state") != "both":
+        return None
+    total = s.get("total_open") or 0
+    if total == 0:
+        return None
+    engine = s.get("finding_count") or 0
+    noun = "issue" if total == 1 else "issues"
+    share = f" ({engine} {'is' if engine == 1 else 'are'} engine-health)" if engine else ""
+    reg = s.get("all_open_register")
+    tail = f": {reg}" if reg else ""
+    return f"> **{total} open {noun}**{share}{tail}"
+
+
 def render_dashboard(s: dict) -> str:
     """The operator-toned `Project status` dashboard, rendered from gathered signals (gather_signals) as
     DATA — PURE: no I/O, computes no new state. Governance alarms pin warm at the top, then a stranded-
@@ -1100,7 +1390,26 @@ def render_dashboard(s: dict) -> str:
     pinned: list[str] = []        # governance-critical alarms, loudest first
     degraded: list[str] = []      # the consolidated "what I couldn't refresh / verify" notice
 
-    if s["gate"] == "off":
+    # The un-finished-first-run OFFER (#353), pinned FIRST — on a brand-new copy of the template it is the
+    # root onboarding action, and it FRAMES every other signal (an un-set-up repo hasn't turned its own safety
+    # gate on yet, hasn't swapped in its own project floor). READ-ONLY: boot offers, the assistant runs
+    # `/engine-setup` on the operator's consent, never a boot-time transform. Provenance-framed (a copied-in
+    # template state, not a defect the operator caused) and reversible-in-tone ("if I've got this wrong, tell
+    # me"). When it fires it SUPPRESSES the redundant "your safety gate is off" offer just below, because
+    # first-run setup is exactly what turns the gate on — one onboarding ask, not two. The offer keeps
+    # showing until setup actually runs (the detector is stateless by design — it nudges toward the real
+    # fix rather than being dismissible), so the copy makes no "I'll stop bringing it up" promise it can't keep.
+    first_run = s.get("first_run")
+    if first_run and first_run.get("present"):
+        pinned.append(
+            "🚀 **This looks like a fresh copy of the engine template — first-time setup hasn't finished "
+            "yet.** That's the one thing to do before we start building: it swaps in your own project's "
+            "starting files and turns on your safety gate, so your main branch is protected. Say **set up my "
+            "project** and I'll walk you through `/engine-setup` step by step — nothing on your project changes "
+            "until you approve each step. If setup was interrupted partway, running it again just picks up "
+            "where it left off.")
+
+    if s["gate"] == "off" and not (first_run and first_run.get("present")):
         # boot OFFERS the fix here and stays READ-ONLY; the assistant runs the already-built, idempotent
         # bootstrap.ControlPlane.apply(branch=PROTECTED_BRANCH) on the operator's consent — the shared
         # repair-offer contract (boot-session-start.md). boot never imports bootstrap (bootstrap imports
@@ -1115,14 +1424,13 @@ def render_dashboard(s: dict) -> str:
             f"I couldn't verify your safety gate from here (no GitHub access), so **don't assume "
             f"`{PROTECTED_BRANCH}` is protected** — confirm it before merging anything important.")
 
-    if s["finding_count"]:
-        pinned.append(
-            f"⚠️ **{s['finding_count']} open engine finding(s)** about the engine's own health need "
-            f"review: {s['register']}")
-    # When the live register could NOT be read (finding_count is None), the consolidated degraded notice below
-    # names it ("I couldn't reach your open-problems list from GitHub ...") — that notice is driven by attention's
-    # degraded set (telemetry, the same live register), so there is no separate "couldn't check findings" line
-    # to duplicate it. The header above falls back to the loud-if-stale shadow count in that case.
+    # Engine findings NO LONGER pin a ⚠ here. A routine finding count is the engine's own housekeeping (the
+    # operator's lowest priority in a deployed repo), so it renders only as a quiet facts line below and is
+    # folded into the calm whole-backlog total the card opens with. A genuinely BLOCKING finding still surfaces
+    # in "Needs your attention" (with a ❗) and rides the never-shed must-push relay — so demoting the count
+    # hides nothing that matters. When the live register could NOT be read (finding_count is None), the
+    # consolidated degraded notice below names it (driven by attention's degraded set), so no separate line is
+    # needed here; the whole-backlog headline degrades honestly (counts_state) rather than showing a false total.
 
     # A stranded operator checkout — surfaced read-only, pinned AFTER the governance alarms (open-findings
     # tier; a stranded local checkout cannot reach the protected branch). boot OFFERS the fix here; the
@@ -1234,16 +1542,93 @@ def render_dashboard(s: dict) -> str:
     # a tag/ref — the snapshot-vs-latest choice is the engine's. Worded to cover BOTH an operator-undone update and a
     # half-applied one that never landed (leads with the state, not "you undid"). boot OFFERS; the assistant runs
     # memory.restore_pre_migration(tag=…) on consent (the tag rides the signal, never the operator's eyes).
-    if s.get("migration_revert"):
+    # Staged-first precedence: when an update is stuck half-applied, its OWN undo puts the memory back too, so
+    # the standalone memory-ahead offer would be a competing (and, run first, out-of-order) prompt — suppress it
+    # under a staged update, matching present_marker_line and _diagnose_undo, which both rank staged first.
+    if s.get("migration_revert") and not s.get("staged_update"):
         pinned.append(
             "↩️ **Your saved memory was changed by an engine update that isn't in place** — so right now your "
             "memory and the engine don't match. I can put your memory back to **the copy saved before that update**, so "
             "they line up again. Say **restore my memory from before the update** and I'll bring it back — nothing on "
             "this computer changes until you say so.")
 
+    # A staged/stalled engine update, surfaced read-only at the recovery tier — an update was started but not
+    # finished, so the working tree sits part-way between versions. LEADS with "nothing was merged, you're safe"
+    # (the stall is never the operating baseline), then routes to the one `/engine-upgrade` command, which
+    # offers the choice: finish it, or undo it (undoing saves a recovery point first). boot OFFERS only; the
+    # assistant runs `/engine-upgrade` on consent (boot-session-start.md). module_manager owns the detector +
+    # the fix; boot owns this wording and never imports the fix path except through the lazy detector above.
+    if s.get("staged_update"):
+        pinned.append(
+            "🛠️ **An engine update looks half-finished** — it was started but not completed, so your engine is "
+            "part-way between versions. **Nothing was merged, so you're safe.** Type **/engine-upgrade** and I'll "
+            "show you the choice: finish the update, or undo it and put your engine back the way it was — if you "
+            "undo, I save a recovery point of your current state first, so nothing is lost.")
+
+    # The leftover-template-LICENSE OFFER (#471), surfaced read-only at the strand/offer tier — the LOWEST-urgency
+    # offer, BELOW the governance alarms (a foreign copyright is a bounded, operator-correctable residual, never
+    # guardrail-critical). Provenance-framed (a file copied in from the template, not a defect in their project);
+    # LEADS with the private-by-default reassurance, kept accurate for a PUBLIC repo ("until you choose to share
+    # it", never "nothing is exposed" / "all rights reserved" as a conclusion); factual, NEVER legal advice (never
+    # which license to choose); routes the judgment out (choosealicense.com, help adding one, a human for terms
+    # that matter); and surfaces the intent-exit invitation. A RETIRED finding (the operator said "I meant to keep
+    # this") renders NOTHING — the retire/collapse decision is HOOK-SIDE (_relay_lines), so the pure status-verb
+    # path (no ledger) shows the full offer (fail-toward-showing). boot OFFERS only; on consent the removal lands
+    # as a reviewed pull request the operator merges (build-orchestration's trivial fast path), never a delete here.
+    fl = s.get("foreign_license")
+    if fl and fl.get("present") and not fl.get("retired"):
+        if fl.get("pr_open"):
+            pinned.append(
+                "📄 **A cleanup for a leftover license file is prepared — it's waiting for your review and merge.** "
+                "A license file copied in from the template you started from is still in your project under its "
+                "author's name, not yours. I've prepared the small change to clear it — you'll find it with your "
+                "open pull requests under **Needs your attention** below. If it's one you meant to keep, say so and "
+                "I'll stop bringing it up.")
+        elif fl.get("collapsed"):
+            pinned.append(
+                "📄 A leftover license file from the template you started from is still in your project under its "
+                "author's name (unchanged since last session) — say the word and I'll prepare a small change you "
+                "approve to clear it; or, if you meant to keep it, tell me and I'll stop bringing it up.")
+        else:
+            pinned.append(
+                "📄 **Your code is yours by default — yours until you choose to share it.** One tidy-up: a license "
+                "file copied in from the template you started from is still sitting in your project under its "
+                "author's name, not yours — leftover from how your project was created, not anything you did. With "
+                "your OK I'll clear it as a small change you approve (a quick review and merge), so you start from a "
+                "clean slate and can add the license you choose — I can point you to choosealicense.com, help add "
+                "the one you pick, or point you to a person to talk to if the legal terms really matter to you. If "
+                "it's one you meant to keep, just say so and I'll stop bringing it up.")
+
+    # The first-engagement nudge (#553), below governance: the project has the engine-design intake but no
+    # description yet, so OFFER it so a non-engineer discovers it. A RETIRED offer (the operator said "I'm not
+    # describing a spec") renders NOTHING — the retire/collapse decision is HOOK-SIDE (_relay_lines), so the pure
+    # status-verb path (no ledger) shows the full offer (fail-toward-showing). boot OFFERS only; the operator
+    # starts the intake themselves.
+    gf = s.get("greenfield_intake")
+    if gf and gf.get("greenfield") and not gf.get("retired"):
+        if gf.get("collapsed"):
+            pinned.append(
+                "🧭 There's still no written description of this project in the engine (unchanged since last "
+                "session) — whenever you're ready, just tell me what you have in mind and I'll help you write it "
+                "down clearly and check it holds together. Or, if you'd rather work without a written "
+                "description, say so and I'll stop bringing it up.")
+        else:
+            pinned.append(
+                "🧭 **Want to start by describing what you're building?** There's no written description of this "
+                "project in the engine yet. If you tell me what you have in mind, I can help you turn it into a "
+                "clear, checked description to build from — laid out a piece at a time, in plain language (this "
+                "is what the **engine-design** command does). It's optional and you can do it any time. If you'd "
+                "rather just start building without a written description, that's fine — say so and I'll stop "
+                "offering.")
+
     out: list[str] = [f"## {PRESENT_MARKER}"]
     out.extend(f"> {line}" for line in pinned)
-    if pinned:
+    # When no governance alarm leads, the card opens with the calm whole-backlog headline (never a ⚠); when one
+    # does, that alarm leads and the backlog stays in the facts block below.
+    lead = None if pinned else _backlog_lead_line(s)
+    if lead:
+        out.append(lead)
+    if pinned or lead:
         out.append("")
 
     if s["refused"]:
@@ -1251,26 +1636,64 @@ def render_dashboard(s: dict) -> str:
             "**I couldn't read where the project stands**, so I'm treating project status as unknown. "
             "Don't trust a status summary until the engine re-grounds.")
     else:
-        # "Where we are" (the active work) and "Milestone" (the larger plan marker) are two self-explanatory
-        # lines, from ONE source — live-or-cached, never both. When the live GitHub
-        # derive succeeded, render it (always current); otherwise fall back to the committed offline cache,
-        # named with WHEN it was cached and that it may be stale (the debt-count staleness voice). An absent
-        # milestone is an honest normal state on its own line ("No milestone is open"), never an error.
+        # "What merged last" (the most-recently-merged PR) and "Milestone" (the larger plan marker) are two
+        # self-explanatory lines, from ONE source — live-or-cached, never both. When the live GitHub derive
+        # succeeded, render it (always current); otherwise fall back to the committed offline cache, named with
+        # WHEN it was cached and that it may be stale (the debt-count staleness voice). The engine names the
+        # open milestones as they are and elects none (#496): none open is the honest normal "No milestone is
+        # open" on its own line, one is named, several are all named — never an error.
         live = s["live_standing"]
         source = live if live is not None else ((s["state"] or {}).get("standing_situation") or {})
-        phase = source.get("phase") or "nothing in progress yet"
-        milestone = source.get("milestone") or "No milestone is open"
-        out.append(f"**Where we are:** {phase}")
-        out.append(f"**Milestone:** {milestone}")
+        raw_phase = source.get("phase") or ""
+        # Offline-cache format guard: a cache written before "what merged last" existed holds an old
+        # "… (issue #N)" phase string. Rendering that under the new label would mislabel an issue as a merged
+        # PR, so on the OFFLINE fallback (live is None) when the cached value isn't PR-format, don't claim it —
+        # fall back to the honest "nothing merged yet" for the brief window until telemetry's next pass rewrites
+        # the cache. A live read is always PR-format (derive_last_merged), so this only touches the stale case.
+        if live is None and raw_phase and "(PR #" not in raw_phase:
+            raw_phase = ""
+        # Defanged: the PR title is operator- or (on the external-contribution path) remote-supplied and renders
+        # into the model-visible briefing, so it gets the same guard as the product slug below.
+        phase = validate.defang_prompt_fence_markers(raw_phase) or "nothing merged yet"
+        # The PRODUCT line — shown ONLY when this engine builds a repo DIFFERENT from the one it is deployed
+        # into (a recorded product; eADR-0026), so a self-building deployment gets no line rather than its own
+        # slug echoed back. Rendered ABOVE the live-derived facts so the offline "may be out of date, re-ground"
+        # caveat below can't misattach to this static stored label (re-grounding never changes it).
+        if s.get("product_repository"):
+            out.append(f"**What this engine builds:** "
+                       f"{validate.defang_prompt_fence_markers(s['product_repository'])}")
+        out.append(f"**What merged last:** {phase}")
+        out.append(_milestone_line(source.get("milestone")))
         if live is None:
             when = source.get("as_of") or "an earlier session"
             out.append(f"_(as of {when} — I couldn't refresh this from GitHub, so it may be out of date; "
                        f"re-ground before you rely on it.)_")
-        # The open-problem count: the live register first, else the committed offline shadow rendered
-        # loud-if-stale (degrade-loud) so a number can never be mistaken for freshly refreshed.
+        # The operator's OWN open issues come FIRST (their product backlog — issues WITHOUT the engine label):
+        # in a deployed repo their own work is the point, and the engine's own findings below are the lower
+        # priority. A plain facts-block line, NEVER the ⚠ marker: a backlog is not a governance alarm. It carries
+        # its clickable filtered register so the count is actionable. Three states, never a false 0: a live count
+        # (shown with its link); a read that FAILED while GitHub was reachable (say so — not a silent vanish,
+        # since a solo operator-read failure is not covered by the att_degraded outage notice); or no GitHub
+        # access at all (stay silent, like every other GitHub-derived line when there is no token).
+        if s.get("operator_backlog_count") is not None:
+            reg = s.get("operator_backlog_register")
+            tail = f" → {reg}" if reg else ""
+            out.append(f"**Your open issues:** {s['operator_backlog_count']} _(as of this session, source: "
+                       f"GitHub Issues)_ — your own filed work{tail}")
+        elif s.get("operator_backlog_degraded"):
+            out.append("**Your open issues:** _I couldn't read your issue backlog from GitHub this session, "
+                       "so I'm not showing a count — re-ground before you rely on it._")
+        # The engine's OWN findings — its housekeeping, the lowest priority — render BELOW the operator's own
+        # issues and quietly (no ⚠; the count is folded into the whole-backlog headline above). The live
+        # register first, else the committed offline shadow rendered loud-if-stale (degrade-loud) so a number
+        # can never be mistaken for freshly refreshed.
         if s["finding_count"] is not None:
-            out.append(f"**Open problems:** {s['finding_count']}")
-            # Say when open problems carry no urgency rating. Without this the card reads "18 open" beside
+            # Name the source and freshness on the live count (read fresh this session, from the project's
+            # GitHub issues) so a zero here reads as "checked, and there are none", not "unknown". Only this
+            # branch is a genuine live read; the "none recorded yet" branch below is reached when the register
+            # could not be read at all, so it must NOT claim a fresh source.
+            out.append(f"**Engine findings:** {s['finding_count']} _(as of this session, source: GitHub Issues)_")
+            # Say when engine findings carry no urgency rating. Without this the card reads "18 open" beside
             # "Nothing is blocking right now" and the two together imply the engine weighed them and found
             # none urgent. It did not weigh them at all: nothing has ever rated them, so the debt-blocking
             # rule has nothing to compare and they neither block nor count toward the waiting-work meter
@@ -1283,9 +1706,9 @@ def render_dashboard(s: dict) -> str:
                 out.append(f"_{which}, so nothing weighs them against the bar that decides what stops you. "
                            f"That is not a judgement that they are minor — it means no one has rated them._")
         elif s["debt_count"]:
-            out.append(f"**Open problems:** {telemetry.degraded_readout(s['debt_count'], s['debt_as_of'])}")
+            out.append(f"**Engine findings:** {telemetry.degraded_readout(s['debt_count'], s['debt_as_of'])}")
         else:
-            out.append("**Open problems:** none recorded yet.")
+            out.append("**Engine findings:** none recorded yet.")
         # The render-only triage-pressure line, only when the live low-severity backlog crosses the threshold
         # (suppressed on a degraded read or a below-threshold count — telemetry owns that decision).
         if s.get("triage_pressure_line"):
@@ -1295,6 +1718,14 @@ def render_dashboard(s: dict) -> str:
         # that decision). A separate line from the backlog meter: a different signal about a different thing.
         if s.get("contract_rate_line"):
             out.append(s["contract_rate_line"])
+        # The render-only memory-capture heads-up: the last capture attempt failed loudly (capture
+        # owns the detection and the marker; boot only relays). Suppressed when fine or unknown.
+        if s.get("capture_status_line"):
+            out.append(s["capture_status_line"])
+        # The render-only hooks-health heads-up: no recent evidence of the hooks running (suppressed
+        # whenever the live-session heartbeat is fresh — i.e. in any session whose hooks fired).
+        if s.get("hooks_health_line"):
+            out.append(s["hooks_health_line"])
 
     out.append(f"**Stance:** {s['stance']}")
 
@@ -1408,7 +1839,7 @@ def render_dashboard(s: dict) -> str:
     out.append("")
     out.append("### Needs your attention")
     attention = list(s["att_lines"])
-    # The self-review freshness advisory (audit-library 3c), relayed read-only from audit_digest's own
+    # The self-review freshness advisory, relayed read-only from audit_digest's own
     # detection. A SOFT, never-blocking nudge naming the one re-arming action — it sits here in the attention
     # body (surfaced by the pack's step-3 instruction so the assistant raises it when it matters), and is
     # DELIBERATELY never pinned / present-marker / must_push: a never-armed repo still reads "all clear" and
@@ -1452,19 +1883,20 @@ def render_dashboard(s: dict) -> str:
 
 
 def present_marker_line(s: dict) -> str:
-    """The short titled status block the AI is told to render FIRST — `Project status: all clear`, or a
-    `⚠ ...` line when something governance-critical or a grounding failure fired. A fixed relay over
-    already-detected signals (boot computes no new state); a couldn't-verify gate NEVER reads as a green
-    all-clear (degrade-loud)."""
+    """The short titled status block the AI is told to render FIRST. `⚠ ...` when something
+    governance-critical or a grounding failure fired; otherwise the calm `▸ Project status: N open issues
+    (M are engine-health)` — the whole open backlog, never a ⚠ (a backlog is work to see, not an alarm), with
+    `▸` marking the calm state so the card is recognisable at a glance. A fixed relay over already-detected
+    signals (boot computes no new state); a couldn't-verify gate or a token-present read outage NEVER reads as
+    a green all-clear (degrade-loud). Engine findings do NOT drive this marker — a routine finding count is a
+    quiet dashboard fact, and a genuinely blocking finding rides the never-shed must-push relay, not here."""
     if s["gate"] == "off":
         return "⚠ Your safety gate is off"   # same noun as the dashboard + the unknown-gate marker below
     if s["gate"] == "unknown":
         return f"⚠ {PRESENT_MARKER}: couldn't verify the safety gate"
     if s["refused"]:
         return f"⚠ {PRESENT_MARKER}: couldn't read where the project stands"
-    if s["finding_count"]:
-        return f"⚠ {PRESENT_MARKER}: {s['finding_count']} open engine finding(s) to review"
-    if s["strand"]:   # ranked after the governance alarms + findings; a governance alarm still wins the marker
+    if s["strand"]:   # ranked after the governance alarms; a governance alarm still wins the marker
         return f"⚠ {PRESENT_MARKER}: your project folder needs attention"
     if s.get("behind_origin") and s["behind_origin"].get("on_default"):
         # Stage-2 on the DEFAULT branch (#335): the folder IS on its main line, only behind — the headline must
@@ -1478,16 +1910,36 @@ def present_marker_line(s: dict) -> str:
                 "to date' and I'll sort it out safely")
     if s["pr_conflict"]:   # the always-visible surface so a stuck PR cannot rot unnoticed (not a must_push)
         return f"⚠ {PRESENT_MARKER}: a pull request is stuck — say 'reconcile it' and I'll look into clearing it"
+    if s.get("staged_update"):   # a recovery OFFER (not a ⚠ alarm): an update was started but not finished
+        return (f"▸ {PRESENT_MARKER}: an engine update looks half-finished — type /engine-upgrade and I'll help "
+                "you finish it or undo it")
     if s.get("migration_revert"):   # a recovery OFFER (not a ⚠ alarm): the store is ahead of the code after a revert
-        return (f"{PRESENT_MARKER}: your saved memory is ahead of the engine after an update was undone — say "
+        return (f"▸ {PRESENT_MARKER}: your saved memory is ahead of the engine after an update was undone — say "
                 "'restore my memory from before the update' and I'll bring back the copy from before it")
     if s["restore_offer"]:   # a recovery OFFER (not a ⚠ alarm); ranked last, below every governance/strand signal
-        return (f"{PRESENT_MARKER}: your saved memory looks empty — say 'restore my memory' and I'll try to bring "
+        return (f"▸ {PRESENT_MARKER}: your saved memory looks empty — say 'restore my memory' and I'll try to bring "
                 "back your backup")
     if s.get("absent_home"):   # an OFFER (not a ⚠ alarm): no update home recorded, so engine updates can't run
-        return (f"{PRESENT_MARKER}: I can't fetch engine updates yet — no update home is recorded; tell me the "
+        return (f"▸ {PRESENT_MARKER}: I can't fetch engine updates yet — no update home is recorded; tell me the "
                 "repository your engine updates from and I'll record it")
-    return f"{PRESENT_MARKER}: all clear"
+    # The calm terminal state: the whole open-issue backlog (operator's own + the engine's own findings folded
+    # in), never a ⚠. Degrade-loud — a token-present outage says so, never a false 'all clear'; only a genuine
+    # empty backlog or no-GitHub-access reads all clear.
+    counts = s.get("counts_state")
+    if counts == "both":
+        total = s.get("total_open") or 0
+        engine = s.get("finding_count") or 0
+        if total == 0:
+            return f"▸ {PRESENT_MARKER}: all clear"
+        noun = "issue" if total == 1 else "issues"
+        share = f" ({engine} {'is' if engine == 1 else 'are'} engine-health)" if engine else ""
+        return f"▸ {PRESENT_MARKER}: {total} open {noun}{share}"
+    if counts == "partial":
+        missing = "engine findings" if s.get("finding_count") is None else "your own issues"
+        return f"▸ {PRESENT_MARKER}: couldn't read {missing} from GitHub — re-ground before relying on it"
+    if counts == "degraded":
+        return f"▸ {PRESENT_MARKER}: couldn't read your issues from GitHub — re-ground before relying on it"
+    return f"▸ {PRESENT_MARKER}: all clear"
 
 
 def _pushed_alarms(s: dict) -> list:
@@ -1527,18 +1979,27 @@ def _pushed_alarms(s: dict) -> list:
         alarms.append({"key": "refused", "value": True, "collapsible": False, "full": (
             f"{RELAY_MARKER} the engine couldn't read where the project stands, so project status is "
             f"unknown until it re-grounds.")})
-    if s["finding_count"]:
-        full = (f"{RELAY_MARKER} there are {s['finding_count']} open engine finding(s) about the engine's "
-                f"own health to review: {s['register']}")
-        terse = (f"{RELAY_MARKER} there are still {s['finding_count']} open engine finding(s) about the "
-                 f"engine's own health to review (unchanged since last session): {s['register']}")
-        worse = (f"{RELAY_MARKER} there are now {s['finding_count']} open engine finding(s) about the "
-                 f"engine's own health to review — this has grown since last session: {s['register']}")
-        # The ledger fingerprint is the STRUCTURED-CONDITION identity SET (finding_fingerprint), not the bare
-        # count — so a close+open at equal count is seen as changed and relays full, never a false "unchanged"
-        # The display copy still reads the count. `.get` keeps synthetic test dicts fail-soft;
-        # gather_signals always populates the key (and tracks count, so a real count>=1 carries a real list).
-        alarms.append({"key": "findings", "value": s.get("finding_fingerprint"), "collapsible": True,
+    # ONLY blocking engine findings relay here — the never-shed governance tier. A routine (unrated /
+    # sub-threshold) finding count no longer pushes at all: it is a quiet dashboard fact (the engine's own
+    # housekeeping, the operator's lowest priority), never a must-relay alarm. But a genuinely BLOCKING finding
+    # means the engine's own machinery is broken, so it keeps a forced, never-shed surface — the dashboard's
+    # "Needs your attention" (where it also renders, with a ❗) is sheddable under the platform size cap, so this
+    # relay is what guarantees it reaches the operator.
+    blocking = s.get("blocking_findings") or []
+    if blocking:
+        n = len(blocking)
+        noun = "finding" if n == 1 else "findings"
+        verb = "is" if n == 1 else "are"
+        full = (f"{RELAY_MARKER} {n} engine {noun} {verb} open and BLOCKING — the engine's own machinery "
+                f"needs attention before new work: {s['register']}")
+        terse = (f"{RELAY_MARKER} {n} engine {noun} {verb} still open and BLOCKING (unchanged since last "
+                 f"session): {s['register']}")
+        worse = (f"{RELAY_MARKER} there are now {n} BLOCKING engine {noun} — this has grown since last "
+                 f"session: {s['register']}")
+        # The ledger fingerprint is the BLOCKING finding identity SET (blocking_finding_fingerprint), so a
+        # new/worsened blocking finding relays full and an unchanged set collapses to terse — never a false
+        # "unchanged" when the set churns at equal count. `.get` keeps synthetic test dicts fail-soft.
+        alarms.append({"key": "findings", "value": s.get("blocking_finding_fingerprint"), "collapsible": True,
                        "full": full, "terse": terse, "worse": worse})
     return alarms
 
@@ -1621,6 +2082,33 @@ def _relay_lines(s: dict) -> list:
     set_aside_value = _set_aside_value(s)
     if set_aside_value is not None:
         eligible.append({"key": "set_aside", "value": set_aside_value})
+    # The leftover-license offer rides this SAME single decide() call (#471), like off_main/set_aside — it is not a
+    # pushed governance alarm (it renders only in the dashboard, below governance). But FIRST the hook-side RETIRE
+    # honor: if this finding-class is retire-eligible AND a retired marker for its fingerprint is
+    # recorded, the offer is SUPPRESSED entirely (stamped `retired` -> the renderer shows nothing) and does NOT
+    # join the ledger pass. Retire-eligibility is enforced in the ledger by a code constant keyed on the LIVE
+    # finding class ("foreign_license") passed here — derived from the producing detector, NEVER a label read from
+    # the ledger — so a retired marker planted on a governance alarm's fingerprint can never silence it (a
+    # governance alarm never reaches this branch, and is_retired refuses a non-eligible class regardless).
+    fl = s.get("foreign_license")
+    fl_fp = fl.get("fingerprint") if (fl and fl.get("present")) else None
+    if fl_fp is not None:
+        if boot_alarm_ledger.is_retired(fl_fp, "foreign_license"):
+            s["foreign_license"] = {**fl, "retired": True}
+        else:
+            eligible.append({"key": "foreign_license", "value": fl_fp})
+    # The first-engagement nudge (#553) rides this SAME decide() call, exactly like the leftover-license offer:
+    # it renders only in the dashboard (no relay line, below governance), and FIRST the hook-side RETIRE honor —
+    # if the operator has said "I'm not describing a spec" (a retired marker for its fingerprint), the offer is
+    # SUPPRESSED (stamped `retired`) and never joins the ledger pass. Retire-eligibility is the ledger's code
+    # constant keyed on the LIVE class ("greenfield_intake"), never a label read from the ledger.
+    gf = s.get("greenfield_intake")
+    gf_fp = gf.get("fingerprint") if (gf and gf.get("greenfield")) else None
+    if gf_fp is not None:
+        if boot_alarm_ledger.is_retired(gf_fp, "greenfield_intake"):
+            s["greenfield_intake"] = {**gf, "retired": True}
+        else:
+            eligible.append({"key": "greenfield_intake", "value": gf_fp})
     # Always call decide — even with an empty eligible set — so a now-resolved standing alarm is DROPPED
     # from the ledger (verified-fixed), never left to wrongly collapse a later recurrence.
     decision = boot_alarm_ledger.decide(eligible)
@@ -1649,6 +2137,18 @@ def _relay_lines(s: dict) -> list:
         s["set_aside"] = {**s["set_aside"],
                           "collapsed": r.get("outcome") == "collapse",
                           "newly": newly}
+    # Stamp the leftover-license collapse outcome onto `s` for the (pure) dashboard renderer — HOOK-SIDE ONLY, so
+    # the status verb (no ledger) leaves it absent and renders the offer FULL (fail-toward-showing). Skipped when
+    # the finding was retired above (the renderer already shows nothing for a retired finding).
+    if fl_fp is not None and not s.get("foreign_license", {}).get("retired"):
+        r = results.get("foreign_license", {"outcome": "full", "prior": None})
+        s["foreign_license"] = {**s["foreign_license"], "collapsed": r.get("outcome") == "collapse"}
+    # Stamp the greenfield-nudge collapse outcome onto `s` for the (pure) dashboard renderer — HOOK-SIDE ONLY,
+    # so the status verb (no ledger) leaves it absent and renders the offer FULL (fail-toward-showing). Skipped
+    # when the offer was retired above (the renderer already shows nothing for a retired offer).
+    if gf_fp is not None and not s.get("greenfield_intake", {}).get("retired"):
+        r = results.get("greenfield_intake", {"outcome": "full", "prior": None})
+        s["greenfield_intake"] = {**s["greenfield_intake"], "collapsed": r.get("outcome") == "collapse"}
     lines: list = []
     for a in alarms:
         if not a["collapsible"]:
@@ -1662,6 +2162,29 @@ def _relay_lines(s: dict) -> list:
         else:
             lines.append(a["full"])
     return lines
+
+
+def render_recognition_slice() -> "list[str]":
+    """The surface catalog's RECOGNITION slice (D-309 / #495): the NAME and LOCATION of every surface,
+    re-read and re-rendered on every pack build — deliberately NO dedup mechanism (it is a few hundred
+    characters, and the platform re-issues session ids on resume, so a once-per-session latch cannot
+    hold; earlier drafts of the owe said "once per session" and that was withdrawn). The authoring
+    fields (authority, lifecycle, schema, template) are deliberately NOT read: they are the pull-request
+    author's business, and a cold session pays context for them without acting on them. AI-facing
+    orientation; a missing or unreadable catalog renders nothing — boot never fails over orientation."""
+    try:
+        catalog = validate.load_json(validate.CATALOG_PATH)
+        surfaces = catalog.get("surfaces") or {}
+        if not isinstance(surfaces, dict) or not surfaces:
+            return []
+        entries = "; ".join(f"{name} in `{(rec or {}).get('location', '?')}`"
+                            for name, rec in sorted(surfaces.items()) if isinstance(rec, dict))
+        if not entries:
+            return []                  # a catalog of malformed records renders nothing, not "…lives: ."
+    except Exception:  # noqa: BLE001 — orientation is best-effort, never a boot failure
+        return []
+    return ["Surface recognition — the kinds of file this engine governs and where each lives: "
+            + entries + ".", ""]
 
 
 def assemble_pack(session_id: str | None = None, *, use_ledger: bool = False) -> str:
@@ -1719,9 +2242,10 @@ def assemble_pack(session_id: str | None = None, *, use_ledger: bool = False) ->
     else:
         out.append("2. No governance alarm to relay this session.")
     out.append("3. Check the engine's live helpers and tell the operator about any that are off — a check you "
-               "run against your own tools, since the engine cannot see them for you: " + MCP_AVAILABILITY_CHECK)
-    out.append("4. Then surface a brief plain-language headline of anything in the status below that needs "
-               "their attention. When the operator asks where things stand or what's next, run "
+               "run against your own tools, since the engine cannot see them for you: " + mcp_availability_check())
+    out.append("4. Then surface a brief plain-language headline of anything in the status below (when "
+               "present — if it was trimmed away to fit a size limit, the notice at the end says so) that "
+               "needs their attention. When the operator asks where things stand or what's next, run "
                "`uv run --directory .engine -- python tools/engine_status.py` and show its output verbatim "
                "— the same dashboard the `/engine-status` verb prints — rather than paraphrasing it. The "
                "protected-branch merge is the real governance guarantee — this relay is your discipline, "
@@ -1732,22 +2256,45 @@ def assemble_pack(session_id: str | None = None, *, use_ledger: bool = False) ->
     # relay. Always the Explore note: the handler clears the stance to Explore before this pack is built.
     out.append(modes.describe_explore_scope())
     out.append("")
-    # The standing knowledge-faculty advertisement (#92): unconditional, so a cold session with no work in
-    # hand still learns the wiring map exists and when to reach for it. AI-facing (above the dashboard
-    # divider, no RELAY_MARKER); it complements — does not duplicate — the conditional in-flow cue below,
-    # which fires only when there is a neighbourhood to pull deeper into.
-    out.append(KNOWLEDGE_FACULTY_NOTE)
-    out.append("")
-    # The focused knowledge read (#37): the structural neighborhood of the work in hand — AI-orientation
-    # context, placed in the briefing (not the operator dashboard), and only when there is work in hand.
-    out.extend(render_neighborhood(s.get("neighborhood")))
-    # The memory half of attention's recent decisions (#394): what was DECIDED lately, pulled from the
-    # project's saved memory at cold start and ordered by the ranking — AI-orientation context beside the
-    # structural neighbourhood, not an operator alarm, and only when there is something recalled.
-    out.extend(render_recalled_decisions(s.get("recalled")))
-    out.append("--- the full status (your grounding for this session) ---")
-    out.append(dashboard)
-    return "\n".join(out)
+
+    # The ORIENTATION tier (shed first under the platform's output cap — see below): the standing
+    # knowledge-faculty advertisement (#92), the surface-catalog recognition slice (D-309 / #495), the
+    # structural neighborhood of the work in hand (#37), and the recently-decided memory recall (#394).
+    orientation: list[str] = []
+    orientation.append(KNOWLEDGE_FACULTY_NOTE)
+    orientation.append("")
+    orientation.extend(render_recognition_slice())
+    orientation.extend(render_neighborhood(s.get("neighborhood")))
+    orientation.extend(render_recalled_decisions(s.get("recalled")))
+
+    status = ["--- the full status (your grounding for this session) ---", dashboard]
+
+    # Measure before injecting (#495 — owed regardless of D-309): past the platform's per-value output
+    # cap it saves the full value to a file and substitutes a preview of the first 2,000 characters (plus
+    # the file path). The grounding marker near the top of the pack survives inside that preview; what drops
+    # from the injected context is the material past it — the status headline and dashboard. So Tier 0
+    # (the governance instructions, marker, and alarm relay) is never shed; the orientation tier goes
+    # first, the status dashboard only after it, keeping the essential content within the surviving
+    # preview window; a shed is named so the AI relays it instead of the operator silently losing their
+    # status.
+    def _shed_notice(names: list) -> str:
+        return ("(To fit the platform's size limit, part of this briefing was left out this session: "
+                + ", ".join(names) + ". Tell the operator, in one plain sentence, that today's session "
+                "briefing was trimmed to fit a size limit and the full status is always available with "
+                "`uv run --directory .engine -- python tools/engine_status.py`.)")
+
+    def _compact_notice(names: list) -> str:
+        return ("(Part of this briefing was trimmed to fit the platform's size limit. Tell the operator in "
+                "one plain sentence; the full status is always available with "
+                "`uv run --directory .engine -- python tools/engine_status.py`.)")
+
+    text, _shed = hooks.cap_shed(
+        [(0, "the governance briefing", "\n".join(out)),
+         (2, "the orientation notes (wiring map, surface recognition, work neighborhood, recent decisions)",
+          "\n".join(orientation)),
+         (1, "the status dashboard", "\n".join(status))],
+        notice=_shed_notice, compact_notice=_compact_notice)
+    return text
 
 
 # ---- the hook handler + CLI -----------------------------------------------------------------
@@ -1762,6 +2309,14 @@ def handler(payload: dict) -> dict:
     any unreadable signal, and the merge wall backstops any write that slips that window."""
     session_id = payload.get("session_id") if isinstance(payload, dict) else None
     modes.clear_stance(session_id)
+    # The live-session heartbeat (dual-purpose, best-effort): records {session, provider, time} to the
+    # per-user marker. It is (a) the typed-verb session resolver's last resort on a runtime with no
+    # session env var (providers.resolve_session), and (b) the hooks-ran evidence the status readout's
+    # hooks-health line checks — a session with no fresh marker is a session whose hooks did not run.
+    try:
+        providers.write_live_session(session_id, providers.detect(payload))
+    except Exception:  # noqa: BLE001 — the heartbeat must never break boot
+        pass
     # use_ledger=True: this is the real SessionStart path, so apply the collapse (an unchanged
     # standing alarm relays terse) via the deterministic ledger. fail-toward-full lives inside decide().
     pack = assemble_pack(session_id, use_ledger=True)

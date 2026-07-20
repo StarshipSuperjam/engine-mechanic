@@ -93,6 +93,9 @@ FOUNDATION_INFRA = (
     ".engine/pyproject.toml",
     ".engine/uv.lock",
     "CLAUDE.md",
+    "AGENTS.md",           # the Codex floor — CLAUDE.md's exact sibling: engine-owned foundation, keyed
+    #                        `floor` fence, OUT of FOUNDATION_CODE (keyed-merged on upgrade, never
+    #                        overlay-replaced) + block-reversed in remove_engine.
     ".gitignore",          # a platform-shared keyed file like CLAUDE.md/CODEOWNERS — carries the engine's
     #                        foundation-ignores fence; OUT of FOUNDATION_CODE + block-reversed
     #                        in remove_engine (never overlay-replaced / wholesale-deleted — #409).
@@ -102,6 +105,13 @@ FOUNDATION_INFRA = (
     ".github/workflows/actionlint.yml",
     ".github/workflows/audit-prep.yml",
     ".github/workflows/engine-issue-conformance.yml",
+    ".github/workflows/engine-overlay-disclosure.yml",
+    # the release lifecycle (#516): engine-owned workflows that cut + publish a release — the engine's version
+    # in the construction repo, the deployed repo's own product version once deployed. Foundation like every
+    # other engine workflow, so an engine improvement to the release path (and the deployed-repo product wording)
+    # reaches a deployed repo on its next upgrade rather than freezing at whatever the initial copy carried.
+    ".github/workflows/release.yml",
+    ".github/workflows/release-publish.yml",
     ".github/dependabot.yml",
     ".github/pull_request_template.md",
     ".github/ISSUE_TEMPLATE/*.md",
@@ -118,7 +128,9 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 
 # OPERATOR_CONFIG — committed operator-authored config the ownership leg must NOT read as orphans: the
 # per-deployment operator policy-override of tunable policy values (.engine/operator-overrides.json, written
-# by /engine-tune). It is operator-owned config preserved across an engine update — in NO module's
+# by /engine-tune) and the per-deployment instance guarded-paths declaration (.engine/operator-guarded-paths.json,
+# #532 — the deployment's own extra product-side paths for the weakening guard to watch, unioned in by
+# weakening_guard.is_guardrail and shape-gated by engine/check/operator-guarded-paths). It is operator-owned config preserved across an engine update — in NO module's
 # `provides` and NOT a FOUNDATION_INFRA artifact (that set is overlay-REPLACED on upgrade, which would clobber
 # the operator's tuning). This is the LOCKED carve-out of module coherence: "Operator- and
 # deployment-authored committed content is outside this leg ... coherence does not read them as orphans, the
@@ -131,7 +143,8 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 # not read them as orphans either. (The SEEDED root files — SECURITY.md, README.md — need no carve-out: they
 # live outside .engine/, so the ownership walk never reaches them; they are product territory preserved by the
 # overlay's "never touch product".)
-OPERATOR_CONFIG = {".engine/operator-overrides.json", ".engine/conduct/operator.md",
+OPERATOR_CONFIG = {".engine/operator-overrides.json", ".engine/operator-guarded-paths.json",
+                   ".engine/conduct/operator.md",
                    ".engine/provisioning/conduct-seed.md", ".engine/provisioning/security-seed.md",
                    ".engine/provisioning/readme-seed.md"}
 
@@ -237,6 +250,138 @@ def load_engine_manifest():
     return validate.load_json(path) if os.path.isfile(path) else None
 
 
+def home_repository() -> str | None:
+    """The engine's HOME repository slug (`owner/repo`) recorded in the manifest — the single coordinate for
+    where the engine fetches its own updates from AND where a fork-native deployment escalates a contribution
+    to (schema: engine.v1.json `home_repository`). `None` when the manifest is absent or records no/blank home.
+    A present-but-MALFORMED manifest RAISES (loud), via `load_engine_manifest` -> `validate.load_json` — this
+    preserves the fail-loud commitment that `module_manager._home_repository` (which delegates here) and its
+    callers `overlay_disclosure.is_deployed` / `release_cut` rely on: a corrupt manifest must not be silently
+    read as "no home". A caller that must not crash on a corrupt manifest degrades LOCALLY (the
+    external-contribution submit flow wraps this call so a malformed home falls to its strict full check)."""
+    engine = load_engine_manifest() or {}
+    home = engine.get("home_repository")
+    return home if isinstance(home, str) and home.strip() else None
+
+
+def normalize_slug(slug: str | None) -> str | None:
+    """A GitHub `owner/repo` slug normalized for equality — strip surrounding whitespace and a trailing slash,
+    case-fold (GitHub slugs are case-insensitive), and drop a trailing `.git`. `None`/blank -> `None`. This is
+    the ONE slug-normalizer the contribution-home comparison uses; it mirrors `instantiator._norm`'s
+    strip/casefold/.git discipline and adds the trailing-slash strip. Kept here so the home/own comparison is
+    single-homed rather than re-implemented per call site."""
+    if not isinstance(slug, str):
+        return None
+    s = slug.strip().rstrip("/").casefold()
+    if s.endswith(".git"):
+        s = s[:-4]
+    return s or None
+
+
+def slug_eq(a: str | None, b: str | None) -> bool:
+    """True iff two `owner/repo` slugs are the SAME repository, compared as EXACT normalized full slugs (never
+    a repo-name-only match). Safety-load-bearing: it is the switch that lets the engine's own source travel to
+    the engine's home, so a loose match (name-only, substring) would let engine code ride into a look-alike
+    third-party repo. `None` on either side is never equal (an unconfirmed home never satisfies it)."""
+    na, nb = normalize_slug(a), normalize_slug(b)
+    return na is not None and na == nb
+
+
+_READ_HOME = object()  # sentinel: "no home passed -> read THIS repo's home", distinct from a passed home of None
+
+
+def is_downstream_copy(own_slug: str | None, home_slug: str | None = _READ_HOME) -> bool:
+    """True iff a repo is a DOWNSTREAM copy of the engine — its recorded update home is a DIFFERENT
+    repository than its own origin `own_slug`. This is the READ-ONLY, injectable, normalized sibling of
+    `overlay_disclosure.is_deployed()`, purpose-built for first-run detection (#353), and the ONE place the
+    downstream-copy rule lives so its two callers (the instantiator `show` branch and the boot detector)
+    cannot drift:
+      - both slugs are PARAMETERS. `own_slug` is always the caller's (never resolved here). `home_slug` is
+        the caller's too: OMIT it to have THIS repo's recorded `home_repository()` read fail-soft (the `show`
+        branch), or PASS the EXAMINED checkout's home — INCLUDING an explicit `None` for an absent home (the
+        boot detector) — and it is used verbatim. The `_READ_HOME` sentinel distinguishes "not passed" from a
+        passed `None`, so a caller that read an absent home never silently falls back to this repo's home.
+      - the compare is `slug_eq`-normalized (casefold / `.git` / trailing-slash), so an SSH-vs-HTTPS or
+        case-skewed origin never reads as "different".
+      - SAFE, fail-toward-quiet: returns False (NOT a copy) whenever the home is absent/blank/unreadable OR
+        `own_slug` is None, so the workshop (home == own) and any repo whose origin cannot be read stay quiet —
+        a consumer never nags a repo it cannot positively place. A MALFORMED manifest read here degrades to
+        False (this predicate must never crash its read-only caller), unlike the fail-LOUD `home_repository()`
+        the update path deliberately relies on — the reason this is a distinct predicate from `is_deployed`."""
+    if home_slug is _READ_HOME:
+        try:
+            home_slug = home_repository()
+        except Exception:  # noqa: BLE001 — a corrupt manifest degrades to "not a copy"; never crash the caller
+            return False
+    return bool(home_slug and own_slug and not slug_eq(home_slug, own_slug))
+
+
+# ---- what may travel in a contribution back to the ENGINE'S OWN HOME (issue #556) -----------------
+#
+# When a deployment contributes back to the engine's home (the mechanic building engine-template, or a
+# fork-native deployment escalating an engine fix), the engine's own SOURCE legitimately rides upstream — it
+# IS the contribution. What must NEVER ride upstream, even to the home, is this deployment's ACCRETED STATE
+# and the operator's private tuning. The leak check narrows to that never-travels set for the home case.
+#
+# SAFE DIRECTION (default-flag). `travels_to_engine_home` returns True ONLY for content proven safe to travel
+# — the engine's source namespaces, the build/runtime config, and the two CI-REQUIRED derived indexes. Any
+# path it does not positively recognise stays flagged (an over-flag is an operator-decidable nudge; an
+# under-flag would leak). A future committed per-instance store therefore flags by default until it is
+# explicitly classified — and the `test_engine_home_travel_classification` completeness test fails until it is.
+
+# The two derived indexes the engine's HOME repo regenerates and whose freshness its CI hard-gates
+# (`knowledge-coverage`, `self-map-drift` — both unbypassable at CI). A contribution that stripped them could
+# not merge, and they regenerate correctly from the home checkout, so they MUST travel (not instance-state).
+_CI_REQUIRED_INDEXES = frozenset({".engine/knowledge/graph.json", ".engine/self-map.md"})
+
+# Committed, identical-across-instances engine build/runtime config (not under a surface namespace) that is
+# product and travels: the tool-runtime pin/lock, the suite manifest, the repo ignore rules, the Codex root
+# pointer, and the governance floor(s).
+_HOME_TRAVEL_FILES = frozenset({
+    ".engine/pyproject.toml", ".engine/uv.lock", ".engine/suites.json",
+    ".gitignore", "AGENTS.md", "CLAUDE.md", "CLAUDE.deployed.md",
+})
+
+# The engine's SOURCE namespaces — surface-catalogued kinds plus the module/template/provisioning trees and
+# the assistant/Codex adapter roots. Everything an engine ships as code/config lives under one of these.
+# KNOWN ASSUMPTION (bounded): these prefixes are broad, so "default-flag" is fully safe only for a path OUTSIDE
+# them — a path UNDER one is positively recognised as travelling. That holds because these namespaces hold
+# only identical-across-instances code/config today (swept: no per-instance data store lives under one). If a
+# future committed per-instance store were placed under a source namespace (e.g. `.engine/tools/x/state.json`)
+# it would travel unflagged, and neither the runtime default-flag nor `test_no_owned_path_is_left_ambiguous`
+# (which recognises data by the instance-DIR prefixes below) would catch it. A new per-instance store must be
+# kept OUT of these namespaces (or its module's `provides` + the instance-dir list extended). Hardening to an
+# explicit source-file allowlist is a deferred option, not needed while the sweep holds.
+_HOME_TRAVEL_PREFIXES = (
+    ".engine/tools/", ".engine/check/", ".engine/schemas/", ".engine/operations/",
+    ".engine/policies/", ".engine/interfaces/", ".engine/docs/", ".engine/conduct/",
+    ".engine/contracts/", ".engine/modules/", ".engine/templates/", ".engine/provisioning/",
+    ".claude/", ".codex/", ".agents/", ".github/",
+)
+
+
+def travels_to_engine_home(path: str) -> bool:
+    """True iff `path` is engine content that legitimately rides into a contribution to the engine's OWN home
+    (source, build config, or a CI-required derived index) — False for this deployment's accreted state and
+    the operator's private tuning, which never travel. OPERATOR_CONFIG and the per-instance eADR stream are
+    checked FIRST, so an operator-authored file under a source namespace (e.g. `.engine/conduct/operator.md`,
+    the provisioning seeds) never travels despite its prefix. Default is False (flag): only positively
+    recognised source/index/config travels."""
+    if path in OPERATOR_CONFIG or path.startswith(tuple(d + "/" for d in DEPLOYMENT_CONTRACTS)):
+        return False  # operator/maintainer tuning + the deployment's own decision records — private, never travel
+    if path in _CI_REQUIRED_INDEXES or path in _HOME_TRAVEL_FILES:
+        return True
+    return path.startswith(_HOME_TRAVEL_PREFIXES)
+
+
+def is_deployment_private(path: str) -> bool:
+    """True iff `path` is operator/deployment-private committed content that must NOT ride into ANY upstream —
+    the operator's tuning (OPERATOR_CONFIG) or the deployment's own decision records (DEPLOYMENT_CONTRACTS).
+    These sit OUTSIDE `engine_owned_paths` (they are ownership carve-outs), so the leak check unions them in
+    explicitly, closing the gap where a deployment's private content could ride upstream unflagged."""
+    return path in OPERATOR_CONFIG or path.startswith(tuple(d + "/" for d in DEPLOYMENT_CONTRACTS))
+
+
 def _walk_engine_files() -> list:
     """Every file under .engine/ on the live filesystem (relpaths), pruning regenerable cache dirs
     (PRUNE_DIRS, any depth), gitignored runtime roots (PRUNE_PATHS), the committed-but-non-surface
@@ -275,22 +420,25 @@ def engine_file_inventory() -> list:
     return [rel for rel in walked if rel in tracked]
 
 
-def _claude_surface_roots() -> list:
-    """The `.claude/` surface-location roots from the surface catalog (today .claude/skills/,
-    .claude/agents/) — read from the catalog so the set stays single-sourced, never hand-listed. Engine
-    surface files live under .engine/ AND these roots; the untracked-surface detector walks both."""
+def _platform_surface_roots() -> list:
+    """The AI-runtime surface-location roots from the surface catalog — the catalogued homes that live
+    OUTSIDE .engine/ because a runtime dictates them (today .claude/skills/ and .claude/agents/ for
+    Claude Code, .agents/skills/ and .codex/agents/ for Codex) — read from the catalog so the set stays
+    single-sourced, never hand-listed. Engine surface files live under .engine/ AND these roots; the
+    untracked-surface detector walks both."""
     catalog = validate.load_json(validate.CATALOG_PATH) or {}
     roots = {(s or {}).get("location") for s in (catalog.get("surfaces") or {}).values()}
-    return sorted(r for r in roots if isinstance(r, str) and r.startswith(".claude/"))
+    return sorted(r for r in roots
+                  if isinstance(r, str) and r.startswith((".claude/", ".codex/", ".agents/")))
 
 
 def _surface_walk() -> list:
     """Every file on disk under the engine's surface territory: the raw .engine/ tree plus the catalogued
-    .claude/ surface roots (so a duplicated skill/agent directory, e.g. `engine-help 2/SKILL.md`, is seen
+    runtime surface roots (so a duplicated skill/agent directory, e.g. `engine-help 2/SKILL.md`, is seen
     — a literal `provides` path never would). The untracked-surface detector cross-references this against
     git."""
     out = set(_walk_engine_files())
-    for root in _claude_surface_roots():
+    for root in _platform_surface_roots():
         for dirpath, dirs, files in os.walk(os.path.join(validate.ROOT, root)):
             dirs[:] = [d for d in dirs if d not in PRUNE_DIRS]
             out.update(_rel(os.path.join(dirpath, f)) for f in files)
@@ -389,6 +537,8 @@ WIRING_TARGETS = {
     "mcp": _rel(wiring.MCP_PATH),
     "gitignore": _rel(wiring.GITIGNORE_PATH),
     "ontology-entry": _rel(wiring.CATALOG_PATH),
+    "codex-hook": _rel(wiring.CODEX_HOOKS_PATH),
+    "codex-mcp": _rel(wiring.CODEX_CONFIG_PATH),
 }
 
 

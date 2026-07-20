@@ -97,6 +97,43 @@ class TestDetectStrand(unittest.TestCase):
             self.assertIsNone(checkout_health.detect_strand(cwd=root))
 
 
+class TestIsolatedWorktree(unittest.TestCase):
+    """is_isolated_worktree — the POSITIVE isolation gate the unattended Routine stance-entry requires."""
+
+    def test_main_checkout_is_not_isolated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertFalse(checkout_health.is_isolated_worktree(cwd=_repo(tmp, "main")))
+
+    def test_linked_worktree_is_isolated_and_its_main_is_not(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            main = _repo(tmp, "main")
+            wt = os.path.join(tmp, "wt")
+            _git(main, "worktree", "add", "-q", "--detach", wt)
+            self.assertTrue(checkout_health.is_isolated_worktree(cwd=wt),
+                            "a dedicated linked worktree is isolated")
+            self.assertFalse(checkout_health.is_isolated_worktree(cwd=main),
+                             "the same repo's main checkout is not")
+
+    def test_non_git_dir_is_not_isolated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # git can't answer -> False, the safe floor: isolation must be proven, never merely un-disproven
+            self.assertFalse(checkout_health.is_isolated_worktree(cwd=tmp))
+
+    def test_invariant_holds_from_a_subdirectory(self):
+        # The production caller runs from the .engine/ subdir with no cwd; pin the subdir invariant BOTH ways
+        # (git resolves the toplevel from any subdir), so a future cwd-sensitive refactor can't silently break it.
+        with tempfile.TemporaryDirectory() as tmp:
+            main = _repo(tmp, "main")               # _repo already creates .engine/
+            self.assertFalse(checkout_health.is_isolated_worktree(cwd=os.path.join(main, ".engine")),
+                             "a subdir of the operator's main checkout is still not isolated")
+            wt = os.path.join(tmp, "wt")
+            _git(main, "worktree", "add", "-q", "--detach", wt)
+            sub = os.path.join(wt, "sub")
+            os.makedirs(sub)
+            self.assertTrue(checkout_health.is_isolated_worktree(cwd=sub),
+                            "a subdir of a dedicated worktree is isolated")
+
+
 class TestDemo(unittest.TestCase):
     def test_demo_runs(self):
         # the operator-runnable demo classifies fixtures + prints the warm strand line; rc 0, never raises.
@@ -577,6 +614,46 @@ class TestAbsentHome(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = _healthy_repo(tmp, branch="main")             # no default_branch -> no manifest written
             self.assertIsNone(checkout_health.detect_absent_home(cwd=root))
+
+
+class TestRecordedProduct(unittest.TestCase):
+    """eADR-0026: a manifest recording an external product (a repo different from the one the engine is deployed
+    into) reads that slug; no product recorded / no manifest / a broken strand all read None — the common
+    self-building case, where the product is this repo itself and is derived live from origin, never stored."""
+
+    @staticmethod
+    def _write_manifest(root, product=None):
+        m = {"engine_release": "0.0.0-dev", "packages": {"core": "0.0.0-dev"}, "identity": "solo"}
+        if product is not None:
+            m["product_repository"] = product
+        with open(os.path.join(root, ".engine", "engine.json"), "w") as fh:
+            json.dump(m, fh)
+
+    def test_reads_the_recorded_external_product(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _healthy_repo(tmp, default_branch="main")
+            self._write_manifest(root, product="acme/upstream")
+            self.assertEqual(checkout_health.recorded_product_repository(cwd=root), "acme/upstream")
+
+    def test_none_when_no_product_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _healthy_repo(tmp, default_branch="main")   # manifest without a product -> self-building
+            self.assertIsNone(checkout_health.recorded_product_repository(cwd=root))
+
+    def test_none_when_no_manifest_present(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = _healthy_repo(tmp, branch="main")           # no default_branch -> no manifest written
+            self.assertIsNone(checkout_health.recorded_product_repository(cwd=root))
+
+    def test_none_on_a_broken_strand(self):
+        # a detached/missing strand is the strand detector's territory -> this signal stays quiet (None),
+        # never reading a manifest off a broken checkout (mirrors detect_absent_home's strand guard).
+        orig = checkout_health._resolve_state
+        checkout_health._resolve_state = lambda cwd=None: ("/nonexistent", True, False, "abc123")  # detached
+        try:
+            self.assertIsNone(checkout_health.recorded_product_repository())
+        finally:
+            checkout_health._resolve_state = orig
 
 
 class TestReturnToDefault(unittest.TestCase):

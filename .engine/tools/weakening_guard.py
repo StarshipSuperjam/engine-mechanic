@@ -19,7 +19,11 @@ on), defined by that PROPERTY rather than a path-prefix list, so
 benign edits to non-gate tooling no longer demand the ack — AND a REPOINT of the
 engine's update home in the manifest (`home_repository` in .engine/engine.json) —
 which changes where executable engine code is fetched from at the next update, a
-supply-chain weakening (#367). A flagged change blocks the merge
+supply-chain weakening (#367) — AND a SHRINK of the deployment's own instance floor
+(`.engine/operator-guarded-paths.json`, #532): a repo may declare extra product-side paths
+to guard (a scanner the engine cannot discover by presence), UNIONED with the engine's set and
+read from the trusted base; removing a declared path is a weakening, while adding one is a
+strengthening that never stops here. A flagged change blocks the merge
 until the operator applies the distinct, deliberate acknowledgment — the
 `guardrail-ack` label — after reading, in plain language, what protection could
 weaken (the guardrail-weakening hard-gate).
@@ -73,7 +77,15 @@ _FLOOR_ENFORCEMENT_CONFIG = (
     ".engine/uv.lock",            # (foundation artifacts — a change here changes what code runs)
     ".engine/suites.json",        # decides WHICH suite blocks the merge — loosening it (CI -> local-nudge) is a killswitch
     ".claude/settings.json",      # wires the PreToolUse write-gate + the other enforcement hooks (was ABSENT —
-)                                 # a live hole; a PR gutting those hooks passed the guard with NO ack)
+    #                               a live hole; a PR gutting those hooks passed the guard with NO ack)
+    ".codex/hooks.json",          # the Codex runtime's mirror of settings.json — the SAME hole, closed on
+    #                               arrival (whole file for now; its engine entries wire the same gates)
+    ".codex/config.toml",         # the Codex helper-server registration (whole file for now, mirroring the
+    #                               settings.json posture; a fence-scoped guard is the recorded refinement)
+    ".engine/policies/provider-exceptions.json",  # the parity check's sanctioned-exception ledger — the file
+    #                               that grants exemptions from an enforcement check is itself guarded, or
+    #                               widening an exception would be the quiet way around the check (eADR-0034)
+)
 # The validator + this guard. validate.py is ALSO the sole home of the 5 built-in HARD check kinds
 # (presence/schema/shape/coverage/coherence): those carry no `params.script`, so the derived clause below
 # structurally cannot reach them — they are guarded ONLY by validate.py being floored here. weakening_guard.py is
@@ -102,6 +114,12 @@ _FLOOR_ENFORCEMENT_HOOKS = (
     ".engine/tools/github_client.py",  # the off-host/auth substrate BOTH guardrail-weakening guards depend on
     ".engine/tools/wiring.py",         # the sole mutator of settings.json / CODEOWNERS / hook registrations
     ".engine/tools/security_floor.py", # configures secret-scanning / push-protection
+    ".engine/tools/providers.py",      # the provider-normalization seam EVERY gate's payload flows through —
+    #                                    weakening normalize() un-recognizes the other runtime's edits
+    ".engine/tools/codex-hook-runner.sh",  # the Codex launcher every Codex hook runs through (hook-runner's twin)
+    ".engine/tools/codex_gen.py",      # renders the reviewer permission floors (read-only sandbox, policy files)
+    #                                    the codex coherence checks then verify — weakening the renderer weakens
+    #                                    what "in sync" means
 )
 # Traveling security-floor provisions — NOT enforcement gates (they check nothing and gate no merge), so they
 # do not belong with _FLOOR_ENFORCEMENT_CONFIG above. They are the git-native security floor the control plane
@@ -127,6 +145,9 @@ _FLOOR_SECURITY_PROVISION = (".github/dependabot.yml",)
 # 'added'), so first-install is ungated; only a later weakening of a floored gate schema is held.
 _FLOOR_GATE_SCHEMAS = (
     ".engine/schemas/agent.v1.json",
+    ".engine/schemas/codex-agent.v1.json",
+    ".engine/schemas/codex-hooks.v1.json",
+    ".engine/schemas/codex-skill.v1.json",
     ".engine/schemas/concern-list.v1.json",
     ".engine/schemas/conduct.v1.json",
     ".engine/schemas/contract.v1.json",
@@ -137,6 +158,7 @@ _FLOOR_GATE_SCHEMAS = (
     ".engine/schemas/module.v1.json",
     ".engine/schemas/operation.v1.json",
     ".engine/schemas/policy.v1.json",
+    ".engine/schemas/provider-exceptions.v1.json",
     ".engine/schemas/provisioning-catalog.v1.json",
     ".engine/schemas/skill.v1.json",
     ".engine/schemas/state.v1.json",
@@ -169,6 +191,43 @@ _DERIVE = object()  # sentinel: is_guardrail/flagged_changes derive the check-sc
 # FIRST install still enters with no ack (WEAKENING_STATUS excludes 'added') — only a later weakening is gated.
 _KIND_CALLABLE_RE = re.compile(r"^\.engine/tools/[^/]+/kind_[^/]+\.py$")
 
+# The INSTANCE-EXTENSIBLE floor (#532). A deployment can stand up its own guardrail in PRODUCT territory —
+# e.g. a containment scanner whose enforcement CODE the engine cannot discover by presence (it is not a
+# `.engine/check/` rule). Such a deployment declares the extra paths to guard in a committed operator-config
+# file the guard UNIONS with its own set. The engine's own floor above is evaluated FIRST and independently,
+# so an instance declaration can only ADD guarded paths, never subtract one — a broken or empty declaration
+# never weakens the engine's floor. Read from the TRUSTED BASE checkout (like `_BASE_CHECK_DIR`/`_BASE_MANIFEST`),
+# never the PR head/diff, so a PR cannot both weaken a declared path AND un-declare it in the same stroke: the
+# base declaration still guards it. A malformed/degenerate declaration cannot reach base — the CI check
+# `engine/check/operator-guarded-paths` (hard) blocks it at merge — so this reader defensively degrades an
+# unreadable/absent file to the empty pair (no engine-floor effect) and lets that gate do the shape enforcement.
+INSTANCE_DECL_REL = ".engine/operator-guarded-paths.json"
+_BASE_INSTANCE_GUARDS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    ".engine", "operator-guarded-paths.json")
+_READ_INSTANCE = object()  # sentinel: is_guardrail/flagged_changes read the instance pair from base (the default)
+
+
+def _read_instance_guards(path: str | None = None) -> tuple:
+    """The deployment-declared extra guarded set, read from the BASE checkout: `(exact_paths, prefix_tuple)`.
+    ABSENT/unreadable -> the EMPTY pair, SILENTLY (absent is the normal steady state — the construction repo and
+    every deployment before its first declaration have no file; mirror `_read_base_home`, which treats absent as a
+    silent None). Defensive parse: only non-empty string members survive, and a degenerate prefix (empty after
+    strip, or bare `.`/`/`/`./`) is dropped so it can never be the `startswith("")`-guards-everything footgun —
+    belt-and-braces behind the hard CI shape gate, which blocks such a declaration from ever reaching base."""
+    path = path if path is not None else _BASE_INSTANCE_GUARDS
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        if not isinstance(data, dict):
+            return (set(), ())
+        exact = {p for p in data.get("guarded_paths", []) if isinstance(p, str) and p.strip()}
+        prefixes = tuple(p for p in data.get("guarded_prefixes", [])
+                         if isinstance(p, str) and p.strip() and p.strip() not in {".", "/", "./"})
+        return (exact, prefixes)
+    except Exception:  # noqa: BLE001 — absent / unreadable / malformed -> empty pair (the CI shape gate is the teeth)
+        return (set(), ())
+
 
 def _derive_check_scripts(check_dir: str | None = None) -> set | None:
     """The enforcement scripts guarded BY PRESENCE: every `.engine/check/*.json` rule's
@@ -193,35 +252,44 @@ def _derive_check_scripts(check_dir: str | None = None) -> set | None:
     return scripts
 
 
-def is_guardrail(path: str, derived_scripts=_DERIVE) -> bool:
-    """True iff `path` is a guarded file: a floor member, under a guarded prefix, or an enforcement script
-    discovered by presence in the base check rules. `derived_scripts` defaults to deriving from disk; tests pass
-    an explicit set (or None for the fail-safe sentinel). A None derived set -> also guard all of
-    `.engine/tools/` (fail-safe when the check dir could not be read)."""
+def is_guardrail(path: str, derived_scripts=_DERIVE, instance_guards=_READ_INSTANCE) -> bool:
+    """True iff `path` is a guarded file: a floor member, under a guarded prefix, an enforcement script
+    discovered by presence in the base check rules, or a path a DEPLOYMENT declared in its instance floor (#532).
+    `derived_scripts` defaults to deriving from disk; `instance_guards` defaults to reading the base instance
+    declaration; tests pass an explicit set / `(exact, prefixes)` pair (or None derived-set for the fail-safe
+    sentinel). A None derived set -> also guard all of `.engine/tools/` (fail-safe when the check dir could not be
+    read). The engine floor is checked FIRST and independently — the instance clause can only ADD, never subtract."""
     if derived_scripts is _DERIVE:
         derived_scripts = _derive_check_scripts()
+    if instance_guards is _READ_INSTANCE:
+        instance_guards = _read_instance_guards()
     if path.startswith(GUARDRAIL_PREFIXES) or path in GUARDRAIL_EXACT:
         return True
     if _KIND_CALLABLE_RE.match(path):  # a module-provided check-kind callable (enforcement logic, no params.script)
         return True
+    inst_exact, inst_prefixes = instance_guards
+    if path in inst_exact or (inst_prefixes and path.startswith(inst_prefixes)):
+        return True                     # a deployment-declared product guardrail (#532) — union, never subtraction
     if derived_scripts is None:
         return path.startswith(_BLANKET_TOOLS_PREFIX)  # fail-safe: derivation failed -> guard the whole dir
     return path in derived_scripts
 
 
-def flagged_changes(files: list, derived_scripts=_DERIVE) -> list:
+def flagged_changes(files: list, derived_scripts=_DERIVE, instance_guards=_READ_INSTANCE) -> list:
     """Classifier: the guardrail files this diff removes, renames, modifies, or copies. Returns a list of
-    (status, shown_path). Derives the check-script set ONCE and threads it through is_guardrail (one disk scan
-    per run, not per file)."""
+    (status, shown_path). Derives the check-script set AND the instance pair ONCE and threads them through
+    is_guardrail (one disk scan per run, not per file)."""
     if derived_scripts is _DERIVE:
         derived_scripts = _derive_check_scripts()
+    if instance_guards is _READ_INSTANCE:
+        instance_guards = _read_instance_guards()
     flagged = []
     for f in files:
         name = f.get("filename", "")
         status = f.get("status", "")
         prev = f.get("previous_filename", "")
-        if status in WEAKENING_STATUS and (is_guardrail(name, derived_scripts)
-                                           or (prev and is_guardrail(prev, derived_scripts))):
+        if status in WEAKENING_STATUS and (is_guardrail(name, derived_scripts, instance_guards)
+                                           or (prev and is_guardrail(prev, derived_scripts, instance_guards))):
             flagged.append((status, name if not prev else f"{prev} -> {name}"))
     return flagged
 
@@ -253,12 +321,33 @@ def _read_base_home() -> str | None:
         return None
 
 
+def _diff_lines(patch: str) -> list:
+    """The unified-diff `patch` split into lines on `\\n` ONLY — GitHub's sole line delimiter. NEVER
+    `str.splitlines()`, which also breaks on CR, VT, FF, the FS/GS/RS separators, NEL, and U+2028/U+2029 —
+    characters a GitHub diff and JSON treat as ordinary content, so `splitlines` would fragment one `+`
+    line into pieces, and every fragment past the separator loses its `+`/`-` marker and goes invisible to
+    the checks below. Splitting on `\\n` keeps each diff line whole, so an embedded separator stays inside
+    its line where `_added_line_is_anomalous` can catch it (#550 review)."""
+    return patch.split("\n")
+
+
+def _added_line_is_anomalous(ln: str) -> bool:
+    """True iff an ADDED manifest diff line carries content the plain-ASCII engine manifest never
+    legitimately holds and which could disguise a key/value from the value checks: a backslash (a JSON
+    string escape — `home_repositor\\u0079` folds back to the real key, last value wins), or an EMBEDDED
+    line-separator that `str.splitlines` splits on but a GitHub `\\n`-delimited diff does not (CR, VT, FF,
+    FS/GS/RS, NEL, U+2028/9 — the fragment past it would lose its `+` marker and hide a second key/value).
+    A TRAILING CRLF `\\r` is deliberately NOT flagged — `"…"\\r`.splitlines() yields one piece — so a
+    Windows-checkout diff never false-alarms; only an INTERNAL separator (which yields >1 piece) does."""
+    return "\\" in ln or len(ln.splitlines()) > 1
+
+
 def _touches_home_key(patch: str) -> bool:
     """True iff the unified-diff `patch` adds or removes any line mentioning the `home_repository` key — a
     SUBSTRING test (not a value regex), so a duplicate-key injection (JSON's last value wins, but the added
     key line still shows), a value split across lines, and any reformatting of the home line all register as
     a touch. The `+++`/`---` file headers are excluded."""
-    for line in patch.splitlines():
+    for line in _diff_lines(patch):
         plus = line.startswith("+") and not line.startswith("+++")
         minus = line.startswith("-") and not line.startswith("---")
         if (plus or minus) and "home_repository" in line:
@@ -267,17 +356,34 @@ def _touches_home_key(patch: str) -> bool:
 
 
 def home_repoint(files: list, base_home: str | None) -> tuple | None:
-    """A change to the engine's update home when one is ALREADY recorded (`base_home`) is a supply-chain repoint —
-    returns (base_home, new_value_or_None) to flag, else None. FAILS CLOSED so the guard cannot be falsified
-    by the change it judges: once a home exists, ANY touch of the `home_repository` key in the manifest diff,
-    and a `patch` too large to be returned at all, both require the ack. This defeats a duplicate-key
-    injection, a value split across lines, and a patch-suppressing bloat — the line-pair match this replaced
-    missed all three (#367 security review). A first recording (no `base_home` yet) is never a repoint, so
-    seeding and back-fill need no ack; a version-only bump (no home line in the patch) does not touch the key
-    and does not flag. `new_value` is the added home value when parseable on one line, else None (the
-    operator message then says 'a different repository')."""
+    """A change to the engine's update home when one is ALREADY recorded (`base_home`) is a supply-chain
+    repoint — returns `(base_home, new_value_or_None, reason)` to flag, else None. FAILS CLOSED so the guard
+    cannot be falsified by the change it judges. `reason` drives the operator message and is one of:
+      - "changed" — a new home value was parsed (`new_value` carries it);
+      - "deletion" — the home line is REMOVED and not re-added. A removal is not harmless: with no home
+        recorded, the guard's own rule makes the NEXT change that adds one back a first recording, unflagged
+        — so a deletion + a later add would compose into a silent two-PR repoint. A deletion therefore always
+        keeps the flag (the review of #515 proved this composition against the first draft, which cleared it);
+      - "unclear" — the home line is touched with an added line, but no clean single-line value could be read;
+      - "unreadable-patch" — the whole manifest diff was too large for GitHub to return;
+      - "escaped" — an ADDED manifest line carries a JSON string escape (a backslash), which the plain-ASCII
+        engine manifest never legitimately needs and which can disguise the home key past the substring
+        touch-test (JSON folds e.g. `home_repositor\\u0079` back to the real key, last value wins).
+
+    ONE provably-benign carve-out (#515): the flag is suppressed ONLY when EVERY touched home line (added and
+    removed alike) is EXACTLY a one-line `"home_repository": "<base>"` entry — bare key, base value, optional
+    trailing comma, nothing else — AND at least one such line is ADDED (the home must SURVIVE the change).
+    That admits the first-run trailing-comma reformat (which always re-adds the line) and nothing wider: a
+    duplicate-key injection with a differing value, a value split across lines, a trailing fragment on the
+    line, a pure deletion, an escaped key, and a patch too large to inspect all still flag. The carve-out is
+    deliberately dumb — no patch application, no head reconstruction — and strictly narrower than the
+    fail-closed default. A first recording (no `base_home`) is never a repoint; a version-only bump (no home
+    line touched) does not flag."""
     if not base_home:
         return None                        # no home recorded yet -> establishing one is not a repoint
+    # A touched home line is benign only as the EXACT one-line entry at the base value (bare key, optional
+    # trailing comma, nothing else) — a full-line anchor, so a trailing fragment or split value fails it.
+    benign_re = re.compile(r'^[+-]\s*"home_repository"\s*:\s*"' + re.escape(base_home) + r'"\s*,?\s*$')
     for f in files:
         if f.get("filename") != ENGINE_MANIFEST_REL:
             continue
@@ -285,15 +391,34 @@ def home_repoint(files: list, base_home: str | None) -> tuple | None:
             continue
         patch = f.get("patch")
         if not patch:
-            return (base_home, None)        # a manifest change we cannot inspect -> fail closed
+            return (base_home, None, "unreadable-patch")   # a manifest change we cannot inspect -> fail closed
+        added = [ln for ln in _diff_lines(patch) if ln.startswith("+") and not ln.startswith("+++")]
+        # The engine manifest holds only plain-ASCII values (versions, package names, identity, the home
+        # slug, the control-plane marker's ids + enumerated rule names), so a backslash escape OR an
+        # embedded line-separator in an ADDED line is anomalous — either can disguise the home key or a
+        # second hidden value past the checks below. Fail closed on it.
+        if any(_added_line_is_anomalous(ln) for ln in added):
+            return (base_home, None, "escaped")
         if _touches_home_key(patch):
+            touched = [ln for ln in _diff_lines(patch)
+                       if ((ln.startswith("+") and not ln.startswith("+++"))
+                           or (ln.startswith("-") and not ln.startswith("---")))
+                       and "home_repository" in ln]
+            added_home = [ln for ln in touched if ln.startswith("+")]
+            if touched and added_home and all(benign_re.match(ln) for ln in touched):
+                continue                    # formatting churn around an unchanged, SURVIVING home value
             new = None
-            for line in patch.splitlines():
-                if line.startswith("+") and not line.startswith("+++"):
-                    m = _HOME_VALUE_RE.search(line)
-                    if m and m.group(1) != base_home:
-                        new = m.group(1)
-            return (base_home, new)
+            for line in added_home:
+                m = _HOME_VALUE_RE.search(line)
+                if m and m.group(1) != base_home:
+                    new = m.group(1)
+            if new:
+                reason = "changed"
+            elif not added_home:
+                reason = "deletion"          # the home line is removed and not re-added
+            else:
+                reason = "unclear"           # touched with an added line but no clean single-line value
+            return (base_home, new, reason)
     return None
 
 
@@ -318,7 +443,7 @@ def _touches_identity_key(patch: str) -> bool:
     """True iff the unified-diff `patch` adds or removes any line mentioning the `identity` key — a SUBSTRING
     test (mirrors _touches_home_key), so a duplicate-key injection, a value split across lines, and any
     reformatting of the identity line all register. The `+++`/`---` file headers are excluded."""
-    for line in patch.splitlines():
+    for line in _diff_lines(patch):
         plus = line.startswith("+") and not line.startswith("+++")
         minus = line.startswith("-") and not line.startswith("---")
         if (plus or minus) and '"identity"' in line:
@@ -344,17 +469,69 @@ def identity_downgrade(files: list, base_tier: str | None) -> bool:
         patch = f.get("patch")
         if not patch:
             return True                    # a manifest change we cannot inspect on a team repo -> fail closed
+        added_lines = [ln for ln in _diff_lines(patch) if ln.startswith("+") and not ln.startswith("+++")]
+        # Same fail-closed anomaly guard as home_repoint: a backslash escape or an embedded line-separator
+        # in an added line could hide a second `"identity": "solo"` value past the value read below.
+        if any(_added_line_is_anomalous(ln) for ln in added_lines):
+            return True
         if _touches_identity_key(patch):
-            added = []
-            for line in patch.splitlines():
-                if line.startswith("+") and not line.startswith("+++"):
-                    m = _IDENTITY_VALUE_RE.search(line)
-                    if m:
-                        added.append(m.group(1))
+            # findall, not search — collect EVERY identity value on each added line, so a duplicate-key
+            # injection on ONE line (`"identity": "team", "identity": "solo"`, last value wins) cannot hide
+            # the downgrade behind the first (team) value.
+            added = [v for ln in added_lines for v in _IDENTITY_VALUE_RE.findall(ln)]
             # touched the tier key: a downgrade unless every added `identity` value provably stays `team`
             if not added or any(v != _TEAM for v in added):
                 return True
     return False
+
+
+_QUOTED_RE = re.compile(r'"([^"]*)"')
+
+
+def instance_declaration_shrink(files: list) -> tuple | None:
+    """Removing a path from the deployment's instance floor (`.engine/operator-guarded-paths.json`, #532) is a
+    guardrail-WEAKENING — it stops the guard flagging future edits to a path the deployment chose to protect, a
+    protection a non-engineer cannot see removed by reading a diff. So a SHRINK of the declaration needs the ack,
+    while a pure ADDITION (strengthening — declaring MORE) passes unflagged. This is the directional detector for
+    the declaration file itself (mirroring `home_repoint`); the file is deliberately NOT whole-file floored, which
+    would fire the ack on every strengthening add. Returns `(reason, dropped_list)` to flag, else None. `reason`:
+      - "removed"          — the whole declaration file is deleted (every declared guard dropped);
+      - "unreadable-patch" — the declaration diff was too large for GitHub to return (fail closed);
+      - "escaped"          — an added/removed line carries a JSON escape or an embedded separator that could hide
+                             a removal past the substring diff (fail closed);
+      - "shrink"           — one or more quoted entries present in the base diff are removed and not re-added.
+    Dumb by design (like home_repoint's carve-out): it compares quoted strings on `-` vs `+` lines, never applies
+    the patch. A rename of an ENTRY (remove old + add new) reads as a removal of the old entry and flags — the safe
+    direction, since the old path is no longer guarded. A pure reformat that keeps every entry present drops
+    nothing. The re-add-under-an-inert-key decoy is closed upstream: the shape check forbids unknown top-level
+    keys, so a re-added string is always a genuine `guarded_paths`/`guarded_prefixes` member — still guarded."""
+    for f in files:
+        name = f.get("filename", "")
+        prev = f.get("previous_filename", "")
+        # A rename OFF the canonical path is functionally a delete: the reader loads a FIXED path, so renaming the
+        # declaration away silently drops every guard post-merge, exactly like `status: removed`. Catch both.
+        renamed_away = prev == INSTANCE_DECL_REL and name != INSTANCE_DECL_REL
+        if name != INSTANCE_DECL_REL and not renamed_away:
+            continue
+        if f.get("status") not in WEAKENING_STATUS:
+            continue                       # an ADDED declaration is a strengthening — never a shrink
+        if renamed_away or f.get("status") == "removed":
+            return ("removed", [])         # the declaration is gone from its canonical path -> every guard dropped
+        patch = f.get("patch")
+        if not patch:
+            return ("unreadable-patch", [])  # a declaration change we cannot inspect -> fail closed
+        removed_lines = [ln for ln in _diff_lines(patch) if ln.startswith("-") and not ln.startswith("---")]
+        added_lines = [ln for ln in _diff_lines(patch) if ln.startswith("+") and not ln.startswith("+++")]
+        if any(_added_line_is_anomalous(ln) for ln in removed_lines + added_lines):
+            return ("escaped", [])         # an escape/embedded separator could disguise a removal -> fail closed
+        removed_strs = {s for ln in removed_lines for s in _QUOTED_RE.findall(ln)}
+        added_strs = {s for ln in added_lines for s in _QUOTED_RE.findall(ln)}
+        # The two array KEYS are not guarded ENTRIES, so filter them from the reported list — a change that only
+        # reflows the key lines but keeps every entry drops nothing.
+        dropped = sorted((removed_strs - added_strs) - {"guarded_paths", "guarded_prefixes"})
+        if dropped:
+            return ("shrink", dropped)
+    return None
 
 
 # A generous page bound: ~10k files at 100/page, well past GitHub's ~3000-file listing
@@ -468,7 +645,8 @@ def main() -> int:
     flagged = flagged_changes(files)
     repoint = home_repoint(files, _read_base_home())
     downgrade = identity_downgrade(files, _read_base_tier())
-    if not flagged and not repoint and not downgrade:
+    shrink = instance_declaration_shrink(files)
+    if not flagged and not repoint and not downgrade and not shrink:
         return emit([])  # nothing weakens
     if ACK_LABEL in labels:
         return emit([])  # acknowledged via the label -> cleared (the ack is an INPUT here)
@@ -480,18 +658,58 @@ def main() -> int:
                      "If merged unwatched, a safety check could be turned off, renamed, or loosened — "
                      "letting future changes reach the protected branch without being checked.\n")
     if repoint:
-        old, new = repoint
-        target = new if new else "a different repository (the full change couldn't be read here)"
-        parts.append(f"Your engine's update home is being changed from {old} to {target}. This changes WHERE "
-                     f"your engine's own code is fetched from when it updates — a supply-chain change: a "
-                     f"wrong or look-alike home could feed your engine altered code at its next update. The "
-                     f"engine cannot itself tell a genuine home from a convincing look-alike — only you can "
-                     f"confirm this is the home you intend.\n")
+        old, new, reason = repoint
+        if reason == "changed":
+            lead = f"Your engine's update home is being changed from {old} to {new}."
+        elif reason == "deletion":
+            lead = (f"Your engine's update home ({old}) is being REMOVED from `.engine/engine.json`. "
+                    f"Removing the recorded home is not harmless: once no home is recorded, the next change "
+                    f"that adds one back is treated as a first-time setup and is not re-checked — so this "
+                    f"removal is where the safety check has to stop and ask you.")
+        elif reason == "escaped":
+            lead = (f"A change to `.engine/engine.json` (where your update home, {old}, is recorded) adds an "
+                    f"unusual character — a backslash escape or a hidden line break — where the engine's "
+                    f"settings are normally plain text. This check can't safely read what it does, and such "
+                    f"a character can hide a change to the home, so it stops and asks you.")
+        elif reason == "unreadable-patch":
+            lead = (f"A change to `.engine/engine.json` (where your update home, {old}, is recorded) was too "
+                    f"large for this check to read in full, so it can't confirm whether the home changed — "
+                    f"confirm this change before merging.")
+        else:  # "unclear" — the home line was touched but no clean value could be read
+            lead = (f"The `home_repository` line in `.engine/engine.json` was changed in a way this check "
+                    f"couldn't cleanly read (it is {old} today) — confirm the value in this pull request's "
+                    f"changed files before merging.")
+        parts.append(lead + " This matters because that setting decides WHERE "
+                     "your engine's own code is fetched from when it updates — a supply-chain change: a "
+                     "wrong or look-alike home could feed your engine altered code at its next update. The "
+                     "engine cannot itself tell a genuine home from a convincing look-alike — only you can "
+                     "confirm this is the home you intend.\n")
     if downgrade:
         parts.append("Your engine is being switched from team mode back to on-your-own (solo) mode. In team mode a "
                      "separate identity's approval is required before anything merges — switching back removes "
                      "that required approval, so future changes could merge with only the automatic checks and no "
                      "second sign-off. Only you can confirm you mean to give up that protection.\n")
+    if shrink:
+        reason, dropped = shrink
+        if reason == "removed":
+            lead = (f"Your list of extra protected files (`{INSTANCE_DECL_REL}`) is being REMOVED entirely. "
+                    f"That list is where your project adds its OWN files to the ones this safety check watches — "
+                    f"deleting it stops the check from flagging future edits to every path it named.")
+        elif reason == "unreadable-patch":
+            lead = (f"A change to your list of extra protected files (`{INSTANCE_DECL_REL}`) was too large for this "
+                    f"check to read in full, so it cannot confirm whether a protected path was dropped — confirm "
+                    f"this change before merging.")
+        elif reason == "escaped":
+            lead = (f"A change to your list of extra protected files (`{INSTANCE_DECL_REL}`) adds an unusual "
+                    f"character — a backslash escape or a hidden line break — where the list is normally plain "
+                    f"text. That can hide a removed path from this check, so it stops and asks you.")
+        else:  # "shrink"
+            listing = ", ".join(dropped)
+            lead = (f"Your list of extra protected files (`{INSTANCE_DECL_REL}`) is having entries REMOVED: "
+                    f"{listing}. That list is where your project adds its OWN files to the ones this safety check "
+                    f"watches — removing an entry stops the check from flagging future edits to it.")
+        parts.append(lead + " Adding to this list is fine and never stops here; only REMOVING a protection does, "
+                     "because a protection you added is being taken away. Only you can confirm you mean to.\n")
     parts.append(f"To approve this deliberately, apply the `{ACK_LABEL}` label to this pull request (one "
                  "deliberate action, distinct from the merge click). Until then, this check blocks the merge.")
     return emit([{"severity": tier, "location": None, "message": "\n".join(parts)}])

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Module manager — the permanent provisioning primitive that adds and removes engine modules
-over a repo's life (systems/infrastructure/provisioning/README.md §"The module manager").
+over a repo's life.
 
-Slice 25b shipped **remove** + the **group-scoped uv-sync derivation**. Slice 25c PR-1 added **add**
+The manager provides **remove** + the **group-scoped uv-sync derivation**; **add**
 (install a module at the current release) + its shared **fetch/overlay** primitive + the **sync-groups**
-fixer. Slice 25c PR-2 (this change) added the **engine updater** — `upgrade` (the whole-engine vX -> vY
-version move) and the **migrations** machinery it runs. CODEOWNERS rendering + de-bootstrap +
-clean whole-engine removal shipped in 25c PR-3.
+fixer; the **engine updater** — `upgrade` (the whole-engine vX -> vY
+version move) and the **migrations** machinery it runs; and CODEOWNERS rendering + de-bootstrap +
+clean whole-engine removal.
 
-`upgrade` is the engine updater (provisioning §"Upgrading the engine"): fetch the tagged release (reusing
+`upgrade` is the engine updater: fetch the tagged release (reusing
 `_fetch_release_tree`), overlay the engine CODE of the present packages (driven off the present set, so a
 deselected module is never resurrected; operator config + gitignored data preserved; `_within_root` fails a
 containment escape closed BEFORE any write), apply/reverse wiring deltas, re-render the CODEOWNERS ownership
@@ -16,12 +16,12 @@ wall for the new release's engine paths (the design's upgrade re-render — `_re
 tool-runtime, run the packages' `migrations` in dependency order, run coherence, and land it as a reviewed PR.
 A `data` migration is **backup-first**: it is refused (pre-flight, before any overlay) unless a backup seam
 is available (memory owns the mechanism, live via `memory.snapshot_for_migration`), so the engine never
-changes un-backed-up data. It DEGRADES to the current version on an unreachable release (§5 / R7).
+changes un-backed-up data. It DEGRADES to the current version on an unreachable release.
 FIXTURE-DEMOED: the real release fetch, the `uv sync` re-sync, the git/PR open, and a real data migration
 are exercised by fixtures, not by a live release in this template repo (which cuts no releases of itself)
 — the named inductive gaps.
 
-`add` is the mirror of `remove` (provisioning §"The module manager: add"): fetch the module's files from
+`add` is the mirror of `remove`: fetch the module's files from
 the tagged release, copy its `provides` into their surface homes, copy in its manifest, apply its `wires`,
 record it in the engine manifest at its version, re-derive the dependency-group selection, and re-run
 coherence. It refuses — in plain language — an already-installed module, a fetch whose manifest id does
@@ -31,7 +31,7 @@ the tag's source archive) so the tests and the demo run the REAL overlay/wire/co
 and never touch the network; the concrete fetch is the named inductive gap (the construction repo has no
 releases to exercise it).
 
-`remove` is **manifest-derived reversal** (module-system §Lifecycle "Uninstall"): reverse the
+`remove` is **manifest-derived reversal**: reverse the
 module's declared `wires` (via the wiring library), delete the engine-identified files it
 `provides`, drop it from the engine manifest, re-derive the tool-runtime dependency groups, and
 re-run coherence. It is **reverse-dependency-aware** — it refuses, in plain language naming the
@@ -39,16 +39,16 @@ dependents, to remove a module another present module still `depends` on — and
 **required** module (the permanent spine; removing the whole engine is a separate clean-removal
 step — remove_engine). It touches **no** control-plane ruleset: an ordinary remove changes only
 what runs INSIDE the stable engine CI check, not the bound check name, so it needs no operator-
-privileged step (provisioning §"The ruleset is the exception"). A `permission` a module added is
+privileged step. A `permission` a module added is
 **left in place** and disclosed — a bare permission is not engine-identifiable, so reversal errs
-toward leaving it (module-system §"The wiring library").
+toward leaving it.
 
-The **uv-sync derivation** (provisioning §"Tool-runtime bootstrap"): each dep-carrying module
+The **uv-sync derivation**: each dep-carrying module
 declares a [dependency-group] in .engine/pyproject.toml NAMED BY ITS `id`; the sync selection is
 those group names that match a PRESENT manifest id, under PEP 735 name normalization. It reuses the
 id the manifest already carries — it adds no manifest field. `remove` re-derives and rewrites
 `[tool.uv] default-groups` so the CI/local `uv sync` selection stays correct without hand-
-maintenance (the seam the pyproject comment cedes to "slice 25's module manager").
+maintenance (the seam the pyproject comment cedes to the module manager).
 
 Read-only discovery is reused from module_coherence (one present-set reader, no drift):
 discover_manifests / load_engine_manifest / provides_claims / check_coherence.
@@ -59,7 +59,8 @@ CLI:
   python tools/module_manager.py add <id> [--json]   # fetch + install a module at the current release
   python tools/module_manager.py plan-remove <id>    # read-only: refusal reasons / what remove would do
   python tools/module_manager.py remove <id> [--json]
-  python tools/module_manager.py upgrade [ref] [--json]  # the engine updater: whole-engine vX -> vY
+  python tools/module_manager.py upgrade [ref]           # preview an update (checks only; changes nothing)
+  python tools/module_manager.py upgrade [ref] --confirm [--json]  # apply the whole-engine update vX -> vY
   python tools/module_manager.py demo                # mutation-free fail-then-pass (remove + add + upgrade; fixtures)
 """
 from __future__ import annotations
@@ -263,7 +264,7 @@ def remove(module_id: str) -> dict:
     # (2) delete the engine-identified files the module owns — sole-owner, at ANY path (the reversal law
     #     deletes the engine-identified files a module provides regardless of where they live; whole-engine
     #     remove_engine already does this, so a per-module remove that stopped at .engine/ left a removed
-    #     module's .claude/ personas + skills orphaned on disk — #409 U16). A module's `provides` are always
+    #     module's .claude/ personas + skills orphaned on disk — #409). A module's `provides` are always
     #     wholly engine-owned files; anything shared with the operator (a settings.json hook, a permission)
     #     arrives via `wires` and is reversed in step (1), so the sole-owner guard is the only gate needed.
     target_claims = module_coherence.provides_claims([(manifest_path, target)])
@@ -321,10 +322,9 @@ def _fetch_release_tree(ref: str, dest_dir: str, repo: str | None = None,
     cannot discharge (it never runs in the construction repo — there are no releases to fetch).
 
     Build-spec leaf (recorded): the artifact is the tag's GitHub SOURCE archive (the `tarball` endpoint),
-    NOT a curated release asset — the engine ships from one tagged release as one tree
-    (module-system §versioning), so the source archive carries every module's files and resolves their
+    NOT a curated release asset — the engine ships from one tagged release as one tree, so the source archive carries every module's files and resolves their
     `provides` globs, and no separate asset-build pipeline exists. `ref` is a TAG, pinned, never a moving
-    branch (provisioning §"Upgrading the engine" step 1; supply-chain Risk R7)."""
+    branch (the supply-chain control)."""
     import tarfile                # local: only the real network path needs these
     import urllib.request
     import boot                   # lazy: only the real fetch needs the repo slug + token
@@ -350,8 +350,7 @@ def _fetch_release_tree(ref: str, dest_dir: str, repo: str | None = None,
 def _resolve_release_ref(ref: str | None, repo: str | None = None, token: str | None = None) -> str:
     """Resolve a target release ref to a CONCRETE tag. A pinned tag/sha passes through unchanged; None or
     "latest" is resolved to the repository's latest published release tag via the GitHub releases API — so
-    the engine never fetches, runs, or RECORDS a moving ref (the tag-pin is the supply-chain control, R7;
-    provisioning §"Upgrading the engine" step 1). THE NETWORK BOUNDARY for ref resolution — only the real
+    the engine never fetches, runs, or RECORDS a moving ref (the tag-pin is the supply-chain control). THE NETWORK BOUNDARY for ref resolution — only the real
     upgrade path reaches it (the injected release_tree path passes a concrete ref), so it is part of the
     same named inductive gap as the release fetch (never run in the construction repo)."""
     if ref and ref != "latest":
@@ -375,22 +374,23 @@ def _resolve_release_ref(ref: str | None, repo: str | None = None, token: str | 
 
 def _home_repository() -> str | None:
     """The engine's HOME repository slug (`owner/repo`) recorded in the manifest — the single source of
-    truth for where engine updates are fetched from (D-281/D-282; issue #367). None when the manifest
+    truth for where engine updates are fetched from (issue #367). None when the manifest
     records no home (a repo generated before this coordinate shipped). The release-fetch callers pass this
     as `repo=` so they resolve the HOME, never the deployed repo's own `origin` (which `boot.repo_slug()`
     returns and which has no engine releases). On a None home the caller REFUSES with a plain remedy and
-    never falls back to origin — the engine does not guess a home."""
-    engine = module_coherence.load_engine_manifest() or {}
-    home = engine.get("home_repository")
-    return home if isinstance(home, str) and home.strip() else None
+    never falls back to origin — the engine does not guess a home.
+
+    Delegates to `module_coherence.home_repository()`, the single accessor (also read by the
+    external-contribution submit flow), so the field name and the absent/blank/unreadable -> None contract
+    live in one place rather than two that could drift."""
+    return module_coherence.home_repository()
 
 
 def _release_is_missing(exc: BaseException) -> bool:
-    """Split a release-fetch failure into its two operator-distinct outcomes (three-state resolution,
-    D-281/D-282). True → the home is recorded but UNRESOLVABLE: the release/repo does not exist (HTTP 404
+    """Split a release-fetch failure into its two operator-distinct outcomes (three-state resolution). True → the home is recorded but UNRESOLVABLE: the release/repo does not exist (HTTP 404
     — release-less, renamed, or removed home) OR the home is reachable but has no published release at all
     (`_NoPublishedRelease`, a 200 with no tag) — both refused LOUDLY naming the home. False → a transport
-    failure (offline / DNS / timeout / other status), which DEGRADES to the current version (§5 / R7).
+    failure (offline / DNS / timeout / other status), which DEGRADES to the current version.
     urllib raises HTTPError (a URLError subclass) carrying a numeric `.code` for an HTTP status; a bare
     URLError or socket error carries none."""
     import urllib.error
@@ -443,7 +443,7 @@ def plan_add(module_id: str, candidate: dict, manifests: list | None = None) -> 
 
 
 def add(module_id: str, release_tree: str | None = None, ref: str | None = None) -> dict:
-    """Add (install) one module at the current engine release (provisioning §"add"): fetch the module's
+    """Add (install) one module at the current engine release: fetch the module's
     files from the tagged release, copy its `provides` into their surface homes, copy in its manifest, apply
     its `wires`, record it in the engine manifest, re-derive the tool-runtime dependency-group selection,
     and re-run coherence. Re-adding a module deselected at first run is this same path (its files were
@@ -471,7 +471,7 @@ def add(module_id: str, release_tree: str | None = None, ref: str | None = None)
                 return {"module_id": module_id, "refused": True, "applied": False,
                         "reason": "could not determine which engine release to fetch the module from."}
             # A module's files come from the engine's HOME release too, never this repo's own origin
-            # (D-281/D-282; #367). Absent home -> refuse with a remedy; never fall back to origin.
+            # (#367). Absent home -> refuse with a remedy; never fall back to origin.
             home = _home_repository()
             if not home:
                 return {"module_id": module_id, "refused": True, "applied": False,
@@ -555,8 +555,7 @@ def add(module_id: str, release_tree: str | None = None, ref: str | None = None)
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-# ---- engine upgrade + migrations (the engine updater: provisioning §"Upgrading the engine" +
-#      §"Migration and reversibility"). FIXTURE-DEMOED — four boundaries never run in the construction
+# ---- engine upgrade + migrations (the engine updater). FIXTURE-DEMOED — four boundaries never run in the construction
 #      repo: (1) the real release FETCH (no releases), (2) the `uv sync` RE-SYNC from the overlaid lock,
 #      (3) the git/PR OPEN, (4) a real DATA migration + its backup (the live `memory.snapshot_for_migration`
 #      seam). Each is
@@ -567,16 +566,18 @@ _UNSET = object()   # sentinel: "no GitHub boundary passed (resolve close._githu
 
 # Root CLAUDE.md is keyed-MERGED on upgrade, not wholesale-overlaid: it carries the engine's `floor` as a
 # comment-fenced section so a brownfield adopter's own CLAUDE.md co-exists with the engine's entries rather
-# than being seized (repository-topology law 1; the #234/#272 coexistence obligation). The floor is sourced
+# than being seized (the #234/#272 coexistence obligation). The floor is sourced
 # from the release's CLAUDE.deployed.md by `_merge_claude_floor`.
 _ROOT_CLAUDE_REL = "CLAUDE.md"
+_ROOT_AGENTS_REL = "AGENTS.md"                     # the Codex floor — same keyed-merge/block-reverse posture
+_DEPLOYED_AGENTS_FLOOR_REL = "AGENTS.deployed.md"
 _DEPLOYED_FLOOR_REL = "CLAUDE.deployed.md"
 _FLOOR_FENCE = "floor"
-_GITIGNORE_REL = ".gitignore"           # the foundation-ignores fence lives here (#409 U14) — a shared keyed
+_GITIGNORE_REL = ".gitignore"           # the foundation-ignores fence lives here (#409) — a shared keyed
 #                                         file, so it is block-reversed like CODEOWNERS/CLAUDE.md, never
 #                                         overlay-replaced (FOUNDATION_CODE) or wholesale-deleted (remove_engine)
 
-# Engine CODE owned by no module's `provides` but replaced wholesale on upgrade (provisioning L289/L356).
+# Engine CODE owned by no module's `provides` but replaced wholesale on upgrade.
 # DERIVED from module_coherence.FOUNDATION_INFRA (the single source of the foundation-artifact set) minus
 # the members the overlay must NOT fetch-and-replace: the engine manifest (engine.json — operator config
 # whose package versions upgrade bumps in place, identity preserved); CODEOWNERS (re-rendered locally from
@@ -587,14 +588,15 @@ _GITIGNORE_REL = ".gitignore"           # the foundation-ignores fence lives her
 # (the foundation-ignores fence is re-asserted locally by apply_foundation_ignores on upgrade — step (2f)
 # below — never fetched, since a release's file would clobber the adopter's own ignore lines + module
 # fences). Gitignored data and the deployment's per-instance eADR stream (`.engine/contracts/instance/`, off
-# core's non-recursive `.engine/contracts/*.md` canon glob — topology law 5 / D-169) are in no
+# core's non-recursive `.engine/contracts/*.md` canon glob) are in no
 # `provides`/FOUNDATION_CODE, so the overlay leaves them untouched (config + data preserved). A member may be
 # a glob (the issue templates); the overlay loop below expands it against the release tree, so the issue
 # templates are now refreshed on update (they were silently omitted before — single-homing closed that gap;
 # forward-only).
 FOUNDATION_CODE = tuple(
     p for p in module_coherence.FOUNDATION_INFRA
-    if p not in (module_coherence.ENGINE_MANIFEST_REL, ".github/CODEOWNERS", _ROOT_CLAUDE_REL, _GITIGNORE_REL)
+    if p not in (module_coherence.ENGINE_MANIFEST_REL, ".github/CODEOWNERS", _ROOT_CLAUDE_REL,
+                 _ROOT_AGENTS_REL, _GITIGNORE_REL)
 )
 
 
@@ -619,7 +621,7 @@ def _resolve_backup_seam(backup):
     Live via `memory.snapshot_for_migration` (+ `memory.migration_backup_available`): memory owns the
     mechanism AND the restore contract and may not be widened here. The handle's concrete shape is memory's
     leaf (the close._trigger_ambient_capture precedent). The snapshot lands as a distinct, retained git tag the
-    routine backup never overwrites — memory's point-in-time pre-migration snapshot (D-264/D-265, resolving #287);
+    routine backup never overwrites — memory's point-in-time pre-migration snapshot (resolving #287);
     the restore command targets that tag. This consumer widens nothing of that mechanism."""
     if backup is not None:
         return backup
@@ -674,20 +676,27 @@ def select_migrations(from_versions: dict, target_versions: dict, manifests: lis
     return out
 
 
-def _bind_migration_id(seam, module_id: str, version: str, reversibility_floor: bool = False):
+def _bind_migration_id(seam, module_id: str, version: str, reversibility_floor: bool = False, sink=None):
     """Bind the migration's identity into the backup seam so memory names the pre-migration snapshot collision-free
-    by it (the retained-tag mechanism, D-264 law 3). The migration calls `context['backup'](store, engine_version)`
+    by it (the retained-tag mechanism). The migration calls `context['backup'](store, engine_version)`
     exactly as before — the migration id rides along, so migration authors need not know about it and module_manager
     stays a pure consumer that knows nothing of the snapshot's tag mechanism. `reversibility_floor` (True only for the
     first data migration of the upgrade — #303) likewise rides along so memory records THAT snapshot as the undo floor;
     module_manager passes only this boolean and never learns the snapshot's tag. Passing the extra kwargs is forward-
-    compatible: a seam that ignores them still works (memory falls back to engine-version + generation)."""
+    compatible: a seam that ignores them still works (memory falls back to engine-version + generation).
+
+    `sink`, when a list, receives each returned snapshot handle so the caller can read a plain property of the
+    snapshot it needs to relay to the operator — whether the retained pre-update copy could be locked against
+    hand-deletion — without module_manager learning anything about the snapshot's tag mechanism."""
     if seam is None:
         return None
     migration_id = f"{module_id}@{version}"
 
     def _seam(store, engine_version):
-        return seam(store, engine_version, migration_id=migration_id, reversibility_floor=reversibility_floor)
+        handle = seam(store, engine_version, migration_id=migration_id, reversibility_floor=reversibility_floor)
+        if sink is not None and isinstance(handle, dict):
+            sink.append(handle)
+        return handle
     return _seam
 
 
@@ -711,6 +720,9 @@ def run_migrations(selected: list, from_versions: dict, engine_version: str,
         module_dir = _modules_dir
     seam = _resolve_backup_seam(backup)
     result = {"ran": [], "refused": []}
+    handles: list = []                                   # each data migration's snapshot handle, so after the run we
+    #                                                      can relay one plain property (could the retained pre-update
+    #                                                      copy be locked?) without learning the snapshot's tag mechanism.
     floor_taken = False                                  # #303: the FIRST data migration of this upgrade is the
     #                                                      reversibility floor — one run_migrations call == one upgrade
     #                                                      == one reversibility unit (true for the sole caller upgrade()).
@@ -727,10 +739,10 @@ def run_migrations(selected: list, from_versions: dict, engine_version: str,
             floor_taken = True
         ctx = {"module_id": mid, "from_version": from_versions.get(mid), "to_version": ver,
                "engine_version": engine_version, "kind": kind,
-               "backup": _bind_migration_id(seam, mid, ver, reversibility_floor=is_floor) if kind == "data" else None}
+               "backup": _bind_migration_id(seam, mid, ver, reversibility_floor=is_floor, sink=handles) if kind == "data" else None}
         if kind == "data":
             # Raise the in-flight-migration marker for the snapshot+mutate window so a concurrent compaction
-            # refuses within it (the compaction↔migration ordering law, memory/README §269-283). Lazy import (the
+            # refuses within it (the compaction↔migration ordering law). Lazy import (the
             # memory←boot back-edge, as the backup seam already is). FAIL CLOSED: if the marker can't be raised
             # (another memory write holds the single-writer lock), REFUSE the migration rather than run it
             # marker-less — an unguarded snapshot+mutate is exactly the interleave the marker prevents.
@@ -760,6 +772,9 @@ def run_migrations(selected: list, from_versions: dict, engine_version: str,
         else:
             _load_migration(module_dir(mid), item["run"])(ctx)
         result["ran"].append(f"{mid} -> {ver} ({kind})")
+    # A retained pre-update copy that could not be locked can still be deleted by hand; record that (once) so the
+    # operator can be told to keep it. True only when a snapshot reported plainly that it could not be locked.
+    result["backup_unprotected"] = any(isinstance(h, dict) and h.get("hardened") is False for h in handles)
     return result
 
 
@@ -809,41 +824,73 @@ def surface_stamp_mismatch(store_label: str, stamped_version: str, running_versi
 
 # ---- upgrade: overlay (off the PRESENT set) + wiring deltas + re-sync + migrations + coherence + PR ----
 
+def _overlay_copy_map(tree_root: str, manifests_by_id: dict) -> dict:
+    """{repo-relative-path -> source-abspath} the engine overlay copies, enumerated against `tree_root`:
+    each present module's `provides` files + its own `manifest.json`, plus FOUNDATION_CODE (files the
+    release ships wholesale). THE SINGLE SOURCE of the overlay membership: `_overlay_engine_code` copies
+    this map from a downloaded RELEASE tree, and `overlay_replace_paths()` reads its keys against the LIVE
+    tree — so the operator-facing "this file gets overwritten on the next update" disclosure cannot drift
+    from what the update actually overwrites. A manifest also matched by a `provides` glob dedups to one
+    entry (dict key). Module manifests are in no module's `provides`, so they are added explicitly here —
+    the overlay overwrites them wholesale, and the disclosure must warn on them too."""
+    to_copy: dict = {}
+    for mid, man in manifests_by_id.items():
+        for _group, patterns in (man.get("provides") or {}).items():
+            for pattern in patterns:
+                for src in glob.glob(os.path.join(tree_root, pattern), recursive=True):
+                    if os.path.isfile(src):
+                        to_copy[os.path.relpath(src, tree_root).replace(os.sep, "/")] = src
+        to_copy[f".engine/modules/{mid}/manifest.json"] = os.path.join(
+            tree_root, ".engine", "modules", mid, "manifest.json")
+    for member in FOUNDATION_CODE:
+        # Glob-expand each foundation member against the tree (a member may be a glob, e.g.
+        # .github/ISSUE_TEMPLATE/*.md; glob.glob on a literal path returns it iff it exists). A literal
+        # os.path.isfile on a glob string would silently drop the issue templates.
+        for src in glob.glob(os.path.join(tree_root, member), recursive=True):
+            if os.path.isfile(src):
+                to_copy[os.path.relpath(src, tree_root).replace(os.sep, "/")] = src
+    return to_copy
+
+
+def overlay_replace_paths() -> set:
+    """The repo-relative engine files the NEXT engine update would OVERWRITE, expanded against the LIVE
+    tree — exactly the membership `_overlay_engine_code` copies (present modules' `provides` files + their
+    manifests + FOUNDATION_CODE), via the shared `_overlay_copy_map`. This is what the merge-time
+    upgrade-overwrite disclosure (`overlay_disclosure.py`) warns an operator about.
+
+    An APPROXIMATION, named honestly: the true overwrite source is a future RELEASE tree, which this live
+    tree only stands in for — a path this tree has that a future release drops (or vice-versa) is inherent
+    slack, not a guarantee. What IS guaranteed is that it cannot drift from the overlay's own enumeration.
+
+    DISTINCT from `module_coherence.engine_owned_paths()` — do NOT dedupe into it: that set unions the
+    FULL `FOUNDATION_INFRA` (including the keyed-merge/CODEOWNERS carve-outs the overlay PRESERVES) and
+    omits module manifests, so reusing it would both cry wolf on preserved files and miss the manifests."""
+    manifests = {m.get("id"): m for _rel, m in module_coherence.discover_manifests()}
+    return set(_overlay_copy_map(validate.ROOT, manifests).keys())
+
+
 def _overlay_engine_code(release_tree: str, present_ids: list, exclude=None) -> tuple:
     """Overlay the engine CODE of the PRESENT packages from `release_tree`: each present module's
     `provides` files + its manifest, plus the FOUNDATION_CODE infra the release ships. Driven off the
-    PRESENT set (never the release tree's modules/*), so a deselected module is NEVER resurrected
-    (provisioning L352-356). Operator config (engine.json identity, the policy-override) and gitignored
+    PRESENT set (never the release tree's modules/*), so a deselected module is NEVER resurrected. Operator config (engine.json identity, the policy-override) and gitignored
     data + the per-instance eADR stream (`.engine/contracts/instance/`) are in no
     `provides`/FOUNDATION_CODE, so they are untouched.
     CONTAINMENT GUARD (the topology wall): every destination must resolve INSIDE ROOT — fail closed BEFORE
-    any write (the PR-1 pattern). `exclude` (a set of repo-relative paths) is NOT overwritten — the brownfield
+    any write (the add path's containment-first pattern). `exclude` (a set of repo-relative paths) is NOT overwritten — the brownfield
     arrival passes the engine-exclusive paths an operator chose to keep ('leave-as-is', a class-1 collision),
     so the engine coexists around them rather than replacing them. Returns (copied_relpaths,
     {module_id: release_manifest})."""
     skip = set(exclude or ())
-    to_copy: dict = {}   # rel -> src (dedup; a manifest also matched by a glob resolves to one entry)
     candidates: dict = {}
     for mid in present_ids:
         man_src = os.path.join(release_tree, ".engine", "modules", mid, "manifest.json")
         if not os.path.isfile(man_src):
             raise _UpgradeRefused(f"the engine release does not contain the installed module '{mid}', so "
                                   f"the update was stopped and nothing was changed.")
-        cand = validate.load_json(man_src)
-        candidates[mid] = cand
-        for _group, patterns in (cand.get("provides") or {}).items():
-            for pattern in patterns:
-                for src in glob.glob(os.path.join(release_tree, pattern), recursive=True):
-                    if os.path.isfile(src):
-                        to_copy[os.path.relpath(src, release_tree).replace(os.sep, "/")] = src
-        to_copy[f".engine/modules/{mid}/manifest.json"] = man_src
-    for member in FOUNDATION_CODE:
-        # Glob-expand each foundation member against the release tree (a member may be a glob, e.g.
-        # .github/ISSUE_TEMPLATE/*.md; glob.glob on a literal path returns it iff it exists). A literal
-        # os.path.isfile on a glob string would silently drop the issue templates.
-        for src in glob.glob(os.path.join(release_tree, member), recursive=True):
-            if os.path.isfile(src):
-                to_copy[os.path.relpath(src, release_tree).replace(os.sep, "/")] = src
+        candidates[mid] = validate.load_json(man_src)
+    # The overlay membership is single-homed in _overlay_copy_map, so the merge-time upgrade-overwrite
+    # disclosure (overlay_replace_paths) reads the SAME enumeration against the live tree and cannot drift.
+    to_copy = _overlay_copy_map(release_tree, candidates)
     escapes = sorted(rel for rel in to_copy if not _within_root(rel))
     if escapes:
         shown = ", ".join(escapes[:3]) + ("…" if len(escapes) > 3 else "")
@@ -860,21 +907,68 @@ def _overlay_engine_code(release_tree: str, present_ids: list, exclude=None) -> 
     return copied, candidates
 
 
+def _wiring_delta(old_by_id: dict, new_by_id: dict) -> dict:
+    """PURE identity-keyed delta between the currently-installed manifests (`old_by_id`) and a release's
+    manifests (`new_by_id`): {"added", "removed", "updated"}, each a list of (module_id, wire).
+
+    Reads DECLARATIONS only — `wiring.declared_wire_identity`, never `is_applied`/`apply_all` — so a release's
+    brand-new seam vocabulary is never executed by the running (pre-overlay) process (#594). It is the SINGLE
+    SOURCE of the removal rule shared with `_apply_wiring_deltas`, so the read-only preview (`plan_upgrade`)
+    cannot promise a wiring change the apply won't make:
+      - removed  = an old engine-identifiable wire whose identity is gone in the new version — EXACTLY the set
+        `_apply_wiring_deltas` reverses (identity-less wires, whose identity is None, are never reversed and so
+        are never reported removed, matching the apply's reversal firewall).
+      - added    = a new wire whose identity is absent from the old version (an identity-less new wire counts
+        as added only when it is not byte-identical to an existing old wire — a genuinely-new seam has no
+        identity and can only ever be an addition).
+      - updated  = a wire present in both by identity but whose declaration content changed (an in-place
+        re-apply — e.g. an `mcp` server, keyed on name, whose definition changed, or a `gitignore` fence,
+        keyed on its key, whose lines changed): the apply re-applies it in place, so it is neither a removal
+        nor an addition."""
+    added, removed, updated = [], [], []
+    for mid in sorted(set(old_by_id) | set(new_by_id)):
+        old_list = (old_by_id.get(mid) or {}).get("wires") or []
+        new_list = (new_by_id.get(mid) or {}).get("wires") or []
+        old_by_key = {}
+        for w in old_list:
+            k = wiring.declared_wire_identity(w)
+            if k is not None:
+                old_by_key[k] = w
+        new_ids = {wiring.declared_wire_identity(w) for w in new_list} - {None}
+        for w in old_list:
+            k = wiring.declared_wire_identity(w)
+            if k is not None and k not in new_ids:          # gone in the new version -> the apply reverses it
+                removed.append((mid, w))
+        for w in new_list:
+            if not isinstance(w, dict):
+                continue                                     # a malformed (non-dict) wire — the apply's
+                                                             # declared_wire_identity/apply_all ignore it too
+            k = wiring.declared_wire_identity(w)
+            if k is None:
+                if w not in old_list:                        # identity-less new wire, not already present
+                    added.append((mid, w))
+            elif k not in old_by_key:
+                added.append((mid, w))                       # genuinely-new identity
+            elif old_by_key[k] != w:
+                updated.append((mid, w))                     # same identity, changed content -> re-applied
+    return {"added": added, "removed": removed, "updated": updated}
+
+
 def _apply_wiring_deltas(old_by_id: dict, new_by_id: dict) -> list:
     """Reverse the wires a module no longer declares and (re)apply the wires it declares now (the
     scenario's 'apply/reverse wiring deltas'). For an unchanged version the delta is empty (apply_all is
     idempotent). A removed engine-identifiable wire is reversed so it does not linger; a same-identity
     content change is re-applied, and if a seam cannot update in place the forward coherence leg (step 5)
-    catches the drift. Returns plain-language lines."""
+    catches the drift. The removal decision is single-homed in `_wiring_delta` so the read-only preview
+    reports the same reversals this applies. Returns plain-language lines."""
+    removed_by_mid: dict = {}
+    for mid, w in _wiring_delta(old_by_id, new_by_id)["removed"]:
+        removed_by_mid.setdefault(mid, []).append(w)
     lines = []
     for mid, new_m in new_by_id.items():
-        new_list = new_m.get("wires") or []
-        new_ids = {wiring.declared_wire_identity(w) for w in new_list} - {None}
-        for w in (old_by_id.get(mid) or {}).get("wires") or []:
-            k = wiring.declared_wire_identity(w)
-            if k is not None and k not in new_ids:     # wire removed in the new version -> reverse it
-                lines.append(validate.fmt(wiring.reverse(w)))
-        for f in wiring.apply_all(new_list):           # apply the new version's wires (idempotent)
+        for w in removed_by_mid.get(mid, []):               # reverse this module's removed wires first
+            lines.append(validate.fmt(wiring.reverse(w)))
+        for f in wiring.apply_all(new_m.get("wires") or []):  # then apply the new version's wires (idempotent)
             lines.append(validate.fmt(f))
     return lines
 
@@ -984,12 +1078,12 @@ def _open_upgrade_pr(branch: str, title: str, body: str, repo=None, token=None) 
 def _refresh_codeowners(handle) -> str:
     """Re-render the CODEOWNERS ownership wall for the POST-overlay engine path set, so a release that
     adds/removes engine files keeps the wall complete and every engine file still routes to the operator
-    for review — the design's upgrade re-render (provisioning §Identity and tokens; the engine.json
+    for review — the design's upgrade re-render (the engine.json
     `handle` field). Operator-added rules are preserved (fence-scoped). Single-sources the path set +
     render with first-run via module_coherence.codeowners_path_set + wiring.apply_codeowners, so the two
     render sites can't drift. Returns 'written' | 'already' | 'degraded'. DEGRADES (no change) when no
     operator handle is on record (the construction repo / a pre-handle manifest) or the render refuses —
-    never crashes (Q7)."""
+    never crashes."""
     if not handle:
         return "degraded"
     co_path = os.path.join(validate.ROOT, ".github", "CODEOWNERS")
@@ -999,10 +1093,16 @@ def _refresh_codeowners(handle) -> str:
         return "degraded"
 
 
+def _merge_agents_floor(release_tree: str) -> str:
+    """The AGENTS.md half of the floor keyed-merge — _merge_claude_floor's mechanics over the Codex
+    floor pair (local AGENTS.md, release AGENTS.deployed.md). Same return vocabulary."""
+    return _merge_floor(release_tree, _ROOT_AGENTS_REL, _DEPLOYED_AGENTS_FLOOR_REL)
+
+
 def _merge_claude_floor(release_tree: str) -> str:
     """Keyed-merge the engine's root-CLAUDE.md floor from the release's CLAUDE.deployed.md into the local
     CLAUDE.md, replacing ONLY the engine `floor` fence and preserving any operator content outside it
-    (repository-topology law 1 — keyed, reversible entries; the #234/#272 coexistence obligation). The
+    (keyed, reversible entries; the #234/#272 coexistence obligation). The
     floor is sourced from the release's CLAUDE.deployed.md, NEVER its CLAUDE.md (the maintainer
     construction-governance file) — which also closes the latent bug where CLAUDE.md ∈ FOUNDATION_CODE
     would copy the construction file over an adopter's floor on every upgrade.
@@ -1012,13 +1112,19 @@ def _merge_claude_floor(release_tree: str) -> str:
     append a duplicate floor: the pre-keyed-merge raw-floor case); 'degraded' (a malformed local fence —
     leave it untouched, never a mid-upgrade crash). Structural sibling of `_refresh_codeowners`, but with
     no handle dependency."""
-    src = os.path.join(release_tree, _DEPLOYED_FLOOR_REL)
+    return _merge_floor(release_tree, _ROOT_CLAUDE_REL, _DEPLOYED_FLOOR_REL)
+
+
+def _merge_floor(release_tree: str, root_rel: str, source_rel: str) -> str:
+    """The shared keyed-merge mechanics for one (local root file, release floor source) pair — see
+    _merge_claude_floor's contract."""
+    src = os.path.join(release_tree, source_rel)
     if not os.path.isfile(src):
         return "skipped"
     floor_lines = validate.read(src).split("\n")
     if floor_lines and floor_lines[-1] == "":
         floor_lines = floor_lines[:-1]   # drop the trailing-newline empty element; fence_apply re-terminates
-    local_path = os.path.join(validate.ROOT, _ROOT_CLAUDE_REL)
+    local_path = os.path.join(validate.ROOT, root_rel)
     local = validate.read(local_path) if os.path.isfile(local_path) else ""
     try:
         if not wiring.fence_present(local, _FLOOR_FENCE, style=wiring.MD_FENCE):
@@ -1032,26 +1138,445 @@ def _merge_claude_floor(release_tree: str) -> str:
     return "merged"
 
 
+# ---- the version-sensitive upgrade tail: run as freshly-overlaid code (issue #594) ----
+#
+# THE BUG (#594): `upgrade()` overlays the new release's `.engine/tools/*.py` (core's `provides` glob covers
+# wiring.py / module_coherence.py) onto disk, but the running process keeps the `wiring`/`module_coherence`
+# it imported at startup. So the wire APPLIER and the coherence VERIFIER ran the PRE-upgrade library, and any
+# wire seam a release newly introduced (v0.3.0's codex-mcp/codex-hook) could never be applied by its own
+# upgrade. THE FIX: split the upgrade at the overlay boundary and run the version-sensitive tail — apply the
+# new wiring, re-render seams, migrate, bump, re-check coherence, open the PR — in a FRESH child interpreter
+# of the just-overlaid `module_manager.py`, so the NEW libraries run. The in-process path is kept for the
+# fully-injected test/demo callers only (a callable can't cross a process boundary); every real path runs
+# the child. This fixes the whole class, not just the codex seams.
+
+_UPGRADE_TAIL_MARKER = "engine-upgrade-tail/v1"   # the internal-invocation marker carried in the state
+
+
+def _upgrade_state_dump(obj: dict, path: str) -> None:
+    """Single-homed (de)serializer for the parent<->child upgrade-tail hand-off, so the two ends can't
+    drift (the module's single-home discipline — cf. _overlay_copy_map)."""
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(obj, fh)
+
+
+def _upgrade_state_load(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _merge_tail(result: dict, tail: dict) -> None:
+    """Merge the tail's phase-2 fields over the phase-1 `result`, EXTENDING `notes` rather than replacing —
+    so parent-owned fields (`copied`, `from`, `to`, `synced`) and any phase-1 note survive (arch review)."""
+    for key, value in tail.items():
+        if key == "notes":
+            result["notes"].extend(value or [])
+        else:
+            result[key] = value
+
+
+def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, old_by_id, candidates,
+                  handle, selected, seam, practice, opener) -> dict:
+    """The version-sensitive tail of an upgrade — the work that MUST run as the freshly-overlaid engine code
+    (the #594 fix): apply the new version's wiring with the FRESH appliers, re-render the release-evolvable
+    seams (ownership wall, CLAUDE/AGENTS floor, foundation ignores), run migrations, bump the engine manifest
+    AFTER migrations succeed (so an abort before them leaves nothing to silently skip on a re-run), re-check
+    coherence, and open the review pull request. Returns the tail portion of the result dict; the caller
+    merges it over the phase-1 result. On the real path this runs inside the child interpreter
+    (`_run_upgrade_tail`); the fully-injected test/demo path calls it directly. `practice` (or a None opener)
+    skips the real git/PR boundary."""
+    tail = {"wiring": [], "codeowners": None, "claude_floor": None, "agents_floor": None,
+            "foundation_ignores": None, "migrations": {"ran": [], "refused": []},
+            "findings": [], "pr": None, "notes": [], "applied": False, "reason": None}
+    # (a) WIRING DELTAS — reverse a wire the new version drops, (re)apply the wires it declares now, with the
+    # freshly-overlaid appliers (this is the seam #594 fixed: a new wire type now actually applies).
+    tail["wiring"] = _apply_wiring_deltas(old_by_id, candidates)
+    # (b) RE-RENDER the release-evolvable seams (same placement as before: after overlay, before coherence).
+    tail["codeowners"] = _refresh_codeowners(handle)
+    tail["claude_floor"] = _merge_claude_floor(release_tree)
+    tail["agents_floor"] = _merge_agents_floor(release_tree)
+    tail["foundation_ignores"] = wiring.apply_foundation_ignores(wiring.GITIGNORE_PATH)
+    # (c) MIGRATIONS (selected + dependency-ordered; the no-backup guard already pre-flighted in phase 1).
+    tail["applied"] = True
+    tail["migrations"] = run_migrations(selected, from_versions, target_ref, backup=seam)
+    if tail["migrations"].get("refused"):
+        tail["reason"] = ("The update was applied to the working copy but a stored-data update could not be "
+                          "completed (its backup did not succeed), so it was NOT opened for review and "
+                          "nothing was merged. Ask me to set up or check your backup, then update again.")
+        return tail
+    if any(item.get("kind") == "data" for item in selected):
+        saved_note = ("Before changing your saved memory, I automatically saved a copy of it from right "
+                      "before this update — there's nothing for you to do now. If this update is ever "
+                      "undone, I can bring that copy back.")
+        if tail["migrations"].get("backup_unprotected"):
+            saved_note += (" One heads-up: I couldn't confirm that saved copy is locked, so it could be "
+                           "deleted by hand — keep it in place and this undo stays available.")
+        tail["notes"].append(saved_note)
+    # (d) BUMP the engine manifest — AFTER migrations succeed, BEFORE coherence. A child-launch / import /
+    # migration failure therefore leaves engine.json UNbumped, so a re-run re-selects the migrations rather
+    # than seeing from==to and silently skipping them (risk-review). Coherence still sees a bumped manifest
+    # that matches the overlaid modules.
+    _bump_engine_manifest(target_versions, target_ref)
+    # (e) COHERENCE — a hard finding pauses (staged in the working copy, not landed).
+    tail["findings"] = module_coherence.check_coherence()
+    if any(f.get("severity") == "hard" for f in tail["findings"]):
+        tail["reason"] = ("The update was applied to the working copy but a consistency problem remains, so "
+                          "it was NOT opened for review. Run the update again with --confirm to finish it, "
+                          "or ask me to undo the update's changes.")
+        return tail
+    # (f) LAND as a reviewed pull request (skipped on a practice run — no git/PR boundary).
+    if practice or opener is None:
+        tail["notes"].append("(practice run — the pull request was not opened)")
+        return tail
+    title = f"Maintenance: update the engine to {target_ref}"
+    body = _upgrade_pr_body(from_versions, target_versions, tail)
+    branch = "engine-update-" + re.sub(r"[^a-zA-Z0-9._-]+", "-", target_ref)
+    try:
+        tail["pr"] = opener(branch=branch, title=title, body=body)
+    except Exception as exc:   # noqa: BLE001 — staged but not opened; surfaced, never a traceback
+        tail["notes"].append(f"(the update is staged but the pull request could not be opened: {exc})")
+    return tail
+
+
+def _run_upgrade_tail(state: dict) -> None:
+    """Child entrypoint for `__upgrade_tail__`: run the upgrade tail as the FRESHLY-OVERLAID code and write
+    the result to the parent's `result_path`. Fails closed on a state without the internal marker or with an
+    implausible release location — the mutating tail must not be drivable by a stray operator command or an
+    injected instruction (the env marker in `main()` is the first gate; this is the second)."""
+    if state.get("marker") != _UPGRADE_TAIL_MARKER:
+        raise _UpgradeRefused("the internal upgrade step was invoked without a valid marker.")
+    release_tree = state["release_tree"]
+    if not (os.path.isabs(release_tree) and os.path.isdir(release_tree)):
+        raise _UpgradeRefused("the internal upgrade step got an unexpected release location.")
+    present_ids = state["present_ids"]
+    from_versions = state["from_versions"]
+    target_versions = state["target_versions"]
+    candidates, release_manifests = {}, []
+    for mid in present_ids:
+        man = validate.load_json(os.path.join(release_tree, ".engine", "modules", mid, "manifest.json"))
+        candidates[mid] = man
+        release_manifests.append(man)
+    selected = select_migrations(from_versions, target_versions, release_manifests)
+    practice = bool(state.get("practice"))
+    seam = None if practice else _resolve_backup_seam(None)   # real seam re-resolved child-side (not crossable)
+    opener = None if practice else _open_upgrade_pr
+    tail = _upgrade_tail(
+        release_tree=release_tree, target_ref=state["target_ref"], from_versions=from_versions,
+        target_versions=target_versions, old_by_id=state["old_by_id"], candidates=candidates,
+        handle=state.get("handle"), selected=selected, seam=seam, practice=practice, opener=opener)
+    _upgrade_state_dump(tail, state["result_path"])
+
+
+def _spawn_upgrade_tail(state: dict) -> dict:
+    """Parent side of the #594 fix: run the version-sensitive tail in a FRESH child interpreter of the
+    just-overlaid `module_manager.py`, so the new version's wiring/coherence code actually runs. State
+    crosses as a temp JSON file (callables cannot); the child writes its result to a sibling file we read
+    back and merge. A child that dies or writes nothing maps to a clean 'staged but not completed' result,
+    never a traceback — the half-state law (an abort leaves an un-merged, re-runnable tree). The child env
+    is scoped deliberately (cf. validate.py's token discipline): start from the environment minus the
+    GitHub token, mark it as an internal child, and add the token back ONLY on the real (non-practice) path,
+    which is the only one that opens the pull request."""
+    import subprocess   # local: only the real spawn needs it
+    work = tempfile.mkdtemp(prefix="engine-upgrade-tail-")
+    try:
+        state_path = os.path.join(work, "state.json")
+        result_path = os.path.join(work, "result.json")
+        _upgrade_state_dump({**state, "result_path": result_path}, state_path)
+        env = {k: v for k, v in os.environ.items() if k != "GITHUB_TOKEN"}
+        env["ENGINE_UPGRADE_CHILD"] = "1"
+        if not state.get("practice") and os.environ.get("GITHUB_TOKEN"):
+            env["GITHUB_TOKEN"] = os.environ["GITHUB_TOKEN"]
+        proc = subprocess.run(
+            [sys.executable, os.path.join(validate.ROOT, ".engine", "tools", "module_manager.py"),
+             "__upgrade_tail__", state_path],
+            cwd=validate.ROOT, env=env, capture_output=True, text=True, check=False)
+        if proc.returncode == 0 and os.path.isfile(result_path):
+            try:
+                return _upgrade_state_load(result_path)
+            except Exception:   # noqa: BLE001 — an unreadable result reads as an incomplete run
+                pass
+        detail = (proc.stderr or "").strip().splitlines()
+        tail_note = f" ({detail[-1]})" if detail else ""
+        return {"applied": True, "notes": [f"(the update was staged but could not be completed{tail_note})"],
+                "reason": ("The update was applied to the working copy but could not be finished, so it was "
+                           "NOT opened for review and nothing was merged. Run the update again with "
+                           "--confirm to finish it, or ask me to undo the update's changes.")}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+_WIRE_KIND_LABELS = {
+    "hook": "an automatic engine action",
+    "codex-hook": "an automatic engine action (Codex)",
+    "mcp": "a connected engine tool",
+    "codex-mcp": "a connected engine tool (Codex)",
+    # NOT "a data folder": a gitignore wire only controls whether an engine housekeeping folder is tracked by
+    # version control — turning it off deletes NO data, and "data folder" would read to a non-engineer as
+    # losing their data on the consent-critical data-safety axis (usability review).
+    "gitignore": "an internal engine housekeeping rule",
+    "permission": "an engine permission setting",
+    "ontology-entry": "an engine knowledge entry",
+}
+
+
+def _describe_wire(w: dict) -> str:
+    """One plain-language line for a single settings change the operator can read — WHAT kind of setting
+    moves, never the internal seam vocabulary (no 'wire'/'seam'/'matcher'). A light identifying hint is
+    added only where it reads plainly: a connected tool's name, or the housekeeping rule's target. Robust to
+    a malformed (non-dict) wire from a tampered release — the preview must never crash the operator's check."""
+    if not isinstance(w, dict):
+        return "an engine setting"
+    kind = w.get("type")
+    label = _WIRE_KIND_LABELS.get(kind, "an engine setting")
+    if kind in ("mcp", "codex-mcp") and w.get("name"):
+        return f"{label} ({w['name']})"
+    if kind == "gitignore":
+        first = next((ln for ln in (w.get("lines") or []) if ln), None)
+        if first:
+            return f"{label} ({first})"
+    return label
+
+
+def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
+                 available: str | None = None, target_ref: str | None = None) -> dict:
+    """READ-ONLY upgrade impact preview: what an update WOULD change — the engine files it replaces or adds,
+    the settings it turns on/off/updates, and the stored-data or config changes it would make — computed
+    WITHOUT applying anything (no overlay, no wiring, no migration, no manifest bump). It mirrors the reads
+    `upgrade()`'s parent phase does and none of its writes.
+
+    Composes the SAME pure blocks the apply uses so the preview cannot drift from what the apply does:
+    `_overlay_copy_map` (the overlay's own file membership, guarded by the SAME `_within_root` containment
+    wall — a tampered release can never make the preview enumerate host paths), `_wiring_delta` (the shared
+    removal rule, declaration-only so a release's new seam vocabulary is never executed — #594), and
+    `select_migrations` (the same selector the apply pre-flights with).
+
+    Fixture-testable offline: inject `release_tree` (a local extracted release) and the network is never
+    touched — pass `target_ref`/`available` for the version line. On the real path it resolves the latest
+    release ref (unless a concrete one is named or passed), returns UP-TO-DATE before any download, and only
+    then fetches the tree read-only into a temp dir it always removes. Degrades plainly (never raises) on a
+    missing release or an unreachable home. Returns a flat dict the CLI renders in plain language."""
+    out = {"refused": False, "reason": None, "status": None, "current": None, "available": None,
+           "target_ref": None, "named_ref": ref if (ref and ref != "latest") else None,
+           "from_versions": {}, "target_versions": {},
+           "files": {"replaced": [], "added": []},
+           "wires": {"added": [], "removed": [], "updated": []},
+           "migrations": [], "backed_up": None}
+    tmp = None
+    try:
+        engine = module_coherence.load_engine_manifest() or {"packages": {}}
+        from_versions = dict(engine.get("packages") or {})
+        present_ids = sorted(from_versions)
+        out["from_versions"] = from_versions
+        out["current"] = engine.get("engine_release")
+        if not present_ids:
+            return {**out, "refused": True, "reason": "There are no installed modules to update."}
+        injected = release_tree is not None
+        named = out["named_ref"] is not None
+        if injected:
+            target_ref = target_ref or ref or "latest"
+        else:
+            home = _home_repository()
+            if not home:
+                out["status"] = "no-home"
+                out["reason"] = ("This engine has no update home recorded, so I can't check for updates. Tell "
+                                 "me the repository your engine updates from and I'll record it, then check "
+                                 "again.")
+                return out
+            try:
+                target_ref = target_ref or _resolve_release_ref(ref, repo=home)   # concrete ref -> no network
+            except Exception as exc:   # noqa: BLE001 — offline / no published release -> degrade, never crash
+                return _preview_degrade(out, home, exc, target=ref or "latest")
+        out["target_ref"] = target_ref
+        out["available"] = available or target_ref
+        # UP-TO-DATE before any download: an unnamed check whose latest is not newer needs no fetch.
+        if not named and validate._ver_tuple(out["available"]) <= validate._ver_tuple(out["current"] or "0"):
+            out["status"] = "up-to-date"
+            return out
+        if not injected:
+            tmp = tempfile.mkdtemp(prefix="engine-preview-")
+            try:
+                release_tree = _fetch_release_tree(target_ref, tmp, repo=home)
+            except Exception as exc:   # noqa: BLE001
+                return _preview_degrade(out, home, exc, target=target_ref)
+        # Read the release's manifests + capture the installed ones — the SAME reads upgrade() does, no writes.
+        candidates = {}
+        for mid in present_ids:
+            man_src = os.path.join(release_tree, ".engine", "modules", mid, "manifest.json")
+            if not os.path.isfile(man_src):
+                return {**out, "refused": True, "status": "missing-module",
+                        "reason": f"The update at {target_ref} does not contain the installed module '{mid}', "
+                                  f"so it can't be previewed and nothing was changed."}
+            candidates[mid] = validate.load_json(man_src)
+            out["target_versions"][mid] = candidates[mid].get("version")
+        old_by_id = {}
+        for mid in present_ids:
+            cur = os.path.join(_modules_dir(mid), "manifest.json")
+            old_by_id[mid] = validate.load_json(cur) if os.path.isfile(cur) else {}
+        # FILES — the overlay's OWN membership function (drift-proof vs the apply), guarded by the SAME
+        # containment wall the apply uses (module_manager `_overlay_engine_code`): a tampered release must
+        # never make the read-only preview enumerate or probe paths outside the engine.
+        to_copy = _overlay_copy_map(release_tree, candidates)
+        escapes = sorted(rel for rel in to_copy if not _within_root(rel))
+        if escapes:
+            shown = ", ".join(escapes[:3]) + ("…" if len(escapes) > 3 else "")
+            return {**out, "refused": True, "status": "unsafe-release",
+                    "reason": f"Stopped the update check: the update at {target_ref} described files outside "
+                              f"the engine ({shown}), so nothing further was read. This can mean the release "
+                              f"is not one to trust — check your engine's update home."}
+        replaced, added_files = [], []
+        for rel in sorted(to_copy):
+            (replaced if os.path.exists(os.path.join(validate.ROOT, rel)) else added_files).append(rel)
+        out["files"] = {"replaced": replaced, "added": added_files}
+        # SETTINGS (wiring) — the shared identity delta, so the preview reports the apply's own reversals.
+        out["wires"] = _wiring_delta(old_by_id, candidates)
+        # STORED-DATA / CONFIG changes — the same pure selector the apply pre-flights with.
+        selected = select_migrations(from_versions, out["target_versions"], list(candidates.values()))
+        out["migrations"] = [{"module_id": s.get("module_id"), "version": s.get("version"),
+                              "description": s.get("description"), "kind": s.get("kind")} for s in selected]
+        if any(s.get("kind") == "data" for s in selected):
+            out["backed_up"] = _resolve_backup_seam(None) is not None   # engine-wide readiness probe; no write
+        out["status"] = "update-available"
+        return out
+    finally:
+        if tmp and os.path.isdir(tmp):
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+def _preview_degrade(out: dict, home: str, exc: BaseException, target: str) -> dict:
+    """Map a release-resolve/fetch failure in the read-only preview to a plain degrade dict (never raises):
+    a missing/renamed home names it and asks the operator to check; a transport failure degrades to 'the
+    engine is unchanged and still working'. Mirrors upgrade()'s three-state resolution, preview-worded."""
+    if _release_is_missing(exc):
+        return {**out, "status": "missing-release",
+                "reason": (f"Couldn't find a release to update to at your engine's update home, {home} "
+                           f"(looked for '{target}'). That home may have no published releases yet, or it may "
+                           f"have been renamed or removed. The engine is unchanged.")}
+    return {**out, "status": "unreachable",
+            "reason": (f"Couldn't reach your engine's update home ({home}) to check for updates — the network "
+                       f"may be down right now. The engine is unchanged and still working.")}
+
+
+def upgrade_preview(ref: str | None = None) -> dict:
+    """Read-only pre-flight for the `upgrade` command's preview-by-default surface (the #594 footgun close):
+    mutate NOTHING. First the coherence pre-check — a half-applied earlier update leaves engine.json bumped
+    but the tree inconsistent, so a version-only check would wrongly read 'up to date'; then the full impact
+    preview via `plan_upgrade` (current vs available version, and — when an update is available or a version
+    is named — the files, settings, and stored-data changes it would make). Degrades plainly when no home is
+    recorded or the home is unreachable, and never raises (a preview must not crash the operator's check)."""
+    current = (module_coherence.load_engine_manifest() or {}).get("engine_release")
+    named = ref if (ref and ref != "latest") else None
+    hard = [f for f in module_coherence.check_coherence() if f.get("severity") == "hard"]
+    if hard:
+        # A hard coherence finding means the tree is inconsistent — most often a stalled update, but it can
+        # also be an interrupted add/remove. State the SYMPTOM, don't assert "a previous update" as the cause.
+        return {"status": "inconsistent", "coherent": False, "hard_findings": len(hard),
+                "current": current, "named_ref": named, "reason":
+                ("Your engine has a consistency problem — something a recent change (an update, or adding or "
+                 "removing a module) left unfinished. You can run `upgrade --confirm` to try to finish an "
+                 "update, or undo it with `rollback` (type `/engine-upgrade` and choose to undo) — undoing "
+                 "saves a recovery point of your current state first.")}
+    try:
+        plan = plan_upgrade(ref)
+    except Exception as exc:   # noqa: BLE001 — a preview must never crash the operator's update check
+        return {"status": "unreachable", "current": current, "named_ref": named,
+                "reason": f"Couldn't complete the update check — the engine is unchanged and still working. ({exc})"}
+    plan["coherent"], plan["hard_findings"] = True, 0
+    return plan
+
+
+def _display_ver(v):
+    """Show versions without the release-tag `v` prefix so the current (bare) and available (v-tagged)
+    forms read as the same scheme to the operator."""
+    return v[1:] if isinstance(v, str) and v.startswith("v") else (v or "unknown")
+
+
+def _render_upgrade_preview(p: dict) -> None:
+    """Plain-language render of the update preview (bare `upgrade`, no --confirm) — what an update WOULD
+    change, in the operator's own terms. Changes nothing."""
+    if p.get("reason"):     # inconsistent / no-home / unreachable / missing / unsafe all carry a reason
+        print(p["reason"])
+        return
+    current = _display_ver(p.get("current"))
+    if p.get("status") == "up-to-date":
+        print(f"Your engine is up to date (version {current}). Nothing to update.")
+        return
+    named = p.get("named_ref")
+    target = _display_ver(p.get("target_ref") or p.get("available"))
+    if named:
+        print(f"You're on version {current}. Here's what updating to {target} would change:")
+    else:
+        print(f"An update is available: you're on {current}, and {target} is published. Here's what "
+              f"updating would change:")
+    files = p.get("files") or {}
+    nrep, nadd = len(files.get("replaced") or []), len(files.get("added") or [])
+    if nrep or nadd:
+        parts = ([f"{nrep} engine file{'s' if nrep != 1 else ''} updated"] if nrep else [])
+        parts += ([f"{nadd} new file{'s' if nadd != 1 else ''}"] if nadd else [])
+        print(f"  Files: {', '.join(parts)} — your settings and saved data are kept.")
+        # These aren't in the file overlay above (they are kept-merged / re-rendered, not overwritten), so an
+        # apply also touches them — name them here so they aren't a surprise in the pull request's diff.
+        print("  It also refreshes the engine's own block in your CLAUDE.md and the engine-file review list — "
+              "your own content is kept.")
+    w = p.get("wires") or {}
+    for verb, items in (("Turns on", w.get("added")), ("Updates", w.get("updated")),
+                        ("Turns off", w.get("removed"))):
+        for _mid, wire in (items or []):
+            print(f"  {verb}: {_describe_wire(wire)}")
+    migs = p.get("migrations") or []
+    for m in migs:
+        what = ("stored data" if m.get("kind") == "data"
+                else "a setting" if m.get("kind") == "config" else "an engine record")
+        print(f"  Changes {what}: {m.get('description') or m.get('module_id')}")
+    if any(m.get("kind") == "data" for m in migs):
+        if p.get("backed_up") is True:
+            print("  Your stored data is backed up before any data change.")
+        elif p.get("backed_up") is False:
+            print("  Note: a stored-data change needs a backup set up first — ask me to set one up before "
+                  "applying, or the update refuses that step and changes nothing.")
+    if not (nrep or nadd or any(w.get(k) for k in ("added", "updated", "removed")) or migs):
+        print("  No file or settings changes — a version bump only.")
+    tail = f" (or run `upgrade --confirm{(' ' + named) if named else ''}`)"
+    print(f"\nThis only checked your engine — nothing changed. To apply, type `/engine-upgrade` and confirm"
+          f"{tail}; it arrives as a pull request you review.")
+
+
+_UPGRADE_USAGE = ("usage: module_manager.py upgrade [ref] [--confirm] [--json]\n"
+                  "  Without --confirm it PREVIEWS only — checks for an update and changes nothing.\n"
+                  "  With --confirm it applies the update and opens it as a reviewed pull request.\n"
+                  "  [ref] optionally names a version; the default is the latest published release.")
+
+
 def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None, backup=None) -> dict:
-    """Upgrade the whole engine vX -> vY (provisioning §"Upgrading the engine"). Steps: fetch the tagged
+    """Upgrade the whole engine vX -> vY. Steps: fetch the tagged
     release, overlay engine code and re-render the CODEOWNERS ownership wall for the new release's engine
     files (operator config + gitignored data preserved), re-sync the tool-runtime, run migrations in
     dependency order, run coherence, and land the change as a reviewed pull request.
 
-    Injectable boundaries (so tests + the demo run the REAL overlay/runner/coherence and never touch the
-    network or open a real PR): `release_tree` injects a local extracted release AND marks a practice run
-    (the real `uv sync` is skipped); `opener` injects the git+PR boundary; `backup` injects the migration
-    backup seam (None = memory if installed, else none -> data migrations refuse). Returns a structured
-    result the CLI renders in plain language. Refuses cleanly (nothing applied) on an unreachable release,
-    a containment escape, or a data migration with no backup seam (the pre-flight). Degrades to the
-    current version on an unreachable release (§5 / R7). The change lands ONLY as a reviewed pull request,
-    so an abort at any step leaves it UN-MERGED — no half-state is ever the operating baseline. A mid-step
-    abort (a paused coherence finding, a failed re-sync) can leave the working copy changed-but-unmerged,
-    which the operator discards or fixes; the engine does not attempt in-place rollback."""
-    injected = release_tree is not None
+    Phase 1 (parent, THIS interpreter — version-agnostic work): fetch, capture the pre-overlay manifests,
+    pre-flight the backup guard, overlay the engine code, re-sync the tool-runtime. Phase 2 (the
+    version-sensitive TAIL — wiring, seams, migrations, manifest bump, coherence, PR) MUST run as the
+    freshly-overlaid code (issue #594), so on every real path it runs in a fresh child interpreter
+    (`_spawn_upgrade_tail`); only a fully-injected test/demo caller runs it in-process (`_upgrade_tail`).
+
+    Injectable boundaries (so tests + the demo run the REAL overlay/wiring/coherence and never touch the
+    network, rebuild a venv, or open a real PR): `release_tree` injects a local extracted release AND marks
+    a practice run (the real `uv sync` is skipped); `opener` injects the git+PR boundary; `backup` injects
+    the migration backup seam (None = memory if installed, else none -> data migrations refuse). The tail
+    runs in-process ONLY when a release AND a callable are injected together (`in_process`); a real caller
+    that happens to pass only `backup=` still runs the child (so it can never run the stale in-process tail).
+    Returns a structured result the CLI renders in plain language. Refuses cleanly (nothing applied) on an
+    unreachable release, a containment escape, or a data migration with no backup seam (the pre-flight).
+    Degrades to the current version on an unreachable release. The change lands ONLY as a reviewed pull
+    request, so an abort at any step leaves it UN-MERGED — no half-state is ever the operating baseline; the
+    manifest bump runs AFTER migrations (in the tail) so an early abort leaves nothing half-recorded, and a
+    re-run with --confirm completes it. The engine does not attempt in-place rollback."""
+    injected_release = release_tree is not None                       # captured before the fetch reassigns it
+    in_process = injected_release and (opener is not None or backup is not None)   # test/demo full-injection
+    practice = injected_release and not in_process                    # local release, no callables ⇒ child, no resync/PR
     result = {"refused": False, "applied": False, "reason": None, "from": None, "to": None,
               "copied": [], "wiring": [], "synced": None, "migrations": {"ran": [], "refused": []},
-              "findings": [], "pr": None, "notes": [], "codeowners": None, "claude_floor": None}
+              "findings": [], "pr": None, "notes": [], "codeowners": None, "claude_floor": None,
+              "agents_floor": None}
     tmp = None
     try:
         engine = module_coherence.load_engine_manifest() or {"packages": {}}
@@ -1059,14 +1584,14 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
         present_ids = sorted(from_versions)
         result["from"] = from_versions
         target_ref = ref or "latest"
-        # (1) FETCH the tagged release (reuse the PR-1 boundary + its plain-failure handler; degrade §5).
+        # (1) FETCH the tagged release (reuse the release-fetch boundary + its plain-failure handler; degrade to the current version).
         # On the real path, resolve None/"latest" to a CONCRETE tag FIRST, so the engine fetches, runs, and
         # records a pinned ref — never a moving one (R7). The injected path passes a concrete ref already.
         if release_tree is None:
             if not present_ids:
                 return {**result, "refused": True, "reason": "There are no installed modules to update."}
             # Resolve the engine's HOME from the manifest and fetch the release FROM THE HOME, never from
-            # this repo's own origin (D-281/D-282; #367). Absent home -> refuse with a remedy (three-state).
+            # this repo's own origin (#367). Absent home -> refuse with a remedy (three-state).
             home = _home_repository()
             if not home:
                 return {**result, "refused": True,
@@ -1117,32 +1642,19 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
                               f"no data backup is set up yet — and the engine never changes stored data it "
                               f"can't first back up. The engine is unchanged. Ask me to set up a backup, then "
                               f"update again."}
-        # (2) OVERLAY engine code (driven off the present set; containment fail-closed)
+        # (2) OVERLAY engine code (driven off the present set; containment fail-closed). This lands the new
+        # release's `.engine/tools/*.py` on disk — but THIS process still holds the pre-upgrade libraries,
+        # which is exactly why the version-sensitive tail below runs as a fresh child of the overlaid code.
         try:
             result["copied"], candidates = _overlay_engine_code(release_tree, present_ids)
         except _UpgradeRefused as ur:
             return {**result, "refused": True, "reason": ur.reason}
-        # (2b) wiring deltas, (2c) bump the engine manifest (preserve identity)
-        result["wiring"] = _apply_wiring_deltas(old_by_id, candidates)
-        _bump_engine_manifest(target_versions, target_ref)
-        # (2d) RE-RENDER the CODEOWNERS ownership wall against the new release's engine path set (the
-        # design's upgrade re-render). Runs AFTER the overlay (so the path set sees the release's files)
-        # and the manifest bump, BEFORE coherence/PR (so the landed diff carries a complete wall). The
-        # handle is the preserved-identity owner from the engine manifest; absent -> degrade (no change).
-        result["codeowners"] = _refresh_codeowners(engine.get("handle"))
-        # (2e) KEYED-MERGE the root CLAUDE.md floor from the release's CLAUDE.deployed.md (replace only the
-        # engine `floor` fence; preserve operator content; never overlay the construction CLAUDE.md). Same
-        # placement rationale as the CODEOWNERS re-render: after the overlay, before coherence/PR.
-        result["claude_floor"] = _merge_claude_floor(release_tree)
-        # (2f) RE-ASSERT the foundation `.gitignore` fence — release-evolvable, like the CODEOWNERS/CLAUDE.md
-        # re-renders above: a new release's FOUNDATION_IGNORE_LINES reach a provisioned repo here (the block
-        # is excluded from the overlay-replace set, so this is the ONLY path that evolves it). Idempotent and
-        # block-scoped — the operator's own ignore lines + any module `gitignore` fences are untouched.
-        result["foundation_ignores"] = wiring.apply_foundation_ignores(wiring.GITIGNORE_PATH)
-        # (3) RE-SYNC the tool-runtime (real path only; the injected/practice run skips it — no real venv).
-        # Migrations are Python that runs IN the runtime, so a FAILED re-sync ABORTS before step 4 rather
-        # than run migrations against a stale runtime — staged but not opened, no saved data touched.
-        if injected:
+        # (3) RE-SYNC the tool-runtime BEFORE the tail's child boots (real path only; the injected/practice
+        # run has no real venv and skips it). The child imports the just-overlaid tool code, so the runtime
+        # must be rebuilt FIRST — provisioning's "rebuild the runtime, then run new code in it". A FAILED
+        # re-sync aborts HERE, before any child and before the manifest bump, so the working copy is staged
+        # but un-merged and a re-run is clean.
+        if injected_release:
             result["synced"] = None
             result["notes"].append("(skipped re-building the tool-runtime — this is a practice run)")
         else:
@@ -1152,57 +1664,30 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
                 result["reason"] = ("The update was applied to the working copy but the engine's tools "
                                     "could not be rebuilt from the new version, so it was NOT opened for "
                                     "review and no saved data was changed. Fix the problem and update "
-                                    "again, or discard the change.")
+                                    "again, or ask me to undo the update's changes.")
                 return result
-        # (4) RUN migrations (selected, dependency-ordered; the no-backup guard already pre-flighted)
-        result["migrations"] = run_migrations(selected, from_versions, target_ref, backup=seam)
-        # A data migration whose backup FAILED at run time (vault reachable at pre-flight, gone at snapshot)
-        # comes back as a refusal, not a crash — decline to open the change for review (nothing is merged),
-        # the same degrade-loud pattern as a failed re-sync / a coherence break below.
-        if result["migrations"].get("refused"):
-            result["applied"] = True
-            result["reason"] = ("The update was applied to the working copy but a stored-data update could "
-                                "not be completed (its backup did not succeed), so it was NOT opened for "
-                                "review and nothing was merged. Ask me to set up or check your backup, then "
-                                "update again.")
-            return result
-        # Floor (c) (D-264): when a data migration ran, a copy of the saved memory was taken before it changed —
-        # disclose it ONCE per upgrade (structured kind check, not a per-step or string-match), plainly, so the later
-        # restore offer is reassurance rather than a mystery.
-        if any(item.get("kind") == "data" for item in selected):
-            result["notes"].append(
-                "Before changing your saved memory, I automatically saved a copy of it from right before this "
-                "update — there's nothing for you to do now. If this update is ever undone, I can bring that copy back.")
-        # (5) COHERENCE — a hard finding pauses (the change is staged in the working copy, not landed)
-        result["applied"] = True
-        result["findings"] = module_coherence.check_coherence()
-        if any(f.get("severity") == "hard" for f in result["findings"]):
-            result["reason"] = ("The update was applied to the working copy but a consistency problem "
-                                "remains, so it was NOT opened for review. Fix the problem and update "
-                                "again, or discard the change.")
-            return result
-        # (6) LAND as a reviewed pull request (injected opener in tests/demo; real opener otherwise). An
-        # injected practice run with no opener never reaches the real git/PR boundary (the footgun guard).
-        # `Maintenance:` — the release-notes change-kind prefix (release_cut._RELEASE_NOTE_KINDS): an engine
-        # update is upkeep, so it groups away from the project's own features in the deployed repo's notes.
-        title = f"Maintenance: update the engine to {target_ref}"
-        body = _upgrade_pr_body(from_versions, target_versions, result)
-        branch = "engine-update-" + re.sub(r"[^a-zA-Z0-9._-]+", "-", target_ref)
-        open_fn = opener or (None if injected else _open_upgrade_pr)
-        if open_fn is None:
-            result["notes"].append("(practice run — the pull request was not opened)")
-            return result
-        try:
-            result["pr"] = open_fn(branch=branch, title=title, body=body)
-        except Exception as exc:   # noqa: BLE001 — staged but not opened; surfaced, never a traceback
-            result["notes"].append(f"(the update is staged but the pull request could not be opened: {exc})")
+        # (4) THE VERSION-SENSITIVE TAIL — wiring, seams, migrations, manifest bump, coherence, PR. It MUST
+        # run as the freshly-overlaid engine code (else a release's new wire seams silently no-op — #594),
+        # so every real path runs it in a child interpreter of the overlaid module_manager; only a
+        # fully-injected test/demo caller runs it in-process (a callable cannot cross a process boundary).
+        if in_process:
+            tail = _upgrade_tail(
+                release_tree=release_tree, target_ref=target_ref, from_versions=from_versions,
+                target_versions=target_versions, old_by_id=old_by_id, candidates=candidates,
+                handle=engine.get("handle"), selected=selected, seam=seam, practice=practice, opener=opener)
+        else:
+            tail = _spawn_upgrade_tail({
+                "release_tree": release_tree, "target_ref": target_ref, "from_versions": from_versions,
+                "target_versions": target_versions, "present_ids": present_ids, "old_by_id": old_by_id,
+                "handle": engine.get("handle"), "practice": practice, "marker": _UPGRADE_TAIL_MARKER})
+        _merge_tail(result, tail)
         return result
     finally:
         if tmp and os.path.isdir(tmp):
             shutil.rmtree(tmp, ignore_errors=True)
 
 
-# ---- clean whole-engine removal (provisioning §clean removal / Design commitments L446-449) ----
+# ---- clean whole-engine removal ----
 
 def _remove_engine_pr_body(result: dict) -> str:
     """A plain-language body for the whole-engine removal pull request (operator-facing). States what the
@@ -1230,13 +1715,13 @@ def _remove_engine_pr_body(result: dict) -> str:
 
 def remove_engine(opener=None, transport=None, choice: str | None = None, announce=None,
                   repo=None, token=None) -> dict:
-    """Remove the WHOLE engine cleanly (provisioning §clean removal / Design commitments L446-449) — the
+    """Remove the WHOLE engine cleanly — the
     'separate step' that per-module remove() points a required module toward, leaving an operable,
     engine-free product. The order is what safety demands:
       (1) DE-BOOTSTRAP FIRST (operator-privileged): remove the engine's required checks from its own
           safety rule (keep the floor remainder, or drop the rule per the operator's `choice`). This runs
           BEFORE the deletion pull request, because that PR deletes the engine workflows and a required
-          check whose workflow is gone would 'wait forever' and deadlock the PR (provisioning L332-335).
+          check whose workflow is gone would 'wait forever' and deadlock the PR.
       (2) REVERSE ALL WIRES across every installed module (the engine's entries in shared files), leaving
           honest residue for anything it can't key to the engine alone (a permission the operator may
           also hold — the reversal firewall).
@@ -1291,7 +1776,8 @@ def remove_engine(opener=None, transport=None, choice: str | None = None, announ
     # CODEOWNERS, root CLAUDE.md, and root .gitignore — which carry the engine as a keyed fenced block, so
     # they are block-reversed (operator content kept) rather than deleted wholesale.
     outside = sorted({r for r in (provides | set(foundation))
-                      if not r.startswith(".engine/") and r not in (co_rel, _ROOT_CLAUDE_REL, _GITIGNORE_REL)})
+                      if not r.startswith(".engine/") and r not in (co_rel, _ROOT_CLAUDE_REL,
+                                                                    _ROOT_AGENTS_REL, _GITIGNORE_REL)})
     deleted = []
     for rel in outside:
         p = os.path.join(validate.ROOT, rel)
@@ -1334,6 +1820,23 @@ def remove_engine(opener=None, transport=None, choice: str | None = None, announ
             with open(claude_path, "w", encoding="utf-8") as fh:
                 fh.write(remainder)
             deleted.append(f"{_ROOT_CLAUDE_REL} (engine block removed; your own content kept)")
+    # Root AGENTS.md: the SAME block-reversal as CLAUDE.md — the Codex floor pair shares the keyed model.
+    agents_path = os.path.join(validate.ROOT, _ROOT_AGENTS_REL)
+    if os.path.isfile(agents_path):
+        text = validate.read(agents_path)
+        try:
+            remainder = wiring.fence_reverse(text, _FLOOR_FENCE, style=wiring.MD_FENCE)
+        except wiring.WiringError as exc:
+            remainder = text
+            result["left_in_place"].append(
+                f"Left {_ROOT_AGENTS_REL} as it is — its engine section looked damaged ({exc}).")
+        if remainder.strip() == "":
+            os.remove(agents_path)
+            deleted.append(_ROOT_AGENTS_REL)
+        elif remainder != text:
+            with open(agents_path, "w", encoding="utf-8") as fh:
+                fh.write(remainder)
+            deleted.append(f"{_ROOT_AGENTS_REL} (engine block removed; your own content kept)")
     # Root .gitignore: the SAME block-reversal — remove only the engine `foundation-ignores` fence and keep
     # the operator's own ignore lines (delete the file only if nothing but whitespace remains, which never
     # happens in practice — the generic dev-ignores survive). The module `gitignore` fences were already
@@ -1494,6 +1997,12 @@ def _render_upgrade(result: dict) -> None:
         print(f"\n{result.get('reason') or 'A problem remains:'}")
         for f in hard:
             print("  - " + validate.fmt(f))
+    elif result.get("reason"):
+        # Applied but NOT completed — a failed re-sync, a refused stored-data update, or a tail that could
+        # not finish. Surface the recovery instruction and NEVER claim "consistent": coherence never passed
+        # on this path, so "staged and consistent" would be a false all-clear (the higher-traffic gap the
+        # child-failure / migration-refuse / resync-fail branches all land in).
+        print(f"\n{result['reason']}")
     elif not pr:
         print("\nThe update is staged and consistent.")
     # Reached on every non-refused path — the staged-consistent line, the hard-findings line, AND the
@@ -1561,18 +2070,22 @@ def _redirect_root(root: str):
     path constants are bound at import, so they are redirected explicitly (the same discipline the
     coherence tests use)."""
     saved = (validate.ROOT, validate.ENGINE_DIR, wiring.SETTINGS_PATH, wiring.MCP_PATH,
-             wiring.GITIGNORE_PATH, wiring.CATALOG_PATH)
+             wiring.GITIGNORE_PATH, wiring.CATALOG_PATH,
+             wiring.CODEX_HOOKS_PATH, wiring.CODEX_CONFIG_PATH)
     validate.ROOT = root
     validate.ENGINE_DIR = os.path.join(root, ".engine")
     wiring.SETTINGS_PATH = os.path.join(root, ".claude", "settings.json")
     wiring.MCP_PATH = os.path.join(root, ".mcp.json")
     wiring.GITIGNORE_PATH = os.path.join(root, ".gitignore")
     wiring.CATALOG_PATH = os.path.join(root, ".engine", "schemas", "surface-catalog.json")
+    wiring.CODEX_HOOKS_PATH = os.path.join(root, ".codex", "hooks.json")
+    wiring.CODEX_CONFIG_PATH = os.path.join(root, ".codex", "config.toml")
     try:
         yield
     finally:
         (validate.ROOT, validate.ENGINE_DIR, wiring.SETTINGS_PATH, wiring.MCP_PATH,
-         wiring.GITIGNORE_PATH, wiring.CATALOG_PATH) = saved
+         wiring.GITIGNORE_PATH, wiring.CATALOG_PATH,
+         wiring.CODEX_HOOKS_PATH, wiring.CODEX_CONFIG_PATH) = saved
 
 
 def _build_fixture(root: str) -> None:
@@ -2229,15 +2742,273 @@ def remove_engine_demo() -> bool:
     return ok
 
 
+# ---- rollback: undo a staged/stalled update, or restore memory after a reverted one ----------
+#
+# `rollback` is the deliberate counterpart to `upgrade`, surfaced through the one `/engine-upgrade` command.
+# It is the ONE operator action that changes the working copy WITHOUT a reviewable pull request — a stalled
+# update was never committed, so there is nothing to open a PR against. The honest safety floor (accepted by
+# the maintainer, and stated in the pull request body): it acts ONLY on a real staged/ahead state; it saves a
+# recovery point (a local "safe point" branch capturing everything) BEFORE touching anything, so nothing is
+# unrecoverable; the memory restore keeps its resurrection guard, so an older copy never overwrites newer
+# memory; and the operator-typed skill (disable-model-invocation) plus the conduct routing are the
+# pre-execution gates. No false "never" — the same honesty as slice 2's routing posture.
+
+_ROLLBACK_USAGE = ("usage: module_manager.py rollback [--confirm] [--json]\n"
+                   "  Without --confirm it only CHECKS what undoing would do and changes nothing.\n"
+                   "  With --confirm it undoes a staged/stalled update (saving a recovery point first),\n"
+                   "  or puts your saved memory back to the copy from before an update that was taken out.")
+
+
+def _git(root: str, *args: str, timeout: int = 30):
+    """Run a read-only-or-additive git command in `root`; stdout on success, None on any failure (missing
+    binary, non-zero exit, timeout). The rollback path never forces (`-f`) and never touches gitignored data."""
+    import subprocess   # local: only the rollback git plumbing needs it
+    try:
+        r = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True,
+                           timeout=timeout, check=False)
+        return r.stdout if r.returncode == 0 else None
+    except Exception:   # noqa: BLE001 — a git failure is reported by the caller, never a traceback
+        return None
+
+
+def _git_status_paths(root: str) -> set:
+    """Repo-relative paths git reports as changed — staged OR unstaged, tracked OR untracked (`??`) — from
+    `git status --porcelain`. Empty when git is unavailable (callers degrade safely: the guard then finds no
+    'foreign' work and the staged-update signal reads clean)."""
+    paths: set = set()
+    for line in (_git(root, "status", "--porcelain") or "").splitlines():
+        if len(line) < 4:
+            continue
+        p = line[3:]
+        if " -> " in p:                       # a rename 'XY old -> new' — the new path is what's on disk now
+            p = p.split(" -> ", 1)[1]
+        paths.add(p.strip().strip('"'))
+    return paths
+
+
+def _upgrade_footprint() -> set:
+    """Every repo-relative path an upgrade's tail can WRITE — single-sourced so the discard's foreign-work
+    guard and the staged-update signal cannot drift from what an update actually touches. The overlay's own
+    membership (a module's `provides` files + module manifests + FOUNDATION_CODE) ∪ the wiring-seam target
+    files ∪ engine.json ∪ CODEOWNERS ∪ the keyed-merge floor files (CLAUDE.md/AGENTS.md) — the tail's floor
+    merge writes the last pair, which FOUNDATION_CODE deliberately carves out of the overlay set."""
+    paths = set(overlay_replace_paths())
+    paths.update(module_coherence.WIRING_TARGETS.values())
+    paths.update({module_coherence.ENGINE_MANIFEST_REL, ".github/CODEOWNERS",
+                  _ROOT_CLAUDE_REL, _ROOT_AGENTS_REL})
+    return paths
+
+
+def _staged_upgrade_dirty() -> bool:
+    """Is an update STAGED but not committed — the precise, coherence-independent signal of a stalled/
+    half-applied update in the working tree? True iff any OVERLAY-CODE path (a module's `provides` file, a
+    module manifest, or a FOUNDATION_CODE file — files an operator never hand-edits) differs from HEAD. A
+    successfully-applied update is committed to its own branch (clean here); an operator editing their own
+    `settings.json` does NOT trip this (settings are not overlay-code). Coherence-independent by design: a
+    stall that leaves the wiring applied but the tree half-built passes `check_coherence` yet is still dirty
+    here."""
+    dirty = _git_status_paths(validate.ROOT)
+    return bool(dirty and (dirty & set(overlay_replace_paths())))
+
+
+def _diagnose_undo() -> dict:
+    """Read-only: which undo state is the engine in? Precedence — a staged/stalled update first (dirty
+    overlay-code), then memory-ahead-of-code (a reverted/merged update whose stored-data change outlived the
+    code), then nothing-local. Never mutates and never promotes a durable Issue (github=None)."""
+    current = (module_coherence.load_engine_manifest() or {}).get("engine_release")
+    if _staged_upgrade_dirty():
+        return {"state": "staged", "current": current}
+    offer = None
+    try:
+        from memory import restore_vault as _rv   # lazy: restore_vault -> backup_vault -> boot is a back-edge
+        offer = _rv.detect_migration_revert(github=None)   # github=None: an undo never promotes a durable Issue
+    except Exception:   # noqa: BLE001 — detection fault degrades to no-offer
+        offer = None
+    if offer:
+        return {"state": "memory-ahead", "current": current, "tag": offer.get("tag")}
+    return {"state": "none", "current": current}
+
+
+def _put_back_pre_update_memory(transport, base: dict) -> dict:
+    """Put the saved memory back to the copy from before an update, reusing the exact restore the engine
+    offers at startup. Fires only when the store is genuinely ahead of the code (`detect_migration_revert`),
+    so it never runs on a clean match. Keeps the resurrection guard (never `override`), so an older copy can't
+    overwrite newer memory. Degrades plainly when the backup can't be reached (the local stamp persists, so
+    boot re-offers it)."""
+    result = dict(base)
+    try:
+        from memory import restore_vault as _rv
+        import memory as _memory
+    except Exception:   # noqa: BLE001 — memory tools absent -> nothing to restore
+        result["restored"] = False
+        return result
+    offer = None
+    try:
+        offer = _rv.detect_migration_revert(github=None)
+    except Exception:   # noqa: BLE001
+        offer = None
+    if not offer or not offer.get("tag"):
+        result["restored"] = False
+        result["memory_note"] = "no saved-memory change to put back"
+        return result
+    try:
+        res = _memory.restore_pre_migration(tag=offer["tag"], consent="y", transport=transport)
+    except Exception as exc:   # noqa: BLE001 — vault unreachable / fetch failure
+        result["restored"] = False
+        result["memory_note"] = (f"couldn't reach your backup to put the copy back ({exc}); your memory is "
+                                 f"unchanged — try again when you're online")
+        return result
+    result["restored"] = bool(res.get("ok"))
+    result["memory_note"] = res.get("message")
+    return result
+
+
+def _discard_staged_update(resync, transport) -> dict:
+    """Discard a staged/stalled update: guard the operator's own work, save a recovery point, return the
+    working tree to its pre-update state, rebuild the runtime, and put back any memory the update changed."""
+    import checkout_health   # lazy: the shared lossless-rescue primitive + the safe git readers
+    root = validate.ROOT
+    result: dict = {"state": "staged", "undone": False}
+    # (a) GUARD — refuse if the operator has their OWN uncommitted work (anything the update didn't write).
+    foreign = sorted(_git_status_paths(root) - _upgrade_footprint())
+    if foreign:
+        result["refused"] = True
+        result["your_changes"] = foreign[:20]
+        shown = ", ".join(foreign[:8]) + (" …" if len(foreign) > 8 else "")
+        result["reason"] = (f"You have unsaved work of your own in files this update didn't touch, so I "
+                            f"stopped rather than risk it: {shown}. Save that work somewhere safe first (or "
+                            f"ask me to help you set it aside), then ask me to undo the update again. Nothing "
+                            f"has changed.")
+        return result
+    # (b) which branch to return to — a stall was never committed, so its pre-update state IS this branch's HEAD.
+    branch = (_git(root, "rev-parse", "--abbrev-ref", "HEAD") or "").strip()
+    if not branch or branch == "HEAD":
+        result["refused"] = True
+        result["reason"] = ("I couldn't tell which branch you're on (or you're not on one), so I stopped "
+                            "rather than risk your work. Nothing has changed.")
+        return result
+    # (c) RECOVERY POINT — save everything (a lossless "safe point" branch) BEFORE anything is undone.
+    rescue = checkout_health.save_recovery_point(
+        root, message="engine: saved your work before undoing the staged update")
+    if not rescue:
+        result["refused"] = True
+        result["reason"] = ("I couldn't save a recovery point first, so I stopped — nothing was undone and "
+                            "your staged update is untouched.")
+        return result
+    result["recovery_point"] = rescue
+    # (d) DISCARD — return to the pre-update branch; the switch reverts the tree to its last-saved state and
+    #     drops the update's added files (they live only on the recovery point now). save_recovery_point left
+    #     us on the rescue branch with a clean tree, so this switch cannot lose anything.
+    if _git(root, "checkout", branch) is None:
+        result["partial"] = True
+        result["reason"] = (f"I saved your work to a recovery point ('{rescue}') but couldn't finish putting "
+                            f"your engine back automatically. Nothing was lost — ask me and I'll take it "
+                            f"from here.")
+        return result
+    result["undone"] = True
+    result["branch"] = branch
+    # (e) rebuild the tool-runtime for the restored (older) code; surface a failure, never hide it.
+    if resync is not None and resync() is False:
+        result["resync_failed"] = True
+    # (f) put back any memory the update changed — engine.json is back at the old version now, so a stored-data
+    #     change is 'ahead' and detect_migration_revert finds it.
+    for k, v in _put_back_pre_update_memory(transport, {}).items():
+        if k in ("restored", "memory_note"):
+            result[k] = v
+    return result
+
+
+def rollback(*, confirm: bool = False, resync=_UNSET, transport=None) -> dict:
+    """Undo an engine update — the deliberate counterpart to `upgrade`, surfaced through `/engine-upgrade`.
+    Read-only unless `confirm`. Three states: a STAGED/stalled update (discard it, saving a recovery point
+    first); memory AHEAD of the code after a reverted/merged update (put the saved copy back); or nothing to
+    undo locally (a merged update is undone by reverting its pull request — guided, never a local reset of
+    protected `main`). `resync` seams the tool-runtime rebuild (tests inject a no-op); `transport` is the
+    memory backup transport (the real vault in production, a fake in tests)."""
+    resync = _resync_tool_runtime if resync is _UNSET else resync
+    diag = _diagnose_undo()
+    if not confirm:
+        return diag
+    if diag["state"] == "staged":
+        return _discard_staged_update(resync, transport)
+    if diag["state"] == "memory-ahead":
+        return _put_back_pre_update_memory(transport, {"state": "memory-ahead"})
+    return dict(diag)   # nothing to undo locally
+
+
+def _render_rollback(r: dict, applied: bool) -> None:
+    """Plain-language render of a rollback preview (applied=False) or result (applied=True)."""
+    state = r.get("state")
+    if not applied:
+        if state == "staged":
+            # Disclose EVERYTHING the undo touches, up front, so the operator consents from a full picture:
+            # the engine's own files, the shared setup files they may have edited, and any saved memory.
+            print("An update is staged but not finished — I can undo it. First I save a recovery point of "
+                  "everything exactly as it is now, then put your engine back to before the update: its own "
+                  "files, the shared setup files it changes (like your CLAUDE.md and your settings), and any "
+                  "saved memory the update changed. Nothing is lost — if you'd edited those setup files "
+                  "yourself, your version is kept on the recovery point. I'll stop and ask first if you have "
+                  "unsaved work of your own in other files.\n"
+                  "To go ahead, type `/engine-upgrade` and choose to undo (or run `rollback --confirm`). To "
+                  "finish the update instead, run `upgrade --confirm`.")
+        elif state == "memory-ahead":
+            print("Your saved memory was changed by an update that's no longer in place, so your memory and "
+                  "your engine don't match right now. I can put your memory back to the copy saved before "
+                  "that update.\nTo go ahead, type `/engine-upgrade` and choose to undo (or run "
+                  "`rollback --confirm`).")
+        else:
+            print("There's nothing to undo — your engine and saved memory match. To undo an update you "
+                  "already merged, revert its pull request; ask me and I'll prepare that for you.")
+        return
+    if r.get("refused") or r.get("partial"):
+        print(r["reason"])
+        return
+    if state == "staged" and r.get("undone"):
+        line = ("Done — I undid the staged update and put your engine back to before it: its own files, the "
+                "shared setup files, and any saved memory the update changed. I saved everything as it was to "
+                f"a recovery point ('{r.get('recovery_point')}') — if you'd made your own edits to the setup "
+                "files, your version is there.")
+        if r.get("resync_failed"):
+            line += (" One heads-up: I couldn't rebuild the engine's tool-runtime automatically — ask me and "
+                     "I'll finish that.")
+        if r.get("restored") is False and r.get("memory_note") and "no saved-memory" not in r["memory_note"]:
+            line += f" A note on your saved memory: {r['memory_note']}."
+        print(line)
+        return
+    if state == "memory-ahead":
+        if r.get("restored") is True:
+            print("Done — I put your saved memory back to the copy from before the update. Your memory and "
+                  "engine match again.")
+        else:
+            print(r.get("memory_note") or "Your memory is unchanged.")
+        return
+    print("There was nothing to undo — nothing changed.")
+
+
 def main(argv: list) -> int:
     if not argv:
         print("usage: module_manager.py {status | sync-groups | add <id> [--json] | "
-              "plan-remove <id> | remove <id> [--json] | upgrade [ref] [--json] | "
+              "plan-remove <id> | remove <id> [--json] | upgrade [ref] [--confirm] [--json] | "
+              "rollback [--confirm] [--json] | "
               "remove-engine [--confirm] [--keep-protection|--remove-protection] [--json] | demo}",
               file=sys.stderr)
         return 2
     cmd = argv[0]
     try:
+        if cmd == "__upgrade_tail__":
+            # INTERNAL: the child half of `upgrade` (issue #594). Gated so a stray operator command or an
+            # injected instruction can't drive the mutating tail — it runs ONLY when spawned by a real
+            # upgrade (the private env marker) with a valid state (the in-state marker, checked downstream).
+            if os.environ.get("ENGINE_UPGRADE_CHILD") != "1" or len(argv) < 2:
+                print("CONFIG ERROR: __upgrade_tail__ is an internal step of `upgrade`, not a command.",
+                      file=sys.stderr)
+                return 2
+            try:
+                _run_upgrade_tail(_upgrade_state_load(argv[1]))
+                return 0
+            except Exception as exc:   # noqa: BLE001 — surfaced to the parent via exit code + stderr
+                print(f"upgrade tail failed: {exc}", file=sys.stderr)
+                return 2
         if cmd == "status":
             return _status()
         if cmd == "sync-groups":
@@ -2292,7 +3063,29 @@ def main(argv: list) -> int:
                 return 1
             return 1 if any(f.get("severity") == "hard" for f in result.get("findings", [])) else 0
         if cmd == "upgrade":
+            # PREVIEW BY DEFAULT (the #594 footgun close): bare `upgrade` — and `upgrade --help`, and any
+            # stray flag — must NEVER apply a real update. Applying takes a deliberate `--confirm`, mirroring
+            # `remove-engine`'s gate.
+            if "--help" in argv or "-h" in argv:
+                print(_UPGRADE_USAGE)
+                return 0
+            unknown = [a for a in argv[1:] if a.startswith("-") and a not in ("--confirm", "--json")]
+            if unknown:
+                print(f"CONFIG ERROR: unknown option(s) for upgrade: {' '.join(unknown)}\n{_UPGRADE_USAGE}",
+                      file=sys.stderr)
+                return 2
             ref = next((a for a in argv[1:] if not a.startswith("-")), None)
+            if "--confirm" not in argv:
+                try:
+                    preview = upgrade_preview(ref)   # READ-ONLY — changes nothing
+                    if "--json" in argv:
+                        print(json.dumps(preview, indent=2))
+                    else:
+                        _render_upgrade_preview(preview)
+                except Exception as exc:   # noqa: BLE001 — the check must never crash on a malformed release
+                    print(f"Couldn't complete the update check — the engine is unchanged and still working. "
+                          f"({exc})")
+                return 0
             result = upgrade(ref)
             if "--json" in argv:
                 print(json.dumps(result, indent=2))
@@ -2303,6 +3096,30 @@ def main(argv: list) -> int:
             if result.get("refused"):
                 return 1
             return 0 if result.get("pr") else 1
+        if cmd == "rollback":
+            # UNDO by default is a CHECK: bare `rollback` (and `--help`, and any stray flag) changes nothing;
+            # undoing takes a deliberate `--confirm`, mirroring `upgrade`/`remove-engine`.
+            if "--help" in argv or "-h" in argv:
+                print(_ROLLBACK_USAGE)
+                return 0
+            unknown = [a for a in argv[1:] if a.startswith("-") and a not in ("--confirm", "--json")]
+            if unknown:
+                print(f"CONFIG ERROR: unknown option(s) for rollback: {' '.join(unknown)}\n{_ROLLBACK_USAGE}",
+                      file=sys.stderr)
+                return 2
+            confirm = "--confirm" in argv
+            try:
+                result = rollback(confirm=confirm)
+            except Exception as exc:   # noqa: BLE001 — the check/undo must never crash into a traceback
+                print(f"Couldn't complete that — your engine is unchanged. ({exc})")
+                return 1
+            if "--json" in argv:
+                print(json.dumps(result, indent=2))
+            else:
+                _render_rollback(result, applied=confirm)
+            if result.get("refused") or result.get("partial"):
+                return 1
+            return 0
         if cmd == "remove-engine":
             # Destructive + operator-privileged: without --confirm this only PREVIEWS (changes nothing).
             if "--confirm" not in argv:

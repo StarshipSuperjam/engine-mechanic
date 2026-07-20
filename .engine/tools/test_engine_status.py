@@ -1,4 +1,4 @@
-"""Tests for `/engine-status`'s tool (issue #83, slice 3) — the operator's on-demand pull view.
+"""Tests for `/engine-status`'s tool (issue #83) — the operator's on-demand pull view.
 
 Verifies: the thin reuse — `render()` is exactly `boot.render_dashboard` over `boot.gather_signals`, with
 the session id passed through (so the real stance shows); the operator-facing dashboard markers are carried;
@@ -24,7 +24,7 @@ import test_boot  # noqa: E402  (reuse `_signals(**over)`, the COMPLETE signals 
 
 # A raw code identifier or exception fragment surfacing in operator text means an internal name or a traceback
 # leaked there — a correctness bug, not a word choice. This guards SYMBOLS, not vocabulary, so it is not a
-# banned-word list (engine-planning D-225 / R30): each name below is a real internal of this tool's render path.
+# banned-word list: each name below is a real internal of this tool's render path.
 _RAW_CODE_IDENTIFIERS = ("gather_signals", "render_dashboard", "subscript", "keyerror")
 
 
@@ -52,7 +52,7 @@ class TestRenderReusesBootSeam(unittest.TestCase):
     def test_render_carries_the_operator_dashboard_markers(self):
         with mock.patch.object(boot, "gather_signals", return_value=test_boot._signals()):
             out = es.render()
-        for marker in (f"## {boot.PRESENT_MARKER}", "Where we are", "Needs your attention", "Recently shipped"):
+        for marker in (f"## {boot.PRESENT_MARKER}", "What merged last", "Needs your attention", "Recently shipped"):
             self.assertIn(marker, out, f"the pulled dashboard must carry the '{marker}' section")
 
 

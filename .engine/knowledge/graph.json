@@ -1,9 +1,9 @@
 {
   "entities": [
     {
-      "id": "agent:audit",
+      "id": "agent:engine-audit",
       "model-tier": "judgment",
-      "name": ".claude/agents/audit.md",
+      "name": ".claude/agents/engine-audit.md",
       "owner": "audit-library",
       "predicates": {
         "governed_by": [
@@ -14,19 +14,19 @@
         ]
       },
       "role": "audit",
-      "slug": "audit",
+      "slug": "engine-audit",
       "source": {
-        "fingerprint": "sha256:e19be8f0b519ea17ac54928a0ee963c9074d696baa651fbdd2c769fe98b9d58f",
-        "path": ".claude/agents/audit.md"
+        "fingerprint": "sha256:acd06479919bf64502557103617b954422a714b19dfb6cd8d2620363b1789aad",
+        "path": ".claude/agents/engine-audit.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:design-review-architecture",
+      "id": "agent:engine-design-review-architecture",
       "lens": "architecture",
       "model-tier": "judgment",
-      "name": ".claude/agents/design-review-architecture.md",
+      "name": ".claude/agents/engine-design-review-architecture.md",
       "owner": "design-review",
       "predicates": {
         "governed_by": [
@@ -37,19 +37,19 @@
         ]
       },
       "role": "plan-review",
-      "slug": "design-review-architecture",
+      "slug": "engine-design-review-architecture",
       "source": {
-        "fingerprint": "sha256:7a8452b79dc6f8f33a4ccb0e328c76649808b8437e908141b7a0008041419f79",
-        "path": ".claude/agents/design-review-architecture.md"
+        "fingerprint": "sha256:23968413889efc52643c5ff28e0da2527da5d6e7c7278f1424ba720497e035a2",
+        "path": ".claude/agents/engine-design-review-architecture.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:design-review-feasibility",
+      "id": "agent:engine-design-review-feasibility",
       "lens": "feasibility",
       "model-tier": "judgment",
-      "name": ".claude/agents/design-review-feasibility.md",
+      "name": ".claude/agents/engine-design-review-feasibility.md",
       "owner": "design-review",
       "predicates": {
         "governed_by": [
@@ -60,19 +60,19 @@
         ]
       },
       "role": "plan-review",
-      "slug": "design-review-feasibility",
+      "slug": "engine-design-review-feasibility",
       "source": {
-        "fingerprint": "sha256:902b6150d4778445e5218de868c8fef79e95a092de0a48814ee36a1da8fee4f3",
-        "path": ".claude/agents/design-review-feasibility.md"
+        "fingerprint": "sha256:058b9287f13b43d5c86895bd520daeebbe9f848670f9d17180b3edfe179da5c8",
+        "path": ".claude/agents/engine-design-review-feasibility.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:design-review-product-intent",
+      "id": "agent:engine-design-review-product-intent",
       "lens": "product-intent",
       "model-tier": "judgment",
-      "name": ".claude/agents/design-review-product-intent.md",
+      "name": ".claude/agents/engine-design-review-product-intent.md",
       "owner": "design-review",
       "predicates": {
         "governed_by": [
@@ -83,19 +83,19 @@
         ]
       },
       "role": "plan-review",
-      "slug": "design-review-product-intent",
+      "slug": "engine-design-review-product-intent",
       "source": {
-        "fingerprint": "sha256:fb945d85a5954053e14b5916467f21280e155faa8821405f595653ddf9661f8c",
-        "path": ".claude/agents/design-review-product-intent.md"
+        "fingerprint": "sha256:9d507818f981113c0fbf9da6988912be0c554ab732923e2179c27ead9550353a",
+        "path": ".claude/agents/engine-design-review-product-intent.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:design-review-risk-governance",
+      "id": "agent:engine-design-review-risk-governance",
       "lens": "risk-governance",
       "model-tier": "judgment",
-      "name": ".claude/agents/design-review-risk-governance.md",
+      "name": ".claude/agents/engine-design-review-risk-governance.md",
       "owner": "design-review",
       "predicates": {
         "governed_by": [
@@ -106,19 +106,19 @@
         ]
       },
       "role": "plan-review",
-      "slug": "design-review-risk-governance",
+      "slug": "engine-design-review-risk-governance",
       "source": {
-        "fingerprint": "sha256:e3deba61e3e3055be4f11ad4271c1d963b9443b2812452463e6bd319fb5cc38b",
-        "path": ".claude/agents/design-review-risk-governance.md"
+        "fingerprint": "sha256:5bea8c3d24fe3ed15f096f36c101d9a21083a6a2dfcec8988f448b1f3e6c3806",
+        "path": ".claude/agents/engine-design-review-risk-governance.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:qa-review-divergence-hunter",
+      "id": "agent:engine-qa-review-divergence-hunter",
       "lens": "divergence-hunter",
       "model-tier": "judgment",
-      "name": ".claude/agents/qa-review-divergence-hunter.md",
+      "name": ".claude/agents/engine-qa-review-divergence-hunter.md",
       "owner": "qa-review",
       "predicates": {
         "governed_by": [
@@ -129,19 +129,19 @@
         ]
       },
       "role": "pre-submission-review",
-      "slug": "qa-review-divergence-hunter",
+      "slug": "engine-qa-review-divergence-hunter",
       "source": {
-        "fingerprint": "sha256:ec3e97c1266f0dda2896a5b64502f6d57ffda28c715054924b4e0e85c35eaf5d",
-        "path": ".claude/agents/qa-review-divergence-hunter.md"
+        "fingerprint": "sha256:fbd027f3f23ad6e8770288dd30133ea9d8d47daa406d6b5aed906414522b27ce",
+        "path": ".claude/agents/engine-qa-review-divergence-hunter.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:qa-review-security-governance",
+      "id": "agent:engine-qa-review-security-governance",
       "lens": "security-governance",
       "model-tier": "judgment",
-      "name": ".claude/agents/qa-review-security-governance.md",
+      "name": ".claude/agents/engine-qa-review-security-governance.md",
       "owner": "qa-review",
       "predicates": {
         "governed_by": [
@@ -152,19 +152,19 @@
         ]
       },
       "role": "pre-submission-review",
-      "slug": "qa-review-security-governance",
+      "slug": "engine-qa-review-security-governance",
       "source": {
-        "fingerprint": "sha256:7a1f1a3535e7cd4ad3bd97c0098ef2a355c0b6bf2a8c376f3d5227fd9b0a9554",
-        "path": ".claude/agents/qa-review-security-governance.md"
+        "fingerprint": "sha256:d0b2a3cdb9cbce9e1831b415fa3ef558853ab41b6de52c3e83f1ec4c56e73b5a",
+        "path": ".claude/agents/engine-qa-review-security-governance.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:qa-review-spec-conformance",
+      "id": "agent:engine-qa-review-spec-conformance",
       "lens": "spec-conformance",
       "model-tier": "judgment",
-      "name": ".claude/agents/qa-review-spec-conformance.md",
+      "name": ".claude/agents/engine-qa-review-spec-conformance.md",
       "owner": "qa-review",
       "predicates": {
         "governed_by": [
@@ -175,19 +175,19 @@
         ]
       },
       "role": "pre-submission-review",
-      "slug": "qa-review-spec-conformance",
+      "slug": "engine-qa-review-spec-conformance",
       "source": {
-        "fingerprint": "sha256:63b1fd6a222afce1ca3458dfd5b32170b410b151357bd21c5b8bc8e47f348cb1",
-        "path": ".claude/agents/qa-review-spec-conformance.md"
+        "fingerprint": "sha256:939db95a725244743ceef6dfe24a65a09702ae872c7fde1ef348178fb1315953",
+        "path": ".claude/agents/engine-qa-review-spec-conformance.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:qa-review-technical-integrity",
+      "id": "agent:engine-qa-review-technical-integrity",
       "lens": "technical-integrity",
       "model-tier": "judgment",
-      "name": ".claude/agents/qa-review-technical-integrity.md",
+      "name": ".claude/agents/engine-qa-review-technical-integrity.md",
       "owner": "qa-review",
       "predicates": {
         "governed_by": [
@@ -198,19 +198,19 @@
         ]
       },
       "role": "pre-submission-review",
-      "slug": "qa-review-technical-integrity",
+      "slug": "engine-qa-review-technical-integrity",
       "source": {
-        "fingerprint": "sha256:658bfb64a02a835c97c5c6ba7e7700afd9a4de7823219f8a478fd8e3f74c6926",
-        "path": ".claude/agents/qa-review-technical-integrity.md"
+        "fingerprint": "sha256:7399e5441b48fedea2ff27ec8ba108916afb2ddd521e1a480a23d5b6e2999d88",
+        "path": ".claude/agents/engine-qa-review-technical-integrity.md"
       },
       "status": "active",
       "type": "agent"
     },
     {
-      "id": "agent:qa-review-usability",
+      "id": "agent:engine-qa-review-usability",
       "lens": "usability",
       "model-tier": "judgment",
-      "name": ".claude/agents/qa-review-usability.md",
+      "name": ".claude/agents/engine-qa-review-usability.md",
       "owner": "qa-review",
       "predicates": {
         "governed_by": [
@@ -221,10 +221,10 @@
         ]
       },
       "role": "pre-submission-review",
-      "slug": "qa-review-usability",
+      "slug": "engine-qa-review-usability",
       "source": {
-        "fingerprint": "sha256:eec3f177ecd94278d6be71bcf3fa89d49fc07495dbba192df74f1ee159c50651",
-        "path": ".claude/agents/qa-review-usability.md"
+        "fingerprint": "sha256:3ff7e0b9f0ac05a5558a12f82788df3b31c10e31dd43179425136bc6225b8056",
+        "path": ".claude/agents/engine-qa-review-usability.md"
       },
       "status": "active",
       "type": "agent"
@@ -267,16 +267,16 @@
           "module:validators-core"
         ],
         "targets": [
-          "agent:audit",
-          "agent:design-review-architecture",
-          "agent:design-review-feasibility",
-          "agent:design-review-product-intent",
-          "agent:design-review-risk-governance",
-          "agent:qa-review-divergence-hunter",
-          "agent:qa-review-security-governance",
-          "agent:qa-review-spec-conformance",
-          "agent:qa-review-technical-integrity",
-          "agent:qa-review-usability"
+          "agent:engine-audit",
+          "agent:engine-design-review-architecture",
+          "agent:engine-design-review-feasibility",
+          "agent:engine-design-review-product-intent",
+          "agent:engine-design-review-risk-governance",
+          "agent:engine-qa-review-divergence-hunter",
+          "agent:engine-qa-review-security-governance",
+          "agent:engine-qa-review-spec-conformance",
+          "agent:engine-qa-review-technical-integrity",
+          "agent:engine-qa-review-usability"
         ]
       },
       "slug": "agent-frontmatter",
@@ -304,16 +304,16 @@
           "module:validators-core"
         ],
         "targets": [
-          "agent:audit",
-          "agent:design-review-architecture",
-          "agent:design-review-feasibility",
-          "agent:design-review-product-intent",
-          "agent:design-review-risk-governance",
-          "agent:qa-review-divergence-hunter",
-          "agent:qa-review-security-governance",
-          "agent:qa-review-spec-conformance",
-          "agent:qa-review-technical-integrity",
-          "agent:qa-review-usability"
+          "agent:engine-audit",
+          "agent:engine-design-review-architecture",
+          "agent:engine-design-review-feasibility",
+          "agent:engine-design-review-product-intent",
+          "agent:engine-design-review-risk-governance",
+          "agent:engine-qa-review-divergence-hunter",
+          "agent:engine-qa-review-security-governance",
+          "agent:engine-qa-review-spec-conformance",
+          "agent:engine-qa-review-technical-integrity",
+          "agent:engine-qa-review-usability"
         ]
       },
       "slug": "agent-shape",
@@ -480,6 +480,220 @@
       "type": "check"
     },
     {
+      "id": "check:codex-agent-coherence",
+      "kind": "custom/script",
+      "name": ".engine/check/codex-agent-coherence.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "codex-agent-coherence",
+      "source": {
+        "fingerprint": "sha256:4a46f6fca5583388d701307d233889cfe460fbee29fe1f69b42834fdcf203620",
+        "path": ".engine/check/codex-agent-coherence.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-agent-schema",
+      "kind": "schema",
+      "name": ".engine/check/codex-agent-schema.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ],
+        "targets": [
+          "codex-agent:engine-audit",
+          "codex-agent:engine-design-review-architecture",
+          "codex-agent:engine-design-review-feasibility",
+          "codex-agent:engine-design-review-product-intent",
+          "codex-agent:engine-design-review-risk-governance",
+          "codex-agent:engine-qa-review-divergence-hunter",
+          "codex-agent:engine-qa-review-security-governance",
+          "codex-agent:engine-qa-review-spec-conformance",
+          "codex-agent:engine-qa-review-technical-integrity",
+          "codex-agent:engine-qa-review-usability"
+        ]
+      },
+      "slug": "codex-agent-schema",
+      "source": {
+        "fingerprint": "sha256:ccaba9a21d56ee5dee4d404767ab2132773e3eafa6bccb4af510fae1863e703a",
+        "path": ".engine/check/codex-agent-schema.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-hooks-schema",
+      "kind": "schema",
+      "name": ".engine/check/codex-hooks-schema.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "codex-hooks-schema",
+      "source": {
+        "fingerprint": "sha256:950178a8c9a114fd261c9a7858ae74502d480eb40d2f1ad7ecc8814602d5d3f4",
+        "path": ".engine/check/codex-hooks-schema.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-provider-parity",
+      "kind": "custom/script",
+      "name": ".engine/check/codex-provider-parity.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "codex-provider-parity",
+      "source": {
+        "fingerprint": "sha256:385bfc14cd8bf5a47ada40e871df8657b3fb74d3642b340dbf74ebf1456bcda7",
+        "path": ".engine/check/codex-provider-parity.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-skill-coherence",
+      "kind": "custom/script",
+      "name": ".engine/check/codex-skill-coherence.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "codex-skill-coherence",
+      "source": {
+        "fingerprint": "sha256:0a6024905a16a23622f82ab4801305820a23b96fb85adbe2dcb134c63f3c7e38",
+        "path": ".engine/check/codex-skill-coherence.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-skill-frontmatter",
+      "kind": "schema",
+      "name": ".engine/check/codex-skill-frontmatter.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ],
+        "targets": [
+          "codex-skill:engine-board-setup",
+          "codex-skill:engine-conduct",
+          "codex-skill:engine-design",
+          "codex-skill:engine-help",
+          "codex-skill:engine-parts",
+          "codex-skill:engine-routine",
+          "codex-skill:engine-setup",
+          "codex-skill:engine-start",
+          "codex-skill:engine-status",
+          "codex-skill:engine-tune",
+          "codex-skill:engine-upgrade"
+        ]
+      },
+      "slug": "codex-skill-frontmatter",
+      "source": {
+        "fingerprint": "sha256:8e8d89398d80cbaac92cf1ac70c2ded8783208028ec1c74fb7d5384ab7eda39f",
+        "path": ".engine/check/codex-skill-frontmatter.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:codex-skill-shape",
+      "kind": "shape",
+      "name": ".engine/check/codex-skill-shape.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ],
+        "targets": [
+          "codex-skill:engine-board-setup",
+          "codex-skill:engine-conduct",
+          "codex-skill:engine-design",
+          "codex-skill:engine-help",
+          "codex-skill:engine-parts",
+          "codex-skill:engine-routine",
+          "codex-skill:engine-setup",
+          "codex-skill:engine-start",
+          "codex-skill:engine-status",
+          "codex-skill:engine-tune",
+          "codex-skill:engine-upgrade"
+        ]
+      },
+      "slug": "codex-skill-shape",
+      "source": {
+        "fingerprint": "sha256:e8858d0f745ad300d0ab9efb5d6965a33005fb1eb6255d35864102a640648858",
+        "path": ".engine/check/codex-skill-shape.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI",
+        "audit-prep"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
       "id": "check:conduct-frontmatter",
       "kind": "schema",
       "name": ".engine/check/conduct-frontmatter.json",
@@ -602,7 +816,9 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:eADR-0034-dual-provider-adapter-core",
+          "contract:eADR-0037-upgrade-overwrite-disclosure"
         ]
       },
       "slug": "contract-frontmatter",
@@ -662,7 +878,9 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:eADR-0034-dual-provider-adapter-core",
+          "contract:eADR-0037-upgrade-overwrite-disclosure"
         ]
       },
       "slug": "contract-shape",
@@ -723,7 +941,9 @@
           "contract:eADR-0030-operator-stance-floor",
           "contract:eADR-0031-state-cursor-pointers-and-counts",
           "contract:eADR-0032-attention-policy-plus-function",
-          "contract:eADR-0033-boot-refresh-family"
+          "contract:eADR-0033-boot-refresh-family",
+          "contract:eADR-0034-dual-provider-adapter-core",
+          "contract:eADR-0037-upgrade-overwrite-disclosure"
         ]
       },
       "slug": "contract-threshold",
@@ -1310,13 +1530,16 @@
           "operation:boot-session-start",
           "operation:build-orchestration",
           "operation:close-turn",
+          "operation:codex-validation",
           "operation:conduct-author",
           "operation:control-plane-bootstrap",
           "operation:engine-arrival",
           "operation:engine-remove",
           "operation:engine-team-switch",
           "operation:engine-upgrade",
+          "operation:external-contribution-issue",
           "operation:external-contribution-submit",
+          "operation:first-run",
           "operation:knowledge-impact-check",
           "operation:module-add",
           "operation:module-remove",
@@ -1356,13 +1579,16 @@
           "operation:boot-session-start",
           "operation:build-orchestration",
           "operation:close-turn",
+          "operation:codex-validation",
           "operation:conduct-author",
           "operation:control-plane-bootstrap",
           "operation:engine-arrival",
           "operation:engine-remove",
           "operation:engine-team-switch",
           "operation:engine-upgrade",
+          "operation:external-contribution-issue",
           "operation:external-contribution-submit",
+          "operation:first-run",
           "operation:knowledge-impact-check",
           "operation:module-add",
           "operation:module-remove",
@@ -1376,13 +1602,38 @@
       },
       "slug": "operation-shape",
       "source": {
-        "fingerprint": "sha256:1ed393daa844d80a5505cb7749f3bc7cc3831114d411675de1fc0a188c9acaff",
+        "fingerprint": "sha256:d001eb977fe4f45ace6c370b98604aa0dea8e2cec89cdf15de87f3a4689ca147",
         "path": ".engine/check/operation-shape.json"
       },
       "status": "active",
       "suites": [
         "CI",
         "audit-prep"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:operator-guarded-paths",
+      "kind": "custom/script",
+      "name": ".engine/check/operator-guarded-paths.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "operator-guarded-paths",
+      "source": {
+        "fingerprint": "sha256:6e85a2e398b413e38f4d5e43c66ccce5fcfb4b28603432c2f095b4c4e4972a3b",
+        "path": ".engine/check/operator-guarded-paths.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
       ],
       "tier": "hard",
       "type": "check"
@@ -1407,6 +1658,7 @@
           "policy:external-contribution",
           "policy:finding-disposition",
           "policy:migration-discipline",
+          "policy:spec-structure-integrity",
           "policy:triage-threshold"
         ]
       },
@@ -1467,6 +1719,7 @@
           "policy:external-contribution",
           "policy:finding-disposition",
           "policy:migration-discipline",
+          "policy:spec-structure-integrity",
           "policy:triage-threshold"
         ]
       },
@@ -1498,12 +1751,66 @@
       },
       "slug": "pr-body-completeness",
       "source": {
-        "fingerprint": "sha256:2de1f272434eac7313c36657e8472c7d1b47b0198c606fa205e2407c7a48cbff",
+        "fingerprint": "sha256:0c631ca71ae405611ec8e4bff24214db668edd61bf0c057a8c30a220f128d5d2",
         "path": ".engine/check/pr-body-completeness.json"
       },
       "status": "active",
       "suites": [
         "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:product-adr-form",
+      "kind": "custom/script",
+      "name": ".engine/check/product-adr-form.json",
+      "owner": "product-design",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "product-adr-form",
+      "source": {
+        "fingerprint": "sha256:6af50fc9d737a2b2987cac591645307136e78da8b8572d2c8c229f0463d77607",
+        "path": ".engine/check/product-adr-form.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI",
+        "pre-close",
+        "pre-commit"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:product-design-form",
+      "kind": "custom/script",
+      "name": ".engine/check/product-design-form.json",
+      "owner": "product-design",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "product-design-form",
+      "source": {
+        "fingerprint": "sha256:34922096ade1c3bf98546cfac7f47d0923afad896a78c9399d4f8e2122aec991",
+        "path": ".engine/check/product-design-form.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI",
+        "pre-close",
+        "pre-commit"
       ],
       "tier": "hard",
       "type": "check"
@@ -1638,6 +1945,59 @@
       "type": "check"
     },
     {
+      "id": "check:provider-exceptions-schema",
+      "kind": "schema",
+      "name": ".engine/check/provider-exceptions-schema.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ],
+        "targets": [
+          "policy:provider-exceptions"
+        ]
+      },
+      "slug": "provider-exceptions-schema",
+      "source": {
+        "fingerprint": "sha256:5f0a1a3dae2cc718060648f4581492b2ac570af38787554833e408c232c894b9",
+        "path": ".engine/check/provider-exceptions-schema.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
+      "id": "check:provider-vocabulary-confinement",
+      "kind": "custom/script",
+      "name": ".engine/check/provider-vocabulary-confinement.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:check.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "provider-vocabulary-confinement",
+      "source": {
+        "fingerprint": "sha256:9888dc5039c0068f74b8df73568f120df9527231aa68c2ae6598c9a1fc7c849a",
+        "path": ".engine/check/provider-vocabulary-confinement.json"
+      },
+      "status": "active",
+      "suites": [
+        "CI"
+      ],
+      "tier": "hard",
+      "type": "check"
+    },
+    {
       "id": "check:provisioning-catalog",
       "kind": "schema",
       "name": ".engine/check/provisioning-catalog.json",
@@ -1756,9 +2116,11 @@
           "skill:engine-help",
           "skill:engine-parts",
           "skill:engine-routine",
+          "skill:engine-setup",
           "skill:engine-start",
           "skill:engine-status",
-          "skill:engine-tune"
+          "skill:engine-tune",
+          "skill:engine-upgrade"
         ]
       },
       "slug": "skill-frontmatter",
@@ -1792,9 +2154,11 @@
           "skill:engine-help",
           "skill:engine-parts",
           "skill:engine-routine",
+          "skill:engine-setup",
           "skill:engine-start",
           "skill:engine-status",
-          "skill:engine-tune"
+          "skill:engine-tune",
+          "skill:engine-upgrade"
         ]
       },
       "slug": "skill-shape",
@@ -1937,6 +2301,646 @@
       "type": "check"
     },
     {
+      "id": "codex-agent:engine-audit",
+      "name": ".codex/agents/engine-audit.toml",
+      "owner": "audit-library",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:audit-library"
+        ]
+      },
+      "slug": "engine-audit",
+      "source": {
+        "fingerprint": "sha256:648b451814ef5baa008280fb2a0a154b886dda7aee7ecd3e8c8b96e80a4718bd",
+        "path": ".codex/agents/engine-audit.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-design-review-architecture",
+      "name": ".codex/agents/engine-design-review-architecture.toml",
+      "owner": "design-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:design-review"
+        ]
+      },
+      "slug": "engine-design-review-architecture",
+      "source": {
+        "fingerprint": "sha256:fe7b683b18ad5382d4a6cbcc0ebb587a9acb8eef090c76c7f2a0e52bb0f08218",
+        "path": ".codex/agents/engine-design-review-architecture.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-design-review-feasibility",
+      "name": ".codex/agents/engine-design-review-feasibility.toml",
+      "owner": "design-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:design-review"
+        ]
+      },
+      "slug": "engine-design-review-feasibility",
+      "source": {
+        "fingerprint": "sha256:0fd1e8532caeac6003624fadabeba9d27747e0ae60dfae4ec235121689d31ee8",
+        "path": ".codex/agents/engine-design-review-feasibility.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-design-review-product-intent",
+      "name": ".codex/agents/engine-design-review-product-intent.toml",
+      "owner": "design-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:design-review"
+        ]
+      },
+      "slug": "engine-design-review-product-intent",
+      "source": {
+        "fingerprint": "sha256:08c0c87fbef0f26cd95cd00b031f27491c51edad292f50ecc9679bdd40b7239d",
+        "path": ".codex/agents/engine-design-review-product-intent.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-design-review-risk-governance",
+      "name": ".codex/agents/engine-design-review-risk-governance.toml",
+      "owner": "design-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:design-review"
+        ]
+      },
+      "slug": "engine-design-review-risk-governance",
+      "source": {
+        "fingerprint": "sha256:c2964ddc141e8be66501c73c523f40ebb5314cc77d3a49ddea38bf5eb605c627",
+        "path": ".codex/agents/engine-design-review-risk-governance.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-qa-review-divergence-hunter",
+      "name": ".codex/agents/engine-qa-review-divergence-hunter.toml",
+      "owner": "qa-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:qa-review"
+        ]
+      },
+      "slug": "engine-qa-review-divergence-hunter",
+      "source": {
+        "fingerprint": "sha256:71b1d57c33274bcfad9f0d1be63ea33df575d2110b0c2cc355c042f88c690135",
+        "path": ".codex/agents/engine-qa-review-divergence-hunter.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-qa-review-security-governance",
+      "name": ".codex/agents/engine-qa-review-security-governance.toml",
+      "owner": "qa-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:qa-review"
+        ]
+      },
+      "slug": "engine-qa-review-security-governance",
+      "source": {
+        "fingerprint": "sha256:3495499a4b06450215fc0e55d46c338a6f2e0572ff7f26038423a118d775308f",
+        "path": ".codex/agents/engine-qa-review-security-governance.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-qa-review-spec-conformance",
+      "name": ".codex/agents/engine-qa-review-spec-conformance.toml",
+      "owner": "qa-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:qa-review"
+        ]
+      },
+      "slug": "engine-qa-review-spec-conformance",
+      "source": {
+        "fingerprint": "sha256:c4b088829ab9dbf6f3cd508856bdc805d1892f112675195de36a7a27d8cbc52f",
+        "path": ".codex/agents/engine-qa-review-spec-conformance.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-qa-review-technical-integrity",
+      "name": ".codex/agents/engine-qa-review-technical-integrity.toml",
+      "owner": "qa-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:qa-review"
+        ]
+      },
+      "slug": "engine-qa-review-technical-integrity",
+      "source": {
+        "fingerprint": "sha256:f04fcf565d5194040547508e5d61baa0047843e76b02e73f303498b8fb2875b9",
+        "path": ".codex/agents/engine-qa-review-technical-integrity.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-agent:engine-qa-review-usability",
+      "name": ".codex/agents/engine-qa-review-usability.toml",
+      "owner": "qa-review",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-agent.v1"
+        ],
+        "provided_by": [
+          "module:qa-review"
+        ]
+      },
+      "slug": "engine-qa-review-usability",
+      "source": {
+        "fingerprint": "sha256:a677f8ea89803d347fe8ba09d0dae79e5ec21ccc8625bf0c10627f3f5889060c",
+        "path": ".codex/agents/engine-qa-review-usability.toml"
+      },
+      "status": "active",
+      "type": "codex-agent"
+    },
+    {
+      "id": "codex-skill:engine-board-setup",
+      "name": ".agents/skills/engine-board-setup/SKILL.md",
+      "owner": "github-projects-sync",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:github-projects-sync"
+        ]
+      },
+      "slug": "engine-board-setup",
+      "source": {
+        "fingerprint": "sha256:288d87feff3bda1e8202ea460baa8d61bb067bb7f4f17eb7e151ac7f76cbc1d5",
+        "path": ".agents/skills/engine-board-setup/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-board-setup.policy",
+      "name": ".agents/skills/engine-board-setup/agents/openai.yaml",
+      "owner": "github-projects-sync",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:github-projects-sync"
+        ]
+      },
+      "slug": "engine-board-setup.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-board-setup/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-conduct",
+      "name": ".agents/skills/engine-conduct/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-conduct",
+      "source": {
+        "fingerprint": "sha256:32cfe4b192683595d0505601c5ffc8241184f28e2e5286ea3e5441182520172c",
+        "path": ".agents/skills/engine-conduct/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-conduct.policy",
+      "name": ".agents/skills/engine-conduct/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-conduct.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-conduct/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-design",
+      "name": ".agents/skills/engine-design/SKILL.md",
+      "owner": "product-design",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "engine-design",
+      "source": {
+        "fingerprint": "sha256:b823e67aa6f4426f332e025dae9a1c5a234f54d98618345dc55bae819a56e9f6",
+        "path": ".agents/skills/engine-design/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-design.policy",
+      "name": ".agents/skills/engine-design/agents/openai.yaml",
+      "owner": "product-design",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "engine-design.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-design/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-help",
+      "name": ".agents/skills/engine-help/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-help",
+      "source": {
+        "fingerprint": "sha256:a6b0cee25e31ba78ed42e0c9e13a27cc8bc8a8f7251a57b01a99f1775a361648",
+        "path": ".agents/skills/engine-help/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-help.policy",
+      "name": ".agents/skills/engine-help/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-help.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-help/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-parts",
+      "name": ".agents/skills/engine-parts/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-parts",
+      "source": {
+        "fingerprint": "sha256:b1087973ee354f35d122f5fa0416bbd9dcd1836bf292186d90b6eb2a3db9f5f2",
+        "path": ".agents/skills/engine-parts/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-parts.policy",
+      "name": ".agents/skills/engine-parts/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-parts.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-parts/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-routine",
+      "name": ".agents/skills/engine-routine/SKILL.md",
+      "owner": "routine-mode",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:routine-mode"
+        ]
+      },
+      "slug": "engine-routine",
+      "source": {
+        "fingerprint": "sha256:c43bd3cdd9ddb59de78eeb90adffc3800acb3f7534d686ca091f7e898638252b",
+        "path": ".agents/skills/engine-routine/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-routine.policy",
+      "name": ".agents/skills/engine-routine/agents/openai.yaml",
+      "owner": "routine-mode",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:routine-mode"
+        ]
+      },
+      "slug": "engine-routine.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-routine/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-setup",
+      "name": ".agents/skills/engine-setup/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-setup",
+      "source": {
+        "fingerprint": "sha256:bc628acf309ee2f8157a4a980ca9924cb01431fe7216a3347e91ef0c2586e20e",
+        "path": ".agents/skills/engine-setup/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-setup.policy",
+      "name": ".agents/skills/engine-setup/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-setup.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-setup/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-start",
+      "name": ".agents/skills/engine-start/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-start",
+      "source": {
+        "fingerprint": "sha256:0a030ec4843759d4842b6a7df13488449956ba6cc61bd52e98df3623ad26c4e2",
+        "path": ".agents/skills/engine-start/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-start.policy",
+      "name": ".agents/skills/engine-start/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-start.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-start/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-status",
+      "name": ".agents/skills/engine-status/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-status",
+      "source": {
+        "fingerprint": "sha256:1f4ea2c4fd8c4f2808297ead3149816d7271e5e2235d58c7a9941eb26f7d45ff",
+        "path": ".agents/skills/engine-status/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-status.policy",
+      "name": ".agents/skills/engine-status/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-status.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-status/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-tune",
+      "name": ".agents/skills/engine-tune/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-tune",
+      "source": {
+        "fingerprint": "sha256:82517fea3f9ff363b2d866ada63bdbc26e15e0861b59444a0154fdb5f70b3d3e",
+        "path": ".agents/skills/engine-tune/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-tune.policy",
+      "name": ".agents/skills/engine-tune/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-tune.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-tune/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-upgrade",
+      "name": ".agents/skills/engine-upgrade/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-upgrade",
+      "source": {
+        "fingerprint": "sha256:0524315e78bb1fbdbb3f78c438363df7fc407afd5feef4cc4b87a2a82de9e5da",
+        "path": ".agents/skills/engine-upgrade/SKILL.md"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
+      "id": "codex-skill:engine-upgrade.policy",
+      "name": ".agents/skills/engine-upgrade/agents/openai.yaml",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:codex-skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-upgrade.policy",
+      "source": {
+        "fingerprint": "sha256:52b4d77fb2942f78768d85805bb8e76de14565be64df26edd1fa612feabb6a31",
+        "path": ".agents/skills/engine-upgrade/agents/openai.yaml"
+      },
+      "status": "active",
+      "type": "codex-skill"
+    },
+    {
       "id": "conduct:defaults",
       "name": ".engine/conduct/defaults.md",
       "owner": "core",
@@ -1950,7 +2954,7 @@
       },
       "slug": "defaults",
       "source": {
-        "fingerprint": "sha256:93e4971cdbb9a4f6dfd9e174cc4f3808aaaa67498c0184ee5273d80ec8f47e21",
+        "fingerprint": "sha256:d3a141664ba761165ca80a61fe7910a74be05d49d2e1ca21a8ab4ae8b4861c9a",
         "path": ".engine/conduct/defaults.md"
       },
       "status": "active",
@@ -2170,7 +3174,7 @@
       },
       "slug": "eADR-0011-guardrail-integrity",
       "source": {
-        "fingerprint": "sha256:cac8d7389e687929136e42716de3df3ee3589a7253d768f0692bd2c0e6d9a2e3",
+        "fingerprint": "sha256:992473935a8aea09629154ed600ab2b93cbc9aa45f7e47aea80ca8509f98c201",
         "path": ".engine/contracts/eADR-0011-guardrail-integrity.md"
       },
       "status": "accepted",
@@ -2230,7 +3234,7 @@
       },
       "slug": "eADR-0014-one-history-living-documents",
       "source": {
-        "fingerprint": "sha256:1aeab5d4475ec21b96984c2a10d6976b2b89a6070e433143e207a08f8d165447",
+        "fingerprint": "sha256:d28af0de197bef90d35dd11a1dbccdf455bc5ee88c5601a425dab745942e15d8",
         "path": ".engine/contracts/eADR-0014-one-history-living-documents.md"
       },
       "status": "accepted",
@@ -2270,7 +3274,7 @@
       },
       "slug": "eADR-0016-ontology-surfaces-catalogued-ranked",
       "source": {
-        "fingerprint": "sha256:86237553ee450c551a748e5bbf91729a952c5aee3223a6346518ca339001846d",
+        "fingerprint": "sha256:63163a6ce90cdbc79e56822843c5692ffdf9a8d260918cc21775e208090f6221",
         "path": ".engine/contracts/eADR-0016-ontology-surfaces-catalogued-ranked.md"
       },
       "status": "accepted",
@@ -2370,7 +3374,7 @@
       },
       "slug": "eADR-0021-control-plane-enforcement-layer",
       "source": {
-        "fingerprint": "sha256:ea50a422701146d8d2a58e7ecc291f254631a6c81de19383efe96e4b9811fe3e",
+        "fingerprint": "sha256:e10d39bcc1ff8f366f364724f0cbf66012ab7409e01f223d1c9035d81483e869",
         "path": ".engine/contracts/eADR-0021-control-plane-enforcement-layer.md"
       },
       "status": "accepted",
@@ -2430,7 +3434,7 @@
       },
       "slug": "eADR-0024-modes-three-stances-two-axes",
       "source": {
-        "fingerprint": "sha256:100630fbc2883dad9565cc4c22ab459f807c4c43f4883d89b2e5067c5680174b",
+        "fingerprint": "sha256:cabd1e4e6a789a3a1aaf7ed3787ac05d05a8f961f64a6f757341b50df99c1229",
         "path": ".engine/contracts/eADR-0024-modes-three-stances-two-axes.md"
       },
       "status": "accepted",
@@ -2617,6 +3621,46 @@
       "type": "contract"
     },
     {
+      "id": "contract:eADR-0034-dual-provider-adapter-core",
+      "name": ".engine/contracts/eADR-0034-dual-provider-adapter-core.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:contract.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "eADR-0034-dual-provider-adapter-core",
+      "source": {
+        "fingerprint": "sha256:22dfa6eb20d62f07f682a436ff334ea6cd21bf7b00c9386514050966842ee639",
+        "path": ".engine/contracts/eADR-0034-dual-provider-adapter-core.md"
+      },
+      "status": "accepted",
+      "type": "contract"
+    },
+    {
+      "id": "contract:eADR-0037-upgrade-overwrite-disclosure",
+      "name": ".engine/contracts/eADR-0037-upgrade-overwrite-disclosure.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:contract.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "eADR-0037-upgrade-overwrite-disclosure",
+      "source": {
+        "fingerprint": "sha256:64d43cfd1ffe40a68fca4aa70175247774ad6ff1fa3f8fc3b66e3a6975ddbdc1",
+        "path": ".engine/contracts/eADR-0037-upgrade-overwrite-disclosure.md"
+      },
+      "status": "accepted",
+      "type": "contract"
+    },
+    {
       "id": "doc:getting-started",
       "name": ".engine/docs/getting-started.md",
       "owner": "core",
@@ -2630,7 +3674,7 @@
       },
       "slug": "getting-started",
       "source": {
-        "fingerprint": "sha256:f36f6d533866943da5f24fe7c4f27326528862d6f9c74642b1c6e85e8eb2449d",
+        "fingerprint": "sha256:49b1a50beefbd2244325950bcbc576ad8b31302016ecd30b3d8c8cd1197040a1",
         "path": ".engine/docs/getting-started.md"
       },
       "status": "active",
@@ -2650,7 +3694,7 @@
       },
       "slug": "product-design",
       "source": {
-        "fingerprint": "sha256:e1e600b1624616fe0ac658dc3ab0be3380d26fdb1c6d429fe734bba14fcf9911",
+        "fingerprint": "sha256:b8883ebc451c52ca1600b33076c08e66f19050d6b233bd5873044601d97d7e5d",
         "path": ".engine/docs/product-design.md"
       },
       "status": "active",
@@ -2677,7 +3721,7 @@
       },
       "slug": "knowledge-retrieval",
       "source": {
-        "fingerprint": "sha256:8ce00e4864a5f40976feb329a5f62dc2c36061feb76f1da38b67f250ea8dc397",
+        "fingerprint": "sha256:228bacdf2581f421487d08f62cf34d3ac04f461d3a6eec54c70c731ecf550a0e",
         "path": ".engine/interfaces/knowledge-retrieval.json"
       },
       "status": "active",
@@ -2702,7 +3746,7 @@
       },
       "slug": "search",
       "source": {
-        "fingerprint": "sha256:c6a2315b8068f2b851a71296647eb001442d4e4e5acd0ff8e5b0341da9a1995e",
+        "fingerprint": "sha256:f8469b913768e724ef7c4703fd73198498b1cd5769d104aea9e8d4b54a4adb12",
         "path": ".engine/interfaces/search.json"
       },
       "status": "active",
@@ -2720,12 +3764,12 @@
       },
       "slug": "audit-library",
       "source": {
-        "fingerprint": "sha256:cf507265583aefc4a3fc9915d203127922ef0edc48ae3f8b6e30f92917b2cc6d",
+        "fingerprint": "sha256:f3c5d3e498597fd9bea8de4df0210a1afaf43c36e1ea3d0534fabdbffade967f",
         "path": ".engine/modules/audit-library/manifest.json"
       },
       "status": "required",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:core",
@@ -2734,12 +3778,12 @@
       "predicates": {},
       "slug": "core",
       "source": {
-        "fingerprint": "sha256:4a4d75f3d4f79382d1b4363e6daa645293eef67d37871b3f25454e2bfdb879ef",
+        "fingerprint": "sha256:1f5a7633ff1bc7278c33c631f82b1cbf16e70ff3468f1c3973433b2886a35858",
         "path": ".engine/modules/core/manifest.json"
       },
       "status": "required",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:dependency-discipline",
@@ -2770,12 +3814,12 @@
       },
       "slug": "design-review",
       "source": {
-        "fingerprint": "sha256:faba4087dc059f60d31c676d4a74e42a10a108c733c0b236801f6ae08a6a8020",
+        "fingerprint": "sha256:6637839b9e9b334fa9df3cedd5dc3b32569207a190402d15a1507e1e88eb44d8",
         "path": ".engine/modules/design-review/manifest.json"
       },
       "status": "optional",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:external-contribution",
@@ -2788,7 +3832,7 @@
       },
       "slug": "external-contribution",
       "source": {
-        "fingerprint": "sha256:99ed68c640f803adb217bee0a110a542cff8970dd68cc0037f46fe7fd674c649",
+        "fingerprint": "sha256:e0ac862769bac2e6015fc7529114c2322009df63d92bc04568b96670d09e4527",
         "path": ".engine/modules/external-contribution/manifest.json"
       },
       "status": "optional",
@@ -2806,12 +3850,12 @@
       },
       "slug": "github-projects-sync",
       "source": {
-        "fingerprint": "sha256:629f6a40ca465a2382920e89925d8ce14ee965938db04844a148a0515fb7dfe9",
+        "fingerprint": "sha256:dc5505a3bbb3e5f6c8d8a786de4a0e364f25cc9e99d7970ee04fcfcffca091fe",
         "path": ".engine/modules/github-projects-sync/manifest.json"
       },
       "status": "optional",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:memory-substrate-sqlite-fts5",
@@ -2824,12 +3868,12 @@
       },
       "slug": "memory-substrate-sqlite-fts5",
       "source": {
-        "fingerprint": "sha256:c57dd309898992667c4a1fc3aaab6e706447c13d52088c7d420aa33d3eccf448",
+        "fingerprint": "sha256:fcba2db422a94305921b54fdde8b73d1cbd51df9aafb4dfc05e7f148371f374c",
         "path": ".engine/modules/memory-substrate-sqlite-fts5/manifest.json"
       },
       "status": "required",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:migration-discipline",
@@ -2860,12 +3904,12 @@
       },
       "slug": "product-design",
       "source": {
-        "fingerprint": "sha256:7c448120de8e08762f1ced0270509cc8a58586e3dc69bb5f10c2ec5362c9c266",
+        "fingerprint": "sha256:d78dcb70e3ac83ab2222433b3ac67348ff0a4ed9af7fa62de947b71f1c6f311d",
         "path": ".engine/modules/product-design/manifest.json"
       },
       "status": "optional",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:qa-review",
@@ -2878,12 +3922,12 @@
       },
       "slug": "qa-review",
       "source": {
-        "fingerprint": "sha256:0c9664d3d2686ac184bccf9cad36bb945472a25669314b4cf7bd8a9300a59893",
+        "fingerprint": "sha256:3facd4a004a9ef01d63346c8645d0ecb97c298e1c63f8ce82e1ec44dbf8fe1f9",
         "path": ".engine/modules/qa-review/manifest.json"
       },
       "status": "optional",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "module:routine-mode",
@@ -2896,7 +3940,7 @@
       },
       "slug": "routine-mode",
       "source": {
-        "fingerprint": "sha256:f162465e691787b9fa127938586a8bda443529da38e44f5c3a3c38448e5071b9",
+        "fingerprint": "sha256:9f40bcad6438d483d4b70451c0a5470bca203daf5f3079c0712583778abb0d3b",
         "path": ".engine/modules/routine-mode/manifest.json"
       },
       "status": "required",
@@ -2914,12 +3958,12 @@
       },
       "slug": "validators-core",
       "source": {
-        "fingerprint": "sha256:8d501984a3ecb35330fcab09283a49e72ef77f841b4acb895f4ed69cf0b9f7e8",
+        "fingerprint": "sha256:958587ac4d3ff68ceac615b7229ba604fe1706aad177cfd87bccfe2acee3f73d",
         "path": ".engine/modules/validators-core/manifest.json"
       },
       "status": "required",
       "type": "module",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     {
       "id": "operation:boot-session-start",
@@ -2935,7 +3979,7 @@
       },
       "slug": "boot-session-start",
       "source": {
-        "fingerprint": "sha256:eb947c4c3d8c8f2099f8fe9228b961e85286e1a867415e24fe9f6dad7d920e6e",
+        "fingerprint": "sha256:b22b897b9900fd9aa5f4b984f92ea0a3f817af33b88ed536107487f96c9dc467",
         "path": ".engine/operations/boot-session-start.md"
       },
       "status": "active",
@@ -2955,7 +3999,7 @@
       },
       "slug": "build-orchestration",
       "source": {
-        "fingerprint": "sha256:3df3bd36d603cce304d3c3e95ddb36f6053857a1831deccde50cf3d1cc082c25",
+        "fingerprint": "sha256:6e8a5f4d69d45e9c83ad12bad39d4dba4485580f442c2b1ba32a7e318a195b07",
         "path": ".engine/operations/build-orchestration.md"
       },
       "status": "active",
@@ -2977,6 +4021,26 @@
       "source": {
         "fingerprint": "sha256:2fcab34c784f836cd2a8ea3d1115cd9f9fdc5388b7cbffb29fa6a03b664f8b67",
         "path": ".engine/operations/close-turn.md"
+      },
+      "status": "active",
+      "type": "operation"
+    },
+    {
+      "id": "operation:codex-validation",
+      "name": ".engine/operations/codex-validation.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:operation.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex-validation",
+      "source": {
+        "fingerprint": "sha256:5edfd3644c4160c11d9f1ce2047074a446df441e675dd591ab3568f09ef8409b",
+        "path": ".engine/operations/codex-validation.md"
       },
       "status": "active",
       "type": "operation"
@@ -3015,7 +4079,7 @@
       },
       "slug": "control-plane-bootstrap",
       "source": {
-        "fingerprint": "sha256:a3a7d1d745d8ee2268a2c79a0c9c4504690293babfa9b42f0314b70555a0d61b",
+        "fingerprint": "sha256:7b6421c45753a7c19ad2aa17941699ebd9c9f6d15dfe421d9be566f9bc9174d0",
         "path": ".engine/operations/control-plane-bootstrap.md"
       },
       "status": "active",
@@ -3095,8 +4159,28 @@
       },
       "slug": "engine-upgrade",
       "source": {
-        "fingerprint": "sha256:3f0f04be17875f06ba811a25b8e987ff9e1c23ce04d12e44ea3b538d995527f1",
+        "fingerprint": "sha256:afc79a0347c60d2457638fe6c3483d8a42a8d3e6dda9ff0eb9720edc11bb2648",
         "path": ".engine/operations/engine-upgrade.md"
+      },
+      "status": "active",
+      "type": "operation"
+    },
+    {
+      "id": "operation:external-contribution-issue",
+      "name": ".engine/operations/external-contribution-issue.md",
+      "owner": "external-contribution",
+      "predicates": {
+        "governed_by": [
+          "schema:operation.v1"
+        ],
+        "provided_by": [
+          "module:external-contribution"
+        ]
+      },
+      "slug": "external-contribution-issue",
+      "source": {
+        "fingerprint": "sha256:116d4e017dd2422a29b3c94bf34141ccc50a2ba0a3d0a8be52c4895f32666608",
+        "path": ".engine/operations/external-contribution-issue.md"
       },
       "status": "active",
       "type": "operation"
@@ -3115,8 +4199,28 @@
       },
       "slug": "external-contribution-submit",
       "source": {
-        "fingerprint": "sha256:82d63e496c3d97548c270dd2261de4422888659fdf18eb403e56fb970091c607",
+        "fingerprint": "sha256:5fdbaa3423adc752af8244e8611db1aa48227ade9820b7cb66fe61047d2b732b",
         "path": ".engine/operations/external-contribution-submit.md"
+      },
+      "status": "active",
+      "type": "operation"
+    },
+    {
+      "id": "operation:first-run",
+      "name": ".engine/operations/first-run.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:operation.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "first-run",
+      "source": {
+        "fingerprint": "sha256:6455202451e4abeb7c96e2370e400f516d97c1584e687c2f12b998e4b421c724",
+        "path": ".engine/operations/first-run.md"
       },
       "status": "active",
       "type": "operation"
@@ -3195,7 +4299,7 @@
       },
       "slug": "onboarding-read",
       "source": {
-        "fingerprint": "sha256:12a56175f80bc91b6d937b0f434ac2d57372791340479bff1ee2edafa57ecd2a",
+        "fingerprint": "sha256:1e582e31370491a8b9a5d0992259b0ee02ec54169afc3c693de25f91bc6e369b",
         "path": ".engine/operations/onboarding-read.md"
       },
       "status": "active",
@@ -3215,7 +4319,7 @@
       },
       "slug": "operating-modes",
       "source": {
-        "fingerprint": "sha256:b2f0421e24cbc62937a0a1276b0a7781ee3b9a7cf97d4db756737dda60bbc178",
+        "fingerprint": "sha256:90333bb4f1ca601fc8cac7c4d784763699e97018beb579b7fe8ee21d2d5c55e2",
         "path": ".engine/operations/operating-modes.md"
       },
       "status": "active",
@@ -3235,7 +4339,7 @@
       },
       "slug": "product-intake",
       "source": {
-        "fingerprint": "sha256:f6cfd48ea0cccf4a63f2cb81e6838fdd180d8fd8f2f4b27ded4ef4f3c36f661f",
+        "fingerprint": "sha256:a47bbffc5a64f4301b3dca41347c0780c52f03518c7c10010c9eb7d65dccb622",
         "path": ".engine/operations/product-intake.md"
       },
       "status": "active",
@@ -3275,7 +4379,7 @@
       },
       "slug": "routine-entry",
       "source": {
-        "fingerprint": "sha256:7531542d1e9cf33fd750c74ae8a45d3ddd2917f7613d6ff47be8aa6f65a04d79",
+        "fingerprint": "sha256:cf4f626e00a4825ce716ab907f66c439981931b2fbdbdd08544a21af956358b6",
         "path": ".engine/operations/routine-entry.md"
       },
       "status": "active",
@@ -3336,7 +4440,7 @@
       },
       "slug": "contract-threshold",
       "source": {
-        "fingerprint": "sha256:275ea7d96038c0a04e3f54793752fe1f65e114e300f8ca756e3ebdb42cfa86d5",
+        "fingerprint": "sha256:99461797f5507ea339ea658b391dc9bf4b735fefa27920b4af26e673d3dd6691",
         "path": ".engine/policies/contract-threshold.md"
       },
       "status": "active",
@@ -3449,6 +4553,47 @@
       "type": "policy"
     },
     {
+      "id": "policy:provider-exceptions",
+      "name": ".engine/policies/provider-exceptions.json",
+      "owner": "validators-core",
+      "predicates": {
+        "governed_by": [
+          "schema:policy.v1"
+        ],
+        "provided_by": [
+          "module:validators-core"
+        ]
+      },
+      "slug": "provider-exceptions",
+      "source": {
+        "fingerprint": "sha256:b1dc2da68dec0e3077eaeb2db03deacebb4f5c5ed47acbf47eaca6a3a73bce04",
+        "path": ".engine/policies/provider-exceptions.json"
+      },
+      "status": "active",
+      "type": "policy"
+    },
+    {
+      "id": "policy:spec-structure-integrity",
+      "name": ".engine/policies/spec-structure-integrity.md",
+      "owner": "product-design",
+      "predicates": {
+        "governed_by": [
+          "schema:policy.v1"
+        ],
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "spec-structure-integrity",
+      "source": {
+        "fingerprint": "sha256:92823596b1a938f11d3e738238d7d1f93a8d2691a23b27a69e7ab6e7a38ed782",
+        "path": ".engine/policies/spec-structure-integrity.md"
+      },
+      "status": "active",
+      "title": "Spec structure integrity",
+      "type": "policy"
+    },
+    {
       "id": "policy:triage-threshold",
       "name": ".engine/policies/triage-threshold.md",
       "owner": "core",
@@ -3480,7 +4625,7 @@
       },
       "slug": "agent.v1",
       "source": {
-        "fingerprint": "sha256:d5dfe745ba0ab52d642c1255778ee8f8125c3677637be313dc2c862eb3096fed",
+        "fingerprint": "sha256:4e2fa9e159253cae4cba7828f29872977fcd62c39076c64198f59d2e7d6ba347",
         "path": ".engine/schemas/agent.v1.json"
       },
       "status": "active",
@@ -3514,7 +4659,7 @@
       },
       "slug": "attention-result.v1",
       "source": {
-        "fingerprint": "sha256:6262b0936724ff7cf6a68134b94f4bbe2358944036c0ae3b9da0962760026ff2",
+        "fingerprint": "sha256:a42833af20e0557398d37b92ed5b192c6e0cc463001d039235dccb7935faf2fb",
         "path": ".engine/schemas/attention-result.v1.json"
       },
       "status": "active",
@@ -3531,7 +4676,7 @@
       },
       "slug": "audit-finding.v1",
       "source": {
-        "fingerprint": "sha256:161cf612295cd553a7fcbac23ea08abeebc9cbe8dd733fe96d39085acc08aad7",
+        "fingerprint": "sha256:765a74aa39010cd72c149e7a205bea2104e8c362fe4b76de55578a630f8ce601",
         "path": ".engine/schemas/audit-finding.v1.json"
       },
       "status": "active",
@@ -3550,6 +4695,57 @@
       "source": {
         "fingerprint": "sha256:80f7e0799a95ad02621aa44d1f1b0982e9c4b255a6c8db033d688cd687d1dba9",
         "path": ".engine/schemas/check.v1.json"
+      },
+      "status": "active",
+      "type": "schema"
+    },
+    {
+      "id": "schema:codex-agent.v1",
+      "name": ".engine/schemas/codex-agent.v1.json",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex-agent.v1",
+      "source": {
+        "fingerprint": "sha256:c83ce942df3b2cdf9cc7ea7eea4736be5462534ef25b6c564a2bc2d6d84334f5",
+        "path": ".engine/schemas/codex-agent.v1.json"
+      },
+      "status": "active",
+      "type": "schema"
+    },
+    {
+      "id": "schema:codex-hooks.v1",
+      "name": ".engine/schemas/codex-hooks.v1.json",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex-hooks.v1",
+      "source": {
+        "fingerprint": "sha256:eb3d53e55b40b68a77c91257e95fb6876cfcdfb3325624e78d14db88603b8421",
+        "path": ".engine/schemas/codex-hooks.v1.json"
+      },
+      "status": "active",
+      "type": "schema"
+    },
+    {
+      "id": "schema:codex-skill.v1",
+      "name": ".engine/schemas/codex-skill.v1.json",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex-skill.v1",
+      "source": {
+        "fingerprint": "sha256:b28f686a59a58f2cb88913ae206523e3f16f833a17fafafb36d91b996902034c",
+        "path": ".engine/schemas/codex-skill.v1.json"
       },
       "status": "active",
       "type": "schema"
@@ -3599,7 +4795,7 @@
       },
       "slug": "conformance-verdicts.v1",
       "source": {
-        "fingerprint": "sha256:58e038e1c72d886caa8ecde3026024734b411ab1d4a862503737ad939f68cde5",
+        "fingerprint": "sha256:96ca205038a33a064171a03be234f37eb9d5631c795954f521c66a5087ccfe53",
         "path": ".engine/schemas/conformance-verdicts.v1.json"
       },
       "status": "active",
@@ -3616,7 +4812,7 @@
       },
       "slug": "contract.v1",
       "source": {
-        "fingerprint": "sha256:70f4508a183dba0531ab1c3a980516d27409e67a16ce475fc23b4b82d5e2e5ec",
+        "fingerprint": "sha256:95a37258f57a0193099b9e498078d3a5c13be69f8fcf24b1560822ae0f03a55b",
         "path": ".engine/schemas/contract.v1.json"
       },
       "status": "active",
@@ -3650,7 +4846,7 @@
       },
       "slug": "engine.v1",
       "source": {
-        "fingerprint": "sha256:9f8ad5254813804f300ca115c56c76ad833030a2cdebc4f22f5373042c784dda",
+        "fingerprint": "sha256:61d0be4d52cd654e20023899e4524086546455df09d287a221ca2fb040ae32d9",
         "path": ".engine/schemas/engine.v1.json"
       },
       "status": "active",
@@ -3735,7 +4931,7 @@
       },
       "slug": "knowledge.v1",
       "source": {
-        "fingerprint": "sha256:03802dc5ba63a48859be465e5c3c8f1d190cb83615edffb747cbf94a4fd6fb6d",
+        "fingerprint": "sha256:61f53aa2afd49565dcfb274915429c1a78a75182aff92c853be01ee5ed1c105c",
         "path": ".engine/schemas/knowledge.v1.json"
       },
       "status": "active",
@@ -3752,7 +4948,7 @@
       },
       "slug": "module.v1",
       "source": {
-        "fingerprint": "sha256:b1bd18ab7a60d55f17003d0687e07139b9c7b3a3eb693a432cd65ee14e09713b",
+        "fingerprint": "sha256:978323b169845499e9d3b936fe30b68551d4007a6918a5a1afbcdb0c9bbe323b",
         "path": ".engine/schemas/module.v1.json"
       },
       "status": "active",
@@ -3786,7 +4982,7 @@
       },
       "slug": "plan-review-finding.v1",
       "source": {
-        "fingerprint": "sha256:1a56fd9df0ecdfac16f25919e21d6549b6e00a1dbdecdc36379d05283acaa8d7",
+        "fingerprint": "sha256:f7c8805b726537fde4408ad1817e63a9149f19d5cccde52125b111c52ffde9cd",
         "path": ".engine/schemas/plan-review-finding.v1.json"
       },
       "status": "active",
@@ -3820,7 +5016,7 @@
       },
       "slug": "pre-submission-review-finding.v1",
       "source": {
-        "fingerprint": "sha256:e17b7d2993a0b5e287435bba08d48d9452e6d4d875569b48c572f7f81ecc51a7",
+        "fingerprint": "sha256:9fa5ddd05e068295fde408c16b80fcb40e99eaae791da4593d139fdb9ef377bb",
         "path": ".engine/schemas/pre-submission-review-finding.v1.json"
       },
       "status": "active",
@@ -3856,6 +5052,23 @@
       "source": {
         "fingerprint": "sha256:c9721d21613afe315e72a1e6b7090f41af10ad28bd5644f612c6d7069fc61716",
         "path": ".engine/schemas/projects-board.v1.json"
+      },
+      "status": "active",
+      "type": "schema"
+    },
+    {
+      "id": "schema:provider-exceptions.v1",
+      "name": ".engine/schemas/provider-exceptions.v1.json",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "provider-exceptions.v1",
+      "source": {
+        "fingerprint": "sha256:636bec53406003d27ac86c252adaef105e9368b5869fb9ba24dfbd7d36a39745",
+        "path": ".engine/schemas/provider-exceptions.v1.json"
       },
       "status": "active",
       "type": "schema"
@@ -3905,7 +5118,7 @@
       },
       "slug": "state.v1",
       "source": {
-        "fingerprint": "sha256:b61bf41fcb259491a2a8a54983e13dd1448f198fd08d939eb19fde61f79f8ec4",
+        "fingerprint": "sha256:beb4ffcf3cd4113a6a4a996a2720ee235e46034cc73df3be82a004a94fc8b8ee",
         "path": ".engine/schemas/state.v1.json"
       },
       "status": "active",
@@ -3939,7 +5152,7 @@
       },
       "slug": "surface-catalog",
       "source": {
-        "fingerprint": "sha256:4aff2f38cac9e45e16ea0d1ffb24b9a6ead1687076d0280d146eb993a6f54dc5",
+        "fingerprint": "sha256:7b440c4c8f81d0287e74b14e67ff413537939c4c72ce6ee173d51bb3ea658c66",
         "path": ".engine/schemas/surface-catalog.json"
       },
       "status": "active",
@@ -3956,7 +5169,7 @@
       },
       "slug": "surface-catalog.schema",
       "source": {
-        "fingerprint": "sha256:15dfb73e0601a90eff15da27bfcd0214ec2429a434e38b81c6904dd1fef57f5d",
+        "fingerprint": "sha256:cfad6041aaa6193ac7cd898a939e907bc48f15355648d8b6f4d82f3a96a5159f",
         "path": ".engine/schemas/surface-catalog.schema.json"
       },
       "status": "active",
@@ -4060,7 +5273,7 @@
       },
       "slug": "engine-help",
       "source": {
-        "fingerprint": "sha256:b92114fb8c0a208594e1cd68a8cd9695065b85bbbb1fdc41a363e7dcb5f0be18",
+        "fingerprint": "sha256:dc3cc732838a0b84f4d3c26343f6a5f76a0dd6aeacfef700090dcebc0442b20c",
         "path": ".claude/skills/engine-help/SKILL.md"
       },
       "status": "active",
@@ -4104,11 +5317,33 @@
       },
       "slug": "engine-routine",
       "source": {
-        "fingerprint": "sha256:810434b766919c273553354178d4ddce1d5646b494b19a3ea3a1a34e1b646313",
+        "fingerprint": "sha256:8e10a615757d801b1ed8cbdc3f64129f764303bfddbde574e65fd6db33abd1bf",
         "path": ".claude/skills/engine-routine/SKILL.md"
       },
       "status": "active",
       "title": "engine-routine",
+      "type": "skill"
+    },
+    {
+      "id": "skill:engine-setup",
+      "invocation": "operator-typed",
+      "name": ".claude/skills/engine-setup/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-setup",
+      "source": {
+        "fingerprint": "sha256:05e939bbee4558b88cdb7aad9504e3de9f191f3bf11c3bed770b2b34bfe6dd9f",
+        "path": ".claude/skills/engine-setup/SKILL.md"
+      },
+      "status": "active",
+      "title": "engine-setup",
       "type": "skill"
     },
     {
@@ -4126,7 +5361,7 @@
       },
       "slug": "engine-start",
       "source": {
-        "fingerprint": "sha256:13cb9c58702a5cef1876a61bf81d36c12c9d3a81d62afece50eb86d0ec02abf3",
+        "fingerprint": "sha256:7da11c5cad8b131459f0ee6cd674e242ffdbf43820d7dcd517030057bd9acfd7",
         "path": ".claude/skills/engine-start/SKILL.md"
       },
       "status": "active",
@@ -4148,7 +5383,7 @@
       },
       "slug": "engine-status",
       "source": {
-        "fingerprint": "sha256:a74838709d668ea5af7a8aee1d1d52451086c5f818e152e3c23c97633d0da7c7",
+        "fingerprint": "sha256:106158b8f33023e478575f768d6b3cf57eda7582275ee7d6f29085ff06fc95a1",
         "path": ".claude/skills/engine-status/SKILL.md"
       },
       "status": "active",
@@ -4178,6 +5413,45 @@
       "type": "skill"
     },
     {
+      "id": "skill:engine-upgrade",
+      "invocation": "operator-typed",
+      "name": ".claude/skills/engine-upgrade/SKILL.md",
+      "owner": "core",
+      "predicates": {
+        "governed_by": [
+          "schema:skill.v1"
+        ],
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "engine-upgrade",
+      "source": {
+        "fingerprint": "sha256:da5d7084e59222ce7716df943f9f27b955c89a40bccccb14996be977f7d54757",
+        "path": ".claude/skills/engine-upgrade/SKILL.md"
+      },
+      "status": "active",
+      "title": "engine-upgrade",
+      "type": "skill"
+    },
+    {
+      "id": "tool:adr_form",
+      "name": ".engine/tools/product_design/adr_form.py",
+      "owner": "product-design",
+      "predicates": {
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "adr_form",
+      "source": {
+        "fingerprint": "sha256:083c884f420aabcc4500868e26a3aa3ca5d82d2d6090a9ddb5a1e7f83ec20bb9",
+        "path": ".engine/tools/product_design/adr_form.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:agent_coherence_check",
       "name": ".engine/tools/agent_coherence_check.py",
       "owner": "core",
@@ -4188,7 +5462,7 @@
       },
       "slug": "agent_coherence_check",
       "source": {
-        "fingerprint": "sha256:c50cd79d420fa3f467facb038c8dca9618485b52315b296643f48c38ba5dd6ad",
+        "fingerprint": "sha256:951bf2035f7350f3bc8c7daffc4c1beb82b8e0448f95d16b6a21d9ba97d21a99",
         "path": ".engine/tools/agent_coherence_check.py"
       },
       "status": "active",
@@ -4205,7 +5479,7 @@
       },
       "slug": "attention",
       "source": {
-        "fingerprint": "sha256:86b29d36dd7b0e14c9aac190503260d111099f16f573e5c3654d43f71c6a9563",
+        "fingerprint": "sha256:e3fb41d3fb9dd9556b91f1291896a5aeb93474305cd6d329cb255508eee8b03e",
         "path": ".engine/tools/attention.py"
       },
       "status": "active",
@@ -4222,7 +5496,7 @@
       },
       "slug": "attention_rank",
       "source": {
-        "fingerprint": "sha256:0305d5792e2d3b48158de73f3d71113695332e70c04abfef1e21a5d4f04eb4ef",
+        "fingerprint": "sha256:337eba3d61796e26ae44f3d98437f85e0cd32c6aea76f02a122011ead1ac535c",
         "path": ".engine/tools/attention_rank.py"
       },
       "status": "active",
@@ -4239,7 +5513,7 @@
       },
       "slug": "audit_digest",
       "source": {
-        "fingerprint": "sha256:a7cfa8175854a54e3ed5259d9d029d75ae7116ce8d7716cca95c387a3cd7e97e",
+        "fingerprint": "sha256:6ea479e6f2817a9d5043fda1c2e9e77d1e121172a19dc2c8647a18b5fbcee29e",
         "path": ".engine/tools/audit_digest.py"
       },
       "status": "active",
@@ -4256,7 +5530,7 @@
       },
       "slug": "audit_digest_fingerprint_check",
       "source": {
-        "fingerprint": "sha256:8a14b0132902fc40ee125e3dbb8346db299c154d942ceb3836b96b336d706024",
+        "fingerprint": "sha256:8996716c8ff61a62418d821b49abf134635bff98913cd639dd8c463c7744f480",
         "path": ".engine/tools/audit_digest_fingerprint_check.py"
       },
       "status": "active",
@@ -4273,7 +5547,7 @@
       },
       "slug": "audit_digest_staleness_check",
       "source": {
-        "fingerprint": "sha256:bdc5b389d11f078dcb45e1ea8fad934a826ec19ac878a64e4dc7ed9e7f77bb01",
+        "fingerprint": "sha256:e77e6a3b6736b7aadfdf7ea27b139dc596ce7c6ac9ff2404997a095dca4421ec",
         "path": ".engine/tools/audit_digest_staleness_check.py"
       },
       "status": "active",
@@ -4307,7 +5581,7 @@
       },
       "slug": "audit_soft_promote",
       "source": {
-        "fingerprint": "sha256:05b517c40f98a71e28fe2b3fd9578aedea026f76c81c4c697d972a5b0219a7bc",
+        "fingerprint": "sha256:61690f88510fad9dceeccca799fb4c5f5d1f89560a3e3e8d36378b102767f2e8",
         "path": ".engine/tools/audit_soft_promote.py"
       },
       "status": "active",
@@ -4341,7 +5615,7 @@
       },
       "slug": "backup_vault",
       "source": {
-        "fingerprint": "sha256:834d40a831efd62de0fc186a5c1ec37a6b33ce80cbb15c66926b617b2277f0b7",
+        "fingerprint": "sha256:89059468aa606f8c46759ed547bb479ed23d6fef8432190209ef7a596ffbfdbc",
         "path": ".engine/tools/memory/backup_vault.py"
       },
       "status": "active",
@@ -4358,7 +5632,7 @@
       },
       "slug": "block_coherence_check",
       "source": {
-        "fingerprint": "sha256:05df50a206e7fbf748242013d172f0b5f460ff1343c1120f9aff589f3f78ce73",
+        "fingerprint": "sha256:0ef2e7f5411cc389fafcdde43605486df9e6f8eb30c009304e87dfc6de888401",
         "path": ".engine/tools/block_coherence_check.py"
       },
       "status": "active",
@@ -4375,7 +5649,7 @@
       },
       "slug": "boot",
       "source": {
-        "fingerprint": "sha256:b1ead85a10502b98c8674eb74a6fc7ba33e8a2106d2feb54630a5d12609e7404",
+        "fingerprint": "sha256:54f12854902f3870b0152453a6c772ed03b66d862af695f8935b10b4560149d2",
         "path": ".engine/tools/boot.py"
       },
       "status": "active",
@@ -4392,7 +5666,7 @@
       },
       "slug": "boot_alarm_ledger",
       "source": {
-        "fingerprint": "sha256:6b663382b72e8fde40450920eb9bddcd22a4a4f106cf2819929e7c0e124878cb",
+        "fingerprint": "sha256:a13019ffd49386d2783102440ef21253e3cdd61cff8f310aa9e4ac178fb18f2f",
         "path": ".engine/tools/boot_alarm_ledger.py"
       },
       "status": "active",
@@ -4409,7 +5683,7 @@
       },
       "slug": "boot_slice",
       "source": {
-        "fingerprint": "sha256:9fb1abeea5d1a350b6d628b1db3d06af3133836c7275c99aa900abfb5792dad0",
+        "fingerprint": "sha256:9c0c56a5373d8233e81dc4a59e8b8f8fe112e589f46a4aaaa618a2738c7fbd12",
         "path": ".engine/tools/boot_slice.py"
       },
       "status": "active",
@@ -4426,7 +5700,7 @@
       },
       "slug": "bootstrap",
       "source": {
-        "fingerprint": "sha256:7cd72b56e8e36b27c351d2dabbd597c1be23ff340417e81cd65e81d908e6274e",
+        "fingerprint": "sha256:838f8ec9e70aec0aad126c379a21e1201e8e3aecd7e164272286318a4f121412",
         "path": ".engine/tools/bootstrap.py"
       },
       "status": "active",
@@ -4443,7 +5717,7 @@
       },
       "slug": "build_readiness",
       "source": {
-        "fingerprint": "sha256:7c48d6bf6f001802549e2e0145e0f3510f1e73292c05a0ac9ca42fcff4b8f8ef",
+        "fingerprint": "sha256:7e690eb803c6404a80dd453709b3225f15df6d3f4f602fa1f8763b98773bfbe8",
         "path": ".engine/tools/build_readiness.py"
       },
       "status": "active",
@@ -4460,7 +5734,7 @@
       },
       "slug": "capture",
       "source": {
-        "fingerprint": "sha256:ae7e480d0f1cfcfcdff04fe0ef69527723c7527a7473aa221c103fb79306be03",
+        "fingerprint": "sha256:9a0d173ad45e74e7475b71237e0ee18cc9acb971c40fe29ff0f2e41f09903aa7",
         "path": ".engine/tools/memory/capture.py"
       },
       "status": "active",
@@ -4477,7 +5751,7 @@
       },
       "slug": "census_completeness_check",
       "source": {
-        "fingerprint": "sha256:721ff72452eec9e4d04028470331ea3b2372ba5fd62ed184a0aed0685cdbf0fb",
+        "fingerprint": "sha256:df127af3c758680a5b4473c0c8b8d8219ba455c9d8a8d14c613120cd918583b9",
         "path": ".engine/tools/census_completeness_check.py"
       },
       "status": "active",
@@ -4494,7 +5768,7 @@
       },
       "slug": "checkout_health",
       "source": {
-        "fingerprint": "sha256:2f9b6ee3788dad664454d49bef9efe4e6496af8b42ec36248a73500a87ff75fb",
+        "fingerprint": "sha256:17ac803b69447d72f87d61cdee7e799ce97a5b3ed6b15451c8db35bca96265ba",
         "path": ".engine/tools/checkout_health.py"
       },
       "status": "active",
@@ -4511,7 +5785,7 @@
       },
       "slug": "close",
       "source": {
-        "fingerprint": "sha256:90691fb7fbb1517ba419a2126a1e205e20dd7ba70d66d0f258b9c76593b5a289",
+        "fingerprint": "sha256:fa1930e02e262ee2e89370ff313275baa03e2bf8cb799e76c71afb0b01a527bd",
         "path": ".engine/tools/close.py"
       },
       "status": "active",
@@ -4528,8 +5802,76 @@
       },
       "slug": "close_linkage_preflight",
       "source": {
-        "fingerprint": "sha256:3522265190ab1d640e75fe332ae0d58bda8175f0207966564739efdf41c3996a",
+        "fingerprint": "sha256:650553c392772a8b2aa054a6c8a74cad03c3cf464d20b6eca07c987e7d615f6b",
         "path": ".engine/tools/close_linkage_preflight.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:codex-hook-runner",
+      "name": ".engine/tools/codex-hook-runner.sh",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex-hook-runner",
+      "source": {
+        "fingerprint": "sha256:3f9ae7fe4a6d191754a2ebf05f0f48afc4ccfaa4f5005fb96b7e366742d6afd9",
+        "path": ".engine/tools/codex-hook-runner.sh"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:codex_agent_coherence_check",
+      "name": ".engine/tools/codex_agent_coherence_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex_agent_coherence_check",
+      "source": {
+        "fingerprint": "sha256:67996282fdd28e1826ab4a154152590df7fd54e034a5f32975b3e9d5652bc495",
+        "path": ".engine/tools/codex_agent_coherence_check.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:codex_gen",
+      "name": ".engine/tools/codex_gen.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex_gen",
+      "source": {
+        "fingerprint": "sha256:db85152e85fcbf22abf7b96c0709557e834c7a256fbba9a65ee3507461808a2f",
+        "path": ".engine/tools/codex_gen.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:codex_skill_coherence_check",
+      "name": ".engine/tools/codex_skill_coherence_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "codex_skill_coherence_check",
+      "source": {
+        "fingerprint": "sha256:70358d82aa526de55b251302d4a55c250f6a68fd68b515ed69603ef20f8058e2",
+        "path": ".engine/tools/codex_skill_coherence_check.py"
       },
       "status": "active",
       "type": "tool"
@@ -4545,7 +5887,7 @@
       },
       "slug": "compact",
       "source": {
-        "fingerprint": "sha256:2c639627562f273a6de7917d3961438c1eeae2a846d5f671e87edc488f5d168d",
+        "fingerprint": "sha256:21e9b9a2fb64eb2b2085c130a48780a4113ae763fe076e7290d44796a3c9945b",
         "path": ".engine/tools/memory/compact.py"
       },
       "status": "active",
@@ -4562,7 +5904,7 @@
       },
       "slug": "conduct_shape_check",
       "source": {
-        "fingerprint": "sha256:5180d53e1988e13a5c5c8f4983f50c4bbc7fb8a767eb2a048b035b3b74b50f69",
+        "fingerprint": "sha256:e3ce3d5b3ab39dcf906fa8a0cd715acd0309b19323e3c33ffe1366bfb551ac5a",
         "path": ".engine/tools/conduct_shape_check.py"
       },
       "status": "active",
@@ -4579,7 +5921,7 @@
       },
       "slug": "conduct_weakening_check",
       "source": {
-        "fingerprint": "sha256:082bf091ead553304e77654d81d3b837e8c9ec3bc93dc43b49e523bf1ba34b3c",
+        "fingerprint": "sha256:352ede8cb63ac0e2636a4c23f4511bf0b36263c1adabfe2ccc1d1906d386f00c",
         "path": ".engine/tools/conduct_weakening_check.py"
       },
       "status": "active",
@@ -4596,7 +5938,7 @@
       },
       "slug": "conformance_sweep",
       "source": {
-        "fingerprint": "sha256:8b30d06084972bf808163227ef6031d7580cd963e36b6ec17f5d03d2ceac1dcb",
+        "fingerprint": "sha256:63e4b518472e247c5819a2a827991b085a41e8021dce4463e029d952bf5fb470",
         "path": ".engine/tools/conformance_sweep.py"
       },
       "status": "active",
@@ -4613,8 +5955,25 @@
       },
       "slug": "consolidate",
       "source": {
-        "fingerprint": "sha256:bf26daeaff0c99c17ef342436857fcdb62bc6c3da51bfc297c55bedcbdc552fc",
+        "fingerprint": "sha256:b739aaa8f766708615117ee7b9edd089068d83a654f2c212340d8447780dff9c",
         "path": ".engine/tools/memory/consolidate.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:contribute_issue",
+      "name": ".engine/tools/external_contribution/contribute_issue.py",
+      "owner": "external-contribution",
+      "predicates": {
+        "provided_by": [
+          "module:external-contribution"
+        ]
+      },
+      "slug": "contribute_issue",
+      "source": {
+        "fingerprint": "sha256:0c9ddb604e84473ae64c060ddbfef8fd5dfc511cf015e2123da38b8a6a5935ba",
+        "path": ".engine/tools/external_contribution/contribute_issue.py"
       },
       "status": "active",
       "type": "tool"
@@ -4630,8 +5989,59 @@
       },
       "slug": "coverage",
       "source": {
-        "fingerprint": "sha256:64d5d4f28562149c0eeeb30236f36cf3033aeb141f3a1b01173c1ab5be3f2707",
+        "fingerprint": "sha256:05817f838517ebfb2d35a9568dfced7dc4283a63efa239af9d8d8c9df4091ef6",
         "path": ".engine/tools/product_design/coverage.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_467_deployment_eadr_namespace",
+      "name": ".engine/tools/demo_467_deployment_eadr_namespace.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_467_deployment_eadr_namespace",
+      "source": {
+        "fingerprint": "sha256:b3244cb21cc2de95d766298fd51cb4480551fcf6cbdf595529156d498f2796c3",
+        "path": ".engine/tools/demo_467_deployment_eadr_namespace.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_594_rollback_discard",
+      "name": ".engine/tools/demo_594_rollback_discard.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_594_rollback_discard",
+      "source": {
+        "fingerprint": "sha256:9c8acf319f514b70b2055949f1d47b30d82efbce7e92b6606a3311ff3b9578c7",
+        "path": ".engine/tools/demo_594_rollback_discard.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_594_upgrade_tail_reexec",
+      "name": ".engine/tools/demo_594_upgrade_tail_reexec.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_594_upgrade_tail_reexec",
+      "source": {
+        "fingerprint": "sha256:13c72d0e093b4d7bf8bf96f6ff1560f54bd64fb1b9fb30d6eaca70c049934d52",
+        "path": ".engine/tools/demo_594_upgrade_tail_reexec.py"
       },
       "status": "active",
       "type": "tool"
@@ -4654,6 +6064,244 @@
       "type": "tool"
     },
     {
+      "id": "tool:demo_attention_live_dials",
+      "name": ".engine/tools/demo_attention_live_dials.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_attention_live_dials",
+      "source": {
+        "fingerprint": "sha256:6be97b0de86f05e9fc6c6d1c685aa3580e8f22b5934cd26c070bafe2f0c72565",
+        "path": ".engine/tools/demo_attention_live_dials.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_audit_concern_list",
+      "name": ".engine/tools/demo_audit_concern_list.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_audit_concern_list",
+      "source": {
+        "fingerprint": "sha256:35d8ffa4d07b0d445bec63d9f66cd52503e67185e6363889665492ee6b3df51c",
+        "path": ".engine/tools/demo_audit_concern_list.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_audit_digest",
+      "name": ".engine/tools/demo_audit_digest.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_audit_digest",
+      "source": {
+        "fingerprint": "sha256:04c82c90a43020607ed7b4134dd0a246ebed36bc2f3c26f8c9e39f08698c4da0",
+        "path": ".engine/tools/demo_audit_digest.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_audit_soft_findings",
+      "name": ".engine/tools/demo_audit_soft_findings.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_audit_soft_findings",
+      "source": {
+        "fingerprint": "sha256:9f21ca05b4b426582fde412fc1ee22f1cd6b337ef415f8eaafa245b3bcf1ae3d",
+        "path": ".engine/tools/demo_audit_soft_findings.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_audit_soft_promote",
+      "name": ".engine/tools/demo_audit_soft_promote.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_audit_soft_promote",
+      "source": {
+        "fingerprint": "sha256:df15d58812d37a622faa025abc2d916c6ef8c1bbfc59d0c1047661d7a888eb24",
+        "path": ".engine/tools/demo_audit_soft_promote.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_boot_alarm_collapse",
+      "name": ".engine/tools/demo_boot_alarm_collapse.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_boot_alarm_collapse",
+      "source": {
+        "fingerprint": "sha256:3d49d95918e0f5610a3c45c00c46b58329119a822e30c39fed20bdf381df6be7",
+        "path": ".engine/tools/demo_boot_alarm_collapse.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_boot_set_aside_readout",
+      "name": ".engine/tools/demo_boot_set_aside_readout.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_boot_set_aside_readout",
+      "source": {
+        "fingerprint": "sha256:af7a9fdf1f83a5aa02e04814420693aff8e1cdaac063df82c82c35bd984e7f7b",
+        "path": ".engine/tools/demo_boot_set_aside_readout.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_boot_slice",
+      "name": ".engine/tools/demo_boot_slice.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_boot_slice",
+      "source": {
+        "fingerprint": "sha256:16304689e3afd3d929dbb1515398654159ac02348f3191bd545e1526121fd936",
+        "path": ".engine/tools/demo_boot_slice.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_build_entry_depth_gate",
+      "name": ".engine/tools/demo_build_entry_depth_gate.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_build_entry_depth_gate",
+      "source": {
+        "fingerprint": "sha256:2dcf31f43072650ac17fb8e712de4f41a0f0413fc6ab0be2baaa54c5ea47b63f",
+        "path": ".engine/tools/demo_build_entry_depth_gate.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_ci_author_exempt",
+      "name": ".engine/tools/demo_ci_author_exempt.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_ci_author_exempt",
+      "source": {
+        "fingerprint": "sha256:e6e862c432cd49c4826c7c0647461a0e124901cb36681c3e86c10fbaef02f01f",
+        "path": ".engine/tools/demo_ci_author_exempt.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_contract_rate",
+      "name": ".engine/tools/demo_contract_rate.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_contract_rate",
+      "source": {
+        "fingerprint": "sha256:9b7a009a244d1820a02a23b9c4f9b58bbfb51c3cb07f35702f24eea66165528f",
+        "path": ".engine/tools/demo_contract_rate.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_control_plane_labels",
+      "name": ".engine/tools/demo_control_plane_labels.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_control_plane_labels",
+      "source": {
+        "fingerprint": "sha256:f9d0b0eea40045c8aba5040244b9e3d50e3bedd1d56479615cf12c1082c39499",
+        "path": ".engine/tools/demo_control_plane_labels.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_derived_reconcile",
+      "name": ".engine/tools/demo_derived_reconcile.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_derived_reconcile",
+      "source": {
+        "fingerprint": "sha256:9c1bfd2f506645a350d6100e44248fb7d4c0a0a28ece83cedcecbaea219d6016",
+        "path": ".engine/tools/demo_derived_reconcile.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_first_run_guard",
+      "name": ".engine/tools/demo_first_run_guard.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_first_run_guard",
+      "source": {
+        "fingerprint": "sha256:4c39d7fbd06334d886694fd5ecdf314caab298a14c3d0823dce671555f30bc11",
+        "path": ".engine/tools/demo_first_run_guard.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:demo_first_run_reference_closure",
       "name": ".engine/tools/demo_first_run_reference_closure.py",
       "owner": "core",
@@ -4671,6 +6319,125 @@
       "type": "tool"
     },
     {
+      "id": "tool:demo_focus_read",
+      "name": ".engine/tools/demo_focus_read.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_focus_read",
+      "source": {
+        "fingerprint": "sha256:4e94b123da6ea6a3ffb321026d1529a64a4a85ad66500b7bbe6bec7c2cd5379e",
+        "path": ".engine/tools/demo_focus_read.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_hook_runner",
+      "name": ".engine/tools/demo_hook_runner.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_hook_runner",
+      "source": {
+        "fingerprint": "sha256:38efc0bc8da44a5ef8d23e11a79a3b326d5b60f2274d0c17ad5b7aa1ea944100",
+        "path": ".engine/tools/demo_hook_runner.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_inbox_drain",
+      "name": ".engine/tools/demo_inbox_drain.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_inbox_drain",
+      "source": {
+        "fingerprint": "sha256:263917e2668602bbbd0891a684711cc748ec06d6b6b5a6dc38cb324a47c3681f",
+        "path": ".engine/tools/demo_inbox_drain.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_map_reachability",
+      "name": ".engine/tools/demo_map_reachability.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_map_reachability",
+      "source": {
+        "fingerprint": "sha256:1eb08bb6d4fae3797a8cfa55932115026aceba8569fffb8a58a328f063b1a968",
+        "path": ".engine/tools/demo_map_reachability.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_memory_degradation_backup",
+      "name": ".engine/tools/demo_memory_degradation_backup.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_memory_degradation_backup",
+      "source": {
+        "fingerprint": "sha256:68e1d123fd9d97d13cc3a04ee6e7aa407d603861bc37de01805ee764c1c963aa",
+        "path": ".engine/tools/demo_memory_degradation_backup.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_operator_backlog",
+      "name": ".engine/tools/demo_operator_backlog.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_operator_backlog",
+      "source": {
+        "fingerprint": "sha256:931e35d0c480f59108118e7f5ac2eef5e24e62dd43804522afed4a3d7028a0fd",
+        "path": ".engine/tools/demo_operator_backlog.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_overlay_disclosure",
+      "name": ".engine/tools/demo_overlay_disclosure.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_overlay_disclosure",
+      "source": {
+        "fingerprint": "sha256:3e8b089f3fb2852ab8652b77f99f1587effea47226e9ad59daf8b52c32ef5220",
+        "path": ".engine/tools/demo_overlay_disclosure.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:demo_pr_reconcile",
       "name": ".engine/tools/demo_pr_reconcile.py",
       "owner": "core",
@@ -4681,8 +6448,144 @@
       },
       "slug": "demo_pr_reconcile",
       "source": {
-        "fingerprint": "sha256:1456b8d222daf757799fcd60766221cf3095053b14d931e873bcdf668548e306",
+        "fingerprint": "sha256:a57e52be1640d70de9817f6cede8818944b469f1823841250082a2f44532843b",
         "path": ".engine/tools/demo_pr_reconcile.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_release_cut",
+      "name": ".engine/tools/demo_release_cut.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_release_cut",
+      "source": {
+        "fingerprint": "sha256:38b9b4d14f6bc362c28229a8f72eafd0b9d9183ef16734c865fab6503978aaba",
+        "path": ".engine/tools/demo_release_cut.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_release_pr_mergeable",
+      "name": ".engine/tools/demo_release_pr_mergeable.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_release_pr_mergeable",
+      "source": {
+        "fingerprint": "sha256:b6b3807a07757622ecadfede0525b908758f698cd490acbb2e31a182817e5f18",
+        "path": ".engine/tools/demo_release_pr_mergeable.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_release_product_mode",
+      "name": ".engine/tools/demo_release_product_mode.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_release_product_mode",
+      "source": {
+        "fingerprint": "sha256:df2172f7f63a2de21f9d66fa30ded2eeabdde3b7131b62df6ef1a23a4e29c575",
+        "path": ".engine/tools/demo_release_product_mode.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_release_terminal",
+      "name": ".engine/tools/demo_release_terminal.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_release_terminal",
+      "source": {
+        "fingerprint": "sha256:f98888d3dc335a49cb2c377bd6e71c000821163d2cbc414b65707851ee50cf43",
+        "path": ".engine/tools/demo_release_terminal.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_remember_this",
+      "name": ".engine/tools/demo_remember_this.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_remember_this",
+      "source": {
+        "fingerprint": "sha256:61480e589cc7e792b3a274a8d71b1386aeebb5ef94cc6187793aa4de1e72c5eb",
+        "path": ".engine/tools/demo_remember_this.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_repo_behavior",
+      "name": ".engine/tools/demo_repo_behavior.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_repo_behavior",
+      "source": {
+        "fingerprint": "sha256:b29dec934c01853e786683483f6a5c6af451424eb296880bfc4ea97d9ca108ce",
+        "path": ".engine/tools/demo_repo_behavior.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_restore_migration_routing",
+      "name": ".engine/tools/demo_restore_migration_routing.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_restore_migration_routing",
+      "source": {
+        "fingerprint": "sha256:9381b820c845d742ef4e5d5114c7bc11d05af0fb21b1bf1f43d3e384382fe2f3",
+        "path": ".engine/tools/demo_restore_migration_routing.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_reverse_adjacency",
+      "name": ".engine/tools/demo_reverse_adjacency.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_reverse_adjacency",
+      "source": {
+        "fingerprint": "sha256:5fab728396ece3a182ef4b0956de386f6a50ed687a80a6f7cce3a6a95a879093",
+        "path": ".engine/tools/demo_reverse_adjacency.py"
       },
       "status": "active",
       "type": "tool"
@@ -4722,6 +6625,57 @@
       "type": "tool"
     },
     {
+      "id": "tool:demo_security_seed",
+      "name": ".engine/tools/demo_security_seed.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_security_seed",
+      "source": {
+        "fingerprint": "sha256:6286b4f62ac0d6223ea5b720821ebe7f6d7f6e8c2e4812ac550976a1bba9b8d6",
+        "path": ".engine/tools/demo_security_seed.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_state_cursor_honesty",
+      "name": ".engine/tools/demo_state_cursor_honesty.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_state_cursor_honesty",
+      "source": {
+        "fingerprint": "sha256:03e0aa5e9e0152599bf56d0dbbc6f99863386c8f67dae635b179d4981de0c999",
+        "path": ".engine/tools/demo_state_cursor_honesty.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:demo_weakening_guard_narrowed_set",
+      "name": ".engine/tools/demo_weakening_guard_narrowed_set.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "demo_weakening_guard_narrowed_set",
+      "source": {
+        "fingerprint": "sha256:976ea6b920cda75aecc97d230314eb68692fa819b4571e9320677585172fb19e",
+        "path": ".engine/tools/demo_weakening_guard_narrowed_set.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:dependency_discipline.__init__",
       "name": ".engine/tools/dependency_discipline/__init__.py",
       "owner": "dependency-discipline",
@@ -4739,6 +6693,23 @@
       "type": "tool"
     },
     {
+      "id": "tool:design_form",
+      "name": ".engine/tools/product_design/design_form.py",
+      "owner": "product-design",
+      "predicates": {
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "design_form",
+      "source": {
+        "fingerprint": "sha256:d0f3fc7c26513b41608f169266547f6ab3835d440af6a5c0fac931667fc4f70b",
+        "path": ".engine/tools/product_design/design_form.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:disposition_issue_resolution_check",
       "name": ".engine/tools/disposition_issue_resolution_check.py",
       "owner": "core",
@@ -4749,7 +6720,7 @@
       },
       "slug": "disposition_issue_resolution_check",
       "source": {
-        "fingerprint": "sha256:df616fd5973278016312616a89fb8a99edad68653cbc59494df16a74c5d6dff9",
+        "fingerprint": "sha256:d2c96bc328a537d06d32a3cf9b0b269f3034b72600e3af2f50d3aa99a6b072d5",
         "path": ".engine/tools/disposition_issue_resolution_check.py"
       },
       "status": "active",
@@ -4766,7 +6737,7 @@
       },
       "slug": "engine_help",
       "source": {
-        "fingerprint": "sha256:b56968e1c01534776dc3b73e6efc1e5000027ff97a8fe56fd2108883d071efd7",
+        "fingerprint": "sha256:67943066a5f0c46fcc69eaafe5b2594932087e0660990ea25e5ecec961a7259a",
         "path": ".engine/tools/engine_help.py"
       },
       "status": "active",
@@ -4783,7 +6754,7 @@
       },
       "slug": "engine_status",
       "source": {
-        "fingerprint": "sha256:08256a044f5cf41c161aa09555a988ab2dbf962ead99bce5ad9a959e567cb9a1",
+        "fingerprint": "sha256:1da31b0561871645a432bb3aec1739676ed37ef7e545f4976e68cffa80ae7cbc",
         "path": ".engine/tools/engine_status.py"
       },
       "status": "active",
@@ -4800,7 +6771,7 @@
       },
       "slug": "erasure_observer",
       "source": {
-        "fingerprint": "sha256:2d984ca6ad164a0dbb248e4ae4a9a43e57edc33e9232ac148c199c25e1b43639",
+        "fingerprint": "sha256:0c240c884dcf48446cc28603af640a10202f87b23121db1fa6f3277912bd515b",
         "path": ".engine/tools/memory/erasure_observer.py"
       },
       "status": "active",
@@ -4817,7 +6788,7 @@
       },
       "slug": "erasure_proposer",
       "source": {
-        "fingerprint": "sha256:16ed262d6f404ef91fed3ee1b66d3038b29e75a4be4873e1387beb6d6537f814",
+        "fingerprint": "sha256:2c012606bfbbde6638e9f86e393b744c7399f288179ff2cd564fce2f741b560a",
         "path": ".engine/tools/memory/erasure_proposer.py"
       },
       "status": "active",
@@ -4841,6 +6812,23 @@
       "type": "tool"
     },
     {
+      "id": "tool:first_run_health",
+      "name": ".engine/tools/first_run_health.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "first_run_health",
+      "source": {
+        "fingerprint": "sha256:3779ef7f4dc902e293aa37e30d09d302c1adc0bd9e12a5b06c72c4a93d2dc2f7",
+        "path": ".engine/tools/first_run_health.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:first_run_reference_closure_check",
       "name": ".engine/tools/first_run_reference_closure_check.py",
       "owner": "core",
@@ -4851,7 +6839,7 @@
       },
       "slug": "first_run_reference_closure_check",
       "source": {
-        "fingerprint": "sha256:4fe18be498937113ae326f29fab90f8eb54b19b4901f57dbb6d1b9c5fa658dbb",
+        "fingerprint": "sha256:1d7fff28ebc5b8b1535bd2a00bd04db68d8bdfea0bcfb853632331229a22b9da",
         "path": ".engine/tools/first_run_reference_closure_check.py"
       },
       "status": "active",
@@ -4868,7 +6856,7 @@
       },
       "slug": "forget",
       "source": {
-        "fingerprint": "sha256:35f2aee6b30bb26844d454005904320b81f8777bfbd3d096ed6f3f0df9874b30",
+        "fingerprint": "sha256:8048a816af571126a2e9f7ebbb72453cc2b09fef7450625b7777f432541cbda3",
         "path": ".engine/tools/memory/forget.py"
       },
       "status": "active",
@@ -4885,8 +6873,25 @@
       },
       "slug": "github_client",
       "source": {
-        "fingerprint": "sha256:95341865975a1bce73293b7100bc164cb37b313f8e707dfa477e40b59f1bb526",
+        "fingerprint": "sha256:12bcd18e515338a02ee798a89a011cc914dd00449e815a9dbea7d3ef43dc772e",
         "path": ".engine/tools/github_client.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:greenfield_intake",
+      "name": ".engine/tools/greenfield_intake.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "greenfield_intake",
+      "source": {
+        "fingerprint": "sha256:a32c7f9203292ac1e2aff6fb6f81aee6bd2f77b561182ee4670494cc4bccf61a",
+        "path": ".engine/tools/greenfield_intake.py"
       },
       "status": "active",
       "type": "tool"
@@ -4902,7 +6907,7 @@
       },
       "slug": "hard_check_bite_check",
       "source": {
-        "fingerprint": "sha256:56f6709ba945fa95e2c442a72739e61beb47584e6533bd344ae8efdbfb3b246d",
+        "fingerprint": "sha256:f2727cca7b40bda000dfebbff3d8fea8fa0d91b84da562d2105be8a6d48f1603",
         "path": ".engine/tools/hard_check_bite_check.py"
       },
       "status": "active",
@@ -4919,7 +6924,7 @@
       },
       "slug": "hook-runner",
       "source": {
-        "fingerprint": "sha256:972eae5ee7e3aa5f6b9387f8919c910cccf8782d9d09e6948fd27b618bb9b54a",
+        "fingerprint": "sha256:1b7778ecc79bd5a4e485c3eae886c3331f8e3928cd2e3b198bbbf47727663e3f",
         "path": ".engine/tools/hook-runner.sh"
       },
       "status": "active",
@@ -4936,7 +6941,7 @@
       },
       "slug": "hooks",
       "source": {
-        "fingerprint": "sha256:76f4dcff58b24f867f266fa2161742ac11b185ad9af19f23545bb6c8ecd981ec",
+        "fingerprint": "sha256:ef0f085ef6cf40341b4713e6e842d7a730cf83600756fecafde9805161811383",
         "path": ".engine/tools/hooks.py"
       },
       "status": "active",
@@ -4970,8 +6975,25 @@
       },
       "slug": "index",
       "source": {
-        "fingerprint": "sha256:9bc050c213548fc5c2b611411f8a8c42279e8d90901539b41841b0fe8bfcdfa7",
+        "fingerprint": "sha256:5a6acff3e07138f5764bd048ee89d6c27cdab213d29033ab417eba7276d702ba",
         "path": ".engine/tools/memory/index.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:instantiator",
+      "name": ".engine/tools/instantiator.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "instantiator",
+      "source": {
+        "fingerprint": "sha256:7664e1374e809265f5bd8061bab6dba3f7da58c9baeadf74325cde92da05c62a",
+        "path": ".engine/tools/instantiator.py"
       },
       "status": "active",
       "type": "tool"
@@ -5004,7 +7026,7 @@
       },
       "slug": "issue_author",
       "source": {
-        "fingerprint": "sha256:bdf3ccd02d16206e4bf4ed38db99d10126fef86c09661d227ebdc9cb1e9ad369",
+        "fingerprint": "sha256:eb731e527470868b40fd7d2fd48b64c10f18339669ecc612d6d4281a00b66579",
         "path": ".engine/tools/issue_author.py"
       },
       "status": "active",
@@ -5021,7 +7043,7 @@
       },
       "slug": "issue_conformance_ci",
       "source": {
-        "fingerprint": "sha256:1175a7e114bf86167d422d8bdcdc8830c6c703525d80fca3d2244bb97aba0730",
+        "fingerprint": "sha256:8608072d07b2ca30d47da8cefd78b7c2464d2fd2afa618b9501856b5c788d56d",
         "path": ".engine/tools/issue_conformance_ci.py"
       },
       "status": "active",
@@ -5038,7 +7060,7 @@
       },
       "slug": "issue_gate",
       "source": {
-        "fingerprint": "sha256:e1ca0641732777d3867241af2ac615e2c79566b7a609b8aeecc8d24b721fdab4",
+        "fingerprint": "sha256:b3a51c55039481117324f718a529c12fc69b72ed377d5310e414df80763520fb",
         "path": ".engine/tools/issue_gate.py"
       },
       "status": "active",
@@ -5055,7 +7077,7 @@
       },
       "slug": "knowledge_gen",
       "source": {
-        "fingerprint": "sha256:7a52e9ff549522dd7865268cc6fff69e3e7444f63f5a7d989d97f6530183fea1",
+        "fingerprint": "sha256:f63f72a59e6f4f86a45e8bd52614cc13972ca80329793d273214a5af5f570d41",
         "path": ".engine/tools/knowledge_gen.py"
       },
       "status": "active",
@@ -5072,7 +7094,7 @@
       },
       "slug": "knowledge_index",
       "source": {
-        "fingerprint": "sha256:23522595a8d4e62e6b7f14514c3de8beb153ad083cd54235d9b1c6c8edfb2d8a",
+        "fingerprint": "sha256:9f4286b4552705c69609020dea70e6c6148d6251d058952d7ade708a35e52289",
         "path": ".engine/tools/knowledge_index.py"
       },
       "status": "active",
@@ -5089,7 +7111,7 @@
       },
       "slug": "knowledge_mcp_server",
       "source": {
-        "fingerprint": "sha256:0b5df87f6e23643291b6cb8fcad2b69cbccc4f56fb1b61e81d4e92d18a8d6ae4",
+        "fingerprint": "sha256:d23801fd8ae09703d071beadad8169384b2eefe6309cf02d59e9dd5b35798289",
         "path": ".engine/tools/knowledge_mcp_server.py"
       },
       "status": "active",
@@ -5106,7 +7128,7 @@
       },
       "slug": "knowledge_query",
       "source": {
-        "fingerprint": "sha256:6bc035994ee5d50b2b7afa077ff54d63c227f168d85fd471253fd9f75bae7a7c",
+        "fingerprint": "sha256:50d07d87706a2894bfab10489a9483483ba29f31f35a66fcbaf1d2c425ade8c5",
         "path": ".engine/tools/knowledge_query.py"
       },
       "status": "active",
@@ -5123,7 +7145,7 @@
       },
       "slug": "knowledge_vocabulary_check",
       "source": {
-        "fingerprint": "sha256:00b98f1bb91fc7ad53873f893b0939814873e513a3b70f7e190ff80ca7f53af4",
+        "fingerprint": "sha256:45181ed68ec3e62d5b5242794b6782c962e60e9a4226309e657fc98bc85acb53",
         "path": ".engine/tools/knowledge_vocabulary_check.py"
       },
       "status": "active",
@@ -5140,7 +7162,7 @@
       },
       "slug": "ledger",
       "source": {
-        "fingerprint": "sha256:73208705284a0bdb7cd1b7cbf776b2c9ebe959fe13c7327cdf217d304adb4fa4",
+        "fingerprint": "sha256:120864a9f25dae08172b6bef6817431d3632a204dadeb84676714eb14d4b0d15",
         "path": ".engine/tools/memory/ledger.py"
       },
       "status": "active",
@@ -5164,6 +7186,23 @@
       "type": "tool"
     },
     {
+      "id": "tool:ledger_migrations",
+      "name": ".engine/tools/memory/ledger_migrations.py",
+      "owner": "memory-substrate-sqlite-fts5",
+      "predicates": {
+        "provided_by": [
+          "module:memory-substrate-sqlite-fts5"
+        ]
+      },
+      "slug": "ledger_migrations",
+      "source": {
+        "fingerprint": "sha256:1b9ceecb948bc0611761c57034e0913e4c6233141f3486777df664ebd76c331a",
+        "path": ".engine/tools/memory/ledger_migrations.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:lens_consumption_check",
       "name": ".engine/tools/lens_consumption_check.py",
       "owner": "core",
@@ -5174,8 +7213,42 @@
       },
       "slug": "lens_consumption_check",
       "source": {
-        "fingerprint": "sha256:54d0d7d4c1e02fe6828ab6aac2415c57784a39fdcd511091a6a5e920b9655e93",
+        "fingerprint": "sha256:a434b6f4971eecd40fb45953bcc95e1b1ef561652895438dbcbec67d8f567fc5",
         "path": ".engine/tools/lens_consumption_check.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:license_health",
+      "name": ".engine/tools/license_health.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "license_health",
+      "source": {
+        "fingerprint": "sha256:5b9fcbd6c0869b0066cd22254901488de3c4ae936006400f10f691340733bc4b",
+        "path": ".engine/tools/license_health.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:license_seeds",
+      "name": ".engine/tools/license_seeds.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "license_seeds",
+      "source": {
+        "fingerprint": "sha256:9cf1c0cd04fd0e619bca775f68029d1a547a14ed432e40f3281bbc333adfb61e",
+        "path": ".engine/tools/license_seeds.py"
       },
       "status": "active",
       "type": "tool"
@@ -5191,7 +7264,7 @@
       },
       "slug": "lock_integrity",
       "source": {
-        "fingerprint": "sha256:45992cd3142cff4c1a5e9a95cd7a61c8bb9dd6f4e7f38e9284acf55938dfc216",
+        "fingerprint": "sha256:ef56194c5facd353195069bc68e5602a5a4d48032a92f8aeb350b9ad2472da4d",
         "path": ".engine/tools/product_design/lock_integrity.py"
       },
       "status": "active",
@@ -5208,7 +7281,7 @@
       },
       "slug": "mcp_server",
       "source": {
-        "fingerprint": "sha256:21b61961ba16ef407bbe463aba5a6b7566577266a437dc3ba4623cca912ecbe0",
+        "fingerprint": "sha256:7daece68ec0179304aabd69d9f7e7a753bed1bb95b84fc83a81ec51d87e77132",
         "path": ".engine/tools/memory/mcp_server.py"
       },
       "status": "active",
@@ -5225,7 +7298,7 @@
       },
       "slug": "memory.__init__",
       "source": {
-        "fingerprint": "sha256:dec2908587a201d48c3941d4d104beeab3a9db9e43dbc70ccf4f4451fc054cea",
+        "fingerprint": "sha256:df2d564a984f23c838c3bde4ca20013f62bf6e4e54f47bc9115e48909a3f36f8",
         "path": ".engine/tools/memory/__init__.py"
       },
       "status": "active",
@@ -5242,7 +7315,7 @@
       },
       "slug": "memory_pointer_public_safety_check",
       "source": {
-        "fingerprint": "sha256:612a98eb703ab276989aee97c78383ad6ff1614c73a04002feaacaf092b97f0d",
+        "fingerprint": "sha256:72572b49b0d833a5df7192d7b78849e93e333bbf18ce345d84409c8da6f9a087",
         "path": ".engine/tools/memory_pointer_public_safety_check.py"
       },
       "status": "active",
@@ -5276,7 +7349,7 @@
       },
       "slug": "milestone_emit",
       "source": {
-        "fingerprint": "sha256:2a03cc45baecc55a08088ee2af54b680f502b220f95fbbc6f24fe2249b40a9ce",
+        "fingerprint": "sha256:8fa687535dedab599713977cb0c6b6367b2115103beb512553d13cd5a3075e00",
         "path": ".engine/tools/milestone_emit.py"
       },
       "status": "active",
@@ -5293,7 +7366,7 @@
       },
       "slug": "modes",
       "source": {
-        "fingerprint": "sha256:ab0dc6d2225ab3f1119d56736e9e6bcc140d675d0d9deb55c1c834a342f600b9",
+        "fingerprint": "sha256:4f27413a09247580e23b12cd47b2cc233b0adfa7449c84d50f493cdf60298925",
         "path": ".engine/tools/modes.py"
       },
       "status": "active",
@@ -5310,7 +7383,7 @@
       },
       "slug": "module_catalog",
       "source": {
-        "fingerprint": "sha256:ad9d0f212613d2121dcd482d54b9ac66a141afd2428b731a7b383fe954dc1321",
+        "fingerprint": "sha256:3ed6a1170bc8eb2b789385c97778e763c0cbe13d675ebe576f9a1b529453a342",
         "path": ".engine/tools/module_catalog.py"
       },
       "status": "active",
@@ -5327,7 +7400,7 @@
       },
       "slug": "module_coherence",
       "source": {
-        "fingerprint": "sha256:ca72a49c54a4555e54a549f3df30e11adb5f1af6c0bceae14b0208d5a32c9dbc",
+        "fingerprint": "sha256:b075b85daa0f6c0b99eb4c02aa4fc1acf859bde42fe97979af554dc27e9195eb",
         "path": ".engine/tools/module_coherence.py"
       },
       "status": "active",
@@ -5344,7 +7417,7 @@
       },
       "slug": "module_manager",
       "source": {
-        "fingerprint": "sha256:cb2e60046d061e8e43cd7811473c78a0d31ebab308aad10c9b527b71dbd939b7",
+        "fingerprint": "sha256:78bef41caa13f72db8ac69ecb32547dd0f1e49f9adedca0ab777d54f5a473d3b",
         "path": ".engine/tools/module_manager.py"
       },
       "status": "active",
@@ -5361,8 +7434,25 @@
       },
       "slug": "obligation_matrix",
       "source": {
-        "fingerprint": "sha256:020568ac666ffaeda6fe6c389e94e2d2258691dc1a15e7d1462b90643e20af61",
+        "fingerprint": "sha256:d388a359980db17f0a5c3f946055cf0310658def70b607b83aa251be7e229cdd",
         "path": ".engine/tools/product_design/obligation_matrix.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:operator_guarded_paths_check",
+      "name": ".engine/tools/operator_guarded_paths_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "operator_guarded_paths_check",
+      "source": {
+        "fingerprint": "sha256:42c81842ca7438a890ee9b6d3a906ed015dd237c89408c9989b4f40c6e206af4",
+        "path": ".engine/tools/operator_guarded_paths_check.py"
       },
       "status": "active",
       "type": "tool"
@@ -5378,8 +7468,25 @@
       },
       "slug": "operator_overrides",
       "source": {
-        "fingerprint": "sha256:35aec0dc9d4bff00a18a398417196ba4877d5a121381855482a22282f3f7d165",
+        "fingerprint": "sha256:d25b8fafb7073cef460791579c72999b1bd5f212037948e1cfd501c9cd597e28",
         "path": ".engine/tools/operator_overrides.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:overlay_disclosure",
+      "name": ".engine/tools/overlay_disclosure.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "overlay_disclosure",
+      "source": {
+        "fingerprint": "sha256:6ee4d23f7295891f05844357cc67850488bef50db5ec5a1fff03f12755cfbf8e",
+        "path": ".engine/tools/overlay_disclosure.py"
       },
       "status": "active",
       "type": "tool"
@@ -5395,7 +7502,7 @@
       },
       "slug": "pinning",
       "source": {
-        "fingerprint": "sha256:5ba927978c66eb4ef88b0a7ec9a67e3a0d22b6b06be9a02b749721778c84c887",
+        "fingerprint": "sha256:81a31ffad972c52841900325c252b44d24cbec89a39e5daaa720bfa8e506c84c",
         "path": ".engine/tools/dependency_discipline/pinning.py"
       },
       "status": "active",
@@ -5412,7 +7519,7 @@
       },
       "slug": "policy_override_check",
       "source": {
-        "fingerprint": "sha256:e812888fa13eae18143d19db3e6a65f3e8626fd6c939a29b8f900d6e386ad22e",
+        "fingerprint": "sha256:9eea434929f7e96d84bdee3be603b2ec3f0ec4dcc280d4ad76fb60a25a32b478",
         "path": ".engine/tools/policy_override_check.py"
       },
       "status": "active",
@@ -5429,7 +7536,7 @@
       },
       "slug": "pr_reconcile",
       "source": {
-        "fingerprint": "sha256:2648d4206e969f83ed77579ac56bf825eb2da8c1f6c1eaec1eaf65d6093aa3ba",
+        "fingerprint": "sha256:9ad1ecdcf26f46f5ad463d270c63c117cbd78e46189616e05be3295263b4b505",
         "path": ".engine/tools/pr_reconcile.py"
       },
       "status": "active",
@@ -5446,7 +7553,7 @@
       },
       "slug": "product_design.__init__",
       "source": {
-        "fingerprint": "sha256:3cff78357773321d7d08a957656e7b72e20838941d2020c8967d063aca10d4d5",
+        "fingerprint": "sha256:8f11f6c2bfeb612ed979c4bf1b6caa5e27c0207e54bafae651f646119f0a2b6c",
         "path": ".engine/tools/product_design/__init__.py"
       },
       "status": "active",
@@ -5463,7 +7570,7 @@
       },
       "slug": "projects_sync",
       "source": {
-        "fingerprint": "sha256:d6fa32d897b44a1a6c70c9937c8df7660796ca5b1b978e07eec57993cdd3e126",
+        "fingerprint": "sha256:3bb7f8ed13575d285afb1f2f35c6b82e661e90202b1decfbdc1e6932c5ca621c",
         "path": ".engine/tools/projects_sync/projects_sync.py"
       },
       "status": "active",
@@ -5497,8 +7604,59 @@
       },
       "slug": "protection_guard",
       "source": {
-        "fingerprint": "sha256:6d5d4b864de8e974977c153701ff12d0ff9b796c7456ce8a172baa877a982f9b",
+        "fingerprint": "sha256:83565420c8b03c83093962d85b68df68a638430723bda2eeaaf3069637bd974e",
         "path": ".engine/tools/protection_guard.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:provider_parity_check",
+      "name": ".engine/tools/provider_parity_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "provider_parity_check",
+      "source": {
+        "fingerprint": "sha256:56e86e82583c81207a46105eb9ce55fe9437d68ff5ed2bb771c6b01ff59ec53e",
+        "path": ".engine/tools/provider_parity_check.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:provider_vocab_check",
+      "name": ".engine/tools/provider_vocab_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "provider_vocab_check",
+      "source": {
+        "fingerprint": "sha256:e670225ce5822435351292980c9b71c43df9dfaf4f9ffa73f842cbbf6e63e2b4",
+        "path": ".engine/tools/provider_vocab_check.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:providers",
+      "name": ".engine/tools/providers.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "providers",
+      "source": {
+        "fingerprint": "sha256:2448a0b6e7bb3ae9b4001cfe2e444e35a5417953c2d0ed89d3f042ecb2544feb",
+        "path": ".engine/tools/providers.py"
       },
       "status": "active",
       "type": "tool"
@@ -5531,7 +7689,7 @@
       },
       "slug": "records",
       "source": {
-        "fingerprint": "sha256:7a06c6274540fe4163299679990b76f4028edf08855af0365af1351ee349ffae",
+        "fingerprint": "sha256:820c61d6922d96a07bc476a3599e4d0fc581915d6d7bc9e8b28362b9739120c9",
         "path": ".engine/tools/memory/records.py"
       },
       "status": "active",
@@ -5548,7 +7706,7 @@
       },
       "slug": "release_cut",
       "source": {
-        "fingerprint": "sha256:f9889cf070497a33c16668d42cf6add3e111b6146a2d43370e7e9a97666a9e04",
+        "fingerprint": "sha256:45f3db0c2cd80f02174391b08acc4d0d0df74ceab6781c7cfab2c5cb7aca1249",
         "path": ".engine/tools/release_cut.py"
       },
       "status": "active",
@@ -5582,8 +7740,25 @@
       },
       "slug": "release_terminal",
       "source": {
-        "fingerprint": "sha256:1903eb60ce93090160ba27947afea82d0432e1f3c4011c0281234202301c0bb8",
+        "fingerprint": "sha256:9d8971d7e3b8cc011d1915116d64a27aaa922cfdd51c8bed061e8f9fbc768a29",
         "path": ".engine/tools/release_terminal.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:repo_behavior",
+      "name": ".engine/tools/repo_behavior.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "repo_behavior",
+      "source": {
+        "fingerprint": "sha256:85ef34224ac42c48f5c0c22db644dd3cad23fd59477de5ba9095e47f91224ebe",
+        "path": ".engine/tools/repo_behavior.py"
       },
       "status": "active",
       "type": "tool"
@@ -5599,7 +7774,7 @@
       },
       "slug": "restore_vault",
       "source": {
-        "fingerprint": "sha256:34508558cbc15a1c3919f0bc8ce474af9925bcd3dc7a1b41e93ae8320234ff92",
+        "fingerprint": "sha256:01e3550cdc1cc7616d043e9b7037feba3052a324fed6b234ab6c234ff98b45e2",
         "path": ".engine/tools/memory/restore_vault.py"
       },
       "status": "active",
@@ -5616,7 +7791,7 @@
       },
       "slug": "review",
       "source": {
-        "fingerprint": "sha256:f970d9a5d9de0756e125f8b501f38d82bd3165f76e1c0ecfe6490415a6822a05",
+        "fingerprint": "sha256:9c740817829e238cbc503ed3d1096dcf129658fb49ccd70b45a1a630e535bfe9",
         "path": ".engine/tools/dependency_discipline/review.py"
       },
       "status": "active",
@@ -5633,7 +7808,7 @@
       },
       "slug": "rollback",
       "source": {
-        "fingerprint": "sha256:e535f967c50a01057cca995732e63f95b92c6f8ee8b968f2fc082a8f5a2e8242",
+        "fingerprint": "sha256:117c069ed65c787e8b4616d361eacd2134455baa041467933a12a9cd8be2d4a2",
         "path": ".engine/tools/migration_discipline/rollback.py"
       },
       "status": "active",
@@ -5650,7 +7825,7 @@
       },
       "slug": "rollup",
       "source": {
-        "fingerprint": "sha256:c1f0901befa6f4726f110a730fc38cc1492932fc1dbda5db52b0d381653e6fb9",
+        "fingerprint": "sha256:8b4202d5c3514898d34f67f2155ea92792f127d30282a71766c12c62764d5aed",
         "path": ".engine/tools/memory/rollup.py"
       },
       "status": "active",
@@ -5684,7 +7859,7 @@
       },
       "slug": "score",
       "source": {
-        "fingerprint": "sha256:5d2ad77dee716d771fe67db9dae61a736de5b59ab2bb7ee37205a8fc98c5f414",
+        "fingerprint": "sha256:49a289427bb36f2f07c36c0f795429e57bca0f3f621484242f3bb88309f76703",
         "path": ".engine/tools/memory/score.py"
       },
       "status": "active",
@@ -5701,7 +7876,7 @@
       },
       "slug": "security_floor",
       "source": {
-        "fingerprint": "sha256:88500d66ba749e5fe76f982e62d6a48746f78ce5aa9cc902ea214b1a1f02c680",
+        "fingerprint": "sha256:22df5d661a19f38a039b33f98d5990d2ceed20492c344b6e54626d9b50311860",
         "path": ".engine/tools/security_floor.py"
       },
       "status": "active",
@@ -5718,7 +7893,7 @@
       },
       "slug": "self_map",
       "source": {
-        "fingerprint": "sha256:b49e27fe51ad8f0149d7d41debb7184a5c15a86272d70b9d305c6bd16c318dcc",
+        "fingerprint": "sha256:49b34a1d08f28cf18c13e9582fd3db86f731039a59b6be8dc957b96d259ed41f",
         "path": ".engine/tools/self_map.py"
       },
       "status": "active",
@@ -5735,7 +7910,7 @@
       },
       "slug": "self_map_check",
       "source": {
-        "fingerprint": "sha256:00b5d8e450afc30428f04935aecbf16bad0044efc00a40622e56d7cc611608e0",
+        "fingerprint": "sha256:10a3c88e1e30e7015dc99f2ae1124e357a7ddd4e57533dba44ea94c276b31bea",
         "path": ".engine/tools/self_map_check.py"
       },
       "status": "active",
@@ -5752,7 +7927,7 @@
       },
       "slug": "skill_coherence_check",
       "source": {
-        "fingerprint": "sha256:12b71493b9c33c882edeab11b324565ee28a250455072858a7dadebe6e37004d",
+        "fingerprint": "sha256:bd1e5eb78bae836fc64b2c3843a892966550e11e45e5596c8dda2c06d5bc296d",
         "path": ".engine/tools/skill_coherence_check.py"
       },
       "status": "active",
@@ -5769,7 +7944,7 @@
       },
       "slug": "spec_form",
       "source": {
-        "fingerprint": "sha256:4b0af037043ea65150b7538905c3077da45dc96685d567331b07643ff6af296b",
+        "fingerprint": "sha256:d3b492222f2812d248113a9f62951383b2013d0bca41f3406228305e0bd1140f",
         "path": ".engine/tools/product_design/spec_form.py"
       },
       "status": "active",
@@ -5786,7 +7961,7 @@
       },
       "slug": "spec_referent",
       "source": {
-        "fingerprint": "sha256:759e7cfed268683d695015b502371e01a74867a44e6b466e5a537da9d0bbd73b",
+        "fingerprint": "sha256:b809c43121c686124fae10b49feb2d5573da1b08bdfa824830b655f18361e797",
         "path": ".engine/tools/spec_referent.py"
       },
       "status": "active",
@@ -5803,7 +7978,7 @@
       },
       "slug": "standing_situation",
       "source": {
-        "fingerprint": "sha256:53897bc106d09184ff13ef71e9499de9194bb98d351a73f05d60258812ecfd0c",
+        "fingerprint": "sha256:d72bd2771213eb1fb7b48877df43ae21140e842475f1dad5b8b8d9285e708a20",
         "path": ".engine/tools/standing_situation.py"
       },
       "status": "active",
@@ -5820,7 +7995,7 @@
       },
       "slug": "submit",
       "source": {
-        "fingerprint": "sha256:94b157c67971680c4058fade1add361c1be197a5129cd90c2c4041f24da27068",
+        "fingerprint": "sha256:fc6744dfa3ae27421cc464cb0b511a70d7b23e0dd0145d536372758923acd1c2",
         "path": ".engine/tools/external_contribution/submit.py"
       },
       "status": "active",
@@ -5837,7 +8012,7 @@
       },
       "slug": "team_switch",
       "source": {
-        "fingerprint": "sha256:3adc5d0757e98c14979f875c84a108d98ed9b2052c4e9e8012139942f5c1da77",
+        "fingerprint": "sha256:3a6e7026cf0db73df249259b53317f7aac59fcf07e0dd610941a035ddaa7943c",
         "path": ".engine/tools/team_switch.py"
       },
       "status": "active",
@@ -5854,7 +8029,7 @@
       },
       "slug": "telemetry",
       "source": {
-        "fingerprint": "sha256:3c327c7a1d2d0373a55ea8792752a26665d4f56f15f44b4748974810ac76891f",
+        "fingerprint": "sha256:5a183a14514263198d502b45dd34ff7e12ce38315c510d019e555bf6fcde069e",
         "path": ".engine/tools/telemetry.py"
       },
       "status": "active",
@@ -5871,7 +8046,7 @@
       },
       "slug": "template_shape_spec_check",
       "source": {
-        "fingerprint": "sha256:edbd6d92a80a53b876c19e467c95bbc061e87f6fb21fdf6b150dec29f643a340",
+        "fingerprint": "sha256:68a97114d8e7e194b7b4ddb57a397dccee09db2d5749e7ec123a226444ea1662",
         "path": ".engine/tools/template_shape_spec_check.py"
       },
       "status": "active",
@@ -5895,6 +8070,23 @@
       "type": "tool"
     },
     {
+      "id": "tool:test_adr_form",
+      "name": ".engine/tools/product_design/test_adr_form.py",
+      "owner": "product-design",
+      "predicates": {
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "test_adr_form",
+      "source": {
+        "fingerprint": "sha256:be9c953414de74054cf97ecf4a63ac2765efbc0e0d20887155b54475879b3906",
+        "path": ".engine/tools/product_design/test_adr_form.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:test_agent",
       "name": ".engine/tools/test_agent.py",
       "owner": "core",
@@ -5905,7 +8097,7 @@
       },
       "slug": "test_agent",
       "source": {
-        "fingerprint": "sha256:13d9c6a4a928f9525bd2d6de8b27185e12ad30ad755b609219faa994a9661577",
+        "fingerprint": "sha256:44309b387e69e2b943df537f3c71acd8947c39fc96880b6a16c5cd6a3e655dad",
         "path": ".engine/tools/test_agent.py"
       },
       "status": "active",
@@ -5922,7 +8114,7 @@
       },
       "slug": "test_agent_coherence_check",
       "source": {
-        "fingerprint": "sha256:762fc1011840c77c5141f4767984ecf1c05ea4e8bf3a67fa42ff3b0fb649218a",
+        "fingerprint": "sha256:ae75dc0835152961153ec07febab694cd2f52b0b2d95f5bf9a03ffa0d7a8243f",
         "path": ".engine/tools/test_agent_coherence_check.py"
       },
       "status": "active",
@@ -5939,7 +8131,7 @@
       },
       "slug": "test_attention",
       "source": {
-        "fingerprint": "sha256:11bfee7dff0db456e5f6c5d6b1e5e0a4dc635574140afe163033899a50564b14",
+        "fingerprint": "sha256:a2d67bdb859540a5d187ef2d9fbdc311b8c68c2df7749c6a150b7af91f15a07b",
         "path": ".engine/tools/test_attention.py"
       },
       "status": "active",
@@ -5956,7 +8148,7 @@
       },
       "slug": "test_audit_digest",
       "source": {
-        "fingerprint": "sha256:10cabc5ce937eec29aec29fae44b091964dbf1ac111ea61fd88eae1ff20bd9f1",
+        "fingerprint": "sha256:0af28b118b84fd942bdf0b45d66607aa75daec845f8c807ed6a3a24a5d1a42ca",
         "path": ".engine/tools/test_audit_digest.py"
       },
       "status": "active",
@@ -5973,7 +8165,7 @@
       },
       "slug": "test_audit_prep",
       "source": {
-        "fingerprint": "sha256:de9b8e2cf273f5b6ad6ab6fc38dfb0a5fabb74df22ac0a5624bf574b7ca466d3",
+        "fingerprint": "sha256:b0c43a93f8b0f42bdb7185fcf81abaa52d3a77943a97a5806a8605cba41427a0",
         "path": ".engine/tools/test_audit_prep.py"
       },
       "status": "active",
@@ -6007,7 +8199,7 @@
       },
       "slug": "test_audit_soft_promote",
       "source": {
-        "fingerprint": "sha256:fa249dce63a313d3051e6ac4a389e1fdbe83fd49f5a311c242eaae163395d928",
+        "fingerprint": "sha256:5b0230f340db81d7c8c1eb5813d2af0ae4e696cedad6e8825f1160521f022d82",
         "path": ".engine/tools/test_audit_soft_promote.py"
       },
       "status": "active",
@@ -6024,7 +8216,7 @@
       },
       "slug": "test_authoring_scaffolds",
       "source": {
-        "fingerprint": "sha256:8409eec0228af05b6f81b5594c2f446c1442f0520234bc3849b742a438ef1b95",
+        "fingerprint": "sha256:2a9d00cf92f8864fb9cbc5682c070bd234b4b9ab9d969dffec84168b204b17cf",
         "path": ".engine/tools/product_design/test_authoring_scaffolds.py"
       },
       "status": "active",
@@ -6041,7 +8233,7 @@
       },
       "slug": "test_backup_vault",
       "source": {
-        "fingerprint": "sha256:477bbe0575508fe14b06c5eb6baa58a59ec2edcd7b03ac4ad3d310628661e431",
+        "fingerprint": "sha256:43a07b440acce8f5e228edb1e0dcec10837eafbcd87fd705b3fcce4a5afc3aba",
         "path": ".engine/tools/memory/test_backup_vault.py"
       },
       "status": "active",
@@ -6075,7 +8267,7 @@
       },
       "slug": "test_boot",
       "source": {
-        "fingerprint": "sha256:6f72a985fd88f63081cb1e04705c651334c2b1a0bc19b3dadc159af39980ae8a",
+        "fingerprint": "sha256:5e87eddd122b5e90882024051afc1a46b6bd85d8f607ba716be43b802a5c238b",
         "path": ".engine/tools/test_boot.py"
       },
       "status": "active",
@@ -6092,7 +8284,7 @@
       },
       "slug": "test_boot_alarm_ledger",
       "source": {
-        "fingerprint": "sha256:75ff9f4ce6afaaee77a808f17bc94785465ee8e98ba9a9e3af3172baa971222e",
+        "fingerprint": "sha256:e209c0dbf097c6e4ac9cececeab6c252f97359b731de6d8234afa8ac29f7da7c",
         "path": ".engine/tools/test_boot_alarm_ledger.py"
       },
       "status": "active",
@@ -6126,7 +8318,7 @@
       },
       "slug": "test_bootstrap",
       "source": {
-        "fingerprint": "sha256:72e2d1a33ff5fe51a44f7d0994661c9be4953dad3c890bf66d7d68494365568b",
+        "fingerprint": "sha256:fa4d885f56b0956ab729fa8132ac677476a2cf7fcab85ff6f48ee05ccc6ed710",
         "path": ".engine/tools/test_bootstrap.py"
       },
       "status": "active",
@@ -6143,7 +8335,7 @@
       },
       "slug": "test_build_readiness",
       "source": {
-        "fingerprint": "sha256:3b9db7caf071d422442b881a72fa267bf9e469c443c555850ca0c0d5809886aa",
+        "fingerprint": "sha256:4fa61124db11fa1cff3afa6412399435ba1d11588a558ca26c7d1c7ee5efe8ea",
         "path": ".engine/tools/test_build_readiness.py"
       },
       "status": "active",
@@ -6160,7 +8352,7 @@
       },
       "slug": "test_capture",
       "source": {
-        "fingerprint": "sha256:df30fd62bbb49219cdc82483be8d59b959d732a8591e9bf5be5d06efb4b50aa0",
+        "fingerprint": "sha256:aecde2aa2f381d31871a3678df8f43246ef748a23ea6b33332059a9eb3e5734a",
         "path": ".engine/tools/memory/test_capture.py"
       },
       "status": "active",
@@ -6194,7 +8386,7 @@
       },
       "slug": "test_checkout_health",
       "source": {
-        "fingerprint": "sha256:0f952113ebed7c5d202c8adade7a13f2f9054c79ea7d5ccabe82b46f523cb245",
+        "fingerprint": "sha256:8a07cc0b101f2dfc0c3c780d639c0a7a9b351511cf1d090cc94dde18eaa1fb7f",
         "path": ".engine/tools/test_checkout_health.py"
       },
       "status": "active",
@@ -6211,7 +8403,7 @@
       },
       "slug": "test_close",
       "source": {
-        "fingerprint": "sha256:a79083660d40eedab39f0ae55cf46fcacf5aa14dbb93a9ae82535c53f16cb7c5",
+        "fingerprint": "sha256:2f31dc628d35f573dec8524626149a3f0070b32cd97a9123d9f2f358d3da7b6a",
         "path": ".engine/tools/test_close.py"
       },
       "status": "active",
@@ -6228,8 +8420,25 @@
       },
       "slug": "test_close_linkage_preflight",
       "source": {
-        "fingerprint": "sha256:21c2130554fad6142e83f70d89626cb94072e7ad02af48de1bf6c0f8adde54a9",
+        "fingerprint": "sha256:c27abe6e7ace181b6d81b5ca8571b1f1bf1d677d0d99ac5754bb695d8350d022",
         "path": ".engine/tools/test_close_linkage_preflight.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_codex_gen",
+      "name": ".engine/tools/test_codex_gen.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_codex_gen",
+      "source": {
+        "fingerprint": "sha256:db1d2ce1a72fbc687265f5ca2b677cd44d0fe59af58b53910240b2c8c494f9f1",
+        "path": ".engine/tools/test_codex_gen.py"
       },
       "status": "active",
       "type": "tool"
@@ -6245,7 +8454,7 @@
       },
       "slug": "test_compact",
       "source": {
-        "fingerprint": "sha256:57297b8240def538e599138c0ab29e4302bbd4c925ae2245918e5076186e4507",
+        "fingerprint": "sha256:855e4554877731004df2511fe581a4933496dd32f07ba891aac397471b8bcbfe",
         "path": ".engine/tools/memory/test_compact.py"
       },
       "status": "active",
@@ -6262,7 +8471,7 @@
       },
       "slug": "test_compact_trigger",
       "source": {
-        "fingerprint": "sha256:3b950903bb7fa4128d1e4e26ce1c321ab2d5cbbf8d6e82fba0e5840a58ef26f6",
+        "fingerprint": "sha256:0c1e20bb4c0e0bb6e72a701f133d8e5e366a69036f8f356f4afdadd8290e267f",
         "path": ".engine/tools/memory/test_compact_trigger.py"
       },
       "status": "active",
@@ -6279,7 +8488,7 @@
       },
       "slug": "test_conduct",
       "source": {
-        "fingerprint": "sha256:afff8925184db6cbc3f73e6930882e199866498f1bd8172c01f47c3ebe814866",
+        "fingerprint": "sha256:357dddb2be6dd217ad25ca4dbc4a60ee044d816999ed73ef8e12f634a8e25836",
         "path": ".engine/tools/test_conduct.py"
       },
       "status": "active",
@@ -6296,7 +8505,7 @@
       },
       "slug": "test_conformance_sweep",
       "source": {
-        "fingerprint": "sha256:8a74c09f6d951df72c4e207184ca8b4a7431b4ffd6d024aea517c97cf265bd67",
+        "fingerprint": "sha256:0c58b41360838f41c237d9eb302200c737f5e5f451bc86474969b75ef024b3c0",
         "path": ".engine/tools/test_conformance_sweep.py"
       },
       "status": "active",
@@ -6313,7 +8522,7 @@
       },
       "slug": "test_consolidate",
       "source": {
-        "fingerprint": "sha256:40de27f0e4cf987fdb73eedd8dfb2e8805999ee170f6b3d9869b61b6229aa173",
+        "fingerprint": "sha256:313deb1b122b67c83b103966591c88e213b78efcf6e87d6ba79f26b675e5fcce",
         "path": ".engine/tools/memory/test_consolidate.py"
       },
       "status": "active",
@@ -6330,7 +8539,7 @@
       },
       "slug": "test_contract",
       "source": {
-        "fingerprint": "sha256:bb818780c369a290fa21efac326ee3fb1a1c9e9c4107ce59103ea385adb86e10",
+        "fingerprint": "sha256:b6df14902cf75fad7f93c4d5e60c7c6563ec3d5da42ea8026327c0e4840d97ae",
         "path": ".engine/tools/test_contract.py"
       },
       "status": "active",
@@ -6347,8 +8556,25 @@
       },
       "slug": "test_contract_canon",
       "source": {
-        "fingerprint": "sha256:b8ab2dc8b5f0d3bd4b789a1c354724862f1679fa2e68ff82c332805a64446483",
+        "fingerprint": "sha256:b8792a6824599442dc6ee5a4582784a8339bf6fb830e00807a5946101247813e",
         "path": ".engine/tools/test_contract_canon.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_contribute_issue",
+      "name": ".engine/tools/external_contribution/test_contribute_issue.py",
+      "owner": "external-contribution",
+      "predicates": {
+        "provided_by": [
+          "module:external-contribution"
+        ]
+      },
+      "slug": "test_contribute_issue",
+      "source": {
+        "fingerprint": "sha256:3bd2cfec107b9ec4c1489621e6ac79cd527bdc2b50a23b17683fe31c9dbc9350",
+        "path": ".engine/tools/external_contribution/test_contribute_issue.py"
       },
       "status": "active",
       "type": "tool"
@@ -6364,8 +8590,25 @@
       },
       "slug": "test_coverage",
       "source": {
-        "fingerprint": "sha256:76ccbf73f690114cbfa12c6fc4ea3e08671d7a94296c21bf4d4b4f6804311d09",
+        "fingerprint": "sha256:41329db3dc093f33dfa6c5b4a1a5db4d61ef474b0657153990faf35186b73cd6",
         "path": ".engine/tools/product_design/test_coverage.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_design_form",
+      "name": ".engine/tools/product_design/test_design_form.py",
+      "owner": "product-design",
+      "predicates": {
+        "provided_by": [
+          "module:product-design"
+        ]
+      },
+      "slug": "test_design_form",
+      "source": {
+        "fingerprint": "sha256:e55935267c56e9bb327b50262bb6d69e4262a94a0cef778feaa4bee3bf06e29d",
+        "path": ".engine/tools/product_design/test_design_form.py"
       },
       "status": "active",
       "type": "tool"
@@ -6381,7 +8624,7 @@
       },
       "slug": "test_design_review",
       "source": {
-        "fingerprint": "sha256:c2b384df37b43e7f92da862621d0bf0ab10589b90f17abb71cac857a5d24adad",
+        "fingerprint": "sha256:241517b0b1052070e5fcd4507e63b91bf6eb83b07024ac219c9bc92b495a18af",
         "path": ".engine/tools/test_design_review.py"
       },
       "status": "active",
@@ -6398,7 +8641,7 @@
       },
       "slug": "test_disposition_issue_resolution",
       "source": {
-        "fingerprint": "sha256:9b291fe85b405307656c5f158ec5468eeacd965e0e3d04adce8ff73315de73e3",
+        "fingerprint": "sha256:08ace0b5bab0852be62fe6996ff612e8b921e0bf53e8fe159e04bf6d7ce33f5c",
         "path": ".engine/tools/test_disposition_issue_resolution.py"
       },
       "status": "active",
@@ -6415,7 +8658,7 @@
       },
       "slug": "test_doc",
       "source": {
-        "fingerprint": "sha256:2c73dd2349b52c8fa17e68bb4eff9460856840e297886c2ec989d5fe8fc5ff99",
+        "fingerprint": "sha256:71cd9233a2a9b296a0a50db58b23d541f73b2cc4e8406a41da6e35ce981dd62e",
         "path": ".engine/tools/test_doc.py"
       },
       "status": "active",
@@ -6432,8 +8675,25 @@
       },
       "slug": "test_engine_help",
       "source": {
-        "fingerprint": "sha256:932b470f57ccab5a389cd0aa3db4c1fc7bd6fd5c423862ffce3719bd8b106e81",
+        "fingerprint": "sha256:9ed7766492386580c0a81177e2a6257ecacd18fa97098f3eb4b0a993d347085f",
         "path": ".engine/tools/test_engine_help.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_engine_home_travel",
+      "name": ".engine/tools/test_engine_home_travel.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_engine_home_travel",
+      "source": {
+        "fingerprint": "sha256:a6b1303c96e9c4ea714ac74183523239222b826b8019fc419a105271c0155d17",
+        "path": ".engine/tools/test_engine_home_travel.py"
       },
       "status": "active",
       "type": "tool"
@@ -6449,7 +8709,7 @@
       },
       "slug": "test_engine_status",
       "source": {
-        "fingerprint": "sha256:629b1e364d28a97cc7b49aa9051a1218b2ad80b828dc46305184c0eabc04410e",
+        "fingerprint": "sha256:bbebd96e3779110074c05c1440022a788396f64098382dc758103ccb7e46eff5",
         "path": ".engine/tools/test_engine_status.py"
       },
       "status": "active",
@@ -6466,7 +8726,7 @@
       },
       "slug": "test_erase_enact",
       "source": {
-        "fingerprint": "sha256:18412ac910d7c4eaec677cb850f0f3e2625f670209f9839516f9eba9fa758eb1",
+        "fingerprint": "sha256:f0c5bd50a5541a174ed959edc2dd483aaab688eeb6cddfa092a47eab325f03b6",
         "path": ".engine/tools/memory/test_erase_enact.py"
       },
       "status": "active",
@@ -6483,7 +8743,7 @@
       },
       "slug": "test_erasure_observer",
       "source": {
-        "fingerprint": "sha256:f6d4c2f369b7af400d0119ff552f1bdf4f0899dd3246bbd1dea91a48ada2686f",
+        "fingerprint": "sha256:4f618221f8a9ed2b22f07bcddc39f5b5ba1789f2a772d3c9e307178433edb49c",
         "path": ".engine/tools/memory/test_erasure_observer.py"
       },
       "status": "active",
@@ -6500,8 +8760,25 @@
       },
       "slug": "test_erasure_proposer",
       "source": {
-        "fingerprint": "sha256:b3d59b8d93cd693ede5aee001114c234891baae2c9a74fe17a79ec0d08b4ec3f",
+        "fingerprint": "sha256:a17dc0a85be80242e02af38552c661bf09fa23adf08def0e0cbef9f11e45c50b",
         "path": ".engine/tools/memory/test_erasure_proposer.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_first_run_health",
+      "name": ".engine/tools/test_first_run_health.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_first_run_health",
+      "source": {
+        "fingerprint": "sha256:ed421e2d964bbd935777376e75dd561d6604583949c7793b2c01d099e31259f0",
+        "path": ".engine/tools/test_first_run_health.py"
       },
       "status": "active",
       "type": "tool"
@@ -6517,7 +8794,7 @@
       },
       "slug": "test_first_run_reference_closure",
       "source": {
-        "fingerprint": "sha256:bb3ae0707825035bfdf837eb3a26e4a72cea0e51aae9afba80f1a310d825f7e6",
+        "fingerprint": "sha256:b3cf5c47721372449214fce9b081977875e47b05ba4d4d2e227e39f0aa089d4e",
         "path": ".engine/tools/test_first_run_reference_closure.py"
       },
       "status": "active",
@@ -6534,7 +8811,7 @@
       },
       "slug": "test_forget",
       "source": {
-        "fingerprint": "sha256:47bc554728b5f16598c6c809efcc37c08ef3014fea81871293814ed3a9da4c31",
+        "fingerprint": "sha256:97e770289446fc68d8d8bdeefd5f9afab3e8e21704ae848b7f44e4a0a6830e7e",
         "path": ".engine/tools/memory/test_forget.py"
       },
       "status": "active",
@@ -6551,8 +8828,25 @@
       },
       "slug": "test_github_client",
       "source": {
-        "fingerprint": "sha256:7b00c192ab088263ec2b864a96192bd92d84b0a63ffbb74da432633c92afab96",
+        "fingerprint": "sha256:6af6ceb3d6461125b4b720387bc662ffd8215f4eb9dc07b678e9c35aec4e3800",
         "path": ".engine/tools/test_github_client.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_greenfield_intake",
+      "name": ".engine/tools/test_greenfield_intake.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_greenfield_intake",
+      "source": {
+        "fingerprint": "sha256:caa356483bb2a1a2a079a9b7f9dc36f0f2c224560e4158c963b7df76942fe620",
+        "path": ".engine/tools/test_greenfield_intake.py"
       },
       "status": "active",
       "type": "tool"
@@ -6568,7 +8862,7 @@
       },
       "slug": "test_hard_check_bite",
       "source": {
-        "fingerprint": "sha256:c52c4540436b7ac70b9e65d5f77a02ee22ea08986927790839ef76dcdd504034",
+        "fingerprint": "sha256:ddd03009645186f7c9a3b1872ed6baba748bffde2b8e1b687c3ee98a14b27cb4",
         "path": ".engine/tools/test_hard_check_bite.py"
       },
       "status": "active",
@@ -6585,7 +8879,7 @@
       },
       "slug": "test_hooks",
       "source": {
-        "fingerprint": "sha256:b248e30609bcff561407f5b1d08a59d50699e55a50e9988880172530fc67d455",
+        "fingerprint": "sha256:d509cca15ead4f5265d55a7c83e28ae36914f0e01784736dd2beb762b77897b3",
         "path": ".engine/tools/test_hooks.py"
       },
       "status": "active",
@@ -6619,8 +8913,25 @@
       },
       "slug": "test_index",
       "source": {
-        "fingerprint": "sha256:d85ca794b852657938f4c822dbd9cbdf073e93cbc42f459d454688052feaa243",
+        "fingerprint": "sha256:48401427e0621ae0587fbb1232fb54341fd3f743cf57d237866e033183269cae",
         "path": ".engine/tools/memory/test_index.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_instantiator",
+      "name": ".engine/tools/test_instantiator.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_instantiator",
+      "source": {
+        "fingerprint": "sha256:cbf5b7fd4d454910b78b9fba8b543125667fe068c8e2269b09d936a7a9cc176a",
+        "path": ".engine/tools/test_instantiator.py"
       },
       "status": "active",
       "type": "tool"
@@ -6636,7 +8947,7 @@
       },
       "slug": "test_interface",
       "source": {
-        "fingerprint": "sha256:af09e5d0b97e8a96e61915e6ffb6b46d9c4c5cd7d61c48596165278b736aa0b6",
+        "fingerprint": "sha256:4875639f75ef36a002562437b5251a2ae981e1ade5a8cb09a39e8e577632ddeb",
         "path": ".engine/tools/test_interface.py"
       },
       "status": "active",
@@ -6670,7 +8981,7 @@
       },
       "slug": "test_issue_author",
       "source": {
-        "fingerprint": "sha256:26afbc4f0cddc35a5613d246061aaa766bff9323769f6fc70e220e3f2002e583",
+        "fingerprint": "sha256:1de9794c53f6e19f27cfb0a9789fee1e1309cfe331990e3f6b10825724fc2ce9",
         "path": ".engine/tools/test_issue_author.py"
       },
       "status": "active",
@@ -6704,7 +9015,7 @@
       },
       "slug": "test_issue_gate",
       "source": {
-        "fingerprint": "sha256:dd2d8b77b5976b5ab1c25996d6024d07c4f14c2e30b9d0383f466263e56731b3",
+        "fingerprint": "sha256:05484e8575318ee4ed011d09e3acffcc7d9b46c53c8a77dfecf340c0c3685f39",
         "path": ".engine/tools/test_issue_gate.py"
       },
       "status": "active",
@@ -6721,7 +9032,7 @@
       },
       "slug": "test_knowledge",
       "source": {
-        "fingerprint": "sha256:fc5a74119f92692b8986d004ba2d071eb51eda389f06418fa67845026663eacd",
+        "fingerprint": "sha256:1d0ded98e484c2586556f5134911820a8bc298d45e449f7e66ccddf5f57f22a9",
         "path": ".engine/tools/test_knowledge.py"
       },
       "status": "active",
@@ -6738,7 +9049,7 @@
       },
       "slug": "test_knowledge_query",
       "source": {
-        "fingerprint": "sha256:31d765b4998f894a031f48feb5776e005f83a5b1d300fce170dd8237f7dc81e0",
+        "fingerprint": "sha256:15a8029a57864a6cc9397ebaeabca95637b8f002a1b20a86059e7dc1b8a8044f",
         "path": ".engine/tools/test_knowledge_query.py"
       },
       "status": "active",
@@ -6755,7 +9066,7 @@
       },
       "slug": "test_knowledge_vocabulary",
       "source": {
-        "fingerprint": "sha256:c3b33fd54869ba9369ec0e7e811cfbc8e29fd59b356814980a2226d013364895",
+        "fingerprint": "sha256:c347ad68d939de32ac632a40680a2530b6d97e7ca2826177f7c6c3591a634994",
         "path": ".engine/tools/test_knowledge_vocabulary.py"
       },
       "status": "active",
@@ -6772,7 +9083,7 @@
       },
       "slug": "test_ledger",
       "source": {
-        "fingerprint": "sha256:dfc72ec5ca29edd3ab8ee8f913ef58132b4b6278133ef34b1b64038572ab2be7",
+        "fingerprint": "sha256:f8f0a8438af9e88b86bef8ed8a8e2b8e1e2f8b1dcf6dda683b6b5cd5843634aa",
         "path": ".engine/tools/memory/test_ledger.py"
       },
       "status": "active",
@@ -6789,8 +9100,25 @@
       },
       "slug": "test_ledger_health",
       "source": {
-        "fingerprint": "sha256:0b332fee2afe7ba200c2840b68664140721f9f0d0ea1185a547bb7967497f8f5",
+        "fingerprint": "sha256:20a86f0d09101b36dde6e4203a3441df794d5307c4a5ebb31a4a93bcd30d8cba",
         "path": ".engine/tools/memory/test_ledger_health.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_ledger_migrations",
+      "name": ".engine/tools/memory/test_ledger_migrations.py",
+      "owner": "memory-substrate-sqlite-fts5",
+      "predicates": {
+        "provided_by": [
+          "module:memory-substrate-sqlite-fts5"
+        ]
+      },
+      "slug": "test_ledger_migrations",
+      "source": {
+        "fingerprint": "sha256:d90b24342a78d5bb351fdac00b9a4fb9fb27b8cd6c3c0b982c2482fb2f164cec",
+        "path": ".engine/tools/memory/test_ledger_migrations.py"
       },
       "status": "active",
       "type": "tool"
@@ -6808,6 +9136,40 @@
       "source": {
         "fingerprint": "sha256:6e837e2561dbfcfe8302f639831d7130dce84914c331724aa29b7b30d554dbac",
         "path": ".engine/tools/test_lens_consumption.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_license_health",
+      "name": ".engine/tools/test_license_health.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_license_health",
+      "source": {
+        "fingerprint": "sha256:021d588b5ba61a8b75d1c4303c51c8ac55f97a7723f5cfdeb01f30b6f9aaace2",
+        "path": ".engine/tools/test_license_health.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_license_seeds",
+      "name": ".engine/tools/test_license_seeds.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_license_seeds",
+      "source": {
+        "fingerprint": "sha256:222bf681bff17a1b49bc6b6e948e4b114428ed2e9e8dbf8fa98b6fa31ff44789",
+        "path": ".engine/tools/test_license_seeds.py"
       },
       "status": "active",
       "type": "tool"
@@ -6840,7 +9202,7 @@
       },
       "slug": "test_mcp_server",
       "source": {
-        "fingerprint": "sha256:23505dce1281499e95fc71935969448de082d7803223d333ed188f25c3db7357",
+        "fingerprint": "sha256:57c0943b8c7844312123d7479b16d8d0a53d83b0215909c0f3890e1bb78daf89",
         "path": ".engine/tools/memory/test_mcp_server.py"
       },
       "status": "active",
@@ -6857,7 +9219,7 @@
       },
       "slug": "test_memory_pointer_public_safety",
       "source": {
-        "fingerprint": "sha256:52eed082cba3d9629d6061d51e8a5f3f71a6bff6236b1d6f6b351bd110659a2c",
+        "fingerprint": "sha256:25d575820a4d861175af90cded95fccceca1923e6f3528a585f029650b8482b2",
         "path": ".engine/tools/test_memory_pointer_public_safety.py"
       },
       "status": "active",
@@ -6874,7 +9236,7 @@
       },
       "slug": "test_milestone_emit",
       "source": {
-        "fingerprint": "sha256:6681a01b273eeae8337bb15d2d2f19d150969e1c3c4f35f6bbbe08bdd200dc30",
+        "fingerprint": "sha256:21cbfbb1bfb4be3a1205dab321131f18099032e8b8fbbbde0907709e74e46f6f",
         "path": ".engine/tools/test_milestone_emit.py"
       },
       "status": "active",
@@ -6891,7 +9253,7 @@
       },
       "slug": "test_modes",
       "source": {
-        "fingerprint": "sha256:7d3fdc27b1eb077ff054fb7978d001b2ee804d3fd2e057b5d1e0ed687fbe387d",
+        "fingerprint": "sha256:f3c171bb362cce167145995b643b3948bfa14704ba771ccc5d6196f80886a466",
         "path": ".engine/tools/test_modes.py"
       },
       "status": "active",
@@ -6908,7 +9270,7 @@
       },
       "slug": "test_module_catalog",
       "source": {
-        "fingerprint": "sha256:fb481234ba3d3e825e0142827c15c4a0462b1d70dbb016cf341a1a3e9afbfa65",
+        "fingerprint": "sha256:7ae05caf057b62568780889cb034c8d2555570b2da7faaff92e84f14f6f8895a",
         "path": ".engine/tools/test_module_catalog.py"
       },
       "status": "active",
@@ -6925,7 +9287,7 @@
       },
       "slug": "test_module_manager",
       "source": {
-        "fingerprint": "sha256:a5b35f184103da82a2b7579baf4d6d1ada3e3142d2ba6954a96e50ed6f5f0105",
+        "fingerprint": "sha256:afd0b04b24bc1b899b25780c2b20b6b7446eb156d0afeee2748fc1a22015bfb4",
         "path": ".engine/tools/test_module_manager.py"
       },
       "status": "active",
@@ -6942,7 +9304,7 @@
       },
       "slug": "test_modules",
       "source": {
-        "fingerprint": "sha256:93ce081b1fe38ac6d9fbdc74f7c333a81e303382ea1e91aadfe16b194fa56ddf",
+        "fingerprint": "sha256:487f1f52df3609e90bbbd2bb9e34163b47255f771d00e85ad6b333f0ac7e468c",
         "path": ".engine/tools/test_modules.py"
       },
       "status": "active",
@@ -6959,7 +9321,7 @@
       },
       "slug": "test_obligation_matrix",
       "source": {
-        "fingerprint": "sha256:786c0f2f3cef4a8fd15da9ac91b8196b5d7b8d51d5f1d07c5a89f5bf2f878809",
+        "fingerprint": "sha256:2a260bf4635838f0c28604c9a387e90eb388dddf28bb51037c903a47fd658185",
         "path": ".engine/tools/product_design/test_obligation_matrix.py"
       },
       "status": "active",
@@ -6976,8 +9338,25 @@
       },
       "slug": "test_operation",
       "source": {
-        "fingerprint": "sha256:cf9c0edd3238dfdbecd3f1987ca7f156cf4d937dc188e8867dd42c82361aeb84",
+        "fingerprint": "sha256:baef442964dfda575a4b4576a114dcae22b15502a0e0dcab0e3a8661dfabaecc",
         "path": ".engine/tools/test_operation.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_operator_guarded_paths_check",
+      "name": ".engine/tools/test_operator_guarded_paths_check.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_operator_guarded_paths_check",
+      "source": {
+        "fingerprint": "sha256:ddc65d0d81c853f7d0599a091b21079c7beb682325d53195a4b5d90a46342d10",
+        "path": ".engine/tools/test_operator_guarded_paths_check.py"
       },
       "status": "active",
       "type": "tool"
@@ -6993,8 +9372,25 @@
       },
       "slug": "test_operator_overrides",
       "source": {
-        "fingerprint": "sha256:014877759311a7d4ef50c46400ac04e44aaa3eac8103af1d6d7e2abedc6c5bf1",
+        "fingerprint": "sha256:870c4c3f45032797e768ea8cc31dae6caa3796a5833974f293cc3e7c130c4bf6",
         "path": ".engine/tools/test_operator_overrides.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_overlay_disclosure",
+      "name": ".engine/tools/test_overlay_disclosure.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_overlay_disclosure",
+      "source": {
+        "fingerprint": "sha256:eaf25daa3e592c0218386dca6f6b9e523ce524f62776e1fe4380d74e2948d6af",
+        "path": ".engine/tools/test_overlay_disclosure.py"
       },
       "status": "active",
       "type": "tool"
@@ -7010,7 +9406,7 @@
       },
       "slug": "test_pinning",
       "source": {
-        "fingerprint": "sha256:48fd402830453baa3f4113b90aaa8665a7ae287f6990d305234eed7e09dceeba",
+        "fingerprint": "sha256:9722bc1fe98753f890fbbef7ce3b5e868ba0a59d76daa2d698c4895bbe5bbe73",
         "path": ".engine/tools/dependency_discipline/test_pinning.py"
       },
       "status": "active",
@@ -7027,7 +9423,7 @@
       },
       "slug": "test_policy",
       "source": {
-        "fingerprint": "sha256:71fcf326ebdfe4c9a4f9dd3b2235fcc62c599f5033126bbff38c4d48037da8e1",
+        "fingerprint": "sha256:27165c81131651b27fce7405dbb07d49330acccb227c738875753d9567f609cb",
         "path": ".engine/tools/test_policy.py"
       },
       "status": "active",
@@ -7044,7 +9440,7 @@
       },
       "slug": "test_policy_override_check",
       "source": {
-        "fingerprint": "sha256:f492061c4326f49f140e66098adf5eb538468abe2a16826dedc8bed6aff2e254",
+        "fingerprint": "sha256:f6fc4a62551256feec3265a7999bfa72fcc6d59ccc08046dee3d826369eb1d6b",
         "path": ".engine/tools/test_policy_override_check.py"
       },
       "status": "active",
@@ -7061,7 +9457,7 @@
       },
       "slug": "test_pr_reconcile",
       "source": {
-        "fingerprint": "sha256:b0439235fa5585d61fa31bab1a94c279a721c2145311e67f0f193bb6f8214a1b",
+        "fingerprint": "sha256:694c90a0de1915d9452eb412af5c3e47974298fca5e5eb5862e0fbdf58f39498",
         "path": ".engine/tools/test_pr_reconcile.py"
       },
       "status": "active",
@@ -7078,7 +9474,7 @@
       },
       "slug": "test_projects_sync",
       "source": {
-        "fingerprint": "sha256:df228832648bc99d3fb173ded560cec8adb25cce3da2bfddf9cf13717ea3be5f",
+        "fingerprint": "sha256:2336249526b8ee497d775b41ab644091759319cfabb497f66a71210ac427fba8",
         "path": ".engine/tools/projects_sync/test_projects_sync.py"
       },
       "status": "active",
@@ -7102,6 +9498,23 @@
       "type": "tool"
     },
     {
+      "id": "tool:test_providers",
+      "name": ".engine/tools/test_providers.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_providers",
+      "source": {
+        "fingerprint": "sha256:f9cc973805c054adbf880ce14fb7b9ba3ec821df6d4534ba56670de93518d8ed",
+        "path": ".engine/tools/test_providers.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "id": "tool:test_qa_review",
       "name": ".engine/tools/test_qa_review.py",
       "owner": "core",
@@ -7112,7 +9525,7 @@
       },
       "slug": "test_qa_review",
       "source": {
-        "fingerprint": "sha256:89f1083d64c18d17d60c84973b7bf70e82251db363f43335774fbd2e8decc465",
+        "fingerprint": "sha256:aa87228f2f42e8ffe95cdec274318367b2bc6c156a0b19138d04d4b732f10973",
         "path": ".engine/tools/test_qa_review.py"
       },
       "status": "active",
@@ -7146,7 +9559,7 @@
       },
       "slug": "test_records",
       "source": {
-        "fingerprint": "sha256:f2b949067904995b3e81be260790b3b77c77a0511c92e496f90eafff04620cda",
+        "fingerprint": "sha256:037e3d513bc4a4ee9766236ca68f1080a94303cb69e238511d60b2966ed3cfe7",
         "path": ".engine/tools/memory/test_records.py"
       },
       "status": "active",
@@ -7163,7 +9576,7 @@
       },
       "slug": "test_release_cut",
       "source": {
-        "fingerprint": "sha256:3dd44facfa575847ed4ddbf2286a6d44ae37e59be31959d05e65680ff7631cb2",
+        "fingerprint": "sha256:15669075d8ff4f899eba2e25a5f7139f906ba9881f06236be7446b7270d9de8f",
         "path": ".engine/tools/test_release_cut.py"
       },
       "status": "active",
@@ -7180,8 +9593,25 @@
       },
       "slug": "test_release_terminal",
       "source": {
-        "fingerprint": "sha256:fb2c5e8ffa411f9042047747d6f5d461086c4407b7fd44db5ceabb538d800a08",
+        "fingerprint": "sha256:80768592626f05387ad184a26445fd422ca0990b3fa922d49a5fe13bd2fa4082",
         "path": ".engine/tools/test_release_terminal.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_repo_behavior",
+      "name": ".engine/tools/test_repo_behavior.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_repo_behavior",
+      "source": {
+        "fingerprint": "sha256:b32b27a61d833a0c16c954466becb8e67eb3b06946800a84680e55386786f3d4",
+        "path": ".engine/tools/test_repo_behavior.py"
       },
       "status": "active",
       "type": "tool"
@@ -7197,7 +9627,7 @@
       },
       "slug": "test_restore_vault",
       "source": {
-        "fingerprint": "sha256:9b41cf586c66d776999b3e89ae8b0cb66e38d1e15cbfa868cba6b7027b4da662",
+        "fingerprint": "sha256:1dc907e49d23e48f3e020b0f6048cf6f6db03034716e202b007360ebd0590927",
         "path": ".engine/tools/memory/test_restore_vault.py"
       },
       "status": "active",
@@ -7214,7 +9644,7 @@
       },
       "slug": "test_review",
       "source": {
-        "fingerprint": "sha256:a53cfe157f229dcf56ca8c9ce68c0ee004d015255f0a813f196244881c874e88",
+        "fingerprint": "sha256:b2762301910860863cfffb2f916205453ad1e469dca7d9274372fc1001a2f487",
         "path": ".engine/tools/dependency_discipline/test_review.py"
       },
       "status": "active",
@@ -7231,7 +9661,7 @@
       },
       "slug": "test_rollback",
       "source": {
-        "fingerprint": "sha256:817055ecd8ee1ea65338b607285cc9cf6cf9eca6e0c34425cd6e03c494f4a96b",
+        "fingerprint": "sha256:9256d0fde9f20d708c248d57ab3885962450a946afb2bcee2d05f68f3fd8ada6",
         "path": ".engine/tools/migration_discipline/test_rollback.py"
       },
       "status": "active",
@@ -7248,7 +9678,7 @@
       },
       "slug": "test_rollup",
       "source": {
-        "fingerprint": "sha256:2f230db782f0ac7eb7da2a0dd203ef64af56ef2c50fa85931384577ec6a85eb5",
+        "fingerprint": "sha256:03e78c8251fda976b127aac3bc83db688250c22139aac988850a0e6e6b31e106",
         "path": ".engine/tools/memory/test_rollup.py"
       },
       "status": "active",
@@ -7265,7 +9695,7 @@
       },
       "slug": "test_rollup_sweep",
       "source": {
-        "fingerprint": "sha256:2239ea5ae13e9abb422db622699878dd5767d58fbbef405e8638386d922a1902",
+        "fingerprint": "sha256:24f9455be4a643716a2b09c0f660623d5cc0f4364ac0a59ad80aa0983867136f",
         "path": ".engine/tools/memory/test_rollup_sweep.py"
       },
       "status": "active",
@@ -7282,7 +9712,7 @@
       },
       "slug": "test_scaffold",
       "source": {
-        "fingerprint": "sha256:753040908ec3cfa7d6d66087c13de8848e5c47f8726fb2f22ad30ba2c0a29254",
+        "fingerprint": "sha256:09e0593a27eb7f396089b46c3f8466f3e412ad252a0db3c36066b5d866f705a2",
         "path": ".engine/tools/product_design/test_scaffold.py"
       },
       "status": "active",
@@ -7299,7 +9729,7 @@
       },
       "slug": "test_scent",
       "source": {
-        "fingerprint": "sha256:4d48f53e40a20992472be3f7c9cac26431d693d0b3ce117b7d980450bc51053b",
+        "fingerprint": "sha256:240a03b83b586f5e68883e0ad4ae5731c9368eab1f88e39d98952643b15a672b",
         "path": ".engine/tools/test_scent.py"
       },
       "status": "active",
@@ -7316,7 +9746,7 @@
       },
       "slug": "test_scent_lookup",
       "source": {
-        "fingerprint": "sha256:46cc3af26e1f7cdb76d13a843cb42ebfca11a9e4bd4b27e08dcb12d585debfd6",
+        "fingerprint": "sha256:83cc2b8efe66fda2b18560b09a011f8e0e7ade4759be17d11ae02d0c320d2415",
         "path": ".engine/tools/memory/test_scent_lookup.py"
       },
       "status": "active",
@@ -7333,7 +9763,7 @@
       },
       "slug": "test_score",
       "source": {
-        "fingerprint": "sha256:394a99e179f318718a1a956006a1edc1b99f608757903feb4002a10f5bb76c80",
+        "fingerprint": "sha256:0c58471656a34a98b8c120f74e00cd0154b3bf8cb80d26cc3477c2ec5cdd2131",
         "path": ".engine/tools/memory/test_score.py"
       },
       "status": "active",
@@ -7350,7 +9780,7 @@
       },
       "slug": "test_search",
       "source": {
-        "fingerprint": "sha256:2af98b69dd39c516d362613db6bca433712a4b3d2a2e000b551150f337658628",
+        "fingerprint": "sha256:73ac8f47008dea3833a085ba302c83ff21b7f42b0cf5da38d38b0304385abbec",
         "path": ".engine/tools/memory/test_search.py"
       },
       "status": "active",
@@ -7367,7 +9797,7 @@
       },
       "slug": "test_secret_scan",
       "source": {
-        "fingerprint": "sha256:4ccf74c1b297668eb19b987d73eca8c65189b326bddd8110208fc6bac1d1f828",
+        "fingerprint": "sha256:3cfcfdbf6457f74d9ada2d4590d1a41dced3d12f581671b1827a3d9cd2498445",
         "path": ".engine/tools/test_secret_scan.py"
       },
       "status": "active",
@@ -7384,8 +9814,25 @@
       },
       "slug": "test_security_floor",
       "source": {
-        "fingerprint": "sha256:75e53dc3a9e35130cc338b9f9db857c4e3236644911c173be52d44ca7f35a211",
+        "fingerprint": "sha256:3f95eff23506b4d6b4654dc91a11cbe4d5afe305b9d1fe29a13d50fe1613b09e",
         "path": ".engine/tools/test_security_floor.py"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
+      "id": "tool:test_security_seed",
+      "name": ".engine/tools/test_security_seed.py",
+      "owner": "core",
+      "predicates": {
+        "provided_by": [
+          "module:core"
+        ]
+      },
+      "slug": "test_security_seed",
+      "source": {
+        "fingerprint": "sha256:75d045f03d7c88a9d103dc13b3cfd752fbc43bbfed35f5344890e68b8f326a4c",
+        "path": ".engine/tools/test_security_seed.py"
       },
       "status": "active",
       "type": "tool"
@@ -7401,7 +9848,7 @@
       },
       "slug": "test_seed",
       "source": {
-        "fingerprint": "sha256:87b4dacafe871e79f17c90b66f43b0c2f9a16be08dae05d323c266893172acd8",
+        "fingerprint": "sha256:d711b8cbd28d34bd9ca0fe67cd856a71f37156aa42dfe458e715b02528050bd4",
         "path": ".engine/tools/test_seed.py"
       },
       "status": "active",
@@ -7418,7 +9865,7 @@
       },
       "slug": "test_self_map",
       "source": {
-        "fingerprint": "sha256:9e7d97a5ffd7673e395938b5b2f67383ece5b0df3cdfccce887c07481c7e731a",
+        "fingerprint": "sha256:f586a53b72e8e49b487ba5bd8c460192d75a9178d6b3cb0a7e643d778b0cbb30",
         "path": ".engine/tools/test_self_map.py"
       },
       "status": "active",
@@ -7435,7 +9882,7 @@
       },
       "slug": "test_self_review_setup",
       "source": {
-        "fingerprint": "sha256:3aad76fb6c9ff55b676c9fb71e24ec08f63a598842af7ec04811a9156f646042",
+        "fingerprint": "sha256:f18a90eac6bd9b65100d261a1d3df91e6db50ba126b136a95417cb340e6e09fa",
         "path": ".engine/tools/test_self_review_setup.py"
       },
       "status": "active",
@@ -7452,7 +9899,7 @@
       },
       "slug": "test_skill",
       "source": {
-        "fingerprint": "sha256:16b035aae3f13ec0596cd91aca7f99eabf91f5e5ffc62fa729af0040157a7486",
+        "fingerprint": "sha256:1c3ece970051f0c898688381cf266009ec15b55f0ad99e3436184d1fe12283d8",
         "path": ".engine/tools/test_skill.py"
       },
       "status": "active",
@@ -7469,7 +9916,7 @@
       },
       "slug": "test_skill_coherence_check",
       "source": {
-        "fingerprint": "sha256:9ec1ac11d4732d3f81c8ae89fe232bd233a6ed3a51f1ae46f4487d7fee1598fe",
+        "fingerprint": "sha256:7e002b840c860abf89c56cbf53a923a9fa16e28833df7de67e3d96e3a767e717",
         "path": ".engine/tools/test_skill_coherence_check.py"
       },
       "status": "active",
@@ -7486,7 +9933,7 @@
       },
       "slug": "test_spec_form",
       "source": {
-        "fingerprint": "sha256:c2f931046c5e954510efda84aaada7e82e85f3366ad9911da9ef837133642f61",
+        "fingerprint": "sha256:322ab81960e72ee3d27a61e39fd5731ed252c68b0a8b7c8a5f9f64158be48d0b",
         "path": ".engine/tools/product_design/test_spec_form.py"
       },
       "status": "active",
@@ -7503,7 +9950,7 @@
       },
       "slug": "test_spec_referent",
       "source": {
-        "fingerprint": "sha256:7105091e1d6726cacdaa6984d2886934636d8aa94ea30b46bc8f176c875a8b79",
+        "fingerprint": "sha256:c41d80686f4c3c151ea7e365add30852e196dd61f0bd32dfa0e99a554065d272",
         "path": ".engine/tools/test_spec_referent.py"
       },
       "status": "active",
@@ -7520,7 +9967,7 @@
       },
       "slug": "test_standing_situation",
       "source": {
-        "fingerprint": "sha256:012b8ed36b3f385a1c86f8a35cdbb3e058b1a3c663d23aaf836fe3e8b97a0c40",
+        "fingerprint": "sha256:c2bb2f2d8e2e1e3199d883d7b8330204da26d052135daae714960fabdcbda47f",
         "path": ".engine/tools/test_standing_situation.py"
       },
       "status": "active",
@@ -7537,7 +9984,7 @@
       },
       "slug": "test_state",
       "source": {
-        "fingerprint": "sha256:e13c2c2cc9f553f09ab11e8ee2f48cfb1672397c3a7637a325b3a6a8ca9f7797",
+        "fingerprint": "sha256:09bc9b7e8f3042d4e21e96d7503e672e6662af5262c9f588c29f43d32e395fa5",
         "path": ".engine/tools/test_state.py"
       },
       "status": "active",
@@ -7554,7 +10001,7 @@
       },
       "slug": "test_submit",
       "source": {
-        "fingerprint": "sha256:6fd08cf25a81f02da328a28ba7c93baee56321d1609652a29c77a71471fbb94c",
+        "fingerprint": "sha256:4326f228f63b07479354f3608cb80038e81086096eb5c168754b3e39328adeb2",
         "path": ".engine/tools/external_contribution/test_submit.py"
       },
       "status": "active",
@@ -7571,7 +10018,7 @@
       },
       "slug": "test_team_switch",
       "source": {
-        "fingerprint": "sha256:8064603557b224a39d9fb07aa65b45589ecf318ae2e78f4af36abbc62113c4df",
+        "fingerprint": "sha256:773c8e4839b3a2801d280f46eaedb32866f704366c8b94d1e341524db145a21c",
         "path": ".engine/tools/test_team_switch.py"
       },
       "status": "active",
@@ -7588,7 +10035,7 @@
       },
       "slug": "test_telemetry",
       "source": {
-        "fingerprint": "sha256:9e54f731b3d3962968273a3878429013247bce112f7ae6bd9ec603edd68e961d",
+        "fingerprint": "sha256:492fb11f381f0e53d0f178d8c5baecf0574ad14cb6ca25143fb8147e7b3f2838",
         "path": ".engine/tools/test_telemetry.py"
       },
       "status": "active",
@@ -7605,7 +10052,7 @@
       },
       "slug": "test_tune",
       "source": {
-        "fingerprint": "sha256:5473e0c48bdb3b6c1772ac11822ebf73a6cccd530b875b96353c5315ba38fbd2",
+        "fingerprint": "sha256:a30d1a65012cb667441d078f2af7a0dd97f01b164b4f373fb4f29169a790bf8f",
         "path": ".engine/tools/test_tune.py"
       },
       "status": "active",
@@ -7622,7 +10069,7 @@
       },
       "slug": "test_unresolved_conversation_notice",
       "source": {
-        "fingerprint": "sha256:ad56fe0b114077fbfb7ac1f66a307827a5798140991af0586d22bbd09d5a1648",
+        "fingerprint": "sha256:137b45c7cba3fc96ab84c23368bff7dbbf20a3fcf5512269f427a96fd8ac2269",
         "path": ".engine/tools/test_unresolved_conversation_notice.py"
       },
       "status": "active",
@@ -7639,7 +10086,7 @@
       },
       "slug": "test_upstream_clean",
       "source": {
-        "fingerprint": "sha256:b7d76c752dc56aafb8ab7d1a4dc01357d3a2914f12d6fb726330161ed8f91b6d",
+        "fingerprint": "sha256:ccd605e4fa0ad77a9bec87777f42669a8f3b6db6e04840866a30100634aaf4c6",
         "path": ".engine/tools/external_contribution/test_upstream_clean.py"
       },
       "status": "active",
@@ -7656,7 +10103,7 @@
       },
       "slug": "test_uv_group_drift",
       "source": {
-        "fingerprint": "sha256:48ff9f09698e17f3133884223bd6b0cecde319afbf46a081243da5cac5abb3b0",
+        "fingerprint": "sha256:1c41d5d74701ff06829f246e91e28a47c3ba2781a372d4117c60cd79ccc32f40",
         "path": ".engine/tools/test_uv_group_drift.py"
       },
       "status": "active",
@@ -7690,7 +10137,7 @@
       },
       "slug": "test_wiring",
       "source": {
-        "fingerprint": "sha256:d919f1135152db8f0109f41c22f19f8faca203f008e577d12ce4ab2217d70f33",
+        "fingerprint": "sha256:534f6ec189ceccc6297f233d07118d06f32d2a0d3b3382333f2dc805f93366fb",
         "path": ".engine/tools/test_wiring.py"
       },
       "status": "active",
@@ -7707,7 +10154,7 @@
       },
       "slug": "test_work_record",
       "source": {
-        "fingerprint": "sha256:431ab59c960aa797e128f36424cd63375da9b39ea00652ca8fec50df94da4772",
+        "fingerprint": "sha256:7252b687582291d5dc77f4c543311eb1579ea8cb4590662c9c146a81d77bbe1e",
         "path": ".engine/tools/test_work_record.py"
       },
       "status": "active",
@@ -7724,7 +10171,7 @@
       },
       "slug": "tune",
       "source": {
-        "fingerprint": "sha256:9ce8d309b1710fdb25bf13ba21207c32eaf142855db56d12bb6b7a28b86a37a3",
+        "fingerprint": "sha256:a6c4eb3e8aabba3bf6dad4c95fd4bbaa2cf4021334a30cbfac330c1c47034729",
         "path": ".engine/tools/tune.py"
       },
       "status": "active",
@@ -7741,7 +10188,7 @@
       },
       "slug": "unresolved_conversation_notice",
       "source": {
-        "fingerprint": "sha256:398f76c2115b6842a2c903d63f1d068282a7d6814dba62b08685b9bf3595ee95",
+        "fingerprint": "sha256:bc6deeeaa9fca753c8c01996ed4d9ae012be2a4253cd4348e8f539b49b9e2b36",
         "path": ".engine/tools/unresolved_conversation_notice.py"
       },
       "status": "active",
@@ -7775,7 +10222,7 @@
       },
       "slug": "upstream_clean_check",
       "source": {
-        "fingerprint": "sha256:76a03ee80ed2e678946f8f56c8dce63fbd80a58bca3cdb74e3d966202b9f6f24",
+        "fingerprint": "sha256:568ac4852ac48b1db62945bd6d798a4b4842831622d63ecf271e23e5b06451d7",
         "path": ".engine/tools/external_contribution/upstream_clean_check.py"
       },
       "status": "active",
@@ -7792,7 +10239,7 @@
       },
       "slug": "uv_group_drift_check",
       "source": {
-        "fingerprint": "sha256:5e737e8d7efac942b794806de072c5a44bb43846e22688517fedfb9fff522771",
+        "fingerprint": "sha256:fdecd1f90f375935b909179172bb67d7209571f0227e27f47876757234000db8",
         "path": ".engine/tools/uv_group_drift_check.py"
       },
       "status": "active",
@@ -7809,7 +10256,7 @@
       },
       "slug": "validate",
       "source": {
-        "fingerprint": "sha256:ecf683fccfbbb850504383081abb71a7c1743ef7dc3b53396a176497dba85a5b",
+        "fingerprint": "sha256:e6f1e567de4bb13f5ed5f35f0d85dd93c11994d34765aa65e1ed846474622e42",
         "path": ".engine/tools/validate.py"
       },
       "status": "active",
@@ -7826,7 +10273,7 @@
       },
       "slug": "weakening_guard",
       "source": {
-        "fingerprint": "sha256:500e6ee8721cf4c599cf8729d1b2092aafa494b25b2e93679a6d50fd7bd00d64",
+        "fingerprint": "sha256:b3a8d40820bb93b7f3130f4e0919eda0396f625408f28cf1fb887450a74c1cf3",
         "path": ".engine/tools/weakening_guard.py"
       },
       "status": "active",
@@ -7843,7 +10290,7 @@
       },
       "slug": "wiring",
       "source": {
-        "fingerprint": "sha256:826a9bbac7ef934a5b51bd89e4f118d87235c572f0cdda886427dd110dbafcc6",
+        "fingerprint": "sha256:7a3c2c754c8a5fffa2e10e13bdd0d2de7ffc6c2b60c9d82afb81546a880838fc",
         "path": ".engine/tools/wiring.py"
       },
       "status": "active",
@@ -7860,7 +10307,7 @@
       },
       "slug": "work_record",
       "source": {
-        "fingerprint": "sha256:faf0e54f1f2051742357d1cb1d2e967af813ea9baa541fbe050fc224a197c7fb",
+        "fingerprint": "sha256:fa2bdd2301a797e453756e0392c88131cbc14314bf0d2164179d3a2b842c59e3",
         "path": ".engine/tools/work_record.py"
       },
       "status": "active",

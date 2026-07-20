@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Submit-time close-linkage consistency pre-flight (engine-template #361; engine-planning D-283 -> D-284).
+"""Submit-time close-linkage consistency pre-flight (engine-template #361).
 
 GitHub auto-closes an issue from any `close`/`fixes`/`resolves #N` keyword — including one buried in prose — in
 a pull request's body OR an integrated commit message. So a PR gets accidentally set to close an issue it only
@@ -28,14 +28,14 @@ Two contradictions are decidable without reading intent, and one bound is named:
   - **cross-repo (out of reach)** — a `owner/repo#N` close has no local Scope line to adjudicate, so it is
     surfaced-and-named, never silently passed and never defanged.
 
-Acting is **detect-and-surface, never silent-and-unilateral** (D-284): the default is to *surface* a plain line;
+Acting is **detect-and-surface, never silent-and-unilateral**: the default is to *surface* a plain line;
 only an **unambiguously-accidental**, **body-sourced** keyword (scope declares "Part of #N", no deliberate close
 line, and the honored occurrence is uniquely locatable) is **neutralized** — a minimal, keyword-only defang of
 the engine's own PR body, byte-identical everywhere else, **never** a narrative rewrite and **never** a read or
 edit of product scope. Any defang is **disclosed** in Review; a wanted close wrongly neutralized is a disclosed,
 operator-recoverable miss. When the honored occurrence cannot be uniquely located and reconciled against GitHub's
 own set, or the close is commit-sourced (a body edit cannot neutralize it), the pre-flight **surfaces** instead of
-defanging — a false "I removed…" would break the one §17 bound this path has.
+defanging — a false "I removed…" would break the one informed-consent bound this path has.
 
 Fail-closed: if the will-close set cannot be read at submit (a stale `gh`, a missing `issues: read` sub-scope on a
 private repo, an unreachable host), the pre-flight emits the **could-not-read** line pointing the operator to
@@ -61,11 +61,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402 — for section_blocks (the PR-body section parser)
 
-# The closing-keyword alternation — GitHub's common close/fix/resolve forms. A KNOWING DUPLICATE of
-# standing_situation._CLOSES_RE's core (a self-contained tool must not couple to that module, whose role —
-# deriving the standing-situation card — is unrelated; the spec_referent.py knowing-duplicate precedent). The
-# `[:\s]+` separator and keyword set are a **best-effort approximation** of GitHub's rule: a commit-message close
-# GitHub honors but this misses would degrade toward a false clean, so keep this aligned with GitHub's keywords.
+# The closing-keyword alternation — GitHub's common close/fix/resolve forms, kept SELF-CONTAINED here (a
+# standalone submit-time tool must not couple to another module for this; the spec_referent.py
+# self-contained-regex precedent). The `[:\s]+` separator and keyword set are a **best-effort approximation**
+# of GitHub's rule: a commit-message close GitHub honors but this misses would degrade toward a false clean, so
+# keep this aligned with GitHub's keywords.
 _KW = r"close[sd]?|fix(?:es|ed)?|resolve[sd]?"
 
 # One closing REFERENCE-LIST after a keyword: `#N`, an `owner/repo#N` cross-repo ref, or a comma-run of them
@@ -314,7 +314,7 @@ def classify(*, body: str, honored_local: set, commit_honored: set, commit_trap:
 
 def render(result: dict) -> str:
     """The plain Review-block text (the operator lines joined), or "" when there is no contradiction — a null
-    result produces NO line and is not part of Review's non-empty requirement (D-284)."""
+    result produces NO line and is not part of Review's non-empty requirement."""
     return "\n".join(result["lines"])
 
 
