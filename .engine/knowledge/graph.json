@@ -8323,7 +8323,7 @@
       },
       "slug": "test_hard_check_bite",
       "source": {
-        "fingerprint": "sha256:ddd03009645186f7c9a3b1872ed6baba748bffde2b8e1b687c3ee98a14b27cb4",
+        "fingerprint": "sha256:9cfd52b7799c3fc2c5fcc9a73da3d641f91181559ee12b593cc40fe56f60b2c6",
         "path": ".engine/tools/test_hard_check_bite.py"
       },
       "status": "active",
@@ -9309,7 +9309,7 @@
       },
       "slug": "test_self_map",
       "source": {
-        "fingerprint": "sha256:f586a53b72e8e49b487ba5bd8c460192d75a9178d6b3cb0a7e643d778b0cbb30",
+        "fingerprint": "sha256:1d9ffef44105295bb348d5193c61632ff20a861df32ce10f45c07e63a6a1149f",
         "path": ".engine/tools/test_self_map.py"
       },
       "status": "active",
