@@ -120,6 +120,7 @@ META_SCHEMA_URI = "https://json-schema.org/draft/2020-12/schema"
 
 LINK_RE = re.compile(r"\]\(([^)]+)\)")
 HEADING_RE = re.compile(r"^##\s+(.*?)\s*$")          # a level-2 (## ) heading; ### does not match
+_ANY_HEADING_LINE = re.compile(r"^#{1,6}[ \t]+\S")   # any markdown heading line (## … or ### …), for emptiness
 FENCE_RE = re.compile(r"^\s*(?:```|~~~)")             # a fenced-code-block delimiter (``` or ~~~); toggles in/out
 PLACEHOLDER_RE = re.compile(r"^<[^>]*>$")             # a prompt token (decoration stripped), e.g. <why this exists>
 LIST_MARKER_RE = re.compile(r"^[-*+]\s+")             # a leading unordered-list bullet marker
@@ -378,8 +379,13 @@ def is_empty_section(text: str, label: str | None = None) -> bool:
     leg, so a section carrying only a filled Impact line still needs real summary/bullet
     content. With no label the behaviour is unchanged, so other presence checks are exact."""
     for line in text.splitlines():
-        if not line.strip() or _placeholder_only(line):
+        stripped = line.strip()
+        if not stripped or _placeholder_only(line):
             continue
+        if _ANY_HEADING_LINE.match(stripped):
+            continue                          # a bare (sub-)heading is scaffolding, not filled content:
+            # a `### Foo` line inside a section must not by itself flip that section from empty to filled,
+            # or shipping a subsection heading into a template section would silently defeat this gate.
         if label is not None and _label_remainder(line, label) is not None:
             continue
         return False
@@ -443,6 +449,27 @@ def subsection_fill_findings(body: str, sections: list, label: str, tier: str,
     return findings
 
 
+def phrase_presence_findings(phrases: list, body: str, tier: str, message: str, where: str) -> list:
+    """ONE finding when any required anchor of the consent preamble is absent from `body`. This
+    guards a fixed anchor a template scan of `## ` headings cannot see — the pull-request preamble
+    blockquote, which sits above the first heading. Each anchor is a whole-body substring match, so
+    it must sit on one physical line (a hard wrap inside an anchor reads as absent). The findings
+    are consolidated into a single entry that lists every missing anchor, so a whole-preamble drop —
+    the common case — reads as one defect, not one wall of text per anchor. This is a set of
+    structural anchors for one consent surface, never a growable registry of arbitrary required
+    sentences, and never a judgement of the prose around them."""
+    missing = [p for p in phrases if p not in body]
+    if not missing:
+        return []
+    absent = "; ".join(f'"{p}"' for p in missing)
+    return [finding(tier, f"The {where} is missing the consent preamble — the italic note at the very "
+                    f"top that tells a reader a green check shows conformance, not correctness, and that "
+                    f"their merge is the binding gate. These anchors of it are absent: {absent}. It drops "
+                    f"when a body is reconstructed rather than filled from the template verbatim; if the "
+                    f"preamble looks present, check that no line wrap falls inside an anchor (each must sit "
+                    f"on one unwrapped line). Restore the preamble. {message}")]
+
+
 # ---- kind: presence --------------------------------------------------------
 
 def kind_presence(rule, ctx):
@@ -453,14 +480,17 @@ def kind_presence(rule, ctx):
     template body does NOT pass on its own. When params carry a
     `filled_subsection_label`, each non-empty section must ALSO carry a filled line
     under that label (e.g. `Impact:`), and that labelled line is not itself counted as
-    section content. Both the leg and the exclusion are skipped when the param is absent,
-    so other presence checks are exactly unaffected. Presence + non-emptiness (and the
-    labelled line, when required) are gated; truthfulness is posture (this cannot judge
-    whether the content is accurate)."""
+    section content. When params carry `required_phrases`, each listed phrase must appear
+    verbatim in the body — for a fixed anchor a heading scan cannot see, such as the consent
+    preamble above the first `## ` heading. Each leg is skipped when its param is absent, so
+    other presence checks are exactly unaffected. Presence + non-emptiness (and the labelled
+    line / required phrases, when configured) are gated; truthfulness is posture (this cannot
+    judge whether the content is accurate)."""
     tier = rule["tier"]
     params = rule.get("params") or {}
     sections = params.get("sections", [])
     label = params.get("filled_subsection_label")
+    phrases = params.get("required_phrases")
     message = rule["message"]
     target = rule.get("target") or {}
     if target.get("context") == "pull-request-body":
@@ -472,6 +502,8 @@ def kind_presence(rule, ctx):
         if label:
             findings += subsection_fill_findings(body, sections, label, tier, message,
                                                  "pull-request body")
+        if phrases:
+            findings += phrase_presence_findings(phrases, body, tier, message, "pull-request body")
         return (len(findings) == 0), findings
     findings = []
     for path in target_files(rule):
@@ -480,6 +512,8 @@ def kind_presence(rule, ctx):
         findings.extend(section_presence_findings(text, sections, tier, message, where, label))
         if label:
             findings.extend(subsection_fill_findings(text, sections, label, tier, message, where))
+        if phrases:
+            findings.extend(phrase_presence_findings(phrases, text, tier, message, where))
     return (len(findings) == 0), findings
 
 
@@ -543,29 +577,49 @@ def _template_shape_spec(rel_path: str):
     return frontmatter(os.path.normpath(os.path.join(SCHEMAS_DIR, ref)))
 
 
+def _load_structured(path: str):
+    """Load a structured (non-prose) schema target by extension: a `.toml` target is read
+    with the stdlib's read-only TOML parser (its parsed form maps onto the same JSON data
+    model every schema check validates); everything else is read by `load_json`, exactly as
+    before. TOML targets exist because the Codex runtime's own files are TOML — the engine
+    validates them where they live rather than mirroring them into JSON."""
+    if path.endswith(".toml"):
+        import tomllib
+        with open(path, "rb") as fh:
+            return tomllib.load(fh)
+    return load_json(path)
+
+
 def kind_schema(rule, ctx):
     """A structured file — or a prose file's YAML frontmatter — conforms to its governing
     JSON Schema (2020-12). Validates the PARSED data, not raw text. The loader is chosen by
     the target's surface CLASS (catalog-resolved, the same routing _governing_schema uses):
     a `prose` surface's frontmatter is read (and normalized to the JSON data model) by
     `frontmatter`; every other target — structured surfaces, and the override-schema targets
-    that carry no surface record at all — is read by `load_json`, exactly as before. A
+    that carry no surface record at all — is read by `_load_structured` (JSON, or TOML for a
+    `.toml` target). A rule carrying an explicit `params.schema` OVERRIDE always loads its
+    target as structured, whatever surface home the file sits in: the override exists exactly
+    for whole-file data contracts the catalog cannot route (a data file living inside a prose
+    surface's home — the provider-exception ledger under .engine/policies/ — has no
+    frontmatter to read). A
     malformed file, an unresolvable or offline schema reference, or a malformed governing
     schema is a loud finding (the halt-on-malformed posture), never an uncaught error and
     never a network fetch."""
     from jsonschema import Draft202012Validator        # lazy: see the module __getattr__ note (tool-runtime dep)
     from jsonschema.exceptions import SchemaError
     tier = rule["tier"]
+    overridden = bool((rule.get("params") or {}).get("schema"))
     findings = []
     for path in target_files(rule):
         rel = os.path.relpath(path, ROOT)
         rec = _surface_record_for(rel)                 # None for override-schema targets (engine.json, state.json, manifests)
-        is_prose = bool(rec) and rec.get("class") == "prose"
+        is_prose = bool(rec) and rec.get("class") == "prose" and not overridden
         try:
-            data = frontmatter(path) if is_prose else load_json(path)
+            data = frontmatter(path) if is_prose else _load_structured(path)
         except Exception as exc:
             malformed = ("has a malformed settings block (its YAML frontmatter could not be read)"
-                         if is_prose else "is not valid JSON")
+                         if is_prose else
+                         ("is not valid TOML" if path.endswith(".toml") else "is not valid JSON"))
             findings.append(finding(tier, f"'{rel}' {malformed} and cannot be "
                             f"schema-checked: {exc}. {rule['message']}", loc(path)))
             continue
@@ -797,7 +851,7 @@ def _coverage_catalog(rule, ctx):
                        f"{exc}. {rule['message']}", loc(catalog_path))]
     infra = set((rule.get("params") or {}).get("infra_dirs", []))
     present = set()
-    for root in (".engine", ".claude"):
+    for root in (".engine", ".claude", ".codex", ".agents"):
         abs_root = os.path.join(base, root)
         if os.path.isdir(abs_root):
             for name in sorted(os.listdir(abs_root)):
@@ -1443,7 +1497,7 @@ def effective_policy_values(default: dict, override: dict, *, structural_keys, t
     (effective, findings): the effective value map a consumer reads, plus a finding per refused key.
 
     Given the shipped `default` value map (read from the policy frontmatter by the consumer) and a sparse
-    `override` map (committed operator config — its file path/format belong to the authoring slice, NOT
+    `override` map (committed operator config — its file path/format belong to the config-authoring step, NOT
     this function), merge each override key over the default, EXCEPT:
 
       - a key in `structural_keys` — a value that encodes a structural LAW an override may never retune
@@ -1460,10 +1514,10 @@ def effective_policy_values(default: dict, override: dict, *, structural_keys, t
 
     PURE + fixture-testable: the merged value is static data, so a deterministic consumer (attention's
     ranking function) stays deterministic — the merge adds another recorded input; no clock, no IO. The
-    override is taken as DATA: this function does not read a file — the consumer (or the authoring slice)
+    override is taken as DATA: this function does not read a file — the consumer (or the config-authoring step)
     loads it. Findings are ordered by key (sorted) for a reproducible result. No live rule wires this in
     core yet: the `custom/script` stale-key rule that runs it on a committed override file needs that file's
-    path (the authoring slice's leaf), so the leg is built + fixture-tested here and consumed live later
+    path (the config-authoring step's leaf), so the leg is built + fixture-tested here and consumed live later
     (the interface_resolution_findings / agent_coherence_findings precedent)."""
     structural = set(structural_keys)
     effective = dict(default)
@@ -2034,7 +2088,9 @@ def run_unit(unit, target=None, ctx=None):
 # handler added here later needs its own never-block test. `hooks` is imported LAZILY inside each handler:
 # validate must import on the stdlib alone (the first-run bootstrap), and hooks imports validate.
 
-_MUTATING_FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+# `apply_patch` (Codex's edit tool) is normalized to Edit before any handler runs; its membership
+# here is the second-belt defense, inert on Claude (which never emits the name) — mirrors modes.py.
+_MUTATING_FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch"})
 
 
 def local_ctx() -> dict:
@@ -2073,17 +2129,24 @@ def _nudge_context(findings: list) -> "str | None":
             "Worth resolving before the change is proposed for merge, but your call.")
 
 
-def _touched_path(payload: dict) -> "str | None":
-    """The file a mutating tool call edited (Edit/Write/MultiEdit → tool_input.file_path; NotebookEdit →
-    notebook_path), or None for any non-file tool (a Bash/Read call has nothing to re-check). Degrades
-    safe on a malformed payload."""
+def _touched_paths(payload: dict) -> list:
+    """EVERY file a mutating tool call edited (Edit/Write/MultiEdit → tool_input.file_path;
+    NotebookEdit → notebook_path; a normalized multi-file edit — Codex's batch apply_patch — carries
+    the full list in tool_input.file_paths), or [] for any non-file tool (a Bash/Read call has
+    nothing to re-check). Degrades safe on a malformed payload."""
     if not isinstance(payload, dict) or payload.get("tool_name") not in _MUTATING_FILE_TOOLS:
-        return None
+        return []
     ti = payload.get("tool_input")
     if not isinstance(ti, dict):
-        return None
-    path = ti.get("file_path") or ti.get("notebook_path")
-    return path if isinstance(path, str) and path else None
+        return []
+    out = []
+    single = ti.get("file_path") or ti.get("notebook_path")
+    if isinstance(single, str) and single:
+        out.append(single)
+    many = ti.get("file_paths")
+    if isinstance(many, list):
+        out += [p for p in many if isinstance(p, str) and p and p not in out]
+    return out
 
 
 def _abs_under_root(path: str) -> str:
@@ -2158,15 +2221,15 @@ def _accept_handler(payload: dict) -> dict:
     stays quiet), but ambient capture draws from the full file-scoped corpus, so it is genuinely live. The
     capture is wrapped so a failure never disturbs the tool call (append_ambient is itself best-effort too)."""
     import hooks  # lazy (see _precommit_handler)
-    path = _touched_path(payload)
-    if not path:
+    paths = _touched_paths(payload)
+    if not paths:
         return hooks.proceed()
     try:
         import telemetry  # lazy: telemetry imports validate (a back-edge safe only lazily)
-        telemetry.capture_touched_fires([path], telemetry.utc_now())
+        telemetry.capture_touched_fires(paths, telemetry.utc_now())
     except Exception:  # noqa: BLE001 — ambient capture is best-effort and NEVER gates a tool call
         pass
-    touched = {_abs_under_root(path)}
+    touched = {_abs_under_root(p) for p in paths}
     findings = _safe_collect("pre-commit", rule_filter=lambda r: _rule_touches(r, touched))
     context = _nudge_context(findings)
     return hooks.inject(context) if context else hooks.proceed()

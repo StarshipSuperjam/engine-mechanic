@@ -7,14 +7,17 @@ Three stances on two axes:
   - build   (interactive, writes on) — entered by a typed verb OR by accepting a plan;
   - routine (unattended, scope-locked, writes on) — entered by an operator-authored scheduled fire.
 
-This module ships THREE things (the operator-typed Build verb and Routine entry are later —
-post-core):
+This module ships THREE things (the operator-typed Build and Routine stance-entry verbs — set-build and
+set-routine — are the deliberate in-session entries, run by the operator-typed skills, never the model):
 
   1. THE STANCE SIGNAL — an ephemeral, session-keyed marker in OS-temp storage, never committed and
      never carried across sessions. It is set only by a deliberate in-session entry, and CLEARED at
-     every SessionStart (boot calls clear_stance first, so a resumed Build session never resurrects as
-     Build). When the signal is absent, stale, or unreadable, the stance is explore: the safe default is
-     the floor, never the ceiling (stance is session-scoped and never persists).
+     every SessionStart (boot calls clear_stance first). When the signal is absent, unreadable, or
+     unrecognized, the stance is explore — the reliable, code-level floor — so a resumed session resolves
+     to Explore rather than resurrecting a prior Build (the safe default is the floor, never the ceiling;
+     stance is session-scoped and never persists). The boot clear that removes a prior marker is
+     best-effort (a failed delete is swallowed, below), so this is not a mechanical guarantee; the
+     protected-branch merge is the absolute backstop.
 
   2. THE EXPLORE WRITE-GATE — a PreToolUse hook, active only while the stance is explore, that DENIES the
      small enumerated set that BEGINS building — edits to engine or product files, branch creation,
@@ -92,7 +95,7 @@ REROUTE_BLOCK_INVARIANT = {"event": "PreToolUse", "name": "engine-issue-conforma
 # ---- the stance signal: ephemeral, session-keyed, OS-temp, non-committed --------------------
 # A session_id-keyed marker in OS-temp storage (a build-spec leaf settled here). NON-committed, never
 # read across sessions, no repo footprint. Cleared at every SessionStart; resolves to explore when
-# absent / stale / unreadable. The gate reads it from the session id the platform supplies.
+# absent / unreadable / unrecognized. The gate reads it from the session id the platform supplies.
 _SIGNAL_PREFIX = "engine-stance-"
 
 
@@ -149,7 +152,10 @@ def set_stance(session_id: str | None, stance: str) -> bool:
 def clear_stance(session_id: str | None) -> bool:
     """Delete the session's stance marker → the session resolves to EXPLORE. Idempotent (a missing
     marker is success) and never raises. Boot calls this FIRST at every SessionStart so a resumed
-    session never inherits a prior Build signal (the resume-safety guarantee)."""
+    session does not inherit a prior Build signal. This clear is best-effort — a failed delete is
+    swallowed (below), so it is not a mechanical guarantee; the reliable floor is that an absent,
+    unreadable, or unrecognized signal resolves to Explore, with the protected-branch merge as the
+    absolute backstop."""
     path = _signal_path(session_id)
     if not path:
         return False
@@ -218,7 +224,16 @@ def describe_explore_scope() -> str:
 # four, and Explore must stay the comfortable place to work (no default-deny, nothing else taxed).
 # The plain-language, assistant-facing rendering of THIS allow/deny split lives in describe_explore_scope();
 # a fidelity test (test_modes) pins that prose to this set — change the two together, never one alone.
-_MUTATING_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+# `apply_patch` is Codex's canonical edit tool: the provider-normalization seam (providers.normalize)
+# rewrites it to Edit before this gate runs, so its membership here is the SECOND belt — the deny that
+# still fires if normalization itself ever fails. Claude Code never emits the name, so it is inert there
+# (the prose's "file-editing tools" already covers it; no copy change needed).
+_MUTATING_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "apply_patch"})
+
+# The shell tool names whose command string the building-verb patterns scan. "Bash" is the canonical
+# name both runtimes report for simple shell; the Codex siblings are the same second-belt defense as
+# apply_patch above (normalize maps them to Bash first; Claude never emits them).
+_SHELL_TOOLS = frozenset({"Bash", "shell", "local_shell", "unified_exec"})
 
 # Best-effort shell building-verb patterns over the Bash command string. Best-effort by construction:
 # a verb behind an alias / eval / substitution / chaining evades these (stated honestly).
@@ -248,7 +263,7 @@ def is_building_action(tool_name: str, tool_input) -> bool:
         return True
     if _MCP_PR_TOOL.match(tool_name or ""):
         return True
-    if tool_name == "Bash":
+    if tool_name in _SHELL_TOOLS:
         command = ""
         if isinstance(tool_input, dict):
             command = tool_input.get("command") or ""
@@ -271,12 +286,15 @@ def is_building_action(tool_name: str, tool_input) -> bool:
 _PLAN_MODE = "plan"
 
 
-def is_plan_artifact(tool_name: str, tool_input, permission_mode) -> bool:
+def is_plan_artifact(tool_name: str, tool_input, permission_mode, provider: str = "claude") -> bool:
     """True iff this call is Claude Code's plan-mode artifact write: a file-mutating tool while the
     platform reports plan mode (`permission_mode == "plan"`), or a tool_input the platform flags as the
     plan file (`is_plan_file`). Keyed on the marker, never a path. Anything outside plan mode carries no
-    marker → not the artifact → stays subject to the gate."""
-    if tool_name not in _MUTATING_TOOLS:
+    marker → not the artifact → stays subject to the gate. PROVIDER-CONFINED: plan mode is Claude
+    Code's feature, so on any other runtime this carve-out is inert BY RULE, not by hoping the other
+    platform never reuses the field values — a Codex payload reporting `permission_mode: "plan"`
+    (its vocabulary is unverified) must not open the Explore write-gate."""
+    if provider != "claude" or tool_name not in _MUTATING_TOOLS:
         return False
     if isinstance(tool_input, dict) and tool_input.get("is_plan_file") is True:
         return True
@@ -314,11 +332,18 @@ def is_memory_target(tool_name: str, tool_input) -> bool:
     by path SHAPE (a `memory` directory nested under a `.claude` directory)."""
     if tool_name not in _MUTATING_TOOLS:
         return False
-    path = ""
+    paths = []
     if isinstance(tool_input, dict):
-        path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
-    if not isinstance(path, str) or not path:
-        return False
+        paths = [tool_input.get("file_path") or tool_input.get("notebook_path") or ""]
+        # A normalized multi-file edit (Codex's batch apply_patch) carries every touched path in
+        # file_paths — a memory store among ANY of them selects the memory-specific relay.
+        extra = tool_input.get("file_paths")
+        if isinstance(extra, list):
+            paths += [p for p in extra if isinstance(p, str)]
+    return any(_is_memory_path(p) for p in paths if isinstance(p, str) and p)
+
+
+def _is_memory_path(path: str) -> bool:
     norm = path.replace("\\", "/")
     if ".engine/memory/" in norm:                 # the engine's own substrate (excludes .engine/tools/memory/)
         return True
@@ -354,7 +379,10 @@ def handler(payload: dict) -> dict:
     if current_stance(session_id) != EXPLORE:
         return hooks.proceed()                       # Build / Routine permit the write
     permission_mode = payload.get("permission_mode") if isinstance(payload, dict) else None
-    if is_building_action(tool_name, tool_input) and not is_plan_artifact(tool_name, tool_input, permission_mode):
+    import providers  # lazy: keep modes importable stand-alone in tests that stub the seam
+    provider = providers.detect(payload)
+    if is_building_action(tool_name, tool_input) \
+            and not is_plan_artifact(tool_name, tool_input, permission_mode, provider):
         # Same DECISION (deny) regardless; only the relayed reason differs — a memory write earns the
         # memory-specific "noted" line (#257), every other write the generic build-set denial.
         reason = _MEMORY_DENIAL if is_memory_target(tool_name, tool_input) else _DENIAL
@@ -434,17 +462,16 @@ def _arg(argv: list, flag: str) -> str | None:
 
 
 def _resolve_session(argv: list) -> str | None:
-    """The session id for a CLI stance change: the explicit `--session` value, else the platform's
-    `CLAUDE_CODE_SESSION_ID` environment variable. The operator-typed Build verb's skill body passes
-    `--session "${CLAUDE_CODE_SESSION_ID}"`, which the shell expands from that env var (it is a plain
-    environment variable the platform sets for tool subprocesses, NOT a Claude content token — the only
-    content token Claude substitutes is `${CLAUDE_PROJECT_DIR}`). If it arrives empty or unexpanded (a
-    literal `${...}`), fall back to the env var so the verb still resolves the real session. A session
-    that supplies neither degrades SAFE — set_stance returns False and the stance stays explore."""
-    session = _arg(argv, "--session")
-    if not session or "${" in session:
-        session = os.environ.get("CLAUDE_CODE_SESSION_ID")
-    return session
+    """The session id for a CLI stance change: the explicit `--session` value, else the provider
+    seam's resolution chain (providers.resolve_session — the neutral override env var, then the
+    platform session var, then the live-session marker boot writes, which is how a typed Codex verb
+    with no session env var still finds its session; the marker refuses on any ambiguity). The
+    Claude Build verb's skill body passes `--session "${CLAUDE_CODE_SESSION_ID}"`, which the shell
+    expands from that env var; if it arrives empty or unexpanded (a literal `${...}`), the chain
+    takes over. A session the chain cannot identify degrades SAFE — set_stance returns False and
+    the stance stays explore."""
+    import providers  # lazy: keep modes importable stand-alone in tests that stub the seam
+    return providers.resolve_session(explicit=_arg(argv, "--session"))
 
 
 def _decision_line(decision: dict) -> str:
@@ -583,6 +610,24 @@ def main(argv: list) -> int:
         ok = set_stance(_resolve_session(argv), BUILD)
         print(f"set Build: {ok}")
         return 0 if ok else 1
+    if cmd == "set-routine":
+        # The unattended Routine stance-entry — run by the operator-authored scheduled fire through the
+        # engine-routine skill (which carries the operator-only flag), never the model on its own. Unlike
+        # set-build it grants the write stance ONLY on POSITIVE proof of worktree isolation: a scheduled run
+        # that mutated the operator's own checkout is the never-strand-main harm, so any inability to confirm
+        # isolation declines (stays Explore) and the run reports why rather than writing.
+        import checkout_health  # lazy: keep modes importable stand-alone (mirrors the providers seam import)
+        session = _resolve_session(argv)
+        if not session:
+            print("set Routine: False (no session id resolvable)")
+            return 1
+        if not checkout_health.is_isolated_worktree():
+            print("set Routine: False (not a dedicated worktree — a routine writes only in an isolated "
+                  "worktree, never the operator's checkout)")
+            return 1
+        ok = set_stance(session, ROUTINE)
+        print(f"set Routine: {ok}")
+        return 0 if ok else 1
     if cmd == "clear":
         ok = clear_stance(_arg(argv, "--session"))
         print(f"cleared: {ok}")
@@ -590,8 +635,9 @@ def main(argv: list) -> int:
     if cmd == "demo":
         return _demo(argv[1:])
     print("usage: modes.py [hook | accept-hook | classify <Tool> [cmd] [--session S] [--pm MODE] "
-          "[--plan-file] | stance [--session S] | set-build [--session S] | clear --session S | demo]  "
-          "(stance/set-build resolve the session from --session else $CLAUDE_CODE_SESSION_ID)",
+          "[--plan-file] | stance [--session S] | set-build [--session S] | set-routine [--session S] | "
+          "clear --session S | demo]  (stance/set-build/set-routine resolve the session from --session else "
+          "$CLAUDE_CODE_SESSION_ID; set-routine also requires a dedicated worktree)",
           file=sys.stderr)
     return 2
 

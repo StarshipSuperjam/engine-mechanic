@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""The self-map (core slice 8) — the engine's generated, committed "what am I made of" readout.
+"""The self-map — the engine's generated, committed "what am I made of" readout.
 
 A non-engineer needs a lay of the land. This tool generates ONE committed Markdown file,
 `.engine/self-map.md`, that answers "what is my engine made of": the engine release, the kinds
 of file the engine governs (surfaces), and the packages it is assembled from (modules). It is
 DERIVED from the declarations the engine already requires — the surface catalog and the module
-manifests — so it cannot diverge from them (systems/grammar/ontology/README.md §The self-map;
-module-system/README.md §"what is my engine made of"). It is never hand-authored (it would
-drift) and never boot-only (a human opening the repo could not read it).
+manifests, plus (#513) the first-run retirement census cross-checked against what actually
+exists on disk, so a deployed repo's map never advertises a file the retire step deleted. It is
+never hand-authored (it would drift) and never boot-only (a human opening the repo could not read it).
 
 The map is kept honest by a FINGERPRINT GATE: the committed file is checked against its canonical
 derivation. The committed content IS the fingerprint of its sources — the checker regenerates the
@@ -35,23 +35,22 @@ Library + CLI (mirrors module_coherence.py / wiring.py — plain language first,
   uv run --directory .engine -- python tools/self_map.py hook        # the PreToolUse entry the engine wires
 
 Reuse: the present-set readers discover_manifests()/load_engine_manifest() are reused from
-module_coherence.py (exposed in slice 6 for exactly this — one present-set reader, no drift), and
+module_coherence.py (exposed for exactly this — one present-set reader, no drift), and
 finding.v1 + path helpers from validate.py via the sibling-import precedent. The per-module render
-is exposed as render_module() so the permanent module manager (slice 25) reuses the operator-facing
+is exposed as render_module() so the permanent module manager reuses the operator-facing
 module prose rather than diverge into a second renderer.
 
 The wiring-graph portion renders the module dependency graph in TOPOLOGICAL order (each module after
-the ones it depends on) with an explicit dependency-edge view (module-system/README.md §"the dependency
-graph … its topological sort"); the surface portion renders EVERY governed field of the locked surface
+the ones it depends on) with an explicit dependency-edge view; the surface portion renders EVERY governed field of the locked surface
 record, so the fingerprint covers the whole record (a repointed governing_schema/template trips the gate).
 
 Scope (named): the map renders module `wires` as the directive TYPE list only — the closed seam
 vocabulary (hook/mcp/ontology-entry/permission/gitignore), the part locked in module.v1.json; the
-per-type directive BODY rendering lands with the first wires-bearing manifest (slice 25). The
+per-type directive BODY rendering lands with the first wires-bearing manifest. The
 operator-reachable access path is the `/engine-parts` command (`.claude/skills/engine-parts/`), the
 plain-language "what is my engine made of" readout — it runs `show`, is auto-advertised by /engine-help,
 and is pointed at from getting-started.md and CLAUDE.deployed.md; `show` and the directly-openable
-committed file remain the readout it renders (#400 F3).
+committed file remain the readout it renders (#400).
 """
 from __future__ import annotations
 import os
@@ -133,8 +132,8 @@ def render_header(engine: dict) -> list:
 
 def render_surfaces(surfaces: dict) -> list:
     """The surface-level portion: one table row per catalogued surface, sorted by name, carrying
-    EVERY governed field of the locked surface record (ontology/README.md §"The surface meta-contract":
-    name, purpose, home/location, authority, lifecycle, class, governing_schema, template). Rendering
+    EVERY governed field of the locked surface record (name, purpose, home/location,
+    authority, lifecycle, class, governing_schema, template). Rendering
     the whole record is what makes the fingerprint total — a repointed/nulled governing_schema or
     template now changes the map and trips the drift gate, so the "cannot diverge" guarantee holds for
     the whole record, not a subset. `surfaces` is the catalog's `surfaces` map {name: record}."""
@@ -157,10 +156,45 @@ def render_surfaces(surfaces: dict) -> list:
     return out
 
 
+def _retired_absent() -> "tuple[set, tuple]":
+    """The first-run retirement census entries that are ALSO absent on disk — the post-retire state of a
+    deployed repo (#513), as (absent files, absent directories). Without this filter the map keeps
+    advertising the retired first-run operation file, the deleted setup-skill trees, and their census
+    siblings after first-run removed them, pointing a session at files that don't exist. Read as plain
+    data from the committed census (never by importing the retiring instantiator — the reference-closure
+    check's own discipline); resolved at call time so tests can redirect the root. A missing or unreadable
+    census reads as empty — the map renders un-filtered rather than failing (a corrupted census is caught
+    by its own surviving CI shape check, never by this renderer). In the construction repo every census
+    entry still exists, so both sets are empty and the map is unchanged."""
+    census = os.path.join(validate.ENGINE_DIR, "provisioning", "first-run-assets.json")
+    try:
+        data = validate.load_json(census)
+        files = list(data.get("files") or [])
+        dirs = list(data.get("directories") or [])
+    except Exception:  # noqa: BLE001 — no census, no filter; never fail the render over it
+        return set(), ()
+    absent_files = {rel for rel in files
+                    if not os.path.exists(os.path.join(validate.ROOT, rel))}
+    absent_dirs = tuple(rel for rel in dirs
+                        if not os.path.isdir(os.path.join(validate.ROOT, rel)))
+    return absent_files, absent_dirs
+
+
+def _is_retired_absent(path: str, absent_files: set, absent_dirs: tuple) -> bool:
+    """True iff a provides entry is retired-and-absent: an exact census-file match, or a path AT or UNDER a
+    census directory that retire removed wholesale (the engine-setup skill trees) — the two ways the retire
+    step deletes things. Prefix matching is directory-boundary-safe (`d + "/"`), never substring."""
+    if path in absent_files:
+        return True
+    return any(path == d or path.startswith(d + "/") for d in absent_dirs)
+
+
 def render_module(manifest: dict) -> list:
-    """One module's block (the reusable per-module render the slice-25 module manager inherits).
+    """One module's block (the reusable per-module render the module manager inherits).
     Renders id, version (from the manifest's own `version`), status, depends, provides, and the
-    `wires` directive TYPE list (the locked closed seam vocabulary; per-type bodies land slice 25)."""
+    `wires` directive TYPE list (the locked closed seam vocabulary; per-type bodies land later).
+    Provides entries that first-run has retired AND that are absent on disk are filtered out
+    (#513, see _retired_absent) — the map never advertises a file the retire step deleted."""
     mid = manifest.get("id", "?")
     version = manifest.get("version", "?")
     status = manifest.get("status", "?")
@@ -177,9 +211,11 @@ def render_module(manifest: dict) -> list:
 
     provides = manifest.get("provides") or {}
     if provides:
+        absent_files, absent_dirs = _retired_absent()
         out.append("- provides:")
         for group in sorted(provides):
-            patterns = ", ".join(_code(p) for p in sorted(provides[group] or []))
+            patterns = ", ".join(_code(p) for p in sorted(provides[group] or [])
+                                 if not _is_retired_absent(p, absent_files, absent_dirs))
             out.append(f"  - {_cell(group)}: {patterns or '(none)'}")
     else:
         out.append("- provides: nothing")
@@ -217,8 +253,7 @@ def render_modules(manifests: list) -> list:
     """The wiring-graph portion: the module dependency graph rendered in TOPOLOGICAL order (each
     module after the ones it `depends` on, via validate.topological_order) with an explicit edge view,
     then one detail block per installed module in that same order — so the section reads as a graph,
-    not a flat alphabetical block (module-system/README.md §"the dependency graph … its topological
-    sort"). `manifests` is a list of manifest dicts (the values from
+    not a flat alphabetical block. `manifests` is a list of manifest dicts (the values from
     module_coherence.discover_manifests())."""
     ordered = validate.topological_order(manifests)
     out = [

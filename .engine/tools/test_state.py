@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-tests for slice 9 — the state cursor: the state.v1 schema, the committed genesis
+"""Self-tests for the state cursor: the state.v1 schema, the committed genesis
 cursor, and the schema-kind rule that refuses a malformed or shape-invalid cursor.
 
 Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
@@ -9,7 +9,7 @@ an out-of-grammar field, a wrong version stamp, a negative count, a non-UTC time
 pointer); the committed genesis cursor itself conforms; the committed rule names its schema
 DIRECTLY via params.schema (state is a foundation, not a catalogued surface) and passes the real cursor;
 and a malformed or shape-invalid cursor is REFUSED AS A PLAIN FINDING — never an uncaught crash —
-which is the halt-on-malformed posture the design requires (state/README.md). The deliverable-gate
+which is the halt-on-malformed posture the design requires. The deliverable-gate
 cold review attests each test's assertion matches its name; CI runs them as a step in engine-ci.
 """
 from __future__ import annotations
@@ -132,6 +132,19 @@ class TestStateSchema(unittest.TestCase):
             bad = json.loads(json.dumps(VALID_STATE))
             bad[parent][child] = ""
             self.assertTrue(_errors(STATE_SCHEMA, bad), f"empty {parent}.{child} should fail")
+
+    def test_milestone_accepts_list_string_or_null(self):
+        # #496: the open milestones are read as they are — a list of names (empty = none). A bare string (a
+        # pre-#496 cursor) and null both stay valid so an older cursor upgrades cleanly.
+        for ok in ([], ["One"], ["One", "Two"], "Legacy single", None):
+            s = json.loads(json.dumps(VALID_STATE))
+            s["standing_situation"]["milestone"] = ok
+            self.assertEqual(_errors(STATE_SCHEMA, s), [], f"milestone={ok!r} should pass")
+        # a blank name (bare or inside the list) and a non-string member are still rejected (minLength/type bite)
+        for bad in ("", [""], ["ok", ""], [1]):
+            s = json.loads(json.dumps(VALID_STATE))
+            s["standing_situation"]["milestone"] = bad
+            self.assertTrue(_errors(STATE_SCHEMA, s), f"milestone={bad!r} should fail")
 
 
 class TestStateRuleIntegration(unittest.TestCase):

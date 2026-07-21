@@ -1,14 +1,21 @@
 {
   "id": "qa-review",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "optional",
   "provides": {
     "agent": [
-      ".claude/agents/qa-review-spec-conformance.md",
-      ".claude/agents/qa-review-divergence-hunter.md",
-      ".claude/agents/qa-review-usability.md",
-      ".claude/agents/qa-review-technical-integrity.md",
-      ".claude/agents/qa-review-security-governance.md"
+      ".claude/agents/engine-qa-review-spec-conformance.md",
+      ".claude/agents/engine-qa-review-divergence-hunter.md",
+      ".claude/agents/engine-qa-review-usability.md",
+      ".claude/agents/engine-qa-review-technical-integrity.md",
+      ".claude/agents/engine-qa-review-security-governance.md"
+    ],
+    "codex-agent": [
+      ".codex/agents/engine-qa-review-divergence-hunter.toml",
+      ".codex/agents/engine-qa-review-security-governance.toml",
+      ".codex/agents/engine-qa-review-spec-conformance.toml",
+      ".codex/agents/engine-qa-review-technical-integrity.toml",
+      ".codex/agents/engine-qa-review-usability.toml"
     ]
   },
   "wires": [],

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Self-tests for slice 8 — the self-map (surface-level + wiring-graph) + its drift gate.
+"""Self-tests for the self-map (surface-level + wiring-graph) + its drift gate.
 
 Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
 
-These lock the slice-8 defenses: the map is DERIVED (sorted, deterministic, no volatile content);
+These lock the self-map's defenses: the map is DERIVED (sorted, deterministic, no volatile content);
 it is human-readable Markdown with NO `](` byte-sequence (so link-integrity passes); the fingerprint
 gate is regenerate-and-compare (a hand-edit or a stale map is a HARD finding, in sync is a note, an
 absent map is HARD); generate/check round-trip and are idempotent; the custom/script entry emits []
@@ -26,6 +26,7 @@ import validate          # noqa: E402
 import hooks             # noqa: E402  (the run_hook harness the commit-boundary regen rides)
 import self_map          # noqa: E402
 import self_map_check    # noqa: E402
+import hard_check_bite_check as hcb  # noqa: E402  (construction-vs-deployed detector for the bridge guard)
 
 # The closed seam vocabulary, read live from the schema so the wires render cannot silently diverge.
 MODULE_SCHEMA = validate.load_json(os.path.join(validate.SCHEMAS_DIR, "module.v1.json"))
@@ -340,7 +341,7 @@ class TestCLI(unittest.TestCase):
 
 
 class TestSourceDeterminismRoundTrip(unittest.TestCase):
-    """§19.1 enforcing correlate (principles.md): regenerating the self-map from the same committed source
+    """Source-determinism enforcing correlate: regenerating the self-map from the same committed source
     tree yields byte-identical output — including across a PROCESS BOUNDARY under a different
     PYTHONHASHSEED. This guards the source-determinism *property against a future regression*; it does NOT
     by itself prove the generator nondeterminism-free — it passes trivially today because every collection
@@ -461,6 +462,97 @@ class TestCommitBoundaryRegen(unittest.TestCase):
                    for h in grp.get("hooks", []) if "self_map.py" in h.get("command", "")]
         self.assertEqual(len(sm_cmds), 1)
         self.assertTrue(sm_cmds[0].rstrip().endswith(" hook"))
+
+
+class TestRetiredAssetFilter(unittest.TestCase):
+    """#513: a provides entry that first-run retired AND that is absent on disk is filtered from the render,
+    so a deployed repo's map never advertises a file the retire step deleted. While the file still exists
+    (this construction repo, or a fresh not-yet-set-up copy) nothing is filtered. The retired paths are
+    read from the committed census, never named literally here — this test file survives retirement, and
+    the reference-closure check forbids a survivor naming a removed asset."""
+
+    _MANIFEST = {"id": "core", "version": "1.0.0", "status": "active",
+                 "provides": {"operation": [".engine/operations/example-retired.md",
+                                            ".engine/operations/boot-session-start.md"],
+                              "skill": [".claude/skills/example-retired-skill/SKILL.md",
+                                        ".claude/skills/example-kept-skill/SKILL.md"]}}
+
+    @unittest.skipUnless(hcb._is_construction_root(validate.ROOT),
+                         "construction-only: asserts the real _retired_absent() is empty, which holds only "
+                         "in a construction repo; a deployed repo legitimately lacks retired demo assets "
+                         "(bridge guard for engine-template#599; the deployed shape is covered by "
+                         "test_deployed_shape_filters_the_real_retired_entries)")
+    def test_construction_repo_filters_nothing(self):
+        # In this repo every census entry exists on disk, so the filter sets are empty and the map renders
+        # every provides entry as before.
+        self.assertEqual(self_map._retired_absent(), (set(), ()))
+        block = "\n".join(self_map.render_module(self._MANIFEST))
+        self.assertIn("example-retired.md", block)
+
+    def test_retired_and_absent_file_is_filtered_siblings_survive(self):
+        with mock.patch.object(self_map, "_retired_absent",
+                               return_value=({".engine/operations/example-retired.md"}, ())):
+            block = "\n".join(self_map.render_module(self._MANIFEST))
+        self.assertNotIn("example-retired.md", block)
+        self.assertIn("boot-session-start.md", block)
+
+    def test_file_under_a_retired_directory_is_filtered(self):
+        # The directories leg: retire deletes whole skill trees, and the manifest advertises files INSIDE
+        # them — prefix matching must catch those, directory-boundary-safe.
+        with mock.patch.object(self_map, "_retired_absent",
+                               return_value=(set(), (".claude/skills/example-retired-skill",))):
+            block = "\n".join(self_map.render_module(self._MANIFEST))
+        self.assertNotIn("example-retired-skill", block)
+        self.assertIn("example-kept-skill", block)
+
+    def test_prefix_match_is_directory_boundary_safe(self):
+        self.assertTrue(self_map._is_retired_absent(".claude/skills/x/SKILL.md", set(), (".claude/skills/x",)))
+        self.assertTrue(self_map._is_retired_absent(".claude/skills/x", set(), (".claude/skills/x",)))
+        self.assertFalse(self_map._is_retired_absent(".claude/skills/xy/SKILL.md", set(), (".claude/skills/x",)))
+
+    def test_missing_census_reads_as_no_filter(self):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(validate, "ROOT", d), \
+                 mock.patch.object(validate, "ENGINE_DIR", os.path.join(d, ".engine")):
+                self.assertEqual(self_map._retired_absent(), (set(), ()))
+
+    def test_deployed_shape_filters_the_real_retired_entries(self):
+        # The real defect end-to-end: the REAL census + the REAL core manifest, on a tree where the retired
+        # files and directories are absent (the post-first-run deployed shape) — the map must drop EVERY
+        # advertised entry the retire step removes, across every provides group (files AND entries under
+        # retired directories), and keep every sibling that survives.
+        census_src = os.path.join(validate.ENGINE_DIR, "provisioning", "first-run-assets.json")
+        core_src = os.path.join(validate.ENGINE_DIR, "modules", "core", "manifest.json")
+        core = validate.load_json(core_src)
+        census = validate.load_json(census_src)
+        retired_files = set(census.get("files") or [])
+        retired_dirs = tuple(census.get("directories") or [])
+
+        def is_doomed(p):
+            return self_map._is_retired_absent(p, retired_files, retired_dirs)
+
+        entries = [p for group in (core.get("provides") or {}).values() for p in (group or [])]
+        doomed = sorted(p for p in entries if is_doomed(p))
+        survivors = sorted(p for p in entries if not is_doomed(p))
+        self.assertGreaterEqual(len(doomed), 4,
+                                "the defect's class must exist: the retired operation file plus the "
+                                "setup-skill files under the retired directories")
+        self.assertTrue(any(any(p == d or p.startswith(d + "/") for d in retired_dirs) for p in doomed),
+                        "at least one doomed entry must come from the directories leg")
+        self.assertTrue(survivors)
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, ".engine", "provisioning"))
+            with open(census_src, encoding="utf-8") as src, \
+                 open(os.path.join(d, ".engine", "provisioning", "first-run-assets.json"),
+                      "w", encoding="utf-8") as dst:
+                dst.write(src.read())
+            with mock.patch.object(validate, "ROOT", d), \
+                 mock.patch.object(validate, "ENGINE_DIR", os.path.join(d, ".engine")):
+                block = "\n".join(self_map.render_module(core))
+        for path in doomed:            # full code-span paths — basenames collide across skills
+            self.assertNotIn(f"`{path}`", block)
+        for path in survivors:
+            self.assertIn(f"`{path}`", block)
 
 
 if __name__ == "__main__":

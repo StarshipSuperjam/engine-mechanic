@@ -169,5 +169,93 @@ class TestSweepIsolation(unittest.TestCase):
                              f"boot_alarm_ledger must not import a {forbidden} submodule")
 
 
+class TestRetireAndSection15(unittest.TestCase):
+    """The kept-on-purpose intent-exit (#471): a retired marker stops a retire-eligible finding, survives
+    the hook's decide() rewrites, and — the weakening-guard guarantee — can NEVER silence a governance alarm."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "standing-alarms.json")
+
+    def test_retire_then_is_retired_for_an_eligible_class(self):
+        self.assertFalse(bal.is_retired("fp1", "foreign_license", path=self.path))
+        self.assertTrue(bal.retire("fp1", "foreign_license", path=self.path)["ok"])
+        self.assertTrue(bal.is_retired("fp1", "foreign_license", path=self.path))
+
+    def test_a_governance_class_marker_is_never_honored(self):
+        # Weakening-guard falsification: even with a marker recorded at a fingerprint, a NON-eligible (governance) class is
+        # never honored — a mis-written / injection-planted marker cannot silence a governance alarm.
+        bal.retire("fp-gov", "foreign_license", path=self.path)   # a marker now exists at this fingerprint
+        self.assertFalse(bal.is_retired("fp-gov", "gate", path=self.path))
+        self.assertFalse(bal.is_retired("fp-gov", "findings", path=self.path))
+
+    def test_retire_greenfield_cli_derives_the_fingerprint_from_the_detector(self):
+        # The self-deriving dismiss: the CLI reads the LIVE detector's fingerprint (never a hand-supplied value
+        # that could silently mismatch), so the marker it writes is exactly the one is_retired later checks.
+        import greenfield_intake
+        with mock.patch.dict(os.environ, {bal.ENV_DIR: self.dir}):
+            with mock.patch.object(greenfield_intake, "detect_greenfield",
+                                   return_value={"greenfield": True, "fingerprint": "greenfield"}):
+                self.assertEqual(bal.main(["retire-greenfield"]), 0)
+            # the marker the detector's real fingerprint would resolve to is now honored
+            self.assertTrue(bal.is_retired("greenfield", "greenfield_intake"))
+
+    def test_retire_greenfield_cli_reports_nothing_to_retire_when_not_greenfield(self):
+        import greenfield_intake
+        with mock.patch.dict(os.environ, {bal.ENV_DIR: self.dir}):
+            with mock.patch.object(greenfield_intake, "detect_greenfield", return_value=None):
+                self.assertEqual(bal.main(["retire-greenfield"]), 1)
+
+    def test_retire_refuses_a_non_eligible_class_at_write_time(self):
+        r = bal.retire("x", "gate", path=self.path)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["reason"], "not-retire-eligible")
+        self.assertFalse(os.path.isfile(self.path))   # and nothing was written
+
+    def test_retired_marker_survives_a_decide_pass_over_other_keys(self):
+        # B1 durability: the SessionStart hook's decide() rebuilds the collapse baselines every boot; it must NOT
+        # erase a retire marker, or the intent-exit would last exactly one session.
+        bal.retire("fp1", "foreign_license", path=self.path)
+        bal.decide([{"key": "gate", "value": ["off", "x"]}, {"key": "findings", "value": 3}], path=self.path)
+        self.assertTrue(bal.is_retired("fp1", "foreign_license", path=self.path))
+
+    def test_retired_marker_survives_decide_even_when_no_keys_are_live(self):
+        bal.retire("fp1", "foreign_license", path=self.path)
+        bal.decide([], path=self.path)   # every alarm vanished -> a full rewrite
+        self.assertTrue(bal.is_retired("fp1", "foreign_license", path=self.path))
+
+    def test_retire_preserves_an_existing_collapse_baseline(self):
+        # The reverse-direction clobber: writing a retire marker must not wipe a collapse baseline decide() set.
+        bal.decide([{"key": "findings", "value": 7}], path=self.path)          # seed a full baseline
+        bal.retire("fp1", "foreign_license", path=self.path)
+        out = bal.decide([{"key": "findings", "value": 7}], path=self.path)    # unchanged -> still collapses
+        self.assertEqual(out["results"]["findings"]["outcome"], "collapse")
+        self.assertTrue(bal.is_retired("fp1", "foreign_license", path=self.path))
+
+    def test_is_retired_fails_toward_showing_on_an_unreadable_ledger(self):
+        with open(self.path, "w", encoding="utf-8") as fh:
+            fh.write("not json{{")
+        self.assertFalse(bal.is_retired("fp1", "foreign_license", path=self.path))
+
+    def test_the_eligible_class_set_is_locked_to_exactly_the_two_offers(self):
+        # The weakening-guard drift guard: no future alarm may become retire-eligible (silenceable) without a deliberate edit
+        # to RETIRE_ELIGIBLE_CLASSES AND this assertion. Keeping this exact set is what keeps a governance alarm
+        # un-retireable. The two eligible classes are the operator-dismissable OFFERS — the leftover-license
+        # cleanup (#471) and the first-engagement greenfield-intake nudge (#553); a governance/strand alarm is
+        # never here.
+        self.assertEqual(bal.RETIRE_ELIGIBLE_CLASSES, frozenset({"foreign_license", "greenfield_intake"}))
+
+    @unittest.skipUnless(bal._HAVE_FCNTL, "cross-process lock needs fcntl")
+    def test_retire_reports_lock_contention_honestly(self):
+        fd = bal._acquire(self.path + ".lock")
+        self.assertIsNotNone(fd)
+        try:
+            r = bal.retire("fp1", "foreign_license", path=self.path)
+        finally:
+            bal._release(fd)
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["reason"], "contended")
+
+
 if __name__ == "__main__":
     unittest.main()

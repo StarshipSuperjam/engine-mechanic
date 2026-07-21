@@ -149,6 +149,20 @@ def _main_checkout(cwd: str | None = None) -> tuple[str, bool] | None:
     return None
 
 
+def is_isolated_worktree(cwd: str | None = None) -> bool:
+    """True ONLY when this session runs in a dedicated (linked) git worktree — NOT the operator's main
+    checkout. The POSITIVE isolation signal the unattended Routine stance-entry requires before it grants a
+    write stance: a scheduled run that mutated the operator's own checkout is the never-strand-main harm, so
+    Routine writes only where isolation is PROVEN. Compares this working tree's root against the resolved
+    main checkout; any inability to confirm — git absent, either query fails, a bare repo — returns False, so
+    the safe floor is 'not isolated' (never merely un-disproven)."""
+    top = _run(["git", "rev-parse", "--show-toplevel"], cwd=cwd)
+    resolved = _main_checkout(cwd)
+    if not top or not resolved:
+        return False
+    return os.path.realpath(top.strip()) != os.path.realpath(resolved[0])
+
+
 def _resolve_state(cwd: str | None = None) -> tuple[str, bool, bool, str] | None:
     """Resolve the operator's main checkout ONCE, OFFLINE, for all three classifiers (strand / off-main /
     behind) — so a single detection pass needs only one `git worktree list`. Returns
@@ -276,10 +290,12 @@ def _in_head(main: str, rel: str) -> bool:
     return _run(["git", "-C", main, "cat-file", "-e", f"HEAD:{rel}"]) is not None
 
 
-def _make_rescue(main: str) -> str | None:
+def save_recovery_point(main: str, *, message: str) -> str | None:
     """Create a fresh rescue branch (a "safe point") at the current HEAD — capturing any off-branch commits —
-    and, if the tree is dirty, commit the working changes onto it, so NOTHING at risk is left unsaved before
-    HEAD moves. Returns the rescue branch name, or None if it could not be created (then the fix refuses)."""
+    and, if the tree is dirty, commit the working changes onto it with `message`, so NOTHING at risk is left
+    unsaved before HEAD moves. Returns the rescue branch name, or None if it could not be created/committed
+    (the caller then refuses). Shared by the strand repair and `rollback` — each supplies its own commit
+    message; the primitive (collision-safe naming, inline identity, verify-the-commit-took) is single-homed."""
     sha = (_run(["git", "-C", main, "rev-parse", "--short", "HEAD"]) or "").strip() or "head"
     name = f"{_RESCUE_PREFIX}/{sha}"
     n = 1
@@ -290,13 +306,17 @@ def _make_rescue(main: str) -> str | None:
         return None
     if (_run(["git", "-C", main, "status", "--porcelain"]) or "").strip():   # dirty -> save it on the rescue
         _ok(["git", "-C", main, "add", "-A"])
-        _ok(["git", "-C", main, *_RESCUE_IDENT, "commit", "-m",
-             "engine: saved unsaved work before un-stranding the checkout"])
+        _ok(["git", "-C", main, *_RESCUE_IDENT, "commit", "-m", message])
         if (_run(["git", "-C", main, "status", "--porcelain"]) or "").strip():
             return None   # the rescue commit did not take -> REFUSE (the work stays safe + uncommitted on
             #               this rescue branch; HEAD never moves on to the default branch) — losslessness is
             #               then self-evident, not reliant on git's later checkout-refusal as a backstop
     return name
+
+
+def _make_rescue(main: str) -> str | None:
+    """The strand repair's rescue: a "safe point" before un-stranding the checkout (see save_recovery_point)."""
+    return save_recovery_point(main, message="engine: saved unsaved work before un-stranding the checkout")
 
 
 def assess(cwd: str | None = None) -> dict:
@@ -408,6 +428,29 @@ def detect_absent_home(cwd: str | None = None) -> dict | None:
     if isinstance(home, str) and home.strip():
         return None                # a home is recorded -> the normal state
     return {"state": "absent-home", "main": main}
+
+
+def recorded_product_repository(cwd: str | None = None) -> str | None:
+    """OFFLINE, READ-ONLY: the engine's recorded PRODUCT repository (`product_repository` in the manifest) — the
+    repo this engine builds/works ON when that is a repository DIFFERENT from the one it is deployed into (the
+    fork-native / engine-mechanic case). None when no product is recorded, in which case the product IS this
+    repository itself (the common self-building case) and the caller derives it live from origin rather than
+    relaying a stored duplicate. A pure manifest read (the detect_absent_home idiom); it NEVER fetches from,
+    executes against, or writes to the value — the coordinate is a display-only label (see engine.v1.json).
+    boot RELAYS this signal; it does not read the manifest itself (its read-only relay discipline)."""
+    st = _resolve_state(cwd)
+    if not st:
+        return None
+    main, detached, missing, _current = st
+    if detached or missing:
+        return None                # a broken strand is the strand detector's territory, not this signal
+    try:
+        with open(os.path.join(main, ".engine", "engine.json"), encoding="utf-8") as fh:
+            manifest = json.load(fh)
+    except Exception:  # noqa: BLE001 — no manifest / unreadable -> nothing to relay
+        return None
+    product = manifest.get("product_repository")
+    return product if isinstance(product, str) and product.strip() else None
 
 
 # ---- the behind-the-main-line tail: online signal + the fast-forward corrections (#335; #342) ----
