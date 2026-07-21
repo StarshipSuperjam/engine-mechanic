@@ -551,6 +551,10 @@ class TestDeclarationCensus(unittest.TestCase):
     flag (a pure addition never trips it). Binding the exact shipped set here makes any new declaration a
     visible, reviewable test edit instead of a quiet file drop."""
 
+    @unittest.skipUnless(hcb._is_construction_root(ROOT),
+                         "construction-only drift canary: binds the template's exact shipped declaration "
+                         "set; a deployed repo legitimately carries a different set (bridge guard for "
+                         "engine-template#599)")
     def test_exact_shipped_declaration_set(self):
         found = sorted(
             os.path.relpath(p, ROOT)
