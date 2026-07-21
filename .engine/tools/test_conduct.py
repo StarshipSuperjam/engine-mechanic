@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the conduct surface (core slice CD): the frontmatter schema is well-formed, the two
+"""Unit tests for the conduct surface: the frontmatter schema is well-formed, the two
 committed layer files conform, the shipped defaults carry the expected codes each with a matching section,
 and the two custom/script checks (shape correspondence + the soft weakening guard) behave on planted
 inputs. The operator-runnable demos in the two check tools are the behavioral correlate; these pin the
@@ -43,11 +43,11 @@ class TestShippedDefaults(unittest.TestCase):
     _EXPECTED = {
         "conduct-critical-partner", "conduct-plain-language", "conduct-explain-before-acting",
         "conduct-ground-claims", "conduct-verify-and-report", "conduct-preserve-intent",
-        "conduct-smallest-safe-change", "conduct-stay-in-scope", "conduct-record-decisions",
-        "conduct-care-with-risk",
+        "conduct-smallest-safe-change", "conduct-full-capability", "conduct-stay-in-scope",
+        "conduct-record-decisions", "conduct-care-with-risk",
     }
 
-    def test_ten_universal_codes_present(self):
+    def test_universal_codes_present(self):
         ids = {c["id"] for c in validate.frontmatter(_DEFAULTS)["codes"]}
         self.assertEqual(ids, self._EXPECTED)
 
@@ -116,7 +116,7 @@ class TestConductWeakeningGuard(unittest.TestCase):
 
 
 class TestConductLoadsInTheWakeupFloor(unittest.TestCase):
-    """The engine loads its codes of conduct at the wake-up floor in EVERY repo (D-192): the active
+    """The engine loads its codes of conduct at the wake-up floor in EVERY repo: the active
     construction floor (root CLAUDE.md) and the deployed floor (CLAUDE.deployed.md) both @import the two
     layer files, so a session — in this construction repo or a generated one — never wakes up without
     conduct. Guards the #299 fix: before it only CLAUDE.deployed.md carried the imports, so the
@@ -134,11 +134,21 @@ class TestConductLoadsInTheWakeupFloor(unittest.TestCase):
                           f"the active root CLAUDE.md must @import {imp} so the engine wakes up with its conduct")
 
     def test_deployed_floor_imports_conduct(self):
-        # The deployed floor lives in CLAUDE.deployed.md in this construction repo; first-run's swap-in
-        # (#272) makes the floor the root CLAUDE.md and removes CLAUDE.deployed.md. Read it wherever it
-        # lives — mirroring test_boot._floor_text — so this holds post-swap in a generated repo too.
-        name = ("CLAUDE.deployed.md"
-                if os.path.isfile(os.path.join(validate.ROOT, "CLAUDE.deployed.md")) else "CLAUDE.md")
+        # The deployed floor lives at CLAUDE.deployed.md only until first-run's swap-in (#272) makes it
+        # the root CLAUDE.md and removes the staged copy — so in a generated repo this reads the root
+        # file instead of erroring on the removed one. But wherever the root CLAUDE.md is still the
+        # construction-governance body (this repo, or a fresh not-yet-set-up copy), the staged floor MUST
+        # exist as its own file: falling back there would silently retire the only tripwire that catches
+        # an accidental deletion (or a mistaken in-repo floor swap) of CLAUDE.deployed.md. The marker is
+        # the floor-swap recognizer's own discriminator (inlined — the instantiator that defines it is
+        # removed from a deployed repo at first-run).
+        name = "CLAUDE.deployed.md"
+        if not os.path.isfile(os.path.join(validate.ROOT, name)):
+            if "construction governance" in self._floor_text("CLAUDE.md"):
+                self.fail("CLAUDE.deployed.md is missing but the root CLAUDE.md is still the "
+                          "construction-governance body — the staged deployed floor must exist until "
+                          "first-run's swap consumes it")
+            name = "CLAUDE.md"
         text = self._floor_text(name)
         for imp in self._IMPORTS:
             self.assertIn(imp, text)

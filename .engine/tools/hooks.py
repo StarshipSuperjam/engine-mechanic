@@ -43,6 +43,7 @@ import sys
 import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import providers  # noqa: E402  (stdlib-only; the provider-normalization seam run_hook applies)
 import validate  # noqa: E402
 
 
@@ -59,7 +60,7 @@ import validate  # noqa: E402
 #             trigger injects an assistant-internal stance directive (additionalContext) on Build entry
 #             still non-blocking; SessionEnd is hooks-owned
 #             (cleanup/flush, cannot block); UserPromptSubmit is boot/orientation's per-prompt scent.
-#             SessionStart has THREE owners: boot's orientation pack + memory's consolidation sweep (3b)
+#             SessionStart has THREE owners: boot's orientation pack + memory's consolidation sweep
 #             + the optional github-projects-sync board refresh, which coexist on one event by keyed
 #             registration (the PostToolUse multi-owner precedent). The board-sync owner is present only
 #             while that optional module is installed; the entry names every system that may own the event.
@@ -148,7 +149,7 @@ def interpreter_path(os_name: str | None = None) -> str:
 HOOK_RUNNER = f"{PROJECT_DIR_VAR}/.engine/tools/hook-runner.sh"
 
 
-def hook_command(script_relpath: str, os_name: str | None = None) -> str:
+def hook_command(script_relpath: str, os_name: str | None = None, provider: str = "claude") -> str:
     """The full hook `command` string a settings.json registration carries: a call to the hook launcher
     (`.engine/tools/hook-runner.sh`) passing the explicit ${CLAUDE_PROJECT_DIR}-rooted venv interpreter and
     the ${CLAUDE_PROJECT_DIR}-rooted script. The launcher does the bounded wait that closes the
@@ -168,12 +169,23 @@ def hook_command(script_relpath: str, os_name: str | None = None) -> str:
     word-split into the launcher's positional params. `${CLAUDE_PROJECT_DIR}` expanding to a spaced path
     inside the double quotes does NOT re-split (a parameter expansion in double quotes is field-split-exempt),
     which is why the already-quoted interpreter token has always survived a spaced path and only the bare
-    script tail did not. The settings.json registration itself is wiring's."""
-    interp = interpreter_path(os_name)
+    script tail did not. The settings.json registration itself is wiring's.
+
+    `provider` selects the runtime's command form. "claude" (the default) renders the historical form
+    byte-identically. "codex" renders the .codex/hooks.json form: Codex has NO project-directory token,
+    so the command first resolves the project root itself (`cd` to `git rev-parse --show-toplevel`,
+    falling back to the current directory) and then rides the Codex shim
+    (.engine/tools/codex-hook-runner.sh), which tags ENGINE_PROVIDER=codex and execs the SAME shared
+    launcher — the wait/exec mechanics and per-OS fallback are one implementation for both runtimes.
+    The same quoting law applies: the path tokens are double-quoted, the args tail stays bare."""
     # `script_relpath` is the script PATH plus any trailing args, space-joined (e.g. "modes.py accept-hook").
     # Quote ONLY the path token; leave the args as the bare, still-word-splittable tail (see docstring, #390).
     script_path, _, script_args = script_relpath.partition(" ")
     args_tail = f" {script_args}" if script_args else ""
+    if provider == "codex":
+        return ('cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" && '
+                f'sh ".engine/tools/codex-hook-runner.sh" "{script_path}"{args_tail}')
+    interp = interpreter_path(os_name)
     return f'sh "{HOOK_RUNNER}" "{interp}" "{PROJECT_DIR_VAR}/{script_path}"{args_tail}'
 
 
@@ -223,6 +235,61 @@ def inject(context: str) -> dict:
     PostToolUse injectors — PostToolUse carries modes' Build-entry stance directive).
     → structured stdout, exit 0."""
     return {"action": "inject", "context": context}
+
+
+# The platform's per-value output cap (#495, a pre-existing latent defect the D-309 pass surfaced): past
+# 10,000 characters the platform saves the full payload to a file and substitutes a preview of the first
+# 2,000 characters (plus the file path) — both figures verified against the shipped Claude Code 2.1.185
+# binary. The boot pack's grounding marker sits near the top, so it
+# survives inside that preview; what drops from the injected context is everything past it — the status
+# headline, the write-gate summary, and the dashboard. So measure-before-inject sheds the lowest-value
+# tiers to keep the essential content within the surviving preview window. The cap binds EACH output
+# value, not the event total.
+HOOK_OUTPUT_CAP = 10_000
+
+
+def cap_shed(blocks: list, cap: "int | None" = None, notice=None,
+             compact_notice=None) -> "tuple[str, list]":
+    """Measure-before-inject with tiered shedding — the guard an injector composes BEFORE handing its
+    payload to inject(), which stays a pure translator. `blocks` is an ordered list of (priority, name,
+    text): priority 0 is PINNED (a governance alarm or grounding marker — never shed, even if the pinned
+    text alone still exceeds the cap, because a truncated alarm is worse than an oversize one the
+    platform previews); higher priorities shed FIRST, a whole priority class at a time, until the joined
+    text fits. When anything is shed and `notice` is given, notice(shed_names) is appended to the kept
+    text and counted against the cap — and CONTENT ALWAYS BEATS THE LABEL (#495 review): a further class
+    is never shed just to make room for the notice. When the kept content fits but the full notice tips
+    it over, the notice shrinks to `compact_notice(shed_names)`; if even that doesn't fit, the notice is
+    dropped (the kept content, grounding marker included, matters more than the sentence about
+    trimming). Returns (text, shed_names) — the order of `blocks` is preserved; priorities select what
+    survives, never reorder it. `cap` defaults to HOOK_OUTPUT_CAP resolved at call time (so a test can
+    patch the module constant)."""
+    if cap is None:
+        cap = HOOK_OUTPUT_CAP
+    kept = list(blocks)
+    shed: list = []
+
+    def _render(current, shed_names, notice_fn):
+        parts = [t for _p, _n, t in current if t]
+        if shed_names and notice_fn is not None:
+            parts.append(notice_fn(shed_names))
+        return "\n".join(parts)
+
+    for priority in sorted({p for p, _n, _t in kept if p > 0}, reverse=True):
+        if len(_render(kept, shed, notice)) <= cap:
+            break
+        if shed and len(_render(kept, shed, None)) <= cap:
+            break                       # only the notice is over — resolved below, never another shed
+        shed.extend(n for p, n, _t in kept if p == priority)
+        kept = [b for b in kept if b[0] != priority]
+    text = _render(kept, shed, notice)
+    if len(text) <= cap or not shed:
+        return text, shed               # fits, or pinned-alone oversize (emitted whole, documented above)
+    if len(_render(kept, shed, None)) <= cap:
+        compact = _render(kept, shed, compact_notice) if compact_notice is not None else None
+        if compact is not None and len(compact) <= cap:
+            return compact, shed
+        return _render(kept, shed, None), shed
+    return text, shed
 
 
 def decide(permission: str, reason: str | None = None) -> dict:
@@ -325,6 +392,13 @@ def _record_crash_debug(event: str, exc: BaseException, path: str | None = None)
     finding, so its backstage detail belongs beside telemetry's cache); telemetry is lazy-imported here,
     exactly as the fail-open promotion path already does. Best-effort and fully swallowed by the caller:
     recording a crash must never re-break fail-open."""
+    if "unittest" in sys.modules and path is None:
+        # The hermetic backstop its siblings already carry (telemetry.emit_finding, providers'
+        # live-session write): the test suite exercises crashing handlers by the hundred, and without
+        # this guard every run appends test-harness noise to the PRODUCTION crash log — the pollution
+        # that made tonight's real-crash archaeology harder (#520/#522 investigation). An explicit
+        # `path` (the unit tests' own temp file) still writes.
+        return
     if path is None:
         import telemetry  # noqa: E402 — lazy, on the fail-open branch only (as _do_promote_fail_open is)
         path = telemetry.HOOK_CRASH_DEBUG_PATH
@@ -374,6 +448,13 @@ def run_hook(event: str, handler, *, stdin=None, stdout=None, stderr=None, promo
     try:
         raw = inp.read()
         payload = json.loads(raw) if raw and raw.strip() else {}
+        if not isinstance(payload, dict):
+            payload = {}
+        # Canonicalize the payload vocabulary at the boundary (eADR-0034): a Codex payload is
+        # rewritten into the canonical tool names every handler is written against; a Claude
+        # payload passes through as the SAME object (identity — providers' test pins it), so the
+        # Claude path is byte-unchanged. A normalization fault is a payload fault: fail open.
+        payload = providers.normalize(event, payload)
         if not isinstance(payload, dict):
             payload = {}
     except Exception:  # noqa: BLE001 — reading the platform's event must NEVER block: any input the

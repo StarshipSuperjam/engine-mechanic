@@ -31,8 +31,16 @@ def _module(mid, ver="0.0.0-dev", migrations=None):
 
 
 class _Tree:
-    """A temp engine tree (engine.json + module manifests) with validate.ROOT pointed at it."""
-    def __init__(self, modules, home="acme/engine-home", engine_release="0.0.0-dev"):
+    """A temp engine tree (engine.json + module manifests) with validate.ROOT pointed at it.
+
+    `origin` is the repo's OWN slug (what `boot.repo_slug()` reads via `GITHUB_REPOSITORY`); it defaults to
+    `home`, so a fixture models the CONSTRUCTION repo (own == home => not a downstream copy => release_cut cuts
+    the ENGINE version). A product-mode test (#516) makes the fixture a deployed repo by passing `origin` !=
+    `home`, or by dropping a `product-version.json` in the tree (file-presence dominates the mode). Setting the
+    env here keeps `release_cut.release_mode()` resolving a stable, offline mode instead of reading the real
+    checkout's git origin."""
+    def __init__(self, modules, home="acme/engine-home", engine_release="0.0.0-dev", origin=None):
+        self.origin = origin if origin is not None else home
         self.root = tempfile.mkdtemp()
         engine = {"engine_release": engine_release,
                   "packages": {mid: m["version"] for mid, m in modules.items()},
@@ -43,13 +51,27 @@ class _Tree:
 
     def __enter__(self):
         self._saved = (validate.ROOT, validate.ENGINE_DIR)
+        self._saved_repo = os.environ.get("GITHUB_REPOSITORY")
+        os.environ["GITHUB_REPOSITORY"] = self.origin
         validate.ROOT = self.root
         validate.ENGINE_DIR = os.path.join(self.root, ".engine")
         return self
 
     def __exit__(self, *exc):
         validate.ROOT, validate.ENGINE_DIR = self._saved
+        if self._saved_repo is None:
+            os.environ.pop("GITHUB_REPOSITORY", None)
+        else:
+            os.environ["GITHUB_REPOSITORY"] = self._saved_repo
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def write_product_version(self, version):
+        """Seed a root `product-version.json` so the fixture reads as a deployed repo cutting its PRODUCT
+        release (file-presence dominates release_cut.release_mode). Returns the path."""
+        p = os.path.join(self.root, "product-version.json")
+        with open(p, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"version": version}) + "\n")
+        return p
 
     def engine_text(self):
         with open(os.path.join(self.root, ".engine", "engine.json"), encoding="utf-8") as f:
@@ -159,6 +181,76 @@ class Classify(unittest.TestCase):
         self.assertIsNone(p["engine_floor_version"])
 
 
+class MigrationAccumulation(unittest.TestCase):
+    # #599 Slice 3: migrations replay by RANGE, so a version-key present in the previous release but dropped in
+    # the candidate would be SILENTLY SKIPPED on a multi-version upgrade. classify() flags it; the cut is refused.
+    _MIG = {"0.2.0": {"description": "d", "run": "r", "kind": "config"}}
+
+    def _classify(self, live, baseline):
+        base = _baseline_tree(baseline)
+        try:
+            with _Tree(live):
+                return rc.classify(rc.Baseline("v0.0.9", False, "diff"), base)
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+
+    def test_dropped_migration_key_is_flagged(self):
+        p = self._classify({"core": _module("core")}, {"core": _module("core", migrations=self._MIG)})
+        self.assertEqual(len(p["migration_violations"]), 1)
+        self.assertIn("core", p["migration_violations"][0])
+        self.assertIn("0.2.0", p["migration_violations"][0])
+
+    def test_retained_migration_is_clean(self):
+        p = self._classify({"core": _module("core", migrations=self._MIG)},
+                           {"core": _module("core", migrations=self._MIG)})
+        self.assertEqual(p["migration_violations"], [])
+
+    def test_rekeyed_migration_is_not_a_false_drop(self):
+        # baseline '0.4' and candidate '0.4.0' are the SAME version — normalization must not read a drop.
+        live = {"core": _module("core", migrations={"0.4.0": {"description": "d", "run": "r", "kind": "config"}})}
+        base = {"core": _module("core", migrations={"0.4": {"description": "d", "run": "r", "kind": "config"}})}
+        self.assertEqual(self._classify(live, base)["migration_violations"], [])
+
+    def test_whole_removed_module_is_not_a_dropped_migration(self):
+        # a removed CAPABILITY is inventoried as removed (major bump); its migrations are a KNOWN BOUND for
+        # Slice 4, NOT double-counted here as a dropped-migration violation.
+        base = {"core": _module("core"),
+                "legacy": _module("legacy", migrations={"0.1.0": {"description": "d", "run": "r", "kind": "data"}})}
+        p = self._classify({"core": _module("core")}, base)
+        self.assertEqual(p["migration_violations"], [])
+        self.assertIn("Removed the 'legacy'", " ".join(p["change_inventory"]))
+
+    def test_propose_refuses_a_dropped_migration_with_a_plain_reason(self):
+        import io
+        import contextlib
+        import types
+        base = _baseline_tree({"core": _module("core", migrations=self._MIG)})
+        saved = rc.resolve_baseline
+        rc.resolve_baseline = lambda *a, **k: rc.Baseline("v0.0.9", False, "diff")
+        try:
+            with _Tree({"core": _module("core")}):
+                out, err = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = rc._cmd_propose(types.SimpleNamespace(json=True, baseline_tree=base))
+            self.assertEqual(code, 2)                                   # non-zero => the propose step fails the cut
+            self.assertIn("upgrade step", err.getvalue().lower())       # a plain reason to stderr, never bare exit
+            self.assertIn("0.2.0", err.getvalue())
+        finally:
+            rc.resolve_baseline = saved
+            shutil.rmtree(base, ignore_errors=True)
+
+    def test_added_migration_is_not_a_violation(self):
+        # the common real-cut case: the candidate ADDS a key the baseline lacked -> a gain, not a drop.
+        p = self._classify({"core": _module("core", migrations=self._MIG)}, {"core": _module("core")})
+        self.assertEqual(p["migration_violations"], [])
+
+    def test_product_cut_has_no_migration_guard(self):
+        # engine-mode only: a product cut is built by _product_proposal, a different path that never computes
+        # the guard, so a product release can never be refused by the engine-migration accumulation rule.
+        p = rc._product_proposal(rc.Baseline("v0.1.0", False, ""), "0.1.0", [])
+        self.assertNotIn("migration_violations", p)
+
+
 class Apply(unittest.TestCase):
     def test_raise_only_refuses_engine_non_increase(self):
         # the ENGINE version must strictly increase — an equal engine version is refused (a cut always moves it)
@@ -239,7 +331,7 @@ class Apply(unittest.TestCase):
             self.assertEqual(t.engine()["packages"]["core"], "0.1.0")
             self.assertEqual(t.module_version("core"), "0.1.0")
             self.assertEqual(t.module_version("qa-review"), "0.1.0")
-            # home_repository line is byte-identical (would otherwise trip weakening_guard, D-281/D-282)
+            # home_repository line is byte-identical (would otherwise trip weakening_guard)
             after_home_line = [ln for ln in t.engine_text().splitlines() if "home_repository" in ln][0]
             self.assertEqual(before_home_line, after_home_line)
             self.assertEqual(t.engine()["identity"], "solo")           # unrelated keys preserved
@@ -344,9 +436,9 @@ class RenderPRBody(unittest.TestCase):
         self.assertIn("First release", body)                        # the change inventory carried through
         self.assertIn("Every capability (2)", body)                 # uniform targets collapse to one line
         self.assertIn("no automated check", body.lower())           # the gate-path line (no benchmark built)
-        self.assertIn("## Review", body)                            # the §3 confirm/raise/reject guidance
+        self.assertIn("## Review", body)                            # the confirm/raise/reject guidance
         self.assertIn("close this and run the release again", body)  # the raise + missing-signal backstop
-        # maintainer-facing register (§8): no internal machinery vocabulary leaks
+        # maintainer-facing register: no internal machinery vocabulary leaks
         for banned in ("release-cut", "bump rule", "version production", "first-cut", "engine_floor"):
             self.assertNotIn(banned, body)
 
@@ -363,6 +455,23 @@ class RenderPRBody(unittest.TestCase):
                     "Review", "Files of interest", "Claude involvement"]
         findings = validate.section_presence_findings(body, required, "hard", "", "pull-request body")
         self.assertEqual(findings, [], f"release body missing/empty required sections: {findings}")
+
+    def test_body_carries_the_consent_preamble_and_clears_the_full_gate(self):
+        # A RELEASE_PAT-opened release PR is not author-exempt, so its body must also carry the consent
+        # preamble the completeness gate now requires (required_phrases), not just the eight sections.
+        # Assert against the SHIPPED check via the real kind_presence, so this tracks the exact gate and
+        # FAILS if render_pr_body ever stops emitting the preamble (the #491 preamble-drop class).
+        root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        with open(os.path.join(root, ".engine", "check", "pr-body-completeness.json"), encoding="utf-8") as fh:
+            shipped = json.load(fh)
+        with _Tree({"core": _module("core"), "qa-review": _module("qa-review")}):
+            proposal = rc.classify(rc.Baseline(None, True, "no prior release"), None)
+            applied = rc.apply("0.1.0", "0.1.0", {}, None, dry_run=False)
+        body = rc.render_pr_body(proposal, applied)
+        passed, findings = validate.kind_presence(shipped, {"pr_body": body})
+        self.assertTrue(passed, f"release body fails the shipped completeness gate: {findings}")
+        for phrase in shipped["params"]["required_phrases"]:
+            self.assertIn(phrase, body, f"release body dropped preamble anchor {phrase!r}")
 
     def test_body_follows_the_pr_template_form_not_just_headers(self):
         # The completeness gate only checks the eight HEADERS are present; a header-only body passes it but is
@@ -461,7 +570,7 @@ class RenderPRBody(unittest.TestCase):
     def test_gate_path_three_states_are_visibly_distinct(self):
         passed, subbar, errored = (rc._gate_path_line("passed"), rc._gate_path_line("sub-bar"),
                                    rc._gate_path_line("errored"))
-        self.assertEqual(len({passed, subbar, errored}), 3)         # §6: never look alike
+        self.assertEqual(len({passed, subbar, errored}), 3)         # never look alike
         self.assertIn("passed", passed.lower())
         self.assertIn("errored", errored.lower())
         self.assertIn("no automated check", subbar.lower())
@@ -871,6 +980,195 @@ class KindGrouping(unittest.TestCase):
                                                                                  "Refactor storage (#2)"]})
         self.assertIn("### Feature", notes)
         self.assertIn("### Other changes", notes)
+
+
+class ProductReleaseMode(unittest.TestCase):
+    """Product-release mode (#516): once deployed, release_cut reads/writes the deployed repo's OWN
+    product-version.json instead of the engine version, and speaks of the product."""
+
+    # ---- mode detection: product dominates; construction stays engine; malformed refuses ----
+    def test_construction_repo_is_engine_mode(self):
+        # own == home, no product file -> the engine IS the product here; cut the ENGINE version.
+        with _Tree({"core": _module("core")}, home="acme/eng", origin="acme/eng"):
+            self.assertEqual(rc.release_mode()[0], "engine")
+
+    def test_downstream_deployment_without_file_is_product_mode(self):
+        # a deployed repo (origin != recorded home), no file yet -> product-mode ARMS on upgrade; the first cut
+        # will create the file. current is None (nothing cut yet).
+        with _Tree({"core": _module("core")}, home="acme/eng", origin="acme/deployed"):
+            mode, ctx = rc.release_mode()
+            self.assertEqual(mode, "product")
+            self.assertIsNone(ctx["current"])
+
+    def test_product_file_present_dominates_even_when_not_downstream(self):
+        # file-presence dominates: even a repo that reads as NOT-downstream (own == home) is product-mode when
+        # it carries the committed product declaration — the safety the risk lens required (a fail-quiet
+        # downstream check can never route a file-carrying repo to an engine cut).
+        with _Tree({"core": _module("core")}, home="acme/eng", origin="acme/eng") as t:
+            t.write_product_version("0.3.0")
+            mode, ctx = rc.release_mode()
+            self.assertEqual(mode, "product")
+            self.assertEqual(ctx["current"], "0.3.0")
+
+    def test_malformed_product_file_refuses_never_engine(self):
+        with _Tree({"core": _module("core")}, home="acme/eng", origin="acme/eng") as t:
+            with open(os.path.join(t.root, "product-version.json"), "w") as fh:
+                fh.write("{ not json")
+            self.assertEqual(rc.release_mode()[0], "refuse")
+        # a non-semver version value is malformed too (not just unparseable JSON)
+        with _Tree({"core": _module("core")}, origin="acme/deployed") as t:
+            t.write_product_version("not-a-version")
+            self.assertEqual(rc.release_mode()[0], "refuse")
+
+    # ---- apply_product: first cut creates, raise-only, atomic, malformed ----
+    def test_apply_product_first_cut_creates_file_from_no_earlier_version(self):
+        with _Tree({}, origin="acme/deployed") as t:
+            r = rc.apply_product("0.1.0", dry_run=False)
+            self.assertTrue(r["applied"])
+            self.assertEqual(r["from_engine"], rc.SENTINEL)   # renders as "no earlier version"
+            self.assertTrue(r["product"])
+            self.assertEqual(r["targets"], {})
+            self.assertEqual(json.load(open(os.path.join(t.root, "product-version.json")))["version"], "0.1.0")
+
+    def test_apply_product_is_raise_only(self):
+        with _Tree({}, origin="acme/deployed") as t:
+            t.write_product_version("0.2.0")
+            lower = rc.apply_product("0.1.0", dry_run=False)
+            self.assertFalse(lower["applied"])
+            self.assertEqual(lower["reason"], "raise-only")
+            # the file is untouched by a refused cut
+            self.assertEqual(json.load(open(os.path.join(t.root, "product-version.json")))["version"], "0.2.0")
+            bump = rc.apply_product("0.2.1", dry_run=False)
+            self.assertTrue(bump["applied"])
+            self.assertEqual(json.load(open(os.path.join(t.root, "product-version.json")))["version"], "0.2.1")
+
+    def test_apply_product_invalid_version_refused(self):
+        with _Tree({}, origin="acme/deployed"):
+            r = rc.apply_product("garbage;rm -rf ~", dry_run=False)
+            self.assertFalse(r["applied"])
+            self.assertEqual(r["reason"], "invalid-version")
+
+    def test_apply_product_malformed_file_refuses(self):
+        with _Tree({}, origin="acme/deployed") as t:
+            with open(os.path.join(t.root, "product-version.json"), "w") as fh:
+                fh.write("{ nope")
+            r = rc.apply_product("0.1.0", dry_run=False)
+            self.assertFalse(r["applied"])
+            self.assertEqual(r["reason"], "malformed-product-file")
+
+    def test_apply_product_dry_run_writes_nothing(self):
+        with _Tree({}, origin="acme/deployed") as t:
+            r = rc.apply_product("0.1.0", dry_run=True)
+            self.assertFalse(r["applied"])
+            self.assertEqual(r["reason"], "dry-run")
+            self.assertFalse(os.path.exists(os.path.join(t.root, "product-version.json")))
+
+    # ---- the mode-neutral proposal contract ----
+    def test_product_proposal_first_cut_has_no_floor(self):
+        p = rc._product_proposal(rc.Baseline(None, True, ""), "0.0.0", [])
+        self.assertTrue(p["product"])
+        self.assertEqual(p["mode"], "first-cut")
+        self.assertIsNone(p["engine_floor_version"])       # first cut: version is chosen, not derived
+
+    def test_product_proposal_diff_floor_is_a_patch_bump(self):
+        # the derive-the-version default the workflow shell reads when the operator leaves the box blank.
+        p = rc._product_proposal(rc.Baseline("v0.1.0", False, ""), "0.1.0", [])
+        self.assertEqual(p["mode"], "diff")
+        self.assertEqual(p["engine_floor_version"], "0.1.1")
+
+    # ---- product-worded renders carry no engine vocabulary ----
+    def test_render_pr_body_product_wording(self):
+        p = rc._product_proposal(rc.Baseline(None, True, ""), "0.0.0", ["Feature: ship it (#1)"])
+        applied = {"applied": True, "engine": "0.1.0", "from_engine": rc.SENTINEL, "targets": {}, "product": True}
+        body = rc.render_pr_body(p, applied)
+        self.assertTrue(body.splitlines()[0].startswith("# A new release of your product"))
+        self.assertIn("- Product: no earlier version → 0.1.0", body)
+        self.assertIn("product-version.json", body)
+        # the product body carries the consent preamble too (#589), so a product release PR clears the same
+        # pr-body-completeness gate an engine one does.
+        self.assertIn("Your merge is the binding gate", body)
+        low = body.lower()
+        self.assertNotIn("engine version", low)
+        self.assertNotIn("your instances", low)
+        self.assertNotIn("capability", low)
+
+    def test_render_release_notes_product_wording(self):
+        p = rc._product_proposal(rc.Baseline("v0.1.0", False, ""), "0.1.0", ["Fix: a bug (#2)"])
+        notes = rc.render_release_notes("v0.2.0", p)
+        self.assertTrue(notes.startswith("Release v0.2.0."))
+        self.assertNotIn("Engine version", notes)
+
+    # ---- CLI dispatch by mode ----
+    def test_cmd_apply_dispatches_to_product_writer(self):
+        with _Tree({"core": _module("core", ver="0.1.0")}, engine_release="0.1.0", origin="acme/deployed") as t:
+            code = rc.main(["apply", "--engine", "0.1.0", "--all", "0.1.0", "--json"])
+            self.assertEqual(code, 0)
+            # the PRODUCT file was written; the engine manifest version was NOT touched.
+            self.assertEqual(json.load(open(os.path.join(t.root, "product-version.json")))["version"], "0.1.0")
+            self.assertEqual(t.engine()["engine_release"], "0.1.0")   # unchanged (product cut, not engine)
+
+    def test_cmd_apply_refuses_on_malformed_product_file(self):
+        with _Tree({"core": _module("core")}, origin="acme/deployed") as t:
+            with open(os.path.join(t.root, "product-version.json"), "w") as fh:
+                fh.write("{ bad")
+            code = rc.main(["apply", "--engine", "0.1.0", "--json"])
+            self.assertEqual(code, 2)
+
+    def test_cmd_propose_product_mode(self):
+        import io
+        from contextlib import redirect_stdout
+        with _Tree({"core": _module("core")}, origin="acme/deployed") as t:
+            t.write_product_version("0.1.0")
+            saved = rc.resolve_baseline
+            rc.resolve_baseline = lambda slug=None: rc.Baseline(None, True, "first")   # avoid the network
+            try:
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    code = rc.main(["propose", "--json", "--baseline-tree", "unused"])  # baseline-tree skips merged
+            finally:
+                rc.resolve_baseline = saved
+            self.assertEqual(code, 0)
+            proposal = json.loads(out.getvalue())
+            self.assertTrue(proposal["product"])
+            self.assertEqual(proposal["mode"], "first-cut")
+
+    def test_seeded_first_cut_shows_the_starting_version(self):
+        # the COMMON post-deployment first cut: first-run seeded product-version.json at 0.0.0, so the cut reads
+        # "0.0.0 → X" (the file-ABSENT path that renders "no earlier version" is the un-seeded / deleted edge).
+        with _Tree({}, origin="acme/deployed") as t:
+            t.write_product_version("0.0.0")
+            r = rc.apply_product("0.1.0", dry_run=False)
+            self.assertEqual(r["from_engine"], "0.0.0")
+        applied = {"applied": True, "engine": "0.1.0", "from_engine": "0.0.0", "targets": {}, "product": True}
+        body = rc.render_pr_body(rc._product_proposal(rc.Baseline(None, True, ""), "0.0.0", []), applied)
+        self.assertIn("- Product: 0.0.0 → 0.1.0", body)
+
+    def test_unresolved_slug_forces_first_cut_never_engine_home(self):
+        # a product cut whose repo slug could not be resolved must NOT diff against the ENGINE's home releases —
+        # with no slug there is no release stream, so it is a first cut (guards the None-slug baseline hole).
+        b = rc._product_baseline(None)
+        self.assertTrue(b.first_cut)
+        self.assertIsNone(b.ref)
+
+
+class ReleaseWorkflowsAreFoundation(unittest.TestCase):
+    """The release workflows travel + upgrade like every other engine workflow (#516) — FOUNDATION_INFRA ->
+    FOUNDATION_CODE (overlay-replaced on upgrade) + CODEOWNERS (foundation_infra_paths), the same treatment
+    test_actionlint / test_audit_prep assert for their own workflows."""
+
+    def test_release_workflows_are_foundation_infra(self):
+        for w in (".github/workflows/release.yml", ".github/workflows/release-publish.yml"):
+            self.assertIn(w, module_coherence.FOUNDATION_INFRA, w)
+
+    def test_release_workflows_travel_on_upgrade(self):
+        import module_manager
+        for w in (".github/workflows/release.yml", ".github/workflows/release-publish.yml"):
+            self.assertIn(w, module_manager.FOUNDATION_CODE, w)
+
+    def test_release_workflows_are_engine_owned_in_codeowners(self):
+        owned = module_coherence.foundation_infra_paths()
+        for w in (".github/workflows/release.yml", ".github/workflows/release-publish.yml"):
+            self.assertIn(w, owned, w)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-tests for slice 18 — telemetry detect->surface machinery.
+"""Self-tests for telemetry detect->surface machinery.
 
 Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
 
@@ -121,9 +121,9 @@ def run(gh_obj, records, cache, thresholds, now, state_path=None, *,
 
 class TestSeverityRank(unittest.TestCase):
     """severity_rank grades a tracked finding's severity CLASS into the numeric severity attention's
-    debt-blocking rule ranks on (#394 U01). Telemetry owns the class, so it GRADES; whether a grade blocks is
-    attention's own rule (D-117), so nothing here asserts blocking — only the ordering against the caller's
-    bar. The numbers are an uncalibrated build-spec leaf (D-052/D-113)."""
+    debt-blocking rule ranks on (#394). Telemetry owns the class, so it GRADES; whether a grade blocks is
+    attention's own rule, so nothing here asserts blocking — only the ordering against the caller's
+    bar. The numbers are an uncalibrated build-spec leaf."""
 
     _BAR = 2   # the shipped debt_blocking_threshold these grades are calibrated against
 
@@ -131,7 +131,7 @@ class TestSeverityRank(unittest.TestCase):
         self.assertGreaterEqual(telemetry.severity_rank(telemetry.TRUST_CRITICAL, self._BAR), self._BAR)
 
     def test_persistent_benign_grades_below_the_bar(self):
-        # Below the bar -> assign_partition returns None -> a deferral/backlog (attention/README:50).
+        # Below the bar -> assign_partition returns None -> a deferral/backlog.
         self.assertLess(telemetry.severity_rank(telemetry.PERSISTENT_BENIGN, self._BAR), self._BAR)
 
     def test_an_unmarked_finding_has_no_severity_to_report(self):
@@ -157,7 +157,7 @@ class TestSeverityRank(unittest.TestCase):
             self.assertTrue(math.isfinite(rank), f"a bar of {bar} produced a droppable severity {rank}")
 
     def test_trust_critical_clears_ANY_bar_however_it_is_tuned(self):
-        # THE safety property. debt_blocking_threshold is operator-tunable (D-167), and this class means "a
+        # THE safety property. debt_blocking_threshold is operator-tunable, and this class means "a
         # safety gate could not run; promotes immediately" — so a tuned-up bar must never defer it. Without the
         # clamp a bar above the fixed rank would silently drop the most urgent class with no feedback.
         for bar in (0, 2, 3, 4, 10, 10_000):
@@ -219,8 +219,8 @@ class TestPureHelpers(unittest.TestCase):
     def test_issue_body_leaks_no_raw_identifier(self):
         # The raw source-id identifier lives only in the invisible HTML-comment marker (parsed back by
         # parse_source_id); it must never surface in the operator-visible prose. This guards a SYMBOL (a raw
-        # identifier leak is a bug), not vocabulary, so it is not a banned-word list (engine-planning
-        # D-225 / R30) — whether the prose leans on jargon is a judgment, not a filter.
+        # identifier leak is a bug), not vocabulary, so it is not a banned-word list — whether the
+        # prose leans on jargon is a judgment, not a filter.
         body = telemetry.issue_body(rec("rule:y"), T[0], T[0]).lower()
         prose = body.split("<!--")[0]  # the operator-visible prose, minus the invisible marker
         for sym in ("source-id", "source_id"):
@@ -295,7 +295,7 @@ class TestDegradedRead(unittest.TestCase):
             sp = _write_state(d, open_count=7, as_of="2026-06-01T00:00:00Z")
             r = run(gh(f), [rec("rule:b")], telemetry.Cache(_tmpcache()), TH, T[0], state_path=sp)
         self.assertTrue(r.degraded)
-        self.assertIn("7 open problems", r.degraded_line)
+        self.assertIn("7 open engine findings", r.degraded_line)
         self.assertIn("re-ground before you rely on it", r.degraded_line)
         self.assertIn("until GitHub returns", r.degraded_line)
         # zero Issue writes (POST /issues or PATCH /issues/N) — the read failed before any write
@@ -320,6 +320,86 @@ class TestDegradedRead(unittest.TestCase):
     def test_degraded_readout_unknown_when_no_offline_count(self):
         line = telemetry.degraded_readout(None, None)
         self.assertIn("unknown until GitHub returns", line)
+
+
+_UNSET = object()
+
+
+class _FakeSearch:
+    """A minimal Search-API stand-in for count_open_operator_issues — isolated from the shared FakeGH
+    because `/search/issues` ends in `/issues` and would be swallowed by FakeGH's bare-array `/issues`
+    branch. Records the path it was asked for; serves the `{total_count, items}` envelope, a failure
+    status, or a caller-supplied malformed body."""
+
+    def __init__(self, total=0, *, status=200, data=_UNSET):
+        self.total = total
+        self.status = status
+        self.data = data
+        self.paths: list = []
+
+    def transport(self, method, path, body):
+        self.paths.append(path)
+        if self.status >= 400:
+            return self.status, None
+        if self.data is not _UNSET:
+            return 200, self.data
+        return 200, {"total_count": self.total, "items": []}
+
+
+class TestOperatorIssueCount(unittest.TestCase):
+    """The operator's own open-issue count (issues WITHOUT the engine label) is answered in ONE Search-API
+    call reading `total_count` — never by paginating the backlog — filters on `self.label` so a renamed
+    engine label keeps the count the exact complement, and RAISES on any failure so a degraded read is
+    never a false 0."""
+
+    def test_count_reads_total_count_in_a_single_search_call(self):
+        f = _FakeSearch(total=42)
+        self.assertEqual(telemetry.GitHubIssues("you/proj", "tok", transport=f.transport)
+                         .count_open_operator_issues(), 42)
+        self.assertEqual(len(f.paths), 1)                       # ONE call, no pagination
+        self.assertIn("/search/issues", f.paths[0])
+        self.assertIn("is%3Aopen", f.paths[0])                  # only OPEN issues (a dropped is:open would count closed)
+        self.assertIn("is%3Aissue", f.paths[0])                 # is:issue -> PRs excluded server-side
+        self.assertIn("-label%3A%22engine%22", f.paths[0])      # excludes the engine label (quoted)
+        self.assertIn("repo%3Ayou/proj", f.paths[0])   # quote() keeps '/' (safe='/'), encodes ':' -> %3A
+
+    def test_filter_tracks_a_custom_label_so_the_two_reads_stay_complements(self):
+        f = _FakeSearch(total=3)
+        telemetry.GitHubIssues("o/r", "tok", label="acme-engine", transport=f.transport)\
+            .count_open_operator_issues()
+        self.assertIn("-label%3A%22acme-engine%22", f.paths[0])   # not the hardcoded default
+
+    def test_raises_on_http_error_never_a_false_zero(self):
+        for status in (403, 422, 500):
+            f = _FakeSearch(status=status)
+            with self.assertRaises(telemetry.DegradedReadError):
+                telemetry.GitHubIssues("o/r", "tok", transport=f.transport).count_open_operator_issues()
+
+    def test_raises_on_an_unexpected_shape(self):
+        # A 200 with no total_count (a bare list, an error envelope) OR a present-but-non-int total_count
+        # (null / string / object) must raise DegradedReadError, never read as a count — honoring the
+        # docstring so a malformed-but-present body can't slip past into a bare int() TypeError.
+        for bad in ([], {"items": []}, None, {"total_count": None}, {"total_count": "oops"},
+                    {"total_count": {}}):
+            f = _FakeSearch(data=bad)
+            with self.assertRaises(telemetry.DegradedReadError):
+                telemetry.GitHubIssues("o/r", "tok", transport=f.transport).count_open_operator_issues()
+
+    def test_register_url_matches_the_counted_filter(self):
+        gi = telemetry.GitHubIssues("you/proj", "tok")
+        self.assertEqual(gi.operator_issues_query_url(),
+                         "https://github.com/you/proj/issues?q=is:open+is:issue+-label:engine")
+        self.assertIn("-label:acme",
+                      telemetry.GitHubIssues("o/r", "tok", label="acme").operator_issues_query_url())
+
+    def test_engine_and_all_open_register_urls_carry_is_issue(self):
+        # The engine-findings link and the whole-backlog link must both filter to `is:issue` — the finding
+        # COUNT skips PRs (list_open_engine_issues), so a link that included PRs could over-count the header.
+        gi = telemetry.GitHubIssues("you/proj", "tok")
+        self.assertEqual(gi.issues_query_url(),
+                         "https://github.com/you/proj/issues?q=is:open+is:issue+label:engine")
+        self.assertEqual(gi.all_open_issues_query_url(),
+                         "https://github.com/you/proj/issues?q=is:open+is:issue")
 
 
 class TestLabelEnsure(unittest.TestCase):
@@ -487,8 +567,8 @@ def _cache_transport(*, open_issues=(), milestones=(200, []), pulls=(200, []), i
 
 _STANDING_OK = dict(
     milestones=(200, [{"title": "Ship the beta"}]),
-    pulls=(200, [{"number": 99, "merged_at": "x", "body": "Closes #80"}]),
-    issues={80: (200, {"number": 80, "title": "The drift fix", "labels": [{"name": "engine"}]})})
+    pulls=(200, [{"number": 99, "title": "The drift fix", "merged_at": "2026-06-13T00:00:00Z"}]),
+    issues={})
 
 
 class TestCacheRefresh(unittest.TestCase):
@@ -512,7 +592,7 @@ class TestCacheRefresh(unittest.TestCase):
         self.assertEqual(data["integration_debt"]["as_of"], T[2])
         self.assertIn("is:open", data["integration_debt"]["register"])
         self.assertEqual(data["standing_situation"],
-                         {"milestone": "Ship the beta", "phase": "The drift fix (issue #80)", "as_of": T[2]})
+                         {"milestone": ["Ship the beta"], "phase": "The drift fix (PR #99)", "as_of": T[2]})
         self.assertEqual(list(validate.Draft202012Validator(self._schema()).iter_errors(data)), [])
 
     def test_debt_read_failure_preserves_debt_and_still_refreshes_standing(self):
@@ -522,7 +602,7 @@ class TestCacheRefresh(unittest.TestCase):
             telemetry.refresh_cache(sp, "o/r", "tok", now=T[2], transport=transport)
             data = validate.load_json(sp)
         self.assertEqual(data["integration_debt"]["open_count"], 7)               # prior debt untouched
-        self.assertEqual(data["standing_situation"]["milestone"], "Ship the beta")  # standing refreshed
+        self.assertEqual(data["standing_situation"]["milestone"], ["Ship the beta"])  # standing refreshed
 
     def test_standing_derive_failure_preserves_standing_and_still_refreshes_debt(self):
         transport = _cache_transport(open_issues=self.OPEN, milestones=(403, None))
@@ -659,7 +739,7 @@ class TestEngineIssuesFeed(unittest.TestCase):
 
 
 class TestStandingCacheRefresh(unittest.TestCase):
-    """The standing-situation offline cache (D-198): telemetry is its sole writer, it is DISJOINT from the
+    """The standing-situation offline cache: telemetry is its sole writer, it is DISJOINT from the
     debt count, it carries an `as_of` provenance, and it rides the same GitHub pass — but a derive failure
     never clobbers a good cache nor breaks the debt write."""
 
@@ -694,13 +774,13 @@ class TestStandingCacheRefresh(unittest.TestCase):
     def test_refresh_standing_derives_and_writes_only_standing(self):
         transport = _standing_transport(
             milestones=(200, [{"title": "Ship the beta"}]),
-            pulls=(200, [{"number": 99, "merged_at": "x", "body": "Closes #80"}]),
-            issues={80: (200, {"number": 80, "title": "The drift fix", "labels": [{"name": "engine"}]})})
+            pulls=(200, [{"number": 99, "title": "The drift fix", "merged_at": "2026-06-13T00:00:00Z"}]),
+            issues={})
         with tempfile.TemporaryDirectory() as d:
             sp = _write_state(d, open_count=3, as_of=T[0], register="https://x/issues")
             written = telemetry.refresh_standing(sp, "o/r", "tok", now=T[2], transport=transport)
             data = validate.load_json(sp)
-        self.assertEqual(written, {"milestone": "Ship the beta", "phase": "The drift fix (issue #80)", "as_of": T[2]})
+        self.assertEqual(written, {"milestone": ["Ship the beta"], "phase": "The drift fix (PR #99)", "as_of": T[2]})
         self.assertEqual(data["standing_situation"], written)
         self.assertEqual(data["integration_debt"]["open_count"], 3)   # debt left untouched
         self.assertEqual(list(validate.Draft202012Validator(self._schema()).iter_errors(data)), [])
@@ -801,8 +881,11 @@ class TestSentinelRecovery(unittest.TestCase):
 class TestConsolidation(unittest.TestCase):
     """A create/create race can leave two open Issues for ONE signal (GitHub has no atomic
     create-if-absent). reconcile/run must CONVERGE keyable duplicates onto the lowest-numbered survivor,
-    close the rest, and preserve the earliest first-noticed — but ONLY within authority scope, so a
-    partial (e.g. CI-only) pass never touches another source's duplicates. Real reconcile; network faked."""
+    close the rest, and preserve the earliest first-noticed — UNCONDITIONALLY of authority scope (#518):
+    authority governs auto-RESOLVING a signal, never folding two copies of one signal into one, and the
+    old authority gate here was exactly why the recorded duplicate pair persisted (no racing pass was
+    authoritative for the raced signal). The survivor itself stays under authority scope — a scoped pass
+    still never closes it. Real reconcile; network faked."""
 
     def _inject(self, f, number, sid, first_seen):
         body = telemetry.issue_body(rec(sid, "trust-critical", "A safety check could not run."),
@@ -832,15 +915,47 @@ class TestConsolidation(unittest.TestCase):
         self.assertEqual(f.issues[434]["state"], "closed")       # duplicate consolidated
         self.assertEqual(f.issues[433]["state"], "open")         # survivor carried forward
 
-    def test_scoped_pass_leaves_another_sources_duplicates_untouched(self):
-        # THE INVARIANT: a CI-scoped pass has no authority over hooks/fail-open, so it must NOT consolidate
-        # that source's duplicate pair — the same source-scoping that stops it auto-resolving foreign Issues.
+    def test_scoped_pass_consolidates_foreign_duplicates_but_never_resolves_the_survivor(self):
+        # THE #518 INVERSION: a CI-scoped pass has no authority over hooks/fail-open, so it must never
+        # auto-RESOLVE that source's signal — but folding the signal's two copies into one decides nothing
+        # about the signal, so the duplicate IS consolidated. This is the chicken-and-egg leg the recorded
+        # duplicate pair sat in: the raced signal's own passes were never authoritative for it.
         f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
         self._inject(f, 433, "hooks/fail-open/PreToolUse/crash", T[0])
         self._inject(f, 434, "hooks/fail-open/PreToolUse/crash", T[1])
         run(gh(f), [], cache, TH, T[5], authoritative=frozenset({"ci/some-check"}))
-        self.assertEqual(f.open_count(), 2)                      # both left open — no authority
-        self.assertEqual(f.issues[434]["state"], "open")
+        self.assertEqual(f.issues[434]["state"], "closed")       # the duplicate is healed
+        self.assertIn("Consolidated into #433", f.issues[434]["body"])
+        self.assertEqual(f.issues[433]["state"], "open")         # the survivor is NOT resolved — no authority
+        self.assertEqual(f.open_count(), 1)
+
+    def test_scoped_pass_repeated_absences_never_resolve_a_foreign_survivor(self):
+        # The auto-resolve boundary consolidation must not erode: even past the auto-resolve threshold,
+        # a pass without authority for the sid keeps the survivor open.
+        f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
+        self._inject(f, 433, "hooks/fail-open/PreToolUse/crash", T[0])
+        self._inject(f, 434, "hooks/fail-open/PreToolUse/crash", T[1])
+        for t in (T[2], T[3], T[4], T[5]):
+            run(gh(f), [], cache, TH, t, authoritative=frozenset({"ci/some-check"}))
+        self.assertEqual(f.issues[433]["state"], "open")
+
+    def test_cache_pointing_at_a_closed_duplicate_rekeys_to_the_survivor(self):
+        # The cross-pass hazard the review named: the owning source's cache remembers the DUPLICATE's
+        # number, then a different (non-authoritative) pass closes that duplicate. The owner's next pass
+        # must re-key to the open survivor via the body marker, not resurrect or re-open anything.
+        f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
+        self._inject(f, 433, "sid/x", T[0])
+        self._inject(f, 434, "sid/x", T[1])
+        counts = {"sid/x": {"persist": 3, "absent": 0, "issue": 434, "first_seen": T[1],
+                            "severity": "trust-critical"}}
+        cache.store(counts)
+        run(gh(f), [], cache, TH, T[2], authoritative=frozenset({"ci/some-check"}))   # closes 434
+        self.assertEqual(f.issues[434]["state"], "closed")
+        r = run(gh(f), [rec("sid/x", "trust-critical")], cache, TH, T[3])             # the owner's pass
+        self.assertEqual(f.open_count(), 1)
+        self.assertEqual(f.issues[433]["state"], "open")
+        self.assertEqual(cache.load()["sid/x"]["issue"], 433, "the cache re-keys to the survivor")
+        self.assertEqual(r.opened, 0, "nothing is re-created for a signal whose survivor is open")
 
     def test_consolidation_is_idempotent(self):
         f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
@@ -873,7 +988,7 @@ class TestConsolidation(unittest.TestCase):
 
 
 class TestPromoteFinding(unittest.TestCase):
-    """The single-finding 'log it' relay (close's out-of-band promotion, slice 22): open-or-update ONE
+    """The single-finding 'log it' relay (close's out-of-band promotion): open-or-update ONE
     Issue deduped by source_id, with NO auto-resolve of other open Issues, degrading on a GitHub
     failure. The harness under test is the REAL GitHubIssues + promote_finding; only the network is fake."""
 
@@ -1492,7 +1607,7 @@ def _tmpcache():
 
 
 class TestNeverFiredFeed(unittest.TestCase):
-    """The never-firing-check signal (F0200) + its feed render + verb: telemetry emits the engine's own
+    """The never-firing-check signal + its feed render + verb: telemetry emits the engine's own
     file-scoped checks that select ZERO files, for the read-only self-review persona to judge. It is a
     MECHANICAL 'matches no files' fact (never a 'dead'/'retire' claim), scoped to file-scoped kinds carrying a
     target.path, computed fresh (no cache/ledger), skip-and-note on a corrupt rule, defanged, exit-0."""
@@ -1649,7 +1764,7 @@ class _EpisodicBase(unittest.TestCase):
 
 
 class TestEpisodicReader(_EpisodicBase):
-    """The memory-ledger episodic reader (F0210): a deep consolidation backlog emits ONE record; the
+    """The memory-ledger episodic reader: a deep consolidation backlog emits ONE record; the
     positive-observation gate makes an absent/empty ledger or a corrupt lease claim NO authority (so a
     per-machine read can never auto-resolve a global issue), while a genuinely-clear present ledger does."""
 
@@ -1832,7 +1947,7 @@ def tearDownModule():
 
 
 class TestFindingsInbox(unittest.TestCase):
-    """The emit-and-done seam (F0203 / D-031 / §16): a producer emits and is done; telemetry owns the act.
+    """The emit-and-done seam: a producer emits and is done; telemetry owns the act.
     A TRUST_CRITICAL signal promotes immediately (via the injected boundary in tests, or refused under the
     test-harness backstop); a benign one spools, and a later drain promotes it under the cache-accrued
     persistence latency, authoritative-scoped and marker-safe at the spool boundary. Faking ONLY the network."""
@@ -1927,7 +2042,7 @@ class TestFindingsInbox(unittest.TestCase):
     # ---- #412: the broken-runtime marker → TRUST_CRITICAL immediate promote ----
 
     def test_runtime_marker_promotes_trust_critical_immediately_and_clears_on_success(self):
-        # A missing tool-runtime "surfaces as a crash would, promoted immediately" (hooks/README) — NOT spooled,
+        # A missing tool-runtime "surfaces as a crash would, promoted immediately" — NOT spooled,
         # NOT persistence-gated: ONE promote clears it. The marker's bytes never enter the finding.
         fake, gh = self._gh()
         marker = os.path.join(self._td, "runtime-health.marker")
@@ -2016,6 +2131,57 @@ class TestFindingsInbox(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("no new alerts", out.getvalue())
         self.assertIn("opened=0", out.getvalue())
+
+
+class TestSessionPassSerialization(unittest.TestCase):
+    """#518's second leg: the SessionStart triage passes are serialized by a cross-process file lock, so
+    two passes can no longer promote the same signal in the same instant (the create/create race window
+    becomes a queue). Exercised through the real flock; skipped where the platform has none."""
+
+    def setUp(self):
+        try:
+            import fcntl  # noqa: F401
+        except ImportError:
+            self.skipTest("no fcntl on this platform (the lock degrades to unserialized there)")
+
+    def test_lock_is_exclusive_while_held_and_reusable_after_release(self):
+        import fcntl
+        first = telemetry._serialize_session_passes()
+        self.assertIsNotNone(first)
+        # A second open file description on the same lock path cannot take the lock while held —
+        # flock is per-open-file-description, so this genuinely probes exclusion, same process or not.
+        probe = open(first.name, "w")
+        with self.assertRaises((BlockingIOError, OSError)):
+            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        probe.close()
+        first.close()                                            # release
+        second = telemetry._serialize_session_passes()           # now acquirable again
+        self.assertIsNotNone(second)
+        second.close()
+
+    def test_lock_failure_fails_open_never_blocks_the_pass(self):
+        with mock.patch("os.makedirs", side_effect=OSError("read-only")):
+            self.assertIsNone(telemetry._serialize_session_passes())
+
+    def test_main_takes_the_lock_for_each_session_start_verb(self):
+        # The WIRING, not just the primitive: a future edit dropping one `_lock = ...` assignment in
+        # main() would silently un-serialize a pass while every other test stayed green.
+        for verb, target in (("run-ambient", "_run_ambient_cli"), ("run-episodic", "_run_episodic_cli"),
+                             ("drain-inbox", "_run_drain_cli")):
+            with self.subTest(verb=verb):
+                with mock.patch.object(telemetry, "_serialize_session_passes") as lock, \
+                     mock.patch.object(telemetry, target, return_value=0) as run:
+                    rc = telemetry.main([verb])
+                self.assertEqual(rc, 0)
+                lock.assert_called_once()
+                run.assert_called_once()
+
+    def test_the_ci_run_verb_does_not_take_the_lock(self):
+        # `run` is the hosted CI driver on an ephemeral runner — nothing to serialize against.
+        with mock.patch.object(telemetry, "_serialize_session_passes") as lock, \
+             mock.patch.object(telemetry, "_run_cli", return_value=0):
+            telemetry.main(["run"])
+        lock.assert_not_called()
 
 
 if __name__ == "__main__":

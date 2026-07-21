@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Self-tests for the module manager — slice 25b `remove` + the group-scoped uv-sync derivation, slice 25c
-PR-1 `add` (fetch/overlay), and slice 25c PR-2 the engine `upgrade`/updater + the migrations machinery
+"""Self-tests for the module manager — `remove` + the group-scoped uv-sync derivation, `add`
+(fetch/overlay), and the engine `upgrade`/updater + the migrations machinery
 (select/run, the no-backup guard, the version-stamp check, and the frozen-check-name invariant).
 
 Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
@@ -15,6 +15,7 @@ matches its name.
 from __future__ import annotations
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -23,6 +24,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import module_manager  # noqa: E402
 import module_coherence  # noqa: E402
+import validate  # noqa: E402
 import wiring  # noqa: E402
 
 
@@ -157,10 +159,10 @@ class TestRemoveEndToEnd(unittest.TestCase):
 
 
 class TestRemoveDeletesProvidesAtAnyPath(unittest.TestCase):
-    """#409 U16: per-module remove() deletes a module's sole-owned provides regardless of path — so a removed
-    module's .claude/ personas + skills do not orphan on disk (before U16 the deletion was gated to .engine/,
+    """#409: per-module remove() deletes a module's sole-owned provides regardless of path — so a removed
+    module's .claude/ personas + skills do not orphan on disk (before this fix the deletion was gated to .engine/,
     leaving e.g. a removed /engine-design skill live and erroring). The manifest-derived reversal law
-    (provisioning README L546-551 / L773-777) deletes the engine-identified files a module provides, wherever
+    deletes the engine-identified files a module provides, wherever
     they live — matching what whole-engine remove_engine already does."""
 
     def test_remove_deletes_a_claude_skill_provide_not_only_engine_files(self):
@@ -283,7 +285,7 @@ class TestAddSafety(unittest.TestCase):
             self.assertNotIn("feat", (engine or {}).get("packages", {}))
 
     def test_add_fetches_from_the_recorded_home_never_origin(self):
-        # A module's files come from the engine's recorded HOME, never this repo's own origin (#367, D-281).
+        # A module's files come from the engine's recorded HOME, never this repo's own origin (#367).
         seen = {}
         with tempfile.TemporaryDirectory() as d:
             live = os.path.join(d, "live")
@@ -411,7 +413,7 @@ class TestRunMigrations(unittest.TestCase):
     backup seam (a side-effect boundary) is faked."""
 
     def setUp(self):
-        # A data migration now raises an in-flight marker under memory's dir (#396 U26); isolate ENGINE_MEMORY_DIR
+        # A data migration now raises an in-flight marker under memory's dir (#396); isolate ENGINE_MEMORY_DIR
         # to a throwaway so the window never touches the real store (nor flakes on a concurrent session's lock).
         self._memtmp = tempfile.TemporaryDirectory()
         self._prev_mem = os.environ.get("ENGINE_MEMORY_DIR")
@@ -490,6 +492,24 @@ class TestRunMigrations(unittest.TestCase):
             with open(marker) as fh:
                 self.assertEqual(fh.read(), "v2")              # the migration stamped the engine version
 
+    def test_run_migrations_flags_an_unlockable_snapshot_for_the_operator(self):
+        # The snapshot handle carries whether the retained pre-update copy could be locked; run_migrations reduces
+        # it to a single flag so the upgrade can tell the operator to keep an unlockable copy. Only a handle that
+        # plainly reports it could NOT be locked (hardened is False) sets the flag.
+        with tempfile.TemporaryDirectory() as d:
+            mdir = self._module_dir(d, "dd.py",
+                                    "def migrate(context):\n"
+                                    "    assert context['backup']('store', context['engine_version'])\n")
+            sel = [{"module_id": "m", "version": "0.2.0", "run": "migrations/dd.py", "kind": "data"}]
+            unprot = module_manager.run_migrations(sel, {"m": "0.0.0"}, "v2", module_dir=mdir,
+                                                   backup=lambda *a, **k: {"backed-up": True, "hardened": False})
+            self.assertTrue(unprot["backup_unprotected"])
+            prot = module_manager.run_migrations(sel, {"m": "0.0.0"}, "v2", module_dir=mdir,
+                                                 backup=lambda *a, **k: {"backed-up": True, "hardened": True})
+            self.assertFalse(prot["backup_unprotected"])
+            empty = module_manager.run_migrations([], {}, "v2", module_dir=mdir)
+            self.assertFalse(empty["backup_unprotected"])       # no data migration -> never flagged
+
     def test_only_the_first_data_migration_of_the_upgrade_is_the_reversibility_floor(self):
         # #303: one run_migrations call == one upgrade. reversibility_floor is True for the FIRST data migration only;
         # config migrations take no backup, and later data migrations of the same upgrade are NOT the floor.
@@ -514,7 +534,7 @@ class TestRunMigrations(unittest.TestCase):
             self.assertEqual(calls, [("m@0.2.0", True), ("m@0.3.0", False)])   # floor = first data migration only
 
     def test_a_data_migration_runs_inside_an_in_flight_window_that_clears_after(self):
-        # U26 (#396): the marker is present DURING the migration (the body reads it) and lowered AFTER.
+        # (#396): the marker is present DURING the migration (the body reads it) and lowered AFTER.
         from memory import capture, ledger
         with tempfile.TemporaryDirectory() as d:
             seen = os.path.join(d, "seen.txt")
@@ -534,7 +554,7 @@ class TestRunMigrations(unittest.TestCase):
 
     def test_a_data_migration_is_refused_when_the_window_cannot_open(self):
         # Fail CLOSED: a held single-writer lock => the marker can't be raised => the migration is REFUSED, never
-        # run marker-less (the exact interleave U26 prevents). The body must not run.
+        # run marker-less (the exact interleave this prevents). The body must not run.
         from memory import capture, ledger
         with tempfile.TemporaryDirectory() as d:
             ran = os.path.join(d, "ran.txt")
@@ -590,7 +610,7 @@ class TestVersionStamp(unittest.TestCase):
 
     def test_the_finding_message_is_plain_peer_voice_and_carries_no_raw_ref(self):
         # the promoted Issue body is operator-facing (boot.open_findings renders it): plain peer voice, never a
-        # tag/ref/version-machinery (D-265 S1 — the operator meets a plain handle, not the mechanism).
+        # tag/ref/version-machinery (the operator meets a plain handle, not the mechanism).
         f = module_manager.stamp_mismatch_finding(
             "recall-ledger", "2.0.0", "1.0.0", "ask me to restore the copy saved before the last update")
         msg = f["message"]
@@ -701,7 +721,7 @@ class TestUpgradeSafety(unittest.TestCase):
             self.assertEqual((engine or {}).get("packages", {}).get("base"), "0.0.0")   # unchanged
 
     def test_upgrade_resolves_and_fetches_from_the_recorded_home_never_origin(self):
-        # BOTH the latest-ref resolution and the release fetch target the engine's recorded HOME (#367, D-281).
+        # BOTH the latest-ref resolution and the release fetch target the engine's recorded HOME (#367).
         seen = {}
         with tempfile.TemporaryDirectory() as d:
             live = os.path.join(d, "live")
@@ -784,7 +804,7 @@ class TestUpgradeSafety(unittest.TestCase):
         self.assertNotIn("network", res["reason"].lower())             # not the transport-degrade wording
 
     def test_upgrade_preserves_the_recorded_home_across_the_version_bump(self):
-        # Law 1 (D-281): engine.json is preserved-not-overlaid, so a successful upgrade keeps the home while
+        # engine.json is preserved-not-overlaid, so a successful upgrade keeps the home while
         # the module versions DO bump.
         opened = []
         with tempfile.TemporaryDirectory() as d:
@@ -801,7 +821,7 @@ class TestUpgradeSafety(unittest.TestCase):
         self.assertEqual((engine or {}).get("packages", {}).get("base"), "0.2.0")     # but versions bumped
 
     def test_upgrade_reasserts_the_foundation_gitignore_fence_and_keeps_operator_lines(self):
-        # #409 U14: the foundation fence is release-evolvable — an upgrade re-applies it (like the CODEOWNERS
+        # #409: the foundation fence is release-evolvable — an upgrade re-applies it (like the CODEOWNERS
         # re-render / CLAUDE.md floor merge), so a repo provisioned before/without it converges, and an
         # operator's own ignore lines are preserved (block-scoped apply, never a wholesale overlay).
         with tempfile.TemporaryDirectory() as d:
@@ -857,7 +877,7 @@ class TestUpgradeSafety(unittest.TestCase):
         self.assertEqual(opened, [])                           # the change was never opened for review
 
     def test_a_successful_data_migration_upgrade_discloses_the_saved_copy_once(self):
-        # Floor (c) (D-264): a successful data-migration upgrade tells the operator a pre-update copy was saved —
+        # A successful data-migration upgrade tells the operator a pre-update copy was saved —
         # ONCE per upgrade, plainly, as reassurance for the later restore offer.
         opened = []
         with tempfile.TemporaryDirectory() as d:
@@ -874,6 +894,44 @@ class TestUpgradeSafety(unittest.TestCase):
         disclosures = [n for n in res.get("notes", []) if "saved a copy of it from right before this update" in n]
         self.assertEqual(len(disclosures), 1)                  # exactly one disclosure per upgrade
         self.assertIn("nothing for you to do now", disclosures[0])
+        # the seam here reports nothing about locking, so no keep-it heads-up is added
+        self.assertNotIn("couldn't confirm", disclosures[0])
+
+    def test_an_unlockable_saved_copy_adds_a_keep_it_heads_up(self):
+        # When the retained copy could not be locked against hand-deletion (hardened is False), the reversibility
+        # disclosure carries a plain heads-up to keep it — so the operator does not delete their own undo.
+        opened = []
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                res = module_manager.upgrade(
+                    ref="v0.2.0", release_tree=release,
+                    opener=lambda **k: opened.append(k) or {"number": 1},
+                    backup=lambda *a, **k: {"backed-up": True, "hardened": False})   # can't be locked on this plan
+        disclosures = [n for n in res.get("notes", []) if "saved a copy of it from right before this update" in n]
+        self.assertEqual(len(disclosures), 1)
+        self.assertIn("couldn't confirm", disclosures[0])       # states what the engine knows, not a guess about why
+        self.assertIn("deleted by hand", disclosures[0])
+        self.assertIn("keep it in place", disclosures[0])
+
+    def test_a_lockable_saved_copy_has_no_keep_it_heads_up(self):
+        opened = []
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                res = module_manager.upgrade(
+                    ref="v0.2.0", release_tree=release,
+                    opener=lambda **k: opened.append(k) or {"number": 1},
+                    backup=lambda *a, **k: {"backed-up": True, "hardened": True})    # locked -> nothing to warn
+        disclosures = [n for n in res.get("notes", []) if "saved a copy of it from right before this update" in n]
+        self.assertEqual(len(disclosures), 1)
+        self.assertNotIn("couldn't confirm", disclosures[0])
 
     def test_escaping_provides_in_a_release_is_refused_before_any_write(self):
         with tempfile.TemporaryDirectory() as d:
@@ -895,7 +953,7 @@ class TestUpgradeSafety(unittest.TestCase):
             self.assertIn("outside the engine", res["reason"])
 
     def test_upgrade_refreshes_codeowners_with_new_engine_files_keeping_operator_rules(self):
-        # The design's upgrade re-render (provisioning §Token substitution; engine.json `handle`): a release
+        # The design's upgrade re-render (engine.json `handle`): a release
         # whose `base` ADDS an engine file must land in the CODEOWNERS wall so the new file still routes to
         # the operator — and an operator's OWN rule must survive (fence-scoped).
         with tempfile.TemporaryDirectory() as d:
@@ -1070,7 +1128,7 @@ class TestRemoveReversesClaudeFloor(unittest.TestCase):
 
 
 class TestRemoveReversesFoundationIgnores(unittest.TestCase):
-    """#409 U14: clean engine removal block-reverses the root `.gitignore` foundation fence — the operator's
+    """#409: clean engine removal block-reverses the root `.gitignore` foundation fence — the operator's
     own ignore lines are KEPT (only the engine `foundation-ignores` block is removed), never wholesale-deleted
     (`.gitignore` is excluded from remove_engine's delete set + block-reversed, like CODEOWNERS/CLAUDE.md)."""
 
@@ -1108,7 +1166,7 @@ class TestUpgradeSurfacesClaudeFloor(unittest.TestCase):
     (or a silent non-update) of a file the operator co-owns and must never be invisible at the merge gate."""
 
     def _body(self, cf):
-        return module_manager._upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {"claude_floor": cf})
+        return module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {"claude_floor": cf})
 
     def test_pr_body_names_the_merged_outcome(self):
         self.assertIn("working guide", self._body("merged").lower())
@@ -1125,15 +1183,127 @@ class TestUpgradeSurfacesClaudeFloor(unittest.TestCase):
         self.assertIn("working guide", buf.getvalue().lower())
 
     def test_pr_body_surfaces_the_foundation_ignores_reassertion(self):
-        # #409 U14 (deliverable-gate nit 2): the .gitignore fence re-assert gets an operator-facing line on
+        # #409: the .gitignore fence re-assert gets an operator-facing line on
         # upgrade, like its CODEOWNERS / CLAUDE.md siblings — not just a raw git diff.
-        body = module_manager._upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
+        body = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
                                                {"foundation_ignores": {"status": "written"}})
         self.assertIn("ignore list", body.lower())
         # an unchanged ("already") re-assert stays silent — nothing changed to disclose
-        quiet = module_manager._upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
+        quiet = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
                                                 {"foundation_ignores": {"status": "already"}})
         self.assertNotIn("ignore list", quiet.lower())
+
+    def test_agents_floor_outcome_is_surfaced_like_the_claude_floor(self):
+        # Parity (#599 Slice 1): the tail computes agents_floor beside claude_floor, but the old body disclosed
+        # only claude_floor. A degraded/skipped AGENTS.md merge is an engine edit (or refusal) of a co-owned
+        # file and must reach the consent surface exactly as its CLAUDE.md sibling does.
+        merged = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
+                                                       {"agents_floor": "merged"})
+        self.assertIn("codex guide", merged.lower())
+        degraded = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
+                                                         {"agents_floor": "degraded"})
+        self.assertIn("looked damaged", degraded)
+        skipped = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"},
+                                                        {"agents_floor": "skipped-no-section"})
+        self.assertIn("no engine marked block", skipped)
+
+
+class TestUpgradePrBodyIsTemplateConforming(unittest.TestCase):
+    """#599 Slice 1: the engine's own update pull request must clear the SAME body-completeness gate every
+    engine pull request clears — the free-form body it replaced did not (an issue #599 finding). These run the
+    REAL `pr-body-completeness` check against the rendered body, so a test cannot pass on a body the merge gate
+    would reject."""
+
+    def _rule(self):
+        return module_manager.validate.load_json(
+            os.path.join(module_manager.validate.CHECK_DIR, "pr-body-completeness.json"))
+
+    def test_rendered_update_body_clears_the_completeness_gate(self):
+        body = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"codeowners": "written", "claude_floor": "merged", "agents_floor": "merged",
+             "foundation_ignores": {"status": "written"},
+             "migrations": {"ran": ["base@0.2.0: moved the cache location"]}})
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"update PR body failed the completeness gate: {findings}")
+        self.assertEqual(findings, [])
+
+    def test_rendered_body_clears_the_gate_even_when_minimal(self):
+        # A clean update with no shared-file changes carries almost nothing in the tail; the body must still be
+        # a complete, conforming consent surface, never a half-filled template.
+        body = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {})
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"minimal update PR body failed the completeness gate: {findings}")
+
+    def test_validation_section_claims_only_the_consistency_check_not_ci(self):
+        # Consent honesty: the full-CI gate is a later slice, so this body must NOT claim the CI/full suite
+        # passed — only the consistency check that actually runs before the update is opened.
+        body = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {}).lower()
+        self.assertIn("consistency check", body)
+        self.assertNotIn("ci suite", body)
+        self.assertNotIn("full ci", body)
+
+    def test_data_migration_surfaces_the_recovery_copy_fact_on_the_durable_surface(self):
+        # A data migration mutates the operator's saved memory — its reversibility fact (a recovery copy was
+        # saved first) must live on the DURABLE PR body, not only the transient CLI note; and the keep-it
+        # heads-up must ride along when the recovery copy could not be confirmed locked.
+        body = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"migrations": {"ran": ["base -> 0.2.0 (data)"], "backup_unprotected": False}})
+        self.assertIn("recovery copy", body.lower())
+        self.assertIn("your saved memory", body.lower())      # the (data) tag is glossed, not raw
+        self.assertNotIn("could not confirm", body.lower())   # locked copy -> no keep-it heads-up
+        unprot = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"migrations": {"ran": ["base -> 0.2.0 (data)"], "backup_unprotected": True}})
+        self.assertIn("could not confirm", unprot.lower())    # unlocked copy -> the keep-it heads-up rides along
+
+    def test_config_only_migration_does_not_claim_a_saved_memory_change(self):
+        # A config migration touches a committed settings file, not saved memory — it must NOT trigger the
+        # saved-memory recovery-copy reassurance (which would misstate what happened).
+        body = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"migrations": {"ran": ["base -> 0.2.0 (config)"]}}).lower()
+        self.assertIn("engine settings", body)                # the (config) tag is glossed
+        self.assertNotIn("recovery copy", body)               # no saved-memory reassurance for a config change
+
+    def test_reconcile_facts_are_disclosed_and_still_clear_the_gate(self):
+        # #599 Slice 2a / R4: the reconcile facts — fixtures delivered, AGENTS.md created, and files removed
+        # (bucketed) — must ride the durable body so the destructive delete leg is visible at the merge, and
+        # the body must still clear the completeness gate.
+        body = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"codeowners": "written", "agents_floor": "created",
+             "fixtures_delivered": [".engine/_fixtures/probe/bad_input.md"],
+             "orphans_removed": {"engine": [".claude/agents/base-helper.md"],
+                                 "suspect": [".engine/tools/operator_note.py"],
+                                 "left_in_place": []},
+             "migrations": {"ran": []}})
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"reconcile body failed the completeness gate: {findings}")
+        low = body.lower()
+        self.assertIn("created", low)                                    # AGENTS.md created disclosed
+        self.assertIn(".engine/_fixtures/probe/bad_input.md", body)      # fixtures delivered named
+        self.assertIn(".claude/agents/base-helper.md", body)            # the engine rename orphan named
+        self.assertIn(".engine/tools/operator_note.py", body)          # the operator-suspect removal named
+        self.assertIn("added yourself", low)                            # the suspect-bucket caveat is present
+        self.assertNotIn("full ci", low)                               # Validation stays honest (structural, not CI)
+
+    def test_removed_files_are_bucketed_so_a_suspect_operator_file_is_distinguished(self):
+        # risk-S1: the removal disclosure separates "engine files the release dropped" from "files under an
+        # engine folder the release does not ship" — the operator-file-suspect bucket the merge gate can catch.
+        body = module_manager.render_upgrade_pr_body(
+            {"base": "0.1.0"}, {"base": "0.2.0"},
+            {"orphans_removed": {"engine": [".claude/agents/old.md"], "suspect": [".engine/tools/mine.py"],
+                                 "left_in_place": []}})
+        # the two buckets are under different, distinguishable headings (the suspect one names the caveat)
+        engine_idx = body.find(".claude/agents/old.md")
+        suspect_idx = body.find(".engine/tools/mine.py")
+        caveat_idx = body.lower().find("added yourself")
+        self.assertGreater(engine_idx, 0)
+        self.assertGreater(suspect_idx, 0)
+        self.assertGreater(caveat_idx, 0)
+        self.assertLess(caveat_idx, suspect_idx, "the suspect caveat must introduce the suspect list")
 
 
 class TestLifecycleRendersCarryCoherenceWarrant(unittest.TestCase):
@@ -1186,8 +1356,7 @@ class TestLifecycleRendersCarryCoherenceWarrant(unittest.TestCase):
 
 class TestFrozenCheckNames(unittest.TestCase):
     """The engine CI check names are a FROZEN contract across versions — an upgrade/migration may never
-    rename them (a renamed required check 'waits forever' and deadlocks every pull request; provisioning
-    §"The engine CI check's status name is a frozen contract"). Changing this is a guardrail-weakening
+    rename them (a renamed required check 'waits forever' and deadlocks every pull request). Changing this is a guardrail-weakening
     change, caught here and at the guard."""
 
     def test_required_check_names_are_frozen(self):
@@ -1214,12 +1383,18 @@ class TestFoundationInfra(unittest.TestCase):
     def test_foundation_code_is_foundation_infra_minus_manifest_codeowners_claude_and_gitignore(self):
         expected = tuple(p for p in module_coherence.FOUNDATION_INFRA
                          if p not in (module_coherence.ENGINE_MANIFEST_REL, ".github/CODEOWNERS",
-                                      "CLAUDE.md", ".gitignore"))
+                                      "CLAUDE.md", "AGENTS.md", ".gitignore"))
         self.assertEqual(module_manager.FOUNDATION_CODE, expected)
+
+    def test_foundation_code_also_excludes_the_agents_floor(self):
+        # AGENTS.md is CLAUDE.md's exact sibling: keyed-merged on upgrade, so it must never be in the
+        # overlay-replace set (an overlay would clobber an adopter's own content around the fence).
+        self.assertNotIn("AGENTS.md", module_manager.FOUNDATION_CODE)
+        self.assertIn("AGENTS.md", module_manager.module_coherence.FOUNDATION_INFRA)
         # the issue templates are now in the overlay set; the manifest, CODEOWNERS, root CLAUDE.md, and root
         # .gitignore are excluded — CLAUDE.md/.gitignore carry a keyed engine fence re-asserted locally
-        # (_merge_claude_floor / apply_foundation_ignores), not fetched-and-replaced wholesale (#234 6a /
-        # #409 U14), so a release's file never overlays an adopter's own content
+        # (_merge_claude_floor / apply_foundation_ignores), not fetched-and-replaced wholesale (#234 /
+        # #409), so a release's file never overlays an adopter's own content
         self.assertIn(".github/ISSUE_TEMPLATE/*.md", module_manager.FOUNDATION_CODE)
         self.assertNotIn(".engine/engine.json", module_manager.FOUNDATION_CODE)
         self.assertNotIn(".github/CODEOWNERS", module_manager.FOUNDATION_CODE)
@@ -1362,7 +1537,7 @@ class TestRemoveEngine(unittest.TestCase):
     def test_github_member_is_in_the_delete_set_unlike_per_module_remove(self):
         # whole-engine removal deletes the .github/ foundation files + root CLAUDE.md too — these are
         # foundation infra, NOT any module's `provides`, so per-module remove() (which deletes only the
-        # sole-owned files a module provides, at any path since #409 U16) never touches them
+        # sole-owned files a module provides, at any path since #409) never touches them
         opener, transport, _, _ = self._fakes(True)
         with tempfile.TemporaryDirectory() as d:
             with module_manager._redirect_root(d):
@@ -1440,6 +1615,768 @@ class TestBackupSeamResolution(unittest.TestCase):
     def test_an_injected_backup_wins_over_resolution(self):
         sentinel = lambda store, ver: {"ok": True}
         self.assertIs(module_manager._resolve_backup_seam(sentinel), sentinel)
+
+
+class TestUpgradeTailAndSafeCli(unittest.TestCase):
+    """The #594 fix (the version-sensitive tail runs as freshly-overlaid code) + the safe upgrade CLI
+    (preview-by-default, --confirm to apply, no footgun)."""
+
+    def _incoherent_fixture(self, live):
+        """A coherent upgrade fixture made INCOHERENT by declaring a gitignore wire that is never applied —
+        the shape a half-applied earlier update leaves (engine.json bumped, the tree inconsistent)."""
+        module_manager._build_upgrade_fixture(live)
+        man_path = os.path.join(live, ".engine", "modules", "base", "manifest.json")
+        man = json.load(open(man_path, encoding="utf-8"))
+        man["wires"] = list(man.get("wires") or []) + [
+            {"type": "gitignore", "key": "never-applied", "lines": [".engine/base/.nope/"]}]
+        with open(man_path, "w", encoding="utf-8") as fh:
+            json.dump(man, fh)
+
+    def test_preview_flags_a_half_applied_tree_instead_of_up_to_date(self):
+        # The false-clear the plan-gate caught: engine.json is bumped before coherence, so a version-only
+        # check would read "up to date" on a half-applied tree. The preview must run coherence and say so.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            with module_manager._redirect_root(live):
+                self._incoherent_fixture(live)
+                preview = module_manager.upgrade_preview()
+        self.assertFalse(preview["coherent"])
+        self.assertEqual(preview["status"], "inconsistent")
+        self.assertIn("--confirm", preview["reason"])
+        self.assertNotIn("up to date", module_manager._display_ver(preview["current"]) or "")
+
+    def test_preview_reports_available_or_up_to_date_when_coherent(self):
+        # Slice 2: an available update now PREVIEWS impact (a real fetch), so the fetch is stubbed to a local
+        # release; up-to-date still short-circuits BEFORE any fetch (no download when there's nothing newer).
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)   # coherent, engine_release 0.0.0
+                orig_r, orig_f = module_manager._resolve_release_ref, module_manager._fetch_release_tree
+                fetched = []
+                try:
+                    module_manager._resolve_release_ref = lambda ref, repo=None, token=None: "v0.2.0"
+                    module_manager._fetch_release_tree = (
+                        lambda ref, dest, repo=None, token=None: fetched.append(ref) or release)
+                    available = module_manager.upgrade_preview()
+                    module_manager._resolve_release_ref = lambda ref, repo=None, token=None: "0.0.0"
+                    current = module_manager.upgrade_preview()
+                finally:
+                    module_manager._resolve_release_ref = orig_r
+                    module_manager._fetch_release_tree = orig_f
+        self.assertEqual(available["status"], "update-available")
+        self.assertEqual(available["available"], "v0.2.0")
+        self.assertEqual(available["target_versions"]["base"], "0.2.0")   # it read the release's real manifest
+        self.assertEqual(current["status"], "up-to-date")
+        self.assertEqual(fetched, ["v0.2.0"])   # fetched once for the available update, never for up-to-date
+
+    def _run_main(self, argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = module_manager.main(argv)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_upgrade_help_prints_usage_and_never_applies(self):
+        # --help must print usage AND never reach the apply path (upgrade() must not be called).
+        orig = module_manager.upgrade
+        called = []
+        try:
+            module_manager.upgrade = lambda *a, **k: called.append(True)
+            code, out, _ = self._run_main(["upgrade", "--help"])
+        finally:
+            module_manager.upgrade = orig
+        self.assertEqual(code, 0)
+        self.assertIn("PREVIEWS only", out)
+        self.assertEqual(called, [])   # apply path never entered
+
+    def test_upgrade_rejects_an_unknown_flag(self):
+        code, _, err = self._run_main(["upgrade", "--yolo"])
+        self.assertEqual(code, 2)
+        self.assertIn("unknown option", err)
+
+    def test_preview_of_a_named_version_previews_that_versions_impact(self):
+        # Slice 2 lifts slice 1's "a named ref can't be previewed" limit: a named ref now previews THAT
+        # version's real impact (fetching it directly), never latching onto the latest release.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                orig_f = module_manager._fetch_release_tree
+                fetched = []
+                try:
+                    module_manager._fetch_release_tree = (
+                        lambda ref, dest, repo=None, token=None: fetched.append(ref) or release)
+                    preview = module_manager.upgrade_preview("v0.2.0")
+                finally:
+                    module_manager._fetch_release_tree = orig_f
+        self.assertEqual(preview["status"], "update-available")
+        self.assertEqual(preview["named_ref"], "v0.2.0")
+        self.assertEqual(preview["target_ref"], "v0.2.0")
+        self.assertEqual(fetched, ["v0.2.0"])   # fetched the NAMED version, not the latest
+        self.assertTrue(any(m["kind"] == "data" for m in preview["migrations"]))   # its real impact was read
+
+    def _capture_child_env(self, practice):
+        """Run _spawn_upgrade_tail with subprocess.run stubbed, returning the env the child would get."""
+        import subprocess
+        captured = {}
+
+        def _stub(argv, **kw):
+            captured.update(kw.get("env") or {})
+            return type("P", (), {"returncode": 1, "stderr": ""})()   # non-zero -> clean failure branch
+        orig = subprocess.run
+        try:
+            subprocess.run = _stub
+            module_manager._spawn_upgrade_tail({
+                "release_tree": "/tmp", "target_ref": "v1", "from_versions": {}, "target_versions": {},
+                "present_ids": [], "old_by_id": {}, "handle": None, "practice": practice,
+                "marker": module_manager._UPGRADE_TAIL_MARKER})
+        finally:
+            subprocess.run = orig
+        return captured
+
+    def test_child_env_scopes_the_github_token_by_practice(self):
+        # Security boundary: the freshly-downloaded child holds the token ONLY on the real (PR-opening) path,
+        # never on a practice run — and is always marked as an internal child.
+        orig_token = os.environ.get("GITHUB_TOKEN")
+        os.environ["GITHUB_TOKEN"] = "sekret"
+        try:
+            practice_env = self._capture_child_env(True)
+            real_env = self._capture_child_env(False)
+        finally:
+            if orig_token is None:
+                os.environ.pop("GITHUB_TOKEN", None)
+            else:
+                os.environ["GITHUB_TOKEN"] = orig_token
+        self.assertEqual(practice_env.get("ENGINE_UPGRADE_CHILD"), "1")
+        self.assertNotIn("GITHUB_TOKEN", practice_env)          # practice: token withheld
+        self.assertEqual(real_env.get("GITHUB_TOKEN"), "sekret")  # real path: token passed deliberately
+
+    def test_a_child_failure_maps_to_a_clean_recoverable_result_and_renders_it(self):
+        # A child that dies (non-zero exit / no result file) must yield a clean "run again with --confirm"
+        # result, and _render_upgrade must SURFACE that reason — never claim "staged and consistent".
+        import subprocess
+        orig_run = subprocess.run
+        try:
+            subprocess.run = lambda a, **kw: type("P", (), {"returncode": 1, "stderr": "boom"})()
+            tail = module_manager._spawn_upgrade_tail({
+                "release_tree": "/tmp", "target_ref": "v1", "from_versions": {}, "target_versions": {},
+                "present_ids": [], "old_by_id": {}, "handle": None, "practice": False,
+                "marker": module_manager._UPGRADE_TAIL_MARKER})
+        finally:
+            subprocess.run = orig_run
+        self.assertTrue(tail["applied"])
+        self.assertIn("--confirm", tail["reason"])
+        self.assertIsNone(tail.get("pr"))
+        # the renderer must print the recovery reason, not the false "staged and consistent"
+        result = {"refused": False, "from": {"core": "0.2.0"}, "to": {"core": "0.3.0"}, "copied": [],
+                  "notes": [], "findings": [], "pr": None}
+        module_manager._merge_tail(result, tail)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            module_manager._render_upgrade(result)
+        rendered = out.getvalue()
+        self.assertIn("--confirm", rendered)
+        self.assertNotIn("staged and consistent", rendered)
+
+    def test_upgrade_tail_command_refuses_without_the_child_env_marker(self):
+        # The internal verb must not be drivable by a stray operator command / injected instruction.
+        os.environ.pop("ENGINE_UPGRADE_CHILD", None)
+        code, _, err = self._run_main(["__upgrade_tail__", "/no/such/state.json"])
+        self.assertEqual(code, 2)
+        self.assertIn("internal step", err)
+
+    def test_upgrade_tail_command_refuses_a_state_without_the_internal_marker(self):
+        with tempfile.TemporaryDirectory() as d:
+            state_path = os.path.join(d, "state.json")
+            with open(state_path, "w", encoding="utf-8") as fh:
+                json.dump({"release_tree": d, "present_ids": [], "from_versions": {},
+                           "target_versions": {}, "target_ref": "v1", "old_by_id": {},
+                           "practice": True, "result_path": os.path.join(d, "r.json")}, fh)  # NO marker
+            os.environ["ENGINE_UPGRADE_CHILD"] = "1"
+            try:
+                code, _, err = self._run_main(["__upgrade_tail__", state_path])
+            finally:
+                os.environ.pop("ENGINE_UPGRADE_CHILD", None)
+        self.assertEqual(code, 2)
+        self.assertIn("marker", err)
+
+    def test_the_594_falsification_demo_passes(self):
+        # Covers the subprocess tail end-to-end (a release's new wire seam applies via a fresh child, the
+        # in-process path reproduces the bug) and is the regression test that lets the demo retire at
+        # first run. Heavier than a unit test (copytree + subprocess), run once.
+        import demo_594_upgrade_tail_reexec as demo
+        import quiet_call
+        code = quiet_call.run(demo.main)   # captures the demo's walkthrough (keeps the suite summary clean)
+        self.assertEqual(code, 0)
+
+
+class TestUpgradeReconcile(unittest.TestCase):
+    """The #599 release-authoritative reconcile: an update drives a deployed tree to provision(release) —
+    delivering the file category the copy-only overlay missed, removing what the release dropped/renamed and
+    any first-run file the overlay resurrected, creating a never-created foundation floor — then refuses
+    cleanly if the rebuilt tree is inconsistent. The in-process path runs the fixture-safe coherence gate; the
+    full structural gate is exercised on a clone by the #594 demo and proven across versions at cut time
+    (Slice 3)."""
+
+    @staticmethod
+    def _augment(live, release):
+        """Shape the shared fixtures into a realistic provisioned-deployed upgrade: the deployed tree carries
+        an old-named engine agent (a rename orphan) and an operator's own agent (a literal namespace — never a
+        delete candidate), plus an operator file under an engine GLOB namespace (surfaced AND removed); the
+        release renames the agent, and ships a first-run tool it provides by glob (the overlay resurrects it,
+        the reconcile removes it) that its retire manifest lists."""
+        import json
+
+        def _load(p):
+            with open(p, encoding="utf-8") as fh:
+                return json.load(fh)
+        base_live = os.path.join(live, ".engine", "modules", "base", "manifest.json")
+        man = _load(base_live)
+        man["provides"] = {"tool": [".engine/tools/*.py"], "agent": [".claude/agents/base-helper.md"]}
+        with open(base_live, "w", encoding="utf-8") as fh:
+            json.dump(man, fh)
+        os.makedirs(os.path.join(live, ".claude", "agents"), exist_ok=True)
+        for rel, txt in ((".claude/agents/base-helper.md", "# engine agent (old name)\n"),
+                         (".claude/agents/my-custom.md", "# an operator's own agent\n"),
+                         (".engine/tools/operator_note.py", "# an operator's own script under an engine glob\n")):
+            with open(os.path.join(live, rel), "w", encoding="utf-8") as fh:
+                fh.write(txt)
+        base_rel = os.path.join(release, ".engine", "modules", "base", "manifest.json")
+        rman = _load(base_rel)
+        rman["provides"] = {"tool": [".engine/tools/*.py"], "agent": [".claude/agents/engine-helper.md"],
+                            "migration": [".engine/modules/base/migrations/*.py"], "state": [".engine/state/*.json"]}
+        with open(base_rel, "w", encoding="utf-8") as fh:
+            json.dump(rman, fh)
+        os.makedirs(os.path.join(release, ".claude", "agents"), exist_ok=True)
+        with open(os.path.join(release, ".claude", "agents", "engine-helper.md"), "w", encoding="utf-8") as fh:
+            fh.write("# engine agent (new name)\n")
+        with open(os.path.join(release, ".engine", "tools", "setup_only.py"), "w", encoding="utf-8") as fh:
+            fh.write("# a first-run-only tool the deployed repo must not carry\n")
+        fra = os.path.join(release, ".engine", "provisioning", "first-run-assets.json")
+        data = _load(fra)
+        data["files"] = [".engine/tools/setup_only.py"]
+        with open(fra, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+
+    def test_reconcile_to_provision_release(self):
+        opened = []
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                self._augment(live, release)
+                res = module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                             opener=lambda **k: opened.append(k) or {"number": 7},
+                                             backup=lambda *a, **k: {"ok": 1})
+
+                def _exists(rel):
+                    return os.path.exists(os.path.join(live, rel))
+                # DELIVER — the fixture category the copy-only overlay missed is now on disk (#599 class 3)
+                self.assertTrue(_exists(".engine/_fixtures/probe/bad_input.md"), "fixtures were not delivered")
+                # CREATE-IF-ABSENT — AGENTS.md was never on the deployed tree; the reconcile creates it (class 2)
+                self.assertTrue(_exists("AGENTS.md"), "AGENTS.md was not created")
+                self.assertEqual(res["agents_floor"], "created")
+                # DELETE — the renamed engine agent's old path is gone; the new name is delivered (class 1)
+                self.assertFalse(_exists(".claude/agents/base-helper.md"), "the rename orphan was not removed")
+                self.assertTrue(_exists(".claude/agents/engine-helper.md"), "the renamed agent was not delivered")
+                # NO RESURRECTION — the first-run tool the overlay re-copied is removed again (the latent bug)
+                self.assertFalse(_exists(".engine/tools/setup_only.py"), "a first-run file was resurrected")
+                # OPERATOR SURVIVES — a literal-namespace operator agent is never a delete candidate
+                self.assertTrue(_exists(".claude/agents/my-custom.md"), "an operator's own agent was removed")
+                # SUSPECT SURFACING — an operator file under an engine GLOB namespace is removed AND surfaced
+                self.assertFalse(_exists(".engine/tools/operator_note.py"))
+        self.assertIn(".claude/agents/base-helper.md", res["orphans_removed"]["engine"])
+        self.assertIn(".engine/tools/operator_note.py", res["orphans_removed"]["suspect"])
+        # GATE PASSED -> a review pull request was opened
+        self.assertTrue(res.get("pr"), f"the reconcile did not open a pull request: {res.get('reason')}")
+        self.assertEqual(len(opened), 1)
+
+    def test_refuses_cleanly_on_a_hard_consistency_finding_without_opening(self):
+        # An .engine file no module claims makes check_coherence hard-flag; the gate must refuse in plain
+        # language (no raw check id), leave the working copy staged (half-state), and open nothing.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                with open(os.path.join(live, ".engine", "tools", "unclaimed_orphan.py"), "w") as fh:
+                    fh.write("# a file no module's provides claims\n")
+                res = module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                             opener=lambda **k: {"number": 9}, backup=lambda *a, **k: {"ok": 1})
+        self.assertIsNone(res.get("pr"), "a pull request was opened despite a hard consistency finding")
+        self.assertTrue(res.get("applied"), "the working copy should be mutated (the half-state law)")
+        self.assertIn("consistency check", res["reason"])
+        self.assertNotIn("engine/check/", res["reason"], "the refusal must name no raw check id")
+
+    def test_a_bad_release_retire_manifest_refuses_cleanly_never_resurrecting(self):
+        # risk-S3: an unreadable release first-run-assets.json must REFUSE, never fall through to the
+        # un-projected template shape (which would deliver + protect the first-run set).
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with open(os.path.join(release, ".engine", "provisioning", "first-run-assets.json"), "w") as fh:
+                fh.write("{ not valid json")
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                res = module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                             opener=lambda **k: {"number": 9}, backup=lambda *a, **k: {"ok": 1})
+        self.assertIsNone(res.get("pr"))
+        self.assertIn("setup-file list", res["reason"])
+        self.assertIn("undo", res["reason"].lower())   # the refusal names a recourse (usability review)
+
+    def test_structural_gate_binds_to_live_ci_hard_rules(self):
+        # T-S2/DH-2: the gate's rule filter only NARROWS, so a renamed or dropped check id would silently shrink
+        # the gate while it still reports "passed". Bind the set to the live corpus: every id must be a live CI
+        # hard rule, and the filter must select exactly them — a drift fails loudly HERE, not silently at the gate.
+        rules = module_manager.validate.load_rules()
+        by_id = {r.get("id"): r for r in rules}
+        for cid in module_manager._STRUCTURAL_GATE_CHECK_IDS:
+            self.assertIn(cid, by_id, f"gate check id {cid} is not a live rule (renamed/removed?)")
+            self.assertEqual(by_id[cid].get("tier"), "hard", f"{cid} is no longer a hard check")
+            self.assertIn("CI", by_id[cid].get("suites") or [], f"{cid} left the CI suite")
+        selected = {r.get("id") for r in rules if r.get("id") in module_manager._STRUCTURAL_GATE_CHECK_IDS}
+        self.assertEqual(selected, set(module_manager._STRUCTURAL_GATE_CHECK_IDS),
+                         "the gate filter must select exactly its declared ids against the live roster")
+
+    def test_a_root_resolving_retire_entry_refuses_never_deleting_the_tree(self):
+        # security review: a retire manifest whose directory entry resolves to the repo root (or is empty/absolute)
+        # must REFUSE cleanly, never rmtree the whole tree.
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            fra = os.path.join(release, ".engine", "provisioning", "first-run-assets.json")
+            with open(fra, encoding="utf-8") as fh:
+                data = json.load(fh)
+            data["directories"] = [""]        # resolves to the repo root
+            with open(fra, "w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                res = module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                             opener=lambda **k: {"number": 9}, backup=lambda *a, **k: {"ok": 1})
+                survived = os.path.isfile(os.path.join(live, ".engine", "engine.json"))
+        self.assertIsNone(res.get("pr"))
+        self.assertTrue(survived, "the repo must still exist — the dangerous retire entry was refused")
+        self.assertIn("unusable path", res["reason"])
+
+    def test_an_untracked_operator_file_under_an_engine_glob_is_left_not_deleted(self):
+        # security review: a git-ignored (untracked) operator file under an engine glob namespace is NOT
+        # recoverable by the undo, so the reconcile LEAVES it and surfaces it, rather than deleting it.
+        import subprocess
+        scratch = os.path.join(".engine", "tools", "untracked_scratch.py")
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                self._augment(live, release)
+                subprocess.run(["git", "init", "-q"], cwd=live, check=True)
+                subprocess.run(["git", "add", "-A"], cwd=live, check=True)
+                subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "x"],
+                               cwd=live, check=True)
+                with open(os.path.join(live, scratch), "w", encoding="utf-8") as fh:
+                    fh.write("# an operator's own scratch tool, never committed\n")
+                res = module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                             opener=lambda **k: {"number": 7}, backup=lambda *a, **k: {"ok": 1})
+                left = os.path.exists(os.path.join(live, scratch))
+        self.assertTrue(left, "an untracked operator file under an engine glob must be left in place")
+        self.assertTrue(any("untracked_scratch.py" in s for s in res["orphans_removed"]["left_in_place"]),
+                        "the preserved untracked file must be surfaced to the operator")
+
+    def test_deliver_synced_delivers_the_fixture_category_for_arrival(self):
+        # SC-3: arrival delivers via the shared primitive with project_retire=False; prove it carries the
+        # fixture category the copy-only overlay missed (the arrival gap #599 also closes).
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            candidates = {"base": module_manager.validate.load_json(
+                os.path.join(release, ".engine", "modules", "base", "manifest.json"))}
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                delivered = module_manager._deliver_synced(release, candidates, project_retire=False)
+        self.assertIn(".engine/_fixtures/probe/bad_input.md", delivered)
+
+    def test_the_599_falsification_demo_passes(self):
+        # Covers the reconcile end-to-end on a real clone — the delete leg removes a renamed-away engine agent
+        # (so the tree stays provider-parity clean); disabling it leaves the orphan a hard CI check catches.
+        # This surviving reference is also what lets the demo travel (census-completeness) rather than retire.
+        import demo_599_upgrade_reconcile as demo
+        import quiet_call
+        self.assertEqual(quiet_call.run(demo.main), 0)   # captures the demo walkthrough; keeps the summary clean
+
+    def test_archive_tree_extracts_a_ref_offline_returning_dest_itself(self):
+        # The offline sibling of _fetch_release_tree: `git archive` has NO owner-repo-sha wrapper, so it
+        # returns `dest` itself (arch-N2). Uses HEAD, so it runs in a shallow CI checkout too.
+        with tempfile.TemporaryDirectory() as d:
+            dest = os.path.join(d, "tree")
+            out = module_manager._archive_tree("HEAD", dest)
+            self.assertEqual(out, dest)
+            self.assertTrue(os.path.isdir(os.path.join(dest, ".engine")),
+                            "the archived tree root should contain .engine/ directly (no wrapper dir)")
+
+
+class TestReconcileDeliverySuperset(unittest.TestCase):
+    """#599 Slice 3 drift guard: the reconcile deliver set must never drop BELOW what the engine considers
+    owned. Holds by construction today (`engine_synced_map` globs the same `provides` as `engine_owned_paths`);
+    pinned so a future `provides` refactor (e.g. key-filtering groups) can't silently drop a delivered index
+    like self-map.md / suites.json without reddening. A SUPERSET guard — `delivered` legitimately carries more
+    (fixtures, module manifests). This is the honest, narrow residual the earlier release-cut ownership check
+    was reduced to: it proves the reconcile covers the owned surface, NOT that every classification is correct."""
+
+    def test_deliver_set_covers_every_owned_engine_file(self):
+        manifests = module_coherence.discover_manifests()
+        by_id = {m.get("id"): m for _rel, m in manifests}
+        owned_engine = {p for p in module_coherence.engine_owned_paths(manifests) if p.startswith(".engine/")}
+        delivered = module_manager.engine_synced_paths(validate.ROOT, by_id, project_retire=False)
+        missing = sorted(owned_engine - delivered)
+        self.assertEqual(missing, [], f"reconcile deliver set dropped owned engine files: {missing}")
+
+
+class TestUpgradePreviewImpact(unittest.TestCase):
+    """The read-only `plan_upgrade` impact preview (slice 2 of #594) — computed offline via an injected
+    release tree, so no test touches the network."""
+
+    def test_offline_impact_names_files_settings_and_data_changes(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                plan = module_manager.plan_upgrade("v0.2.0", release_tree=release, target_ref="v0.2.0")
+        self.assertFalse(plan["refused"])
+        self.assertEqual(plan["status"], "update-available")
+        # SETTINGS: base swaps its 'oldcache' gitignore for 'newcache' -> one turned off, one turned on
+        self.assertIn("oldcache", [w.get("key") for _m, w in plan["wires"]["removed"]])
+        self.assertIn("newcache", [w.get("key") for _m, w in plan["wires"]["added"]])
+        self.assertEqual(plan["wires"]["updated"], [])
+        # STORED-DATA / CONFIG: both migrations surface with their real kinds
+        self.assertEqual(sorted(m["kind"] for m in plan["migrations"]), ["config", "data"])
+        # a data migration + no vault configured in the fixture -> backup NOT ready (reported, never refused)
+        self.assertFalse(plan["backed_up"])
+        # FILES: base_tool.py is replaced; the release's new migration files are added
+        self.assertIn(".engine/tools/base_tool.py", plan["files"]["replaced"])
+        self.assertTrue(any("migrations/" in r for r in plan["files"]["added"]))
+        self.assertEqual(plan["target_versions"]["base"], "0.2.0")
+
+    def test_a_same_identity_content_change_is_updated_not_removed_and_added(self):
+        # R1 (arch plan-gate): an mcp server is keyed on NAME, so a definition change is an in-place re-apply
+        # the preview must call 'updated' — never surface it as both a removal and an addition.
+        old = {"base": {"wires": [{"type": "mcp", "name": "engine-x", "definition": {"a": 1}}]}}
+        new = {"base": {"wires": [{"type": "mcp", "name": "engine-x", "definition": {"a": 2}}]}}
+        delta = module_manager._wiring_delta(old, new)
+        self.assertEqual([w["name"] for _m, w in delta["updated"]], ["engine-x"])
+        self.assertEqual(delta["added"], [])
+        self.assertEqual(delta["removed"], [])
+
+    def test_preview_removed_set_is_exactly_what_the_apply_reverses(self):
+        # R1 single-home: the removed set the preview reports IS the set _apply_wiring_deltas would reverse.
+        # A same-identity survivor (engine-keep) is not removed; an identity that vanishes (gone) is.
+        old = {"base": {"wires": [{"type": "gitignore", "key": "gone", "lines": ["x/"]},
+                                  {"type": "mcp", "name": "engine-keep", "definition": {}}]}}
+        new = {"base": {"wires": [{"type": "mcp", "name": "engine-keep", "definition": {}},
+                                  {"type": "gitignore", "key": "fresh", "lines": ["y/"]}]}}
+        self.assertEqual([w.get("key") for _m, w in module_manager._wiring_delta(old, new)["removed"]],
+                         ["gone"])
+
+    def test_an_identity_less_removed_wire_is_never_reported_removed(self):
+        # R1: a permission wire has no engine identity, so the apply never reverses it -> the preview must
+        # not promise a removal that won't happen.
+        old = {"base": {"wires": [{"type": "permission", "value": "Bash(*)"}]}}
+        new = {"base": {"wires": []}}
+        self.assertEqual(module_manager._wiring_delta(old, new)["removed"], [])
+
+    def test_a_tampered_release_escaping_path_refuses_the_preview(self):
+        # R4 (risk plan-gate): a release whose provides climb OUT of the engine must REFUSE the preview and
+        # enumerate nothing — the same containment wall the apply uses, now on the read-only path.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = os.path.join(d, "release")
+            base = os.path.join(release, ".engine", "modules", "base")
+            os.makedirs(base)
+            module_manager._write_json(os.path.join(base, "manifest.json"),
+                                       {"id": "base", "version": "0.2.0", "status": "required",
+                                        "provides": {"tool": ["../sneak.py"]}, "depends": {}})  # climbs out
+            with open(os.path.join(d, "sneak.py"), "w", encoding="utf-8") as fh:
+                fh.write("# a file the escaping glob would match, OUTSIDE the engine\n")
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                plan = module_manager.plan_upgrade("v0.2.0", release_tree=release, target_ref="v0.2.0")
+        self.assertTrue(plan["refused"])
+        self.assertEqual(plan["status"], "unsafe-release")
+        self.assertEqual(plan["files"], {"replaced": [], "added": []})   # nothing host-path was enumerated
+
+    def test_render_speaks_plain_language_with_no_seam_jargon(self):
+        # R5 (product plan-gate): the operator-facing render describes settings plainly, never 'wire'/'seam'/
+        # 'matcher', and matches the operation doc's "turn settings on/off" framing.
+        plan = {"status": "update-available", "current": "0.3.0", "target_ref": "v0.3.1",
+                "available": "v0.3.1", "named_ref": None,
+                "files": {"replaced": [".engine/tools/x.py"], "added": [".engine/tools/y.py"]},
+                "wires": {"added": [("base", {"type": "mcp", "name": "engine-graph"})],
+                          "removed": [("base", {"type": "gitignore", "key": "old",
+                                                "lines": [".engine/old/"]})],
+                          "updated": []},
+                "migrations": [{"module_id": "base", "kind": "data", "description": "Reshape stored data."}],
+                "backed_up": False}
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            module_manager._render_upgrade_preview(plan)
+        text = out.getvalue()
+        self.assertIn("Turns on: a connected engine tool (engine-graph)", text)
+        self.assertIn("Turns off: an internal engine housekeeping rule", text)   # NOT "data folder" (misread)
+        self.assertIn("Changes stored data", text)
+        self.assertIn("needs a backup", text)
+        self.assertIn("/engine-upgrade", text)
+        for jargon in ("wire", "seam", "matcher"):
+            self.assertNotIn(jargon, text.lower())
+
+    def test_a_malformed_non_dict_wire_never_crashes_the_preview(self):
+        # A tampered release with a non-dict wire entry must not crash the operator's check (the render sits
+        # outside upgrade_preview's own guard). _wiring_delta skips it; _describe_wire degrades gracefully.
+        self.assertEqual(module_manager._describe_wire("not-a-dict"), "an engine setting")
+        delta = module_manager._wiring_delta({"base": {"wires": []}},
+                                             {"base": {"wires": ["junk", 7, {"type": "mcp", "name": "ok"}]}})
+        self.assertEqual([w["name"] for _m, w in delta["added"]], ["ok"])   # only the well-formed wire
+
+    def test_bare_upgrade_previews_and_never_applies(self):
+        # The CLI dispatch: bare `upgrade` renders the preview and NEVER reaches the apply path.
+        canned = {"status": "update-available", "current": "0.3.0", "target_ref": "v0.3.1",
+                  "available": "v0.3.1", "named_ref": None, "files": {"replaced": [], "added": []},
+                  "wires": {"added": [], "removed": [], "updated": []}, "migrations": [], "backed_up": None}
+        orig_prev, orig_up = module_manager.upgrade_preview, module_manager.upgrade
+        applied = []
+        try:
+            module_manager.upgrade_preview = lambda ref=None: canned
+            module_manager.upgrade = lambda *a, **k: applied.append(True) or {}
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = module_manager.main(["upgrade"])
+        finally:
+            module_manager.upgrade_preview, module_manager.upgrade = orig_prev, orig_up
+        self.assertEqual(code, 0)
+        self.assertEqual(applied, [])                       # apply path never entered
+        self.assertIn("nothing changed", out.getvalue())
+
+
+import subprocess   # noqa: E402 — the rollback tests exercise real git in a throwaway repo
+
+
+def _git(root, *args):
+    return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=False)
+
+
+def _init_repo(root):
+    """A throwaway git repo with the fixture engine committed as the pre-update baseline (branch `main`)."""
+    _git(root, "init", "-b", "main")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
+    _git(root, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "baseline")
+
+
+def _stage_a_stalled_update(root):
+    """Reproduce the #594-shape staged/stalled upgrade ON DISK, uncommitted: a release that ADDS a new
+    provides file + a new wire to the present `base` module (not just an edited file) — the overlay overwrote
+    base's manifest to declare an extra tool + a new gitignore wire, wrote that new tool, changed the existing
+    tool, and bumped engine.json. Nothing is committed, so this is exactly a stall's working tree."""
+    eng = os.path.join(root, ".engine")
+    module_manager._write_json(
+        os.path.join(eng, "modules", "base", "manifest.json"),
+        {"id": "base", "version": "0.2.0", "status": "required",
+         "provides": {"tool": [".engine/tools/base_tool.py", ".engine/tools/base_extra.py"]},
+         "depends": {}, "migrations": {},
+         "wires": [{"type": "gitignore", "key": "oldcache", "lines": [".engine/base/.oldcache/"]},
+                   {"type": "gitignore", "key": "newcache", "lines": [".engine/base/.newcache/"]}]})
+    with open(os.path.join(eng, "tools", "base_tool.py"), "w") as fh:
+        fh.write("# base v2\n")                                   # an existing overlay-code file, changed
+    with open(os.path.join(eng, "tools", "base_extra.py"), "w") as fh:
+        fh.write("# new tool the release added\n")                # a NEW provides file (the #594 shape)
+    module_manager._write_json(
+        os.path.join(eng, "engine.json"),
+        {"engine_release": "0.2.0", "packages": {"base": "0.2.0"}, "identity": "solo",
+         "home_repository": "acme/engine-home"})                  # the version bump
+
+
+class TestRollback(unittest.TestCase):
+    """The `rollback` undo: the staged-update signal, the foreign-work guard, the recovery-point-then-discard
+    sequence on a real temp git repo (the #594 new-file shape), the restore-then-detect ordering + consent/
+    no-override on the memory leg, and the confirm-gated CLI."""
+
+    def _staged_repo(self, d):
+        live = os.path.join(d, "live")
+        os.makedirs(live)
+        with module_manager._redirect_root(live):   # _build_upgrade_fixture applies a wire via the redirected paths
+            module_manager._build_upgrade_fixture(live)
+        _init_repo(live)                        # commit the pre-update baseline
+        _stage_a_stalled_update(live)           # then dirty the tree with a staged update
+        return live
+
+    def test_staged_update_is_detected_by_dirty_overlay_code_not_coherence(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            with module_manager._redirect_root(live):
+                self.assertTrue(module_manager._staged_upgrade_dirty())
+                self.assertEqual(module_manager._diagnose_undo()["state"], "staged")
+
+    def test_a_coherence_green_but_uncommitted_overlay_edit_is_still_detected_as_staged(self):
+        # RC-S3: the signal must NOT key on coherence — a content-only edit to an overlay-code file leaves
+        # coherence green (it checks ownership + wiring, not file bytes) yet is a staged/uncommitted state.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+            _init_repo(live)                                    # commit a coherent baseline
+            with open(os.path.join(live, ".engine", "tools", "base_tool.py"), "w") as fh:
+                fh.write("# base v0 — a byte changed, nothing else\n")   # content-only, uncommitted
+            with module_manager._redirect_root(live):
+                self.assertFalse([f for f in module_coherence.check_coherence()
+                                  if f.get("severity") == "hard"])       # coherence is GREEN
+                self.assertTrue(module_manager._staged_upgrade_dirty())  # yet the staged signal still fires
+
+    def test_discard_saves_a_recovery_point_then_restores_the_tree_to_before_the_update(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            calls = {"resync": 0}
+            with module_manager._redirect_root(live):
+                res = module_manager.rollback(confirm=True, resync=lambda: calls.__setitem__("resync", 1) or True,
+                                              transport=None)
+            self.assertTrue(res.get("undone"))
+            self.assertEqual(calls["resync"], 1)                 # the runtime rebuild seam was called
+            self.assertTrue((res.get("recovery_point") or "").startswith("engine-rescue/"))
+            # the tree is clean again, the added file is gone, and the changed file/engine.json are back
+            self.assertEqual(_git(live, "status", "--porcelain").stdout.strip(), "")
+            self.assertFalse(os.path.exists(os.path.join(live, ".engine", "tools", "base_extra.py")))
+            with open(os.path.join(live, ".engine", "tools", "base_tool.py")) as fh:
+                self.assertEqual(fh.read(), "# base v0\n")
+            eng = module_manager.validate.load_json(os.path.join(live, ".engine", "engine.json"))
+            self.assertEqual(eng["engine_release"], "0.0.0")     # engine.json reverted -> data undo can now fire
+            # the recovery point still holds the discarded update (nothing lost)
+            self.assertIn("engine-rescue/", _git(live, "branch").stdout)
+
+    def test_discard_refuses_when_the_operator_has_their_own_unsaved_work(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            with open(os.path.join(live, "my_notes.txt"), "w") as fh:   # foreign, outside the footprint
+                fh.write("my own work\n")
+            with module_manager._redirect_root(live):
+                res = module_manager.rollback(confirm=True, resync=lambda: True, transport=None)
+            self.assertTrue(res.get("refused"))
+            self.assertIn("my_notes.txt", res.get("your_changes") or [])
+            # nothing was undone or rescued — the staged update and the operator's file are both still there
+            self.assertTrue(os.path.exists(os.path.join(live, ".engine", "tools", "base_extra.py")))
+            self.assertTrue(os.path.exists(os.path.join(live, "my_notes.txt")))
+            self.assertNotIn("engine-rescue/", _git(live, "branch").stdout)
+
+    def test_footprint_covers_the_floor_files_and_wiring_targets_the_guard_would_else_miss(self):
+        # RC-B1: engine_owned_paths omits these; the guard would false-refuse a real stall without them.
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            with module_manager._redirect_root(live):
+                fp = module_manager._upgrade_footprint()
+            for must in ("CLAUDE.md", "AGENTS.md", ".github/CODEOWNERS", module_coherence.ENGINE_MANIFEST_REL):
+                self.assertIn(must, fp)
+            for target in module_coherence.WIRING_TARGETS.values():
+                self.assertIn(target, fp)
+
+    def test_memory_leg_restores_with_consent_and_never_override_after_the_code_is_back(self):
+        # The staged discard's step (f): once engine.json is reverted, put the pre-update memory back — with
+        # the operator's confirm standing in for consent, and NEVER override (the resurrection guard stays on).
+        from memory import restore_vault as _rv
+        import memory as _memory
+        captured = {}
+        saved_detect, saved_restore = _rv.detect_migration_revert, _memory.restore_pre_migration
+
+        def _detect_only_after_revert(**k):
+            # The stub is ORDERING-SENSITIVE: it hands back a tag only once engine.json is back at the old
+            # version — so if the code consulted it BEFORE reverting the tree, no restore would fire and this
+            # test would fail. This pins step (f) running after step (d).
+            eng = module_manager.validate.load_json(
+                os.path.join(module_manager.validate.ROOT, ".engine", "engine.json")) or {}
+            return {"tag": "engine-snapshot/ns/base@0.2.0"} if eng.get("engine_release") == "0.0.0" else None
+        _rv.detect_migration_revert = _detect_only_after_revert
+        _memory.restore_pre_migration = lambda **k: captured.update(k) or {"ok": True, "message": "put back"}
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                live = self._staged_repo(d)
+                with module_manager._redirect_root(live):
+                    res = module_manager.rollback(confirm=True, resync=lambda: True, transport="FAKE")
+        finally:
+            _rv.detect_migration_revert, _memory.restore_pre_migration = saved_detect, saved_restore
+        self.assertTrue(res.get("undone"))
+        self.assertEqual(captured.get("consent"), "y")
+        self.assertEqual(captured.get("tag"), "engine-snapshot/ns/base@0.2.0")
+        self.assertEqual(captured.get("transport"), "FAKE")
+        self.assertNotEqual(captured.get("override"), True)      # resurrection guard preserved
+        self.assertTrue(res.get("restored"))
+
+    def test_memory_ahead_state_restores_the_pre_update_copy_without_a_discard(self):
+        from memory import restore_vault as _rv
+        import memory as _memory
+        captured = {}
+        saved_detect, saved_restore = _rv.detect_migration_revert, _memory.restore_pre_migration
+        # a clean tree (no staged update) but the store is ahead of the code -> state 2
+        _rv.detect_migration_revert = lambda **k: {"tag": "engine-snapshot/ns/base@0.2.0"}
+        _memory.restore_pre_migration = lambda **k: captured.update(k) or {"ok": True, "message": "put back"}
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                live = os.path.join(d, "live")
+                os.makedirs(live)
+                with module_manager._redirect_root(live):
+                    module_manager._build_upgrade_fixture(live)
+                _init_repo(live)                                # clean tree, nothing staged
+                with module_manager._redirect_root(live):
+                    self.assertEqual(module_manager._diagnose_undo()["state"], "memory-ahead")
+                    res = module_manager.rollback(confirm=True, resync=lambda: True, transport="FAKE")
+        finally:
+            _rv.detect_migration_revert, _memory.restore_pre_migration = saved_detect, saved_restore
+        self.assertTrue(res.get("restored"))
+        self.assertEqual(captured.get("consent"), "y")
+        self.assertNotEqual(captured.get("override"), True)
+
+    def test_bare_rollback_previews_and_changes_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            with module_manager._redirect_root(live):
+                diag = module_manager.rollback(confirm=False)     # no confirm -> read-only diagnosis
+            self.assertEqual(diag["state"], "staged")
+            self.assertTrue(os.path.exists(os.path.join(live, ".engine", "tools", "base_extra.py")))  # untouched
+            self.assertNotIn("engine-rescue/", _git(live, "branch").stdout)
+
+    def test_the_rollback_falsification_demo_passes(self):
+        # Runs the maintainer-runnable demo end-to-end (the real undo reverts a staged update; removing the
+        # switch-back leaves it un-undone). Importing it here is what makes it TRAVEL with the engine.
+        import demo_594_rollback_discard as demo
+        import quiet_call
+        self.assertEqual(quiet_call.run(demo.main), 0)
+
+    def test_cli_rollback_gate(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = self._staged_repo(d)
+            with module_manager._redirect_root(live):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    self.assertEqual(module_manager.main(["rollback"]), 0)          # bare -> preview, exit 0
+                self.assertIn("undo", out.getvalue())
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    self.assertEqual(module_manager.main(["rollback", "--bogus"]), 2)  # unknown flag -> exit 2
+                self.assertIn("CONFIG ERROR", err.getvalue())
+                self.assertEqual(module_manager.main(["rollback", "--help"]), 0)    # help -> usage, exit 0
+                # still nothing changed by any of the read-only calls
+                self.assertNotIn("engine-rescue/", _git(live, "branch").stdout)
 
 
 if __name__ == "__main__":

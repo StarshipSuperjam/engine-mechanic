@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Telemetry — the engine's self-monitoring detect->surface machinery (core slice 18).
+"""Telemetry — the engine's self-monitoring detect->surface machinery.
 
 Answers "is the Engine healthy?" and feeds the remediation loop. It is SELF-SURFACING, NOT
-self-healing (D-009 / Risk R3 / principles §8): it detects drift over the Engine's OWN work and
+self-healing: it detects drift over the Engine's OWN work and
 surfaces it for the AI to fix next session — never product quality, never autonomous repair.
 
 The one loop is consume -> dedup -> promote(triage) -> auto-resolve over engine-labelled GitHub
@@ -15,18 +15,16 @@ threshold; auto-resolve closes a tracked Issue once its signal has been absent f
 observation count. The threshold values are READ from the governed triage-threshold policy
 (legible and tunable), never redefined here.
 
-Seams (principles §16 — telemetry OWNS its acting-mechanism; producers only emit):
+Seams (telemetry OWNS its acting-mechanism; producers only emit):
   - The GitHub boundary is an INJECTABLE transport: tests and the demo fake ONLY the network and
     run the REAL reconcile logic. A read failure RAISES (DegradedReadError) and is NEVER swallowed
     as "no open issues"; the caller then falls back to State's committed offline count.
-  - State's debt count/pointer is a derived convenience telemetry refreshes (never authoritative,
-    state/README). This tool COMPUTES it and, on explicit request, writes a schema-valid cursor —
+  - State's debt count/pointer is a derived convenience telemetry refreshes (never authoritative). This tool COMPUTES it and, on explicit request, writes a schema-valid cursor —
     it never auto-commits (the committed cursor advances on committed acts).
   - Telemetry is itself a local gate, so its own crash emits a finding and exits 0 (fail-open).
 
-The engine-domain label string (`engine`) is the build-spec leaf decided with the maintainer
-(control-plane §"Engine Issues and the label scheme"). It is homed here as the FIRST producer to
-apply it; provisioning (a later slice) owns the general ensure-both-labels step and inherits this
+The engine-domain label string (`engine`) is the build-spec leaf decided with the maintainer. It is homed here as the FIRST producer to
+apply it; provisioning later owns the general ensure-both-labels step and inherits this
 minimal ensure. Consumers (build-orchestration's build Issues, audits) READ this one constant.
 
 Operator demo (faked GitHub, real logic — no real Issues, no token):
@@ -56,9 +54,14 @@ import github_client  # noqa: E402  (the shared authenticated GitHub API client;
 
 # The engine-domain label (control-plane owns the SCHEME; the STRING is a build-spec leaf decided
 # with the maintainer). The single shared home: build-orchestration (build Issues) and audits READ
-# this; provisioning (later slice) generalises the ensure-it-exists step and inherits the minimal
+# this; provisioning later generalises the ensure-it-exists step and inherits the minimal
 # ensure below. Renaming it elsewhere would split the routing substrate, so it lives once, here.
 ENGINE_DOMAIN_LABEL = "engine"
+# The engine label's colour + description — the single home for its presentation, so provisioning (which
+# lists the whole label set in one place) and the minimal ensure below both read the same values rather
+# than re-typing them. Grey, calm and neutral; the description frames it for the operator.
+ENGINE_DOMAIN_LABEL_COLOR = "ededed"          # a calm neutral grey
+ENGINE_DOMAIN_LABEL_DESCRIPTION = "Opened by the engine about its own health (not your product)."
 
 # The two self-monitoring severity classes (distinct from the agent and check enums).
 TRUST_CRITICAL = "trust-critical"          # could-not-run; promotes immediately
@@ -66,8 +69,8 @@ PERSISTENT_BENIGN = "persistent-but-benign"  # recurring low-impact; promotes af
 
 # The numeric grades attention's debt-blocking rule ranks a tracked finding on. Telemetry owns the severity
 # CLASS (promotion — what becomes tracked debt at all); whether a graded finding actually BLOCKS the start of
-# work is ATTENTION's own rule (D-117 explicitly rejects attributing blocking-membership to telemetry), so this
-# only GRADES — it never decides. The two numbers are a recorded build-spec leaf (D-052/D-113), calibrated
+# work is ATTENTION's own rule (attributing blocking-membership to telemetry is explicitly rejected), so this
+# only GRADES — it never decides. The two numbers are a recorded build-spec leaf, calibrated
 # against the shipped `debt_blocking_threshold` (2) in .engine/policies/attention.md.
 _TRUST_CRITICAL_RANK = 3.0    # above the shipped bar
 _BENIGN_RANK = 1.0            # below the shipped bar -> debt that can wait, mentioned but not gating work
@@ -77,7 +80,7 @@ def severity_rank(severity: "str | None", blocking_threshold: float) -> "float |
     """Grade one tracked finding's severity CLASS into the numeric severity attention ranks and compares against
     its own debt-blocking threshold, or None when telemetry has no severity for it. `blocking_threshold` is the
     CALLER's bar, passed in — telemetry neither owns nor reads it (it is attention's policy value,
-    operator-tunable per D-167).
+    operator-tunable).
 
     Three cases, each a deliberate posture:
       - TRUST_CRITICAL -> `max(rank, threshold)`: **always** meets the bar. Telemetry's contract for this class
@@ -85,11 +88,11 @@ def severity_rank(severity: "str | None", blocking_threshold: float) -> "float |
         blocking — without the clamp an operator raising `debt_blocking_threshold` past the fixed rank would
         silently defer the most urgent class, with no feedback. It rides the bar however high it goes.
       - PERSISTENT_BENIGN -> a fixed rank BELOW the shipped bar: a recurring low-impact item is debt that can
-        WAIT rather than gate the start of work (attention/README:53) — `assign_partition` returns None for it,
+        WAIT rather than gate the start of work — `assign_partition` returns None for it,
         so it is mentioned in the card's open-problems count but never surfaced among the budgeted five.
       - anything else (an unmarked, pre-severity Issue — e.g. an audit-authored conformance finding, which
         carries no severity marker) -> **None: there is no severity to report.** Telemetry owns this class
-        (D-118) and simply has not graded that Issue, so the honest answer is "unknown", not a number.
+        and simply has not graded that Issue, so the honest answer is "unknown", not a number.
         Grading it to the threshold ITSELF — the shape this first carried — was the bug it was meant to fix,
         one layer up: an item pinned exactly AT the bar makes the bar compare to itself, so moving the dial
         cannot change the outcome. And any fixed stand-in would be telemetry inventing a severity it was
@@ -158,14 +161,14 @@ DEFAULT_CACHE_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache
 # The engine-only sink for a fail-open hook crash's backstage diagnostic (exception message + code
 # location). The hook fail-open crash is promoted as a telemetry finding (hooks._do_promote_fail_open ->
 # promote_finding), so the detail BEHIND that finding lives beside telemetry's other gitignored cache —
-# never committed (topology law 5), never operator-visible. hooks appends to it; telemetry owns the path.
+# never committed, never operator-visible. hooks appends to it; telemetry owns the path.
 HOOK_CRASH_DEBUG_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "hook-crash-debug.log")
 
 
 class DegradedReadError(Exception):
     """Raised when GitHub cannot be read (an outage, or a 401/403/404 auth/scope/permission error).
     It is NEVER swallowed as an empty result — an auth failure that read as "no open issues" would
-    silently misreport the engine's health (the failure mode state/README forbids)."""
+    silently misreport the engine's health."""
 
 
 # ---- time ------------------------------------------------------------------
@@ -234,9 +237,9 @@ def triage_pressure_line(open_low_severity_count: int, threshold: int) -> str | 
     low-impact engine items crosses the threshold, else nothing. Crossing it promotes NOTHING — the
     meter never becomes an item itself, so it cannot feed the volume it measures."""
     if open_low_severity_count > threshold:
-        # The trailing sentence is the reactive retune offer (D-167): the threshold that decides when this
+        # The trailing sentence is the reactive retune offer: the threshold that decides when this
         # reminder fires is itself tunable, so the command is offered at the moment it surfaces. Boot renders
-        # this line live from the complete open low-severity count (#403.2), so the offer fires on a real backlog.
+        # this line live from the complete open low-severity count (#403), so the offer fires on a real backlog.
         return ("The engine's self-monitoring backlog is growing — there are several low-priority "
                 "engine items open. Nothing here is urgent; you can review them when convenient. "
                 "You can also change when this reminder appears — type /engine-tune.")
@@ -359,7 +362,7 @@ def issue_title(record: dict) -> str:
 def issue_body(record: dict, first_seen: str, last_seen: str) -> str:
     """The tracked Issue's body — telemetry's plain-language operator contract, assembled through the
     shared issue-authoring helper so every engine-authored Issue carries the one control-plane body
-    shape (control-plane §"Engine Issues"; the single issue-authoring path). Telemetry fills the
+    shape (the single issue-authoring path). Telemetry fills the
     contract's parts with its OWN language — what it noticed about the engine's own health (not your
     product) and what, if anything, you must do — and appends two telemetry-specific trailers the
     helper does not own: the first-/last-seen line and the invisible signal marker (an HTML comment
@@ -372,7 +375,7 @@ def issue_body(record: dict, first_seen: str, last_seen: str) -> str:
     pre-rendered `body_core` FIELD on the record — already run through render_engine_issue_body with its
     own `references`, so it is used verbatim and only the trailers are appended. Otherwise telemetry's own
     framing is rendered here, and any `references` the record carries (a knowledge-graph entity permalink
-    for "what is broken", F0202) are passed to the helper as labelled links."""
+    for "what is broken") are passed to the helper as labelled links."""
     body_core = record.get("body_core")
     if body_core is None:
         what_this_is = (
@@ -438,7 +441,8 @@ def reconcile(records: list, open_issues: list, counts: dict, thresholds: dict, 
     its body (open_issues[*].source_id), and the cache's remembered issue number is the fast path /
     cross-check. When a create/create race (GitHub has no atomic create-if-absent) has left MORE THAN
     ONE open Issue for one sid — both markers intact — this pass CONSOLIDATES them: the lowest-numbered
-    survivor is kept and the rest are closed (within authority scope, below), so a keyable duplicate is
+    survivor is kept and the rest are closed, UNCONDITIONALLY of authority scope (#518 — authority governs
+    auto-resolve, never duplicate-folding; see _consolidate), so a keyable duplicate is
     healed, never silently dropped. The one residual worst case is a marker stripped AND the cache wiped:
     that Issue is unkeyable by any pass, so a single duplicate can persist (never a missed signal) — it
     is the honest limit of body+cache dedup, not something absence self-corrects.
@@ -464,7 +468,7 @@ def reconcile(records: list, open_issues: list, counts: dict, thresholds: dict, 
     observed = {derive_source_key(r): r for r in records}
     # Group open Issues by signal id. A create/create race can leave MORE THAN ONE open Issue per sid;
     # keep the lowest-numbered as the canonical survivor and treat the rest as duplicates to consolidate
-    # (closed within authority scope below) — never silently overwritten in a map and left open forever.
+    # (unconditionally — see _consolidate) — never silently overwritten in a map and left open forever.
     groups: dict = {}
     for i in open_issues:
         sid = i.get("source_id")
@@ -491,10 +495,14 @@ def reconcile(records: list, open_issues: list, counts: dict, thresholds: dict, 
         return min(candidates) if candidates else now
 
     def _consolidate(sid: str, survivor_number: int) -> None:
-        # Fold every same-signal duplicate into the survivor and close it — but ONLY when this pass is
-        # authoritative for the sid, so a scoped pass (e.g. CI-only) never touches another source's dups.
-        if not _claims(authoritative, sid):
-            return
+        # Fold every same-signal duplicate into the survivor and close it — UNCONDITIONALLY, independent of
+        # this pass's authority scope (#518). Authority governs auto-RESOLVE — deciding a signal cleared and
+        # retiring it — where a claim-all pass could silently close another source's live alarm. Folding two
+        # copies of ONE signal into one decides nothing about the signal: the survivor stays open with the
+        # earliest first-noticed, the duplicate is keyed by its own intact marker, and the consolidation
+        # note names where tracking continues. The authority gate that used to sit here is exactly why the
+        # create/create race's duplicates persisted in practice: the racing SessionStart passes were not
+        # authoritative for the raced signal, so no pass ever healed what every pass could see.
         for dup in duplicates_by_sid.get(sid, []):
             plan.to_update.append((dup["number"],
                                    _consolidation_note(survivor_number) + (dup.get("body") or "")))
@@ -528,6 +536,11 @@ def reconcile(records: list, open_issues: list, counts: dict, thresholds: dict, 
             continue
         prev = counts.get(sid) or {}
         if not _claims(authoritative, sid):
+            # No authority to RESOLVE this source's signal — carry it forward untouched — but its keyable
+            # duplicates are still folded into the survivor (#518): consolidation is authority-free, and
+            # this carry-forward branch was the chicken-and-egg leg (the tool-runtime signal's own passes
+            # land here, so its race duplicates were never healed by anyone).
+            _consolidate(sid, issue["number"])
             plan.next_counts[sid] = {"persist": int(prev.get("persist", 0)),
                                      "absent": int(prev.get("absent", 0)),
                                      "issue": issue["number"], "first_seen": prev.get("first_seen") or now,
@@ -594,8 +607,7 @@ class GitHubIssues:
         """Idempotently ensure the engine-domain label exists (create it iff absent). The genesis
         construction repo runs no first-run bootstrap, so the first producer ensures its own label;
         provisioning later owns the general, re-runnable ensure and inherits this."""
-        self.ensure_named_label(self.label, "ededed",  # a calm neutral grey
-                                "Opened by the engine about its own health (not your product).")
+        self.ensure_named_label(self.label, ENGINE_DOMAIN_LABEL_COLOR, ENGINE_DOMAIN_LABEL_DESCRIPTION)
 
     def ensure_named_label(self, name: str, color: str, description: str) -> None:
         """Idempotently ensure an arbitrary repo label exists (create it iff absent). `ensure_label` above is
@@ -658,8 +670,45 @@ class GitHubIssues:
         return data or {"number": number}
 
     def issues_query_url(self) -> str:
-        """The human-citable register: where the live list of open engine items lives."""
-        return f"https://github.com/{self.repo}/issues?q=is:open+label:{self.label}"
+        """The human-citable register: where the live list of open engine findings lives. `is:issue` matches
+        `list_open_engine_issues`, which skips PRs — so the clickable list can never include an engine-labelled
+        PR the count excluded (which would make the link over-count the header figure)."""
+        return f"https://github.com/{self.repo}/issues?q=is:open+is:issue+label:{self.label}"
+
+    def count_open_operator_issues(self) -> int:
+        """The number of the OPERATOR's own open Issues — every open issue WITHOUT the engine-domain label,
+        their product backlog — the exact complement of `list_open_engine_issues` over the open non-PR set.
+        Answered in a SINGLE call via GitHub's Search API (`total_count`), never by paginating the whole
+        backlog: the list endpoint's `labels=` param is include-only (no negative filter), so the naive read
+        would fetch every open issue just to drop the engine-labelled ones — the heaviest read on the boot
+        path. Search filters server-side (`-label:` excludes the engine label; `is:issue` drops PRs), exactly
+        the query `operator_issues_query_url` builds for the human register, so the count and the citable list
+        are one query. RAISES DegradedReadError on any HTTP error OR an unexpected shape — a failed read must
+        never be mistaken for a real 0. Reads the wrapped `{total_count, items: [...]}` envelope through the
+        same transport as `list_head_check_runs`. Two Search caveats, both fine for a once-per-session
+        'as of this session' count: a brief indexing lag (a just-filed issue may take seconds to appear) and a
+        30-request/minute limit. The label is quoted so a build-spec-leaf label carrying a space stays one term."""
+        q = f'repo:{self.repo} is:open is:issue -label:"{self.label}"'
+        status, data = self._transport(
+            "GET", f"/search/issues?q={urllib.parse.quote(q)}&per_page=1", None)
+        # Reject a present-but-non-int total_count (null / string / object) as an unexpected shape too, not
+        # just a missing key — so a malformed-but-present count raises DegradedReadError (the documented
+        # failure) rather than a bare int() TypeError, and can never read as a real count.
+        if status >= 400 or not isinstance(data, dict) or not isinstance(data.get("total_count"), int):
+            raise DegradedReadError(f"GitHub returned {status} counting open operator issues")
+        return int(data["total_count"])
+
+    def operator_issues_query_url(self) -> str:
+        """The human-citable register: where the operator's own open (non-engine) issues live — the same
+        `-label:` filter `count_open_operator_issues` counts, so the clickable list matches the count."""
+        return f"https://github.com/{self.repo}/issues?q=is:open+is:issue+-label:{self.label}"
+
+    def all_open_issues_query_url(self) -> str:
+        """The human-citable register for the whole open backlog — every open issue, engine and operator alike
+        (no label term). This is the exact union of `issues_query_url` (engine findings) and
+        `operator_issues_query_url` (the operator's own), so the total the status card leads with links to a
+        list whose size equals `finding_count + operator_backlog_count`. `is:issue` drops PRs on both sides."""
+        return f"https://github.com/{self.repo}/issues?q=is:open+is:issue"
 
     def list_head_check_runs(self, ref: str) -> list:
         """Every CI check-run on `ref` (a branch name or SHA), paginated to exhaustion. The response is the
@@ -728,7 +777,7 @@ def refresh_state(state_path: str, debt: dict | None = None, standing: dict | No
     three integration_debt keys; `standing` writes the standing_situation cache (milestone/phase/as_of).
     Passing only one leaves the other untouched, so the standing-situation co-writer never clobbers the debt
     count and vice-versa. EXPLICIT refresh only — telemetry never auto-commits it; the committed cursor
-    advances on committed acts and the operator reviews the diff (state/README)."""
+    advances on committed acts and the operator reviews the diff."""
     with open(state_path, encoding="utf-8") as fh:
         data = json.load(fh)
     if debt is not None:
@@ -761,7 +810,7 @@ def refresh_standing(state_path: str, repo: str, token: str, *, now: str | None 
 def refresh_cache(state_path: str, repo: str, token: str, *, now: str | None = None, transport=None) -> dict:
     """The scheduled audit-prep workflow's offline-cache refresh: derive BOTH offline-floor fields — the
     integration-debt count and the standing situation — from GitHub in ONE read-only pass and write them
-    together as freight (D-198: the standing cache rides the same GitHub pass as the debt count). UNLIKE
+    together as freight (the standing cache rides the same GitHub pass as the debt count). UNLIKE
     `run`, it makes NO triage writes — it never opens, updates, or closes an Issue, so it can never
     auto-close the open Issues a `run([])` would — it only counts open items and reads the milestone/phase.
     Each field degrades INDEPENDENTLY: a debt-read failure or a standing-derive failure leaves that one field's
@@ -789,14 +838,14 @@ def refresh_cache(state_path: str, repo: str, token: str, *, now: str | None = N
 
 
 def degraded_readout(count, as_of) -> str:
-    """The exact, plain-language degraded line (state/README + telemetry/README wording). Telemetry
+    """The exact, plain-language degraded line. Telemetry
     PRODUCES it; boot renders it."""
     if count is None:
         return ("I couldn't reach GitHub to refresh the engine's self-monitoring backlog, and there "
-                "is no offline count to fall back on — treat the engine's open-problem count as "
+                "is no offline count to fall back on — treat the count of open engine findings as "
                 "unknown until GitHub returns.")
     when = as_of or "an earlier session"
-    return (f"{count} open problems as of {when} — I couldn't refresh this, so it may be wrong; "
+    return (f"{count} open engine findings as of {when} — I couldn't refresh this, so it may be wrong; "
             f"re-ground before you rely on it. The per-issue detail is temporarily unreachable until "
             f"GitHub returns.")
 
@@ -829,8 +878,7 @@ def run(github: GitHubIssues, records: list, cache: Cache, thresholds: dict, now
     Fail-open / degrade is honoured for EVERY GitHub call, not only the read: any GitHub failure —
     ensure-label, the list read, OR a write — whether a 4xx auth/scope error or a transient 5xx/outage,
     degrades to State's committed offline count and returns a degraded Report rather than raising, so a
-    telemetry pass can never strand the in-session caller (the operator-never-stranded floor, state/README
-    + principles §5/§6). Writes already applied before a mid-pass failure stand (best-effort; the next
+    telemetry pass can never strand the in-session caller (the operator-never-stranded floor). Writes already applied before a mid-pass failure stand (best-effort; the next
     pass reconciles). The only side effect on the read-failure path is the idempotent label ensure — no
     Issue is opened/updated/closed. An UNEXPECTED (non-GitHub) error is deliberately left to surface:
     telemetry's own-crash fail-open is main()'s boundary and the in-session caller's degraded-capability
@@ -866,7 +914,7 @@ def run(github: GitHubIssues, records: list, cache: Cache, thresholds: dict, now
 
     debt = {"open_count": plan.open_count, "as_of": now, "register": github.issues_query_url()}
     if state_path:
-        # The standing-situation cache rides THIS same GitHub-derived pass as the debt count (D-198): derive
+        # The standing-situation cache rides THIS same GitHub-derived pass as the debt count: derive
         # it live and write both fields together. A standing-derive failure degrades only that one field —
         # we pass standing=None so the debt write still lands and the prior cached standing is left intact
         # (never clobbered with a failed read).
@@ -893,7 +941,7 @@ def _consolidation_note(survivor_number: int) -> str:
 def promote_finding(github: GitHubIssues, record: dict, now: str, *, title: str | None = None,
                     body_core: str | None = None):
     """Promote ONE finding to a tracked engine Issue — the out-of-band "log it" relay a producer hands
-    a single concern to for durable tracking WITHOUT running a full triage pass. Close (slice 22) calls
+    a single concern to for durable tracking WITHOUT running a full triage pass. Close calls
     it at cap-exhaustion / fail-open to degrade a still-undispositioned finding to logged (never lost);
     the soft-finding promoter (audit_soft_promote) calls it to track a standing length-budget nudge.
 
@@ -958,15 +1006,15 @@ def promote_finding(github: GitHubIssues, record: dict, now: str, *, title: str 
         return False
 
 
-# ---- the findings-inbox emit-and-done seam (F0203 / D-031 / principles §16) ----
-# The clean seam D-031 pins (decision-log D-031 + its anti-choice "cognition acting on findings it emits —
-# rejected"; principles §16; telemetry README "Findings inbox — cognition emits, telemetry acts"): a cognition
+# ---- the findings-inbox emit-and-done seam ----
+# The clean seam (its anti-choice — cognition acting on findings it emits — is deliberately rejected):
+# a cognition
 # substrate — a hooks fail-open flag, a boot degradation — EMITS a finding and is DONE; it never holds
 # telemetry's acting-mechanism (the GitHub boundary or a triage pass). Telemetry owns the act. SEVERITY sets
 # immediacy: a TRUST_CRITICAL signal (a gate/check that could not run) must surface AT ONCE, so it is promoted
-# synchronously — telemetry resolving the boundary itself, the §16 un-inversion of today's producer-held
+# synchronously — telemetry resolving the boundary itself, the un-inversion of today's producer-held
 # reach-in; a benign/degraded signal defers, spooled into a telemetry-owned gitignored inbox that a later
-# drain pass promotes. This slice stands up the channel and migrates the hooks emitter onto it; the PRODUCTION
+# drain pass promotes. This step stands up the channel and migrates the hooks emitter onto it; the PRODUCTION
 # drain cadence is #412 and boot's own emission is #398 (both build ON this seam — see drain_inbox).
 # Build-spec leaf (recorded with the maintainer, PR body + memory): the spool is a gitignored NDJSON at the
 # path below, beside telemetry's other .cache siblings (ambient.ndjson / *-streams.json).
@@ -980,9 +1028,9 @@ DEFAULT_INBOX_STREAMS_PATH = os.path.join(validate.ROOT, ".engine", "telemetry",
 # fails BEFORE any Python runs when `.engine/.venv/` is absent, so it cannot reach telemetry to emit a finding;
 # instead it best-effort drops this PRESENCE marker (a single file, no schema — the shell only knows the path),
 # and the drain-inbox SessionStart driver, on a later session where the runtime is healthy again, converts a
-# present marker into ONE TRUST_CRITICAL "could-not-run" finding promoted IMMEDIATELY (hooks/README
-# fail-open-and-flag: a missing tool-runtime surfaces as a crash would, on first occurrence, not persistence-
-# gated; D-156) and clears it. Presence-based, NOT a parsed format, so the drift test pins the whole shell↔Python
+# present marker into ONE TRUST_CRITICAL "could-not-run" finding promoted IMMEDIATELY (fail-open-and-flag:
+# a missing tool-runtime surfaces as a crash would, on first occurrence, not persistence-
+# gated) and clears it. Presence-based, NOT a parsed format, so the drift test pins the whole shell↔Python
 # contract by the path literal alone; the marker's bytes NEVER enter the finding (fixed source_id + fixed
 # message), so a poisoned marker cannot forge a signal sentinel. The fixed source_id de-dups across sessions.
 RUNTIME_HEALTH_MARKER_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "runtime-health.marker")
@@ -994,7 +1042,7 @@ _ASIDE_STALE_SECONDS = 300.0
 
 
 def emit_finding(record: dict, *, gh: "GitHubIssues | None" = None, spool_path: str = INBOX_SPOOL_PATH):
-    """The emit-and-done front door (D-031 / §16). A producer hands ONE finding-record and is DONE — telemetry
+    """The emit-and-done front door. A producer hands ONE finding-record and is DONE — telemetry
     owns the acting-mechanism. Routes by SEVERITY:
 
       - TRUST_CRITICAL (a gate/check that could not run) → promote IMMEDIATELY; returns the tracked Issue
@@ -1082,7 +1130,7 @@ def drain_inbox(github: GitHubIssues, *, cache: Cache, thresholds: dict, now: st
     """Drain the findings-inbox spool: read the spooled emit-and-done findings, run ONE triage pass over them,
     and dispose of the drained batch. The benign counterpart to emit_finding's immediate trust-critical path —
     what promotes a spooled degraded finding (a boot degradation, #398) to a tracked Issue. The PRODUCTION
-    cadence that calls this is #412; this slice builds and fixture-exercises it. Returns the run Report, or
+    cadence that calls this is #412; this step builds and fixture-exercises it. Returns the run Report, or
     None when there was nothing promotable to drain.
 
     live=FALSE: a spooled batch is a set of one-shot emissions, NOT a complete current-state snapshot, so it
@@ -1146,11 +1194,50 @@ def _runtime_marker_message() -> str:
             "retire this note.")
 
 
+CAPTURE_STATUS_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "memory-capture.status")
+CAPTURE_DEGRADED_SOURCE_ID = "memory/capture-degraded"
+
+
+def _capture_marker_message() -> str:
+    """The plain-language operator line for a persistently failing memory capture. Engine's-own-health
+    framing; no backstage vocabulary (no marker / spool / transcript-format words beyond what the
+    operator needs)."""
+    return ("The engine keeps failing to save session conversations to this project's memory — the "
+            "session records could not be read. Nothing in the project is lost, but those "
+            "conversations won't be recallable later. This usually means the AI runtime changed how "
+            "it stores session records; the fix arrives as an engine update (ask me to check for "
+            "one, or watch the engine's releases). Until then it will keep working from what it "
+            "already remembers.")
+
+
+def spool_capture_marker(*, marker_path: str = CAPTURE_STATUS_PATH,
+                         spool_path: str = INBOX_SPOOL_PATH) -> bool:
+    """Feed a FAILING memory-capture status marker into the findings inbox as ONE benign finding —
+    the persistence-gated half of the capture degradation surface (eADR-0034: boot's dashboard line
+    is the immediate half; this leg tracks a PERSISTENT failure as a durable finding via the drain's
+    cross-session accrual, so a one-off hiccup never becomes an Issue). The marker is NOT cleared —
+    the next successful capture overwrites it with 'captured', which simply stops the feed. De-duped
+    by the fixed source_id. Fail-open: any error is a no-op."""
+    try:
+        with open(marker_path, encoding="utf-8") as fh:
+            record = json.load(fh)
+        state = record.get("state") if isinstance(record, dict) else None
+        if state in (None, "captured"):
+            return False
+        _append_inbox({"source_id": CAPTURE_DEGRADED_SOURCE_ID, "severity": PERSISTENT_BENIGN,
+                       "message": _capture_marker_message(), "location": None}, path=spool_path)
+        return True
+    except (OSError, ValueError):
+        return False
+    except Exception:  # noqa: BLE001 — fail-open: the feed must never break the driver
+        return False
+
+
 def promote_runtime_marker(github: GitHubIssues, *, marker_path: str = RUNTIME_HEALTH_MARKER_PATH) -> bool:
     """Convert a present broken-runtime marker into ONE tracked finding. The hook launcher drops the marker
     when it cannot start the engine's Python (see RUNTIME_HEALTH_MARKER_PATH); here — on a session where the
     runtime IS healthy — that becomes a TRUST_CRITICAL "could-not-run" finding, promoted IMMEDIATELY (never
-    spooled/persistence-gated: hooks/README fail-open-and-flag, a missing tool-runtime surfaces as a crash
+    spooled/persistence-gated: fail-open-and-flag, a missing tool-runtime surfaces as a crash
     would). The marker is cleared ONLY on a successful promote, so a no-token / GitHub-unreachable pass leaves
     it to retry next session (nothing lost). De-duped across sessions by the fixed source_id. Presence-only:
     the marker's bytes never enter the finding. Returns True when a marker was promoted. Fail-open: any error
@@ -1454,18 +1541,18 @@ def derive_ambient_records(path: str = DEFAULT_AMBIENT_CACHE_PATH, watermark: st
     return records, frozenset(authoritative), new_wm
 
 
-# ---- the episodic (memory-ledger) signal (403.4 / F0210) -------------------
+# ---- the episodic (memory-ledger) signal -------------------
 # The THIRD signal of record: the memory ledger's CONSOLIDATION BACKLOG — earlier sessions whose raw notes were
 # never folded into short summaries (the abandoned-session recovery the memory durability law names). Telemetry
 # only COUNTS this content-free structural signal (a list of session-ids, never record CONTENT) and, when the
 # tidy-up stays chronically behind across sessions, tracks ONE engine issue; it never writes engine-state back
-# into the ledger (the ledger holds project narrative recall only — D-039). The ledger is local + gitignored
+# into the ledger (the ledger holds project narrative recall only). The ledger is local + gitignored
 # like the ambient cache, so this is a CACHE-ACCRUED (live=False) signal driven by a LOCAL SessionStart verb,
 # never the ephemeral audit runner (which has no ledger). It reuses memory's public detect leaf rather than
 # re-deriving the scan (the exclusions — live session, lease staleness, injected pseudo-turns — live there).
 EPISODIC_NAMESPACE = "episodic/"
 EPISODIC_BACKLOG_SID = EPISODIC_NAMESPACE + "consolidation-backlog"   # ONE stable id: the CONDITION, not per-session
-# A signal-DEFINITION constant (like CI_NOT_PASSING), NOT a D-114-tunable policy threshold: the point at which a
+# A signal-DEFINITION constant (like CI_NOT_PASSING), NOT a tunable policy threshold: the point at which a
 # lagging tidy-up counts as "deep". Intentionally aligned with memory's in-session-nag `_BACKLOG_ALARM_THRESHOLD`
 # for a coherent operator story, but INDEPENDENTLY owned so a later change to memory's chat nudge can never
 # silently move telemetry's durable-issue promotion floor — the two are distinct control surfaces.
@@ -1501,7 +1588,7 @@ def derive_episodic_records(live_session_id: str | None = None, cwd: str | None 
     persistence latency lives in the reconcile cache.
 
     Reuses memory's public leaf `consolidate.detect_unconsolidated` (a content-free sorted list of session-id
-    strings with raw notes but no consolidation marker), so the read never touches record CONTENT and the D-039
+    strings with raw notes but no consolidation marker), so the read never touches record CONTENT and that structural
     boundary holds. Emits ONE record keyed to the stable `EPISODIC_BACKLOG_SID` when the backlog is deep.
 
     POSITIVE-OBSERVATION GATE (safety). `detect_unconsolidated` returns an empty list for FOUR non-raising
@@ -1770,7 +1857,7 @@ def _demo(_argv) -> int:
             pass
 
     print("\n(10) The THIRD input the self-review consumes — the engine's own file-scoped checks that select")
-    print("    NO files right now (F0200). Each is surfaced for the self-review to judge (raise-it-upstream if")
+    print("    NO files right now. Each is surfaced for the self-review to judge (raise-it-upstream if")
     print("    it is dead template weight, or leave it) — NEVER a local retirement; a check that DOES match")
     print("    files, and a non-file-scoped check, are excluded. Driven over a fixture (the real checks all")
     print("    match files in this repo, so the live feed is correctly empty here):")
@@ -1790,7 +1877,7 @@ def _demo(_argv) -> int:
           f"{nf_scoped_ok}")
     print(f"    the feed frames it escalate-or-ignore (a question, not a retire verdict): {nf_framing_ok}")
 
-    print("\n(11) The THIRD signal source — the memory ledger's consolidation backlog (F0210, cache-accrued")
+    print("\n(11) The THIRD signal source — the memory ledger's consolidation backlog (cache-accrued")
     print("    like ambient, not a live read). When the")
     print("    engine's memory tidy-up stays behind across sessions it is tracked; once the backlog is genuinely")
     print("    cleared its item resolves; an absent/unreadable ledger claims NO authority (a per-machine read")
@@ -1848,7 +1935,7 @@ def _demo(_argv) -> int:
     except OSError:
         pass
 
-    # --- the findings-inbox emit-and-done seam (F0203): a producer EMITS and is done; telemetry owns the act.
+    # --- the findings-inbox emit-and-done seam: a producer EMITS and is done; telemetry owns the act.
     ibx_dir = _tempfile.mkdtemp(prefix="engine-demo-inbox-")
     spool = os.path.join(ibx_dir, "findings-inbox.ndjson")
     ibx_cache = Cache(os.path.join(ibx_dir, "inbox-streams.json"))
@@ -1969,13 +2056,13 @@ def _engine_issues_cli(argv: list) -> int:
 
 
 def derive_never_fired(rules: list | None = None) -> list:
-    """The never-firing-check signal (F0200): the engine's own FILE-SCOPED checks that select ZERO files in the
+    """The never-firing-check signal: the engine's own FILE-SCOPED checks that select ZERO files in the
     current tree — a check that inspects nothing, so it never fires. Returns a list of
     `{rule_id, kind, target_glob, message}` (message is the check's own plain-language statement of what it
     guards, so the self-review can tell the operator what raising it upstream would protect).
 
     Computed FRESH each run from the committed check corpus (`.engine/check/*.json`) plus the working tree
-    (`validate.target_files`) — no cache, no persisted fire-count, no ledger (D-038); re-derivable on the
+    (`validate.target_files`) — no cache, no persisted fire-count, no ledger; re-derivable on the
     ephemeral audit-prep runner, which has both. Only the FILE-SCOPED in-process kinds are considered
     (`validate._AMBIENT_KINDS` — schema/shape/presence: the single source of truth, the same set the ambient
     writer uses). Context/surface-targeted rules and whole-tree kinds (coverage/coherence/custom-script) are
@@ -1983,8 +2070,8 @@ def derive_never_fired(rules: list | None = None) -> list:
     can match files); their "firing" isn't a glob-match at all, so the kind gate is load-bearing, not redundant.
 
     This is the LITERAL "never fires" (never evaluates) reading — a MECHANICAL "currently matches no files"
-    fact, NOT a claim the rule is dead, and deliberately narrower than the check-surface README's "ever bites in
-    production" gloss (which watches fire history — unbuildable ledger-free: D-038 forbids a committed
+    fact, NOT a claim the rule is dead, and deliberately narrower than the "ever bites in
+    production" gloss (which watches fire history — unbuildable ledger-free: the engine forbids a committed
     check-fire ledger, and the best-effort ambient cache can't ride the audit runner; the v1 scope is a logged
     decision, disclosed in the PR). The audit judges which never-firing check is dead template weight (raise
     upstream) vs a file kind the project doesn't use.
@@ -2023,7 +2110,7 @@ def derive_never_fired(rules: list | None = None) -> list:
 
 
 def render_never_firing_checks(rules: list | None = None) -> str:
-    """Plain text the audit-prep workflow feeds the read-only self-review persona (F0200): the engine's own
+    """Plain text the audit-prep workflow feeds the read-only self-review persona: the engine's own
     checks that currently match NO files in this repo, for the persona to judge whether each still earns its
     place. Frames the fact as escalate-OR-ignore, NEVER retire/keep (a check rule is engine machinery — never a
     local retirement), and carries each check's plain-language purpose so the persona can tell the operator what
@@ -2060,7 +2147,7 @@ def render_never_firing_checks(rules: list | None = None) -> str:
 
 
 def _never_fired_cli(argv: list) -> int:
-    """The audit-prep workflow's never-firing-checks verb (F0200): print the engine's own checks that match no
+    """The audit-prep workflow's never-firing-checks verb: print the engine's own checks that match no
     files, for the self-review persona to judge. Reads ONLY the committed check corpus + the working tree — no
     GitHub, no token — so it always exits 0; the render degrades in-band on any internal error."""
     print(render_never_firing_checks())
@@ -2221,7 +2308,8 @@ def _run_episodic_cli(argv: list) -> int:
     repo, token = repo_slug(), gh_token()
     if not repo or not token:
         return 0   # no local GitHub context — the normal state off a logged-in machine; skip silently
-    live = _hook_payload_session_id() or os.environ.get("CLAUDE_CODE_SESSION_ID")   # payload first, env fallback
+    import providers   # lazy: the provider seam (neutral override, then the platform session vars)
+    live = _hook_payload_session_id() or providers.session_from_env()   # payload first, env-chain fallback
     now = utc_now()
     gh = GitHubIssues(repo, token)
     cache = Cache(argv[0]) if argv else Cache(DEFAULT_EPISODIC_STREAMS_PATH)
@@ -2240,7 +2328,7 @@ def _run_drain_cli(argv: list) -> int:
     the memory/backup SessionStart writers) that stands the emit-and-done seam's drain up in PRODUCTION (the
     cadence #412 owns). Three fail-open jobs:
       1) promote the broken-runtime marker → ONE TRUST_CRITICAL could-not-run finding, immediately (the live
-         producer this slice delivers; the hook launcher drops the marker when the engine's Python is absent);
+         producer this step delivers; the hook launcher drops the marker when the engine's Python is absent);
       2) sweep mtime-stale `*.draining` asides (a crashed drain's stranded batch) back through the drain;
       3) drain the findings-inbox spool → promote the benign/degraded findings a producer emitted out-of-band
          (the boot degradation emitter that FEEDS this benign path is #398 — until it lands the spool is fed
@@ -2257,6 +2345,7 @@ def _run_drain_cli(argv: list) -> int:
         return 0   # no local GitHub context — the normal state off a logged-in machine; skip silently
     gh = GitHubIssues(repo, token)
     runtime_alert = promote_runtime_marker(gh)
+    spool_capture_marker()   # a failing memory-capture marker joins the drain (persistence-gated)
     _sweep_stranded_asides(INBOX_SPOOL_PATH)
     cache = Cache(argv[0]) if argv else Cache(DEFAULT_INBOX_STREAMS_PATH)
     report = drain_inbox(gh, cache=cache, thresholds=load_thresholds(), now=utc_now())
@@ -2273,6 +2362,30 @@ def _run_drain_cli(argv: list) -> int:
     return 0
 
 
+def _serialize_session_passes():
+    """A cross-process lock serializing the SessionStart triage passes (#518). The platform launches the
+    three SessionStart hooks concurrently, and GitHub has no atomic create-if-absent — so two passes
+    promoting the same inbox signal in the same instant each created an Issue (the recorded duplicate
+    pair; a just-created Issue is not immediately visible to a sibling's search either). One blocking
+    file lock turns that race window into a queue: every pass still runs, just one at a time, worst case
+    stacking their few-second latencies at session start. Returns the open lock handle (held until the
+    process exits / the caller closes it) or None where the platform has no fcntl (Windows) — which
+    degrades to the pre-lock behavior, with the unconditional same-signal consolidation in reconcile()
+    as the healer. Same flock idiom as the memory ledger's append lock."""
+    try:
+        import fcntl
+    except ImportError:
+        return None
+    path = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "session-pass.lock")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fh = open(path, "w")
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        return fh
+    except OSError:
+        return None   # fail-open: a lockless pass beats a broken session start
+
+
 def main(argv: list) -> int:
     """Fail-open: telemetry is self-surfacing and must never break a session. Any unexpected error
     emits a plain finding and exits 0."""
@@ -2280,10 +2393,13 @@ def main(argv: list) -> int:
         if argv and argv[0] == "run":
             return _run_cli(argv[1:])
         if argv and argv[0] == "run-ambient":
+            _lock = _serialize_session_passes()
             return _run_ambient_cli(argv[1:])
         if argv and argv[0] == "run-episodic":
+            _lock = _serialize_session_passes()
             return _run_episodic_cli(argv[1:])
         if argv and argv[0] == "drain-inbox":
+            _lock = _serialize_session_passes()
             return _run_drain_cli(argv[1:])
         if argv and argv[0] == "demo":
             return _demo(argv[1:])

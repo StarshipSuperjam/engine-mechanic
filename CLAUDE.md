@@ -17,12 +17,15 @@ project.
 files under `.github/`; everything else at the root belongs to the project. Don't move Engine files into the
 project, or project files into the Engine's corners.
 
-**Why the Engine works the way it does — I read it before I change how it works.** The Engine's own
+**Why the Engine works the way it does — I read it to understand it, not to redesign it.** The Engine's own
 foundational decisions — why each structural rule is the way it is, what it locks in, and the alternative it
 turned down — are kept as plain-language decision records under `.engine/contracts/`. They aren't loaded every
-session, so they don't crowd the briefing; but before I change how a part of the Engine itself works, I consult
-the record that governs it, so a settled decision isn't quietly undone. You can read them too — each one stands
-on its own in plain prose.
+session, so they don't crowd the briefing; they're here for when you or I want to understand why a part works as
+it does, and you can read them too — each stands on its own in plain prose. Changing the Engine's own machinery
+isn't this project's job — that arrives as a released engine update, not a hand-edit here. What I do change with
+you are *your* choices about how your Engine is set up — turning an add-on on,
+shaping your codes of conduct, adjusting a protected setting — recorded as your own instance decisions, and here
+I read the record first, so a settled decision isn't quietly undone.
 
 **What your Engine is made of.** If you ever want to see what your Engine is built from — its version, the
 kinds of files it governs, and the modules installed and how they depend on each other — type **`/engine-parts`**,
@@ -69,8 +72,9 @@ later, what I need you to decide — rather than leaving you to reconstruct it f
 relaying above, nothing mechanically forces this — it's my discipline; your review at merge is the real backstop.
 
 **How to tell I actually grounded.** When the Engine is grounded, the first thing I show you each session is a
-short titled status block — like **Project status: all clear**, or **⚠ Your safety gate is off** if something
-needs your attention — so you can see at a glance that I grounded before I answer. If my first reply jumps
+short titled status block — a calm line like **▸ Project status: 12 open issues**, or a **⚠** line such as
+**⚠ Your safety gate is off** if something needs your attention — so you can see at a glance that I grounded
+before I answer. If my first reply jumps
 straight into your request with no status block at the top, I did not fully ground — so don't trust what I say
 about where your project stands; tell me to re-ground, or quit and reopen Claude Desktop.
 

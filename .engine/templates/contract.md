@@ -4,7 +4,7 @@ allowed_sections: ["Supersedes"]
 length_budget: 120
 ---
 
-<!-- Two eADR homes, told apart by folder (repository-topology law 5): the engine's own founding
+<!-- Two eADR homes, told apart by folder: the engine's own founding
 canon lives here in .engine/contracts/ and is replaced wholesale on an engine update; a DEPLOYMENT's own
 engine-decision eADRs live in .engine/contracts/instance/ and are preserved across every update. If you are
 recording a decision this project made about ITS OWN engine, author it under instance/ (see
@@ -41,4 +41,4 @@ part of the record — do not copy it into the eADR. -->
 
 ## Supersedes
 
-<Include this section only when this decision replaces an earlier one: name the eADR it replaces (a canon record names an earlier canon eADR, e.g. eADR-0003; a deployment's own record names an earlier record in this same instance/ stream, e.g. acme-eADR-0003) and add one line on what changed. Delete this whole section for a first-of-its-kind decision.>
+<Include this section only when a deployment's own (instance/) decision replaces an earlier one in that same stream: name the earlier record (e.g. acme-eADR-0003) and add one line on what changed. Delete this whole section for a first-of-its-kind decision. A founding canon record never uses this section — the canon is revised in place and carried forward by an engine release, not superseded.>

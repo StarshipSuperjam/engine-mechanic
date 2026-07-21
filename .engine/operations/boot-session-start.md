@@ -90,6 +90,17 @@ go-ahead** and never runs a repair un-asked. Every repair is **lossless-or-it-do
 anything at risk first, or refuses/blocks rather than guess, and the assistant relays the plain-language result
 and never forces. What differs is *what* each protects and *how* it declines:
 
+- **A fresh copy still needing setup — walk `/engine-setup` (`instantiator`, #353).** The operator's main
+  checkout is still a construction-state copy of the template whose one-time setup hasn't finished — its origin
+  differs from the recorded update home and the one-time setup tool is still present — so it would otherwise
+  silently report itself "already set up." Provisioning's `first_run_health` detects it OFFLINE and boot pins
+  the onboarding offer at the **top** of the dashboard (the root action that frames every other signal; it also
+  suppresses the redundant "your safety gate is off" offer, which setup turns on). Unlike the repairs below the
+  fix is not a write boot makes: on the operator's "set up my project" the assistant walks the `/engine-setup`
+  verb (the instantiator's confirm → apply → verify → retire), which is idempotent and **resumes** a setup
+  interrupted partway; boot never runs setup itself. A best-effort ONLINE parentage read
+  (`first_run_health.forked_from_home`) suppresses the offer for a contributor's fork of the engine home (not an
+  adopter); offline the offer still shows — read-only and low-harm.
 - **A stranded checkout — un-stranding (`checkout_health.unstrand`).** The deployed-floor never-strand-main
   rule's one sanctioned write to the operator checkout: it rescues at-risk work — commits drifted off the branch,
   or unsaved changes — to a safe point first, then re-attaches the folder and restores the missing engine files.
@@ -115,9 +126,43 @@ and never forces. What differs is *what* each protects and *how* it declines:
   reconciling against the latest default branch, regenerating those two files, and keeping both pieces of work. If
   anything else clashed it changes nothing, restores the branch exactly, and routes the operator to a
   plain-language decision. It never claims the merge is now guaranteed — a later change can still land first.
+- **A half-finished engine update — finish it or undo it (`/engine-upgrade` → `module_manager.rollback`, #594).**
+  An update was started but not completed, so the tree sits part-way between versions — detected offline by
+  `module_manager._staged_upgrade_dirty` (overlay-code differs from the last commit — a non-engineer's ordinary
+  edits don't touch engine code, and no coherence pass is needed). Nothing was merged, so it's safe — a
+  recovery offer, not a governance alarm. On the operator's go-ahead the assistant opens `/engine-upgrade`,
+  which offers **finish** (`upgrade --confirm`) or **undo** (`rollback --confirm`). The undo is
+  lossless-or-it-does-not-run: it saves a recovery point (a local "safe point" branch capturing everything)
+  **before** reverting the tree, **refuses** if the operator has unsaved work of their own in files the update
+  doesn't touch, resets the update's own files and the shared setup files it changes (keeping the operator's
+  version of those on the recovery point, disclosed in the result), and puts back any saved memory the update
+  changed (keeping the guard that an older copy never overwrites newer memory). boot only imports the fix path
+  through the lazy read-only detector and never runs it un-asked; the assistant relays the plain result.
 - **A safety gate that's off — re-enable branch protection (`bootstrap.ControlPlane.apply`, #392).** On the
   operator's "turn my safety gate back on," the assistant runs the already-built `ControlPlane.apply` instead of a
   manual settings walk-through: it re-enables the protection floor on the default branch — idempotent and additive,
   repairing or augmenting the ruleset in place, preserving any protection already there, and reporting "already
   protected" with no change when it is already in force. It runs the operator's OWN `gh` behind a one-time GitHub
   administration approval (never a typed command); if the token can't carry that admin it discloses why and changes nothing.
+- **A leftover template license — clear it (a reviewed pull request) or keep it (`boot_alarm_ledger.retire`, #471).**
+  The operator's checkout still carries the engine's own template `LICENSE` at its committed root (a repo generated
+  before the first-run clear shipped, or drifted back to it); provisioning's `license_health` detects it and boot
+  offers. Unlike the repairs above the fix is **not** a write to the checkout: on the operator's "yes, clear it" the
+  assistant hands the one-file `LICENSE` removal to [build-orchestration](build-orchestration.md)'s **trivial fast
+  path** — a reviewed pull request the operator merges (a live protected repo's committed license is removed durably
+  no other way), **titled exactly `Maintenance: remove the leftover template LICENSE`** so the standing detector's
+  open-PR dedupe recognizes its own prepared cleanup and re-offers no duplicate — never a boot-time delete, and it
+  seeds no replacement (the license is the adopter's choice). On the operator's "I meant to keep this" the assistant
+  runs `boot_alarm_ledger.retire` (`python tools/boot_alarm_ledger.py retire`, an Explore-permitted tool call) so the
+  offer stops surfacing from this checkout; a plain decline instead collapses it to a terse reminder, never fully silent.
+- **No description yet — offer the intake, or dismiss it (`boot_alarm_ledger.retire`, #553).** When the project has
+  the `engine-design` intake installed but no product description under `docs/spec/` yet, `greenfield_intake` detects
+  the greenfield state and boot **offers** the intake at first engagement so a non-engineer discovers it — a pure
+  offer, never an action (the operator starts the intake themselves). It fires only when the intake is actually
+  installed (never offering a command that isn't there) and self-resolves the moment the intake runs and writes
+  `docs/spec/index.md`; it no-ops in the engine's own construction repo. On the operator's "I'd rather work without a
+  written description" the assistant runs `boot_alarm_ledger.retire` (class `greenfield_intake`) so the offer stops
+  surfacing — run it as `python tools/boot_alarm_ledger.py retire-greenfield` (an Explore-permitted tool call),
+which DERIVES the fingerprint from the live detector so the marker can never silently mismatch and keep the
+offer firing; never hand-build the retire call. A plain not-now instead collapses it to a terse reminder,
+never fully silent.

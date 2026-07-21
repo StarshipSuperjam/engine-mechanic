@@ -1,15 +1,14 @@
 """Control-plane bootstrap — the permanent, re-runnable operation that turns the protected-branch
-ruleset ON (provisioning permanent primitive, core slice 25a).
+ruleset ON (provisioning permanent primitive).
 
 The branch ruleset is a SETTING, not a file, so it does not travel with "Use this template" and must be
-applied once per repository by an operator-privileged actor ([control-plane] §The bootstrap contract; the
-#1 trust dependency, Risk R1). The control plane locks the CONTRACT (operator-privileged actor; the default
+applied once per repository by an operator-privileged actor (the #1 trust dependency). The control plane locks the CONTRACT (operator-privileged actor; the default
 Actions token cannot create a ruleset; consent at the authorization screen; verify-after; degrade-never-
 fake; the protection floor); provisioning owns the MECHANISM, which lives here so it survives the self-
 deleting instantiator and the operator can re-run it any time.
 
-This tool is permanent and re-runnable: the instantiator (slice 27) calls it at its apply phase, the
-operator verb (slice 26) wraps it, and it is idempotent on its own. It surfaces only its OWN first-run
+This tool is permanent and re-runnable: the instantiator calls it at its apply phase, the
+operator verb wraps it, and it is idempotent on its own. It surfaces only its OWN first-run
 attempt outcome; the STANDING cross-session "your safety gate is off" surfacing is boot's (already built —
 boot.protected_branch_signal).
 
@@ -21,7 +20,7 @@ write" permission. control-plane explicitly defers token handling to a provision
 tool implements the correct mechanism; the locked prose's scope name is flagged for amendment (a filed doc
 note). The locked CONTRACT is unchanged.
 
-Extended in core slice 25c (clean-removal control-plane leg): `de_bootstrap` + `remainder_ruleset` — the
+Extended for the clean-removal control-plane leg: `de_bootstrap` + `remainder_ruleset` — the
 inverse of apply, removing the engine's required checks from its own safety rule (keep the floor remainder, or
 drop the rule) so a clean removal can delete the engine workflows without deadlocking on checks that no longer
 run. Operator-privileged; called by module_manager.remove_engine (the whole-engine removal entry).
@@ -33,20 +32,20 @@ wholly-missing floor protection, preserving everything of the operator's (bypass
 every existing rule, verified byte-identical after the write) and disclosing any floor piece it can't add
 without modifying a rule the operator set themselves. The exact pieces added are recorded in engine.json so
 `de_bootstrap` reverses precisely them on clean removal, never deleting a rule the engine did not create
-("the ruleset is augmented, never weakened" — provisioning README §"CODEOWNERS and the ruleset"). Greenfield
+("the ruleset is augmented, never weakened"). Greenfield
 (no product ruleset) is unchanged: the engine creates and owns its own ruleset.
 
 Scope OUT of this slice (named, deferred):
-  - module manager add/remove + group-scoped uv-sync derivation + the orphan-wire reverse coherence leg -> 25b
-  - engine updater/upgrade + migrations -> 25c (module_manager); CODEOWNERS renderer -> 25c (wiring), with its
-    live first-run/upgrade wire owed to the instantiator (slice 27, which captures the operator handle)
-  - the operator verb + boot's one-click-fix copy update -> 26
-  - the second engine-scheme (spec-marker) label -> post-core product-design (core ensures only the
+  - module manager add/remove + group-scoped uv-sync derivation + the orphan-wire reverse coherence leg
+  - engine updater/upgrade + migrations (module_manager); CODEOWNERS renderer (wiring), with its
+    live first-run/upgrade wire owed to the instantiator (which captures the operator handle)
+  - the operator verb + boot's one-click-fix copy update
+  - the second engine-scheme (spec-marker) label, deferred to the product-design module (core ensures only the
     engine-domain label here)
 """
 # `from __future__ import annotations` (PEP 563) is LOAD-BEARING, not cosmetic: the first-run
-# instantiator (slice 27) imports this module and runs it on the operator's SYSTEM python during the
-# apply phase — BEFORE it bootstraps the engine's own 3.11+ tool-runtime (D-156). macOS ships python
+# instantiator imports this module and runs it on the operator's SYSTEM python during the
+# apply phase — BEFORE it bootstraps the engine's own 3.11+ tool-runtime. macOS ships python
 # 3.9, where an *evaluated* `X | None` annotation (e.g. the Result/ControlPlane signatures below)
 # raises `TypeError: unsupported operand type(s) for |`. Deferring annotations to strings makes this
 # module import + run on 3.9, which is the precondition for `instantiator apply` to start on a bare
@@ -68,7 +67,7 @@ import validate  # noqa: E402
 import github_client  # noqa: E402  (the shared authenticated GitHub API client; request-build)
 import boot  # noqa: E402  (repo_slug, gh_token, PROTECTED_BRANCH — the shared GitHub-context helpers)
 import protection_guard  # noqa: E402  (REQUIRED_CHECKS + missing_floor — the SINGLE home of the floor)
-import telemetry  # noqa: E402  (GitHubIssues.ensure_label — the slice-18 minimal ensure this inherits)
+import telemetry  # noqa: E402  (GitHubIssues.ensure_label — the minimal ensure this inherits)
 import weakening_guard  # noqa: E402  (ACK_LABEL — reuse the frozen guardrail-ack name, never re-decide it)
 
 USER_AGENT = "engine-control-plane-bootstrap"
@@ -92,6 +91,29 @@ RULESET_SCOPE = "repo"
 ACK_LABEL_COLOR = "fbca04"  # a deliberate amber — a conscious "I accept this", not an alarm
 ACK_LABEL_DESCRIPTION = "You add this to approve a change the engine flagged as weakening a built-in safety protection."
 
+# Two more required labels the engine's guards depend on, MIRRORED here so first-run provisioning creates the COMPLETE
+# set in one auditable place. bootstrap runs on the operator's SYSTEM python BEFORE the venv exists (see the future-import
+# note above), so it must NOT import these labels' owning modules — issue_conformance_ci and memory.erasure_observer pull
+# heavier import chains onto that pre-venv path. Instead the identity is re-typed here and a drift-test in test_bootstrap
+# holds each mirror equal to its canonical home; the owning module stays the single source of truth.
+NEEDS_REAUTHORING_LABEL = "needs-reauthoring"            # canonical: issue_conformance_ci.NEEDS_REAUTHORING_LABEL
+NEEDS_REAUTHORING_LABEL_COLOR = "d4c5f9"                 # canonical: issue_conformance_ci.NEEDS_REAUTHORING_LABEL_COLOR
+NEEDS_REAUTHORING_LABEL_DESCRIPTION = "Engine Issue not yet in the engine's standard format — the engine will re-file it."
+ERASURE_LABEL = "engine-erasure"                         # canonical: memory.erasure_observer.ERASURE_LABEL
+ERASURE_LABEL_COLOR = "1d76db"                           # canonical: memory.erasure_observer.ERASURE_LABEL_COLOR
+ERASURE_LABEL_DESCRIPTION = "The engine puts this on a pull request whose merge permanently forgets the notes it lists."
+
+# The COMPLETE set of labels first-run provisioning ensures — one auditable home, each row (name, color, description).
+# The engine label sources its whole triple live from telemetry; guardrail-ack's name from the guard that reads it
+# (color/desc are its leaves above); the other two from the drift-tested mirrors above. Adding a future guard-depended
+# label is one new row here — the single place the required set is declared, so none can be silently forgotten.
+REQUIRED_LABELS = [
+    (telemetry.ENGINE_DOMAIN_LABEL, telemetry.ENGINE_DOMAIN_LABEL_COLOR, telemetry.ENGINE_DOMAIN_LABEL_DESCRIPTION),
+    (weakening_guard.ACK_LABEL, ACK_LABEL_COLOR, ACK_LABEL_DESCRIPTION),
+    (NEEDS_REAUTHORING_LABEL, NEEDS_REAUTHORING_LABEL_COLOR, NEEDS_REAUTHORING_LABEL_DESCRIPTION),
+    (ERASURE_LABEL, ERASURE_LABEL_COLOR, ERASURE_LABEL_DESCRIPTION),
+]
+
 
 class BootstrapError(Exception):
     """A GitHub read/transport failure during bootstrap — surfaced and degraded, never swallowed."""
@@ -104,7 +126,7 @@ SOLO, TEAM = protection_guard.SOLO, protection_guard.TEAM  # re-export the tier 
 
 def _pull_request_params(tier: str) -> dict:
     """The `pull_request` rule parameters for a tier. SOLO: zero required approvals — a sole owner cannot
-    approve their own PR ([control-plane]) — so the enforced gate is the required checks. TEAM: a distinct
+    approve their own PR — so the enforced gate is the required checks. TEAM: a distinct
     non-admin identity authors the engine's commits, so the operator becomes the enforced code-owner
     reviewer — one code-owner approval, AND that approval must survive the last push (require_last_push_approval)
     so the authoring identity cannot push a fresh commit past an already-given approval, which would hollow out
@@ -184,8 +206,7 @@ def remainder_ruleset(name: str = ENGINE_RULESET_NAME) -> dict:
 #
 # When the engine arrives on a project that already protects its main branch with its OWN ruleset, it
 # adds its checks (and any wholly-missing floor protection) INTO that rule rather than standing up a
-# second one — "the ruleset is augmented, never weakened" (provisioning README §"CODEOWNERS and the
-# ruleset", L498-507). Because the GitHub rulesets API replaces a ruleset object WHOLESALE on PUT, the
+# second one — "the ruleset is augmented, never weakened". Because the GitHub rulesets API replaces a ruleset object WHOLESALE on PUT, the
 # augment is a read-modify-write computed entirely client-side. These helpers keep it strictly ADDITIVE:
 # the operator's bypass_actors, conditions, and every existing rule are preserved verbatim; the engine
 # only UNIONs its required checks and ADDs floor rule types the product's ruleset lacks. An existing
@@ -684,17 +705,19 @@ class ControlPlane:
         return "not-admin"
 
     def ensure_labels(self) -> bool:
-        """Idempotently ensure the engine's bootstrap-provisioned labels exist, INHERITING the minimal ensure
-        (telemetry.GitHubIssues) — never re-deciding a string, never re-implementing the mechanism. Two labels:
-        the engine-domain label, and the `guardrail-ack` acknowledgment label the operator APPLIES to consent to
-        a guardrail-weakening change but (per the control-plane label scheme) never hand-creates — so a fresh
-        generated repo's first safety-gate merge is not blocked waiting on a label the operator was told they
-        never make. Best-effort: returns False on any failure so the caller can disclose, never crashing the
-        bootstrap (and if provisioning ever fails, the guard simply stays blocking — never a silent pass)."""
+        """Idempotently ensure the COMPLETE set of labels the engine's guards depend on exists (REQUIRED_LABELS),
+        INHERITING the minimal ensure (telemetry.GitHubIssues.ensure_named_label) — never re-deciding a string, never
+        re-implementing the mechanism. The set: the engine-domain label; the `guardrail-ack` label the operator APPLIES
+        to consent to a guardrail-weakening change but (per the control-plane label scheme) never hand-creates; the
+        `needs-reauthoring` malformed-issue flag; and the `engine-erasure` erasure-consent marker — so a fresh generated
+        repo's first safety-gate merge, first malformed-issue re-file, and first memory-erasure never block on (nor
+        lazily mis-create) a label the operator was told they never make. Create-only and idempotent (never overwrites
+        an operator's own label edits). Best-effort: returns False on any failure so the caller can disclose, never
+        crashing the bootstrap (and if provisioning ever fails, the guard simply stays blocking — never a silent pass)."""
         try:
             issues = self._issues or telemetry.GitHubIssues(self.repo, self.token)
-            issues.ensure_label()
-            issues.ensure_named_label(weakening_guard.ACK_LABEL, ACK_LABEL_COLOR, ACK_LABEL_DESCRIPTION)
+            for name, color, description in REQUIRED_LABELS:
+                issues.ensure_named_label(name, color, description)
             return True
         except Exception:  # noqa: BLE001 — DegradedReadError / transport failure -> disclose, don't crash
             return False
@@ -868,7 +891,7 @@ class ControlPlane:
     def de_bootstrap(self, choice: str | None = None, announce=None, marker: dict | None = None) -> dict:
         """Take the engine's protection back off the branch — the inverse of apply(), operator-privileged, on
         clean removal. It ALWAYS removes the engine's checks first: a required check whose workflow is being
-        deleted would otherwise 'wait forever' and deadlock every pull request (provisioning L332-335), so
+        deleted would otherwise 'wait forever' and deadlock every pull request, so
         this must run BEFORE the removal pull request that deletes the engine workflows. Two shapes, told
         apart WITHOUT guessing by whether the engine's OWN named ruleset exists:
 
