@@ -21,6 +21,16 @@ freshly-generated repo would hit surface here first and get fixed at the source.
 - **Governs its own changes.** Every change lands through the protected-branch review gate on `main`; the
   operator's merge is the binding approval.
 
+## The design it works from
+
+[`docs/`](docs/spec/index.md) holds the written design for engine-template — what it is meant to do, the
+principles behind it, how it fits together, and the decisions that got it there. It was written in a separate
+design workspace and carried here whole.
+
+Read the [product spec index](docs/spec/index.md) first: it explains that this is **intended design**, that
+the built engine-template has drifted from it, and that the code these documents describe lives in that other
+repository, not this one.
+
 ## Working with it
 
 - `/engine-status` — where the project stands and what needs attention.

@@ -1,0 +1,20 @@
+---
+status: accepted
+engine_record: true
+---
+
+# Phase C: cross-reference the external-contribution mode into four locked anchors (re-litigation)
+
+*Decided 2026-05-28 in the design workspace.*
+
+## The decision
+
+Under the litigation-alarm protocol (operator-approved, the alarm naming each system and why), re-litigate four locked docs to admit the [external-contribution](../spec/systems/lifecycle/external-contribution.md) operating mode ([D-102](0102-cross-repo-external-contribution-as-a-first-class-v1-operati.md), [D-103](0103-cross-repo-design-cold-audit-resolutions-engine-clean-branch.md)). Three are **minimal additive cross-references** carrying no behavior change: [repository-topology](../spec/systems/infrastructure/repository-topology.md) — the engine-owned CODEOWNERS set is also the predicate the upstream-clean nudge reuses; [control-plane](../spec/systems/infrastructure/control-plane.md) — in external contribution the acceptance gate is the **upstream's** own review/CI and the operator's control plane governs only the fork side; [provisioning](../spec/systems/infrastructure/provisioning.md) — "detached (no upstream remote)" is scoped to the **engine-update channel**, distinct from the product-project upstream a fork-native deployment carries for contribution only. One is **substantive**: [build-orchestration](../spec/systems/lifecycle/build-orchestration.md) — §"Close" locks "the unbypassable gate is the operator's merge," which holds for same-repo but not for external contribution; a scoped clause records that in that mode the wall is the **upstream's own merge** (close stays the submitted cross-fork PR), plus a worker-base note that the product branch's base is the upstream's default. The same-repo defaults are untouched; each doc is re-locked against this decision, one at a time, in dependency order, and the build-orchestration clause passed a focused re-audit before its relock.
+
+## Why
+
+[D-102](0102-cross-repo-external-contribution-as-a-first-class-v1-operati.md)/[D-103](0103-cross-repo-design-cold-audit-resolutions-engine-clean-branch.md) landed external-contribution as `designed`; the propagation matrix requires the affected locked anchors to reference it, and lock discipline deferred those edits to this gated Phase C so the `designed` anchor settled first (and [D-103](0103-cross-repo-design-cold-audit-resolutions-engine-clean-branch.md)'s audit corrected the seam set — knowledge/hooks/telemetry dropped, build-orchestration reclassified substantive). These are justified re-litigations, not silent drift: the lock fingerprint stops drift, not justified edits, and the operator approved each. The three additive cross-references only point the locked anchors at the mode. The build-orchestration change touches a trust-model statement, so it is authored as a scoped additive exception (not a rewrite) and re-audited; its substance — the upstream-as-wall trust model — was already cold-audited in the [D-103](0103-cross-repo-design-cold-audit-resolutions-engine-clean-branch.md) pass. Each relock recomputes the body fingerprint via `lock.py --relock`; validate.py confirms integrity. Propagation: the four locked docs edited + re-locked against this entry; locks.yaml updated by `lock.py`; this entry.
+
+## What we ruled out
+
+Edit the locked docs without the alarm/approval (rejected — the litigation-alarm protocol; silent locked edits are exactly what the fingerprint guards). Weaken or omit the build-orchestration change to avoid touching the locked close model (rejected — the merge-wall statement genuinely differs for this mode; justified re-litigation, not avoidance). Treat build-orchestration as a minimal cross-reference like the other three (rejected — [D-103](0103-cross-repo-design-cold-audit-resolutions-engine-clean-branch.md): it changes the unbypassable-gate statement, so it is substantive and re-audited). Relock without re-running `validate.py` (rejected — the end-of-pass check confirms every fingerprint and link after the four relocks).
