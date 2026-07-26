@@ -4,6 +4,8 @@ Every decision behind the product spec, one file per decision, carried whole fro
 
 **Numbering.** The design workspace numbered these `D-1` to `D-319`. They keep the same numbers here, written four digits: `D-24` is `0024`. Prose across the corpus still says `D-24` in places; it means the same record.
 
+**These records are append-only.** The design workspace's rule, carried from the log they came from: supersede an entry with a newer one; never edit or delete a past entry.
+
 **What is not here.** These records were written alongside build-planning material (a `wbs/` directory) and a lock registry that were deliberately not carried across. Where a record refers to one of those by name, the reference is left as plain text rather than a link, because the file does not exist in this repository. Titles below are shortened where long; each record's own heading carries the full title.
 
 | # | Decision | Date |

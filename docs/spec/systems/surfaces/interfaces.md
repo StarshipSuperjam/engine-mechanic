@@ -128,7 +128,7 @@ a-deliberate-floor-is-not-nagged, and the knowledge-retrieval **operation set** 
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
 | **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
 | **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
 | **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

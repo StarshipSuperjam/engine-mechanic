@@ -11,6 +11,8 @@ Two things to know before relying on it:
 - **The built `engine-template` has drifted from this description.** Reconciling the two is separate, later work. Where a document here and the built engine disagree, that gap is known and untriaged — this is the intended design, not a report of current behavior.
 - **The implementation is not in this repository.** This repo builds `engine-template`; the code these documents describe lives there.
 
+- **Some references point at material that was left behind.** The design workspace also held build-planning documents and a lock registry, deliberately not carried across. Where a document refers to one of those, the reference is plain text rather than a link, because the file does not exist here.
+
 Supporting material sits alongside: the guiding principles in `../principles.md`, how it fits together in `../architecture.md`, the decisions behind it in `../adr/`, and the glossary, risk register and open questions in `../reference/`.
 
 | Capability | Status | Doc |

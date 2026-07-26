@@ -1,5 +1,10 @@
 # Architecture
 
+This is the master document. It describes the complete end-state of engine-template v1 and links
+every system, scenario, and module that realizes it. Read `goals-and-quality.md` for the rubric
+this design is judged against, `constraints.md` for the hard limits it respects, and `principles.md`
+for the cross-cutting rules that resolve its trade-offs.
+
 ## Overview and context
 
 ### What the engine is and why
@@ -203,6 +208,18 @@ routine stance and self-checkups) is never an install choice and is disclosed in
 
 Each flow below is carried from the design workspace's own runtime walkthroughs.
 
+### Operating modes
+
+Three enforced stances, with Explore as the grounded boot default — see [modes](spec/systems/lifecycle/modes.md):
+
+- **Explore** (default) — interactive; reads, reasons, logs Issues. Engine/product writes and PR creation are gated off by a `PreToolUse` block (a strong local default, not an absolute wall).
+- **Build** — interactive, accountable work as the [build orchestration](spec/systems/lifecycle/build-orchestration.md): a draft PR is the claim; close = the PR submitted for human review.
+- **Routine** — unattended, scope-locked execution of a build's implement phase on Local Desktop routines.
+
+Every session boots grounded ([boot](spec/systems/lifecycle/boot.md) runs at every session start over a hook-independent `CLAUDE.md` floor) and in Explore; leaving Explore is a deliberate human act.
+
+Within Explore, the Engine also recommends Claude Code's **native plan mode** as a safe interactive first-touch — a *separate axis* from the stance, written at provisioning as operator config that **yields** to an operator who already prefers a different mode and is changed later via native `/config`. It is ergonomics layered over the Explore gate (never the guarantee), and Routine overrides it with a non-interactive launch posture ([modes](spec/systems/lifecycle/modes.md), [D-185](adr/0185-authorize-a-two-foundation-re-litigation-ship-a-native-plan.md)).
+
 ### First-run provisioning
 
 A non-engineer generates a repo from the template and stands it up.
@@ -254,7 +271,7 @@ The operator says *what* they want built, and the [product-design](spec/modules/
 module turns it into a **committed, structured, validated spec corpus** with acceptance criteria, then
 decomposes the `locked` spec into a legible build-plan and ordinary work Issues — the front half of the
 design → build → QA axis. This runs in Explore (it reads, reasons, authors committed files, and logs
-Issues); starting a build from a work Issue is the deliberate act that later enters Build
+Issues); starting a build from a work Issue is the deliberate act that later enters [Build](architecture.md#build-session-lifecycle)
 — by the operator-typed verb, or by accepting the build's plan ([D-179](adr/0179-augment-interactive-build-entry-with-plan-acceptance-correct.md)).
 
 ```mermaid
@@ -443,8 +460,8 @@ sequenceDiagram
 - This is the failure mode the restart exists to prevent: in the prototype, modules were files + dependencies only, so install side-effects were hand-surgery (Risk [R5](reference/risks.md), [D-012](adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md)).
 - The fix: manifests declare [wiring](spec/systems/grammar/module-system.md); the shared library in [provisioning](spec/systems/infrastructure/provisioning.md) applies/reverses it (keyed, idempotent edits to shared files like `.claude/settings.json`); [validation](spec/systems/guardrails/validation.md) confirms coherence. Check-suite membership needs no wiring — a copied [check](spec/systems/surfaces/check.md) rule self-declares its suites, so the roster is derived, not mutated.
 - **The ruleset is not touched.** GitHub binds a required check by its stable workflow/job *status name*; the added module's checks flow into the engine CI check via the derived suite roster, changing *what runs inside* it, not the bound name — so ordinary `add` needs no operator-privileged ruleset step. The exceptions are a module shipping its **own** required workflow, [clean removal](spec/systems/grammar/module-system.md) (which deletes the CI workflow → de-bootstrap), and the team-tier upgrade; only then does the module manager bind/unbind, ordered against the PR so the union never requires an absent check.
-- **Verbs:** `add`/`remove` are per-module at the current release (`remove` refuses, in plain language, while a present module still depends on it); a *newer* module version arrives only via an engine upgrade — there is no per-module update.
-- Same machinery as the first-run instantiator, minus the one-time steps.
+- **Verbs:** `add`/`remove` are per-module at the current release (`remove` refuses, in plain language, while a present module still depends on it); a *newer* module version arrives only via an engine [upgrade](architecture.md#upgrading-the-engine) — there is no per-module update.
+- Same machinery as the [first-run](architecture.md#first-run-provisioning) instantiator, minus the one-time steps.
 
 ### Upgrading the engine
 
@@ -480,7 +497,7 @@ sequenceDiagram
 - **An operator [policy-override](spec/systems/surfaces/policies.md) is preserved like any operator config** ([D-167](adr/0167-take-up-q17-component-a-authorize-a-five-foundation-re-litig.md)): the overlay never overwrites it. Because it is a *committed* file it reverts with the PR (no backup-first migration), and a value-schema change that strands an override key falls back to the shipped default and is surfaced by [boot](spec/systems/lifecycle/boot.md) — per-key, no reshaping.
 - **The seeded `SECURITY.md` is preserved as a product path.** Seeded once at the repo **root** (operator-owned vulnerability-disclosure file, [security floor](reference/glossary.md)), it sits in product territory — so the "product paths are never touched" rule above preserves it on every overlay with **no engine carve-out** needed (unlike the engine-namespaced conduct override). The operator's edits to it survive an upgrade like any product file ([control-plane](spec/systems/infrastructure/control-plane.md), [D-212](adr/0212-resolve-the-d-211-security-floor-re-litigation-landed-text-c.md)).
 - **The required-check status name is frozen across versions** — GitHub does not rebind on rename (a renamed job "waits forever"), so a migration may never rename the engine CI check; with the name stable, derived suite rosters change what runs inside it without re-binding.
-- Same machinery as the first-run instantiator and add-a-module, applied to `required` packages as well as optional ones — via [provisioning](spec/systems/infrastructure/provisioning.md)'s permanent module manager.
+- Same machinery as the [first-run](architecture.md#first-run-provisioning) instantiator and [add-a-module](architecture.md#adding-a-module-to-a-live-repo), applied to `required` packages as well as optional ones — via [provisioning](spec/systems/infrastructure/provisioning.md)'s permanent module manager.
 
 ### The detect to remediate loop
 

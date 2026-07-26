@@ -131,4 +131,4 @@ this same override lane. ([D-167](../../../adr/0167-take-up-q17-component-a-auth
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

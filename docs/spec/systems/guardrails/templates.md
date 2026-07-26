@@ -52,4 +52,4 @@ referenced by the catalog, not a self-referential-core surface.
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | Templates shape engine surfaces, not the GitHub platform files the [control-plane](../infrastructure/control-plane.md) owns. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| Adding or changing a surface's shape is editing its template, not the validator — shape is data, not code. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| Adding or changing a surface's shape is editing its template, not the validator — shape is data, not code. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

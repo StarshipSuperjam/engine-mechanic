@@ -59,4 +59,4 @@ validated against the current schema absent a breaking bump.
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| The validation foundation parses a file (or its YAML frontmatter) to a data object before validating it against the schema; JSON Schema governs the loaded structure, not the raw text. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| The validation foundation parses a file (or its YAML frontmatter) to a data object before validating it against the schema; JSON Schema governs the loaded structure, not the raw text. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
