@@ -4,7 +4,7 @@ status: draft
 
 # memory-substrate-sqlite-fts5
 
-*Settled in the design workspace on 2026-06-27, ratified by [decision 0265](../../adr/0265-resolve-coupled-re-lock-of-memory-memory-substrate-sqlite-ft.md).*
+*Ratified in the design workspace on 2026-06-27 by [decision 0265](../../adr/0265-resolve-coupled-re-lock-of-memory-memory-substrate-sqlite-ft.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -122,9 +122,9 @@ Recall always has a working answer, and the failure modes are surfaced honestly 
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are memory's system doc; the substrate is this module** — no duplication of the memory laws; the build-spec leaves stay deferred. | Read this description against the built behavior and confirm they match. | operator |
-| **Its own required package, decisively on the ledger** — the only floor with non-regenerable per-instance data, so it gets an owned, legible migration unit instead of burying ledger migrations in `core`. | Read this description against the built behavior and confirm they match. | operator |
-| **Implementation here, contract in the interface surface** — memory owns the `search` FTS5 fallback + MCP + the bound substrate; the semantic module swaps behind the same contract. | Read this description against the built behavior and confirm they match. | operator |
-| **Owns the backup mechanism; provisioning consumes** — memory defines export/restore; provisioning triggers and owns the UX but may not widen it ([§16](../../principles.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **Capture rides with its owner** — memory wires its own lifecycle hooks because `core` cannot depend on it; write-safety is the ledger-integrity law. | Read this description against the built behavior and confirm they match. | operator |
-| **Ships empty, degrades cleanly, never strands** — the machinery travels with no data; an outage narrows recall, never blocks the session. | Read this description against the built behavior and confirm they match. | operator |
+| **The laws are memory's system doc; the substrate is this module** — no duplication of the memory laws; the build-spec leaves stay deferred. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Its own required package, decisively on the ledger** — the only floor with non-regenerable per-instance data, so it gets an owned, legible migration unit instead of burying ledger migrations in `core`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Implementation here, contract in the interface surface** — memory owns the `search` FTS5 fallback + MCP + the bound substrate; the semantic module swaps behind the same contract. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Owns the backup mechanism; provisioning consumes** — memory defines export/restore; provisioning triggers and owns the UX but may not widen it ([§16](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Capture rides with its owner** — memory wires its own lifecycle hooks because `core` cannot depend on it; write-safety is the ledger-integrity law. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Ships empty, degrades cleanly, never strands** — the machinery travels with no data; an outage narrows recall, never blocks the session. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

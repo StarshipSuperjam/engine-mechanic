@@ -4,7 +4,7 @@ status: draft
 
 # Hooks
 
-*Settled in the design workspace on 2026-06-28, ratified by [decision 0271](../../../adr/0271-resolve-the-d-270-plan-acceptance-legibility-augment-landed.md).*
+*Ratified in the design workspace on 2026-06-28 by [decision 0271](../../../adr/0271-resolve-the-d-270-plan-acceptance-legibility-augment-landed.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -160,12 +160,12 @@ surfaces.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| The engine uses only the hook events named in the event inventory. | Read this requirement against the built behavior and confirm they match. | operator |
-| The block-budget law holds: a `PreToolUse` deny is spent only where it is a minimal-work-loss redirect — one that loses no work because it redirects the same action. | Read this requirement against the built behavior and confirm they match. | operator |
-| On a hook failure the guarded action proceeds — the platform default, gone with the grain. | Read this requirement against the built behavior and confirm they match. | operator |
-| A hook failure is a finding, promoted immediately: a gate that cannot evaluate is an enforcement failure, never a silent pass. | The design states the failure is promoted immediately as a tracked finding. | engine |
-| The operator sees a hook failure in plain language at the decision point, rendered as a named line. | Read this requirement against the built behavior and confirm they match. | operator |
-| Hook registration is reversible, keyed wiring — installing or removing one is mechanical and leaves no residue. | Read this requirement against the built behavior and confirm they match. | operator |
-| Hooks are mode-aware: the stance the session is in governs what a hook does. | Read this requirement against the built behavior and confirm they match. | operator |
-| Every hook script meets the hook-script contract. | Read this requirement against the built behavior and confirm they match. | operator |
-| The boundary holds: hooks carry wiring, never the judgment that belongs to a surface. | Read this requirement against the built behavior and confirm they match. | operator |
+| The engine uses only the hook events named in the event inventory. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The block-budget law holds: a `PreToolUse` deny is spent only where it is a minimal-work-loss redirect — one that loses no work because it redirects the same action. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| On a hook failure the guarded action proceeds — the platform default, gone with the grain. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| A hook failure is a finding, promoted immediately: a gate that cannot evaluate is an enforcement failure, never a silent pass. | The design states the failure is promoted immediately as a tracked finding; the concrete check is defined when this capability is settled. | engine |
+| The operator sees a hook failure in plain language at the decision point, rendered as a named line. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Hook registration is reversible, keyed wiring — installing or removing one is mechanical and leaves no residue. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Hooks are mode-aware: the stance the session is in governs what a hook does. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Every hook script meets the hook-script contract. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The boundary holds: hooks carry wiring, never the judgment that belongs to a surface. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |

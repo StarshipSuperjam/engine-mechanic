@@ -4,7 +4,7 @@ status: draft
 
 # Ontology
 
-*Settled in the design workspace on 2026-07-16, ratified by [decision 0310](../../../adr/0310-resolve-re-lock-ontology-the-coverage-attestation-bounded-to.md).*
+*Ratified in the design workspace on 2026-07-16 by [decision 0310](../../../adr/0310-resolve-re-lock-ontology-the-coverage-attestation-bounded-to.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -164,6 +164,6 @@ destroy; it is reconciled by ordinary authored-content review, never regenerate-
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| The catalog is the source the [knowledge graph](../cognitive/knowledge.md) derives surface coverage from; an uncovered surface is a finding. | Read this description against the built behavior and confirm they match. | operator |
-| It stays sized to the **v1 surface set** by locking laws, not the catalog membership — surfaces attach additively without a re-lock. | Read this description against the built behavior and confirm they match. | operator |
-| GitHub control-plane files (workflows, `CODEOWNERS`, PR/issue templates, `dependabot.yml`) are **infrastructure artifacts** governed by [repository-topology](../infrastructure/repository-topology.md) and [control-plane](../infrastructure/control-plane.md), not surfaces — the amend-first rule covers engine surfaces, not platform files GitHub already shapes. | Read this description against the built behavior and confirm they match. | operator |
+| The catalog is the source the [knowledge graph](../cognitive/knowledge.md) derives surface coverage from; an uncovered surface is a finding. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| It stays sized to the **v1 surface set** by locking laws, not the catalog membership — surfaces attach additively without a re-lock. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| GitHub control-plane files (workflows, `CODEOWNERS`, PR/issue templates, `dependabot.yml`) are **infrastructure artifacts** governed by [repository-topology](../infrastructure/repository-topology.md) and [control-plane](../infrastructure/control-plane.md), not surfaces — the amend-first rule covers engine surfaces, not platform files GitHub already shapes. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

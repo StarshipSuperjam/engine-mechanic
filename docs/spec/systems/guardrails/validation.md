@@ -4,7 +4,7 @@ status: draft
 
 # Validation
 
-*Settled in the design workspace on 2026-06-27, ratified by [decision 0257](../../../adr/0257-resolve-re-lock-validation-the-negative-fixture-meta-check-l.md).*
+*Ratified in the design workspace on 2026-06-27 by [decision 0257](../../../adr/0257-resolve-re-lock-validation-the-negative-fixture-meta-check-l.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -219,6 +219,6 @@ than assuming — because the operator must understand an issue to choose its di
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| Runs identically as a library locally and in CI — in both it executes inside the engine [tool-runtime](../infrastructure/repository-topology.md); the CI job materializes that runtime first (`astral-sh/setup-uv` pinned to a commit SHA, then group-scoped `uv sync`, per the [control-plane](../infrastructure/control-plane.md) CI harness) before invoking the dispatcher. Only the trigger context changes whether a `hard` result nudges or blocks ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md)). | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
-| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Read this description against the built behavior and confirm they match. | operator |
-| The validator owns no rule and no suite roster; both are data it reads, so the foundation stays small as the rule set grows. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| Runs identically as a library locally and in CI — in both it executes inside the engine [tool-runtime](../infrastructure/repository-topology.md); the CI job materializes that runtime first (`astral-sh/setup-uv` pinned to a commit SHA, then group-scoped `uv sync`, per the [control-plane](../infrastructure/control-plane.md) CI harness) before invoking the dispatcher. Only the trigger context changes whether a `hard` result nudges or blocks ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md)). | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| The validator owns no rule and no suite roster; both are data it reads, so the foundation stays small as the rule set grows. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

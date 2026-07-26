@@ -4,7 +4,7 @@ status: draft
 
 # migration-discipline
 
-*Settled in the design workspace on 2026-05-30, ratified by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md).*
+*Ratified in the design workspace on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -146,10 +146,10 @@ stays Engine→product.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the policies/check/validation systems'; the delivery is this module** — no restating laws. | Read this description against the built behavior and confirm they match. | operator |
-| **Governs the product's migrations, not the engine's** — the engine's own `migrations` mechanism stays the engine's; the boundary is terminological, not mechanical; the module never runs a product migration. | Read this description against the built behavior and confirm they match. | operator |
-| **Escalation is posture-grade, not mechanical teeth** — migration safety is not decidable across ecosystems, so a destructive product migration is routed to a human decision (the core policy already escalates irreversibility); this module shapes that escalation to carry a recommendation and a safe path. | Read this description against the built behavior and confirm they match. | operator |
-| **Honest tiers** — the bar and the escalation are posture (human-gated), the presence check is `soft`; nothing is dressed as enforced ([§7](../../principles.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **Wires nothing** — policy and check bind by presence; the escalation relays into an always-present locked policy; `depends` ≠ wiring. | Read this description against the built behavior and confirm they match. | operator |
-| **`depends: core`, deliberately** — the check inspects product artifacts and presupposes no engine-self-validation corpus, so `core`'s engine suffices. | Read this description against the built behavior and confirm they match. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Read this description against the built behavior and confirm they match. | operator |
+| **The laws are the policies/check/validation systems'; the delivery is this module** — no restating laws. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Governs the product's migrations, not the engine's** — the engine's own `migrations` mechanism stays the engine's; the boundary is terminological, not mechanical; the module never runs a product migration. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Escalation is posture-grade, not mechanical teeth** — migration safety is not decidable across ecosystems, so a destructive product migration is routed to a human decision (the core policy already escalates irreversibility); this module shapes that escalation to carry a recommendation and a safe path. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Honest tiers** — the bar and the escalation are posture (human-gated), the presence check is `soft`; nothing is dressed as enforced ([§7](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Wires nothing** — policy and check bind by presence; the escalation relays into an always-present locked policy; `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **`depends: core`, deliberately** — the check inspects product artifacts and presupposes no engine-self-validation corpus, so `core`'s engine suffices. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

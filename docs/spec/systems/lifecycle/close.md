@@ -4,7 +4,7 @@ status: draft
 
 # Close
 
-*Settled in the design workspace on 2026-06-09, ratified by [decision 0188](../../../adr/0188-resolve-the-d-187-operator-presentation-relay-re-litigation.md).*
+*Ratified in the design workspace on 2026-06-09 by [decision 0188](../../../adr/0188-resolve-the-d-187-operator-presentation-relay-re-litigation.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -135,6 +135,6 @@ The laws above are fixed; these concrete forms are settled in the build-spec pas
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **No heavy ritual** — session close is the PR submitted (build-orchestration's); turn close is ambient capture plus the disposition gate. The archive, changelog, and shutdown sequence are dissolved ([D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **Capture is ambient, not close-gated** — content survives an ungraceful exit; only reflection defers, recovered by memory's boot sweep, never by the best-effort `SessionEnd`. | Read this description against the built behavior and confirm they match. | operator |
-| **The disposition gate is the trust spine, named honestly** — posture plus a strong local block over an ephemeral recorded set: mechanical on what is recorded, posture for recording, the merge as the wall; satisfiable non-interactively for routine; degrading to *logged* at the cap and failing open with a same-turn notice. | Read this description against the built behavior and confirm they match. | operator |
+| **No heavy ritual** — session close is the PR submitted (build-orchestration's); turn close is ambient capture plus the disposition gate. The archive, changelog, and shutdown sequence are dissolved ([D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Capture is ambient, not close-gated** — content survives an ungraceful exit; only reflection defers, recovered by memory's boot sweep, never by the best-effort `SessionEnd`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The disposition gate is the trust spine, named honestly** — posture plus a strong local block over an ephemeral recorded set: mechanical on what is recorded, posture for recording, the merge as the wall; satisfiable non-interactively for routine; degrading to *logged* at the cap and failing open with a same-turn notice. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

@@ -4,7 +4,7 @@ status: draft
 
 # Module system
 
-*Settled in the design workspace on 2026-06-27, ratified by [decision 0261](../../../adr/0261-establish-the-artifact-warrant-discipline-a-7-17-application.md).*
+*Ratified in the design workspace on 2026-06-27 by [decision 0261](../../../adr/0261-establish-the-artifact-warrant-discipline-a-7-17-application.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -212,7 +212,7 @@ per the [hooks](../infrastructure/hooks.md) fail-open-and-flag pattern) — neve
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Modules declare files + wiring; provisioning applies/reverses both**, so install is mechanical ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), [R5](../../../reference/risks.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **The closed seam vocabulary and engine-namespaced-identity keying** are the structural firewall: a module can only touch shared state in ways the system can guaranteed-reverse without disturbing the operator's or product's own entries. | Read this description against the built behavior and confirm they match. | operator |
-| **Installed means present; the engine is single-versioned to the operator**; the engine manifest carries per-package versions for migration and for the operator-readable inventory. | Read this description against the built behavior and confirm they match. | operator |
-| **Locking this system fixes the laws, not the membership** — the manifest grammar, seam vocabulary, registry model, and coherence scope, not the module set (resolved separately by [D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)/[D-068](../../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)). | Read this description against the built behavior and confirm they match. | operator |
+| **Modules declare files + wiring; provisioning applies/reverses both**, so install is mechanical ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), [R5](../../../reference/risks.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The closed seam vocabulary and engine-namespaced-identity keying** are the structural firewall: a module can only touch shared state in ways the system can guaranteed-reverse without disturbing the operator's or product's own entries. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Installed means present; the engine is single-versioned to the operator**; the engine manifest carries per-package versions for migration and for the operator-readable inventory. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Locking this system fixes the laws, not the membership** — the manifest grammar, seam vocabulary, registry model, and coherence scope, not the module set (resolved separately by [D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)/[D-068](../../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

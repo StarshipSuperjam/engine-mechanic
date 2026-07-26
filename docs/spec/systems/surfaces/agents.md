@@ -4,7 +4,7 @@ status: draft
 
 # Agents
 
-*Settled in the design workspace on 2026-07-16, ratified by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md).*
+*Ratified in the design workspace on 2026-07-16 by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -165,6 +165,6 @@ ran on this change"; the audit digest's plain self-attestation), never these nam
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Template is core; personas are additive** — the routing-field grammar is the critical-path piece; which suites ship is settled ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)), and operators extend it. | Read this description against the built behavior and confirm they match. | operator |
-| **File-drop, no wiring** — discovery by presence; roster derived from frontmatter; install/uninstall is add/remove a file, with the roster re-derived rather than mutated. | Read this description against the built behavior and confirm they match. | operator |
-| **Reviewers and the auditor report, workers write** — `permissions` enforces the split; the non-writing personas feed a finding-disposition loop via the `output-contract` — the build gates' orchestrator, the `audit` role's cron. | Read this description against the built behavior and confirm they match. | operator |
+| **Template is core; personas are additive** — the routing-field grammar is the critical-path piece; which suites ship is settled ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)), and operators extend it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **File-drop, no wiring** — discovery by presence; roster derived from frontmatter; install/uninstall is add/remove a file, with the roster re-derived rather than mutated. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Reviewers and the auditor report, workers write** — `permissions` enforces the split; the non-writing personas feed a finding-disposition loop via the `output-contract` — the build gates' orchestrator, the `audit` role's cron. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

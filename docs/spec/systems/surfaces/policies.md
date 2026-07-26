@@ -4,7 +4,7 @@ status: draft
 
 # Policies
 
-*Settled in the design workspace on 2026-06-04, ratified by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md).*
+*Ratified in the design workspace on 2026-06-04 by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -131,4 +131,4 @@ this same override lane. ([D-167](../../../adr/0167-take-up-q17-component-a-auth
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

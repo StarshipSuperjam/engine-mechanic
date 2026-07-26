@@ -4,7 +4,7 @@ status: draft
 
 # Telemetry
 
-*Settled in the design workspace on 2026-05-29, ratified by [decision 0118](../../../adr/0118-q27-4-5-re-litigation-the-telemetry-finding-record-ambient-c.md).*
+*Ratified in the design workspace on 2026-05-29 by [decision 0118](../../../adr/0118-q27-4-5-re-litigation-the-telemetry-finding-record-ambient-c.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -183,6 +183,6 @@ telemetry reads ([D-114](../../../adr/0114-q25-re-litigation-a-fourth-v1-core-po
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Self-surfacing, not self-healing** — triage (open/update an issue) is the only autonomous step; the AI remediates next session, under guardrails, and the operator merges. Never claim it heals unattended. | Read this description against the built behavior and confirm they match. | operator |
-| **Mechanical only** — telemetry trends and counts; it makes no judgment call. Judgment is the audits rung. | Read this description against the built behavior and confirm they match. | operator |
-| **Native and degradable** — signal of record is the native GitHub/CI record plus a best-effort ambient cache; on a GitHub outage boot still reads State's committed count, so the operator is never stranded. In that degraded state the boot line says so in plain language — it names the open-debt count *and* states that the per-issue detail is temporarily unreachable until GitHub returns — so the operator sees a calm, explained gap rather than a silent or alarming one. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| **Self-surfacing, not self-healing** — triage (open/update an issue) is the only autonomous step; the AI remediates next session, under guardrails, and the operator merges. Never claim it heals unattended. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Mechanical only** — telemetry trends and counts; it makes no judgment call. Judgment is the audits rung. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Native and degradable** — signal of record is the native GitHub/CI record plus a best-effort ambient cache; on a GitHub outage boot still reads State's committed count, so the operator is never stranded. In that degraded state the boot line says so in plain language — it names the open-debt count *and* states that the per-issue detail is temporarily unreachable until GitHub returns — so the operator sees a calm, explained gap rather than a silent or alarming one. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

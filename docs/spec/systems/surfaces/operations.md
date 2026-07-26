@@ -4,7 +4,7 @@ status: draft
 
 # Operations
 
-*Settled in the design workspace on 2026-05-25, ratified by [decision 0055](../../../adr/0055-collapse-command-into-the-skill-surface-invocation-is-a-gove.md).*
+*Ratified in the design workspace on 2026-05-25 by [decision 0055](../../../adr/0055-collapse-command-into-the-skill-surface-invocation-is-a-gove.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -81,6 +81,6 @@ mechanical check (how the audits layer probes for it is that surface's concern).
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Shared body, entered many ways** — the operation holds the steps; skills and agents hold the entry. | Read this description against the built behavior and confirm they match. | operator |
-| **Runbook, not code or persona** — reading-and-following content, distinct from `tool` and `agent`. | Read this description against the built behavior and confirm they match. | operator |
-| **Anti-sprawl by judgment** — the ≥2-referencer / not-one-skill's-depth bar is an audit concern, so a genuinely shared procedure is never left homeless and clutter never accretes unexamined. | Read this description against the built behavior and confirm they match. | operator |
+| **Shared body, entered many ways** — the operation holds the steps; skills and agents hold the entry. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Runbook, not code or persona** — reading-and-following content, distinct from `tool` and `agent`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Anti-sprawl by judgment** — the ≥2-referencer / not-one-skill's-depth bar is an audit concern, so a genuinely shared procedure is never left homeless and clutter never accretes unexamined. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

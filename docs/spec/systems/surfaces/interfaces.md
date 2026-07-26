@@ -4,7 +4,7 @@ status: draft
 
 # Interfaces
 
-*Settled in the design workspace on 2026-05-29, ratified by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md).*
+*Ratified in the design workspace on 2026-05-29 by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -128,8 +128,8 @@ a-deliberate-floor-is-not-nagged, and the knowledge-retrieval **operation set** 
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
-| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Read this description against the built behavior and confirm they match. | operator |
-| **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Read this description against the built behavior and confirm they match. | operator |
-| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | Read this description against the built behavior and confirm they match. | operator |
-| **A deliberate floor is not nagged** — a fallback the operator runs by choice is a valid steady state, not a standing alarm; only an unexpectedly-down richer substrate is surfaced loudly. | Read this description against the built behavior and confirm they match. | operator |
+| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **A deliberate floor is not nagged** — a fallback the operator runs by choice is a valid steady state, not a standing alarm; only an unexpectedly-down richer substrate is surfaced loudly. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

@@ -4,7 +4,7 @@ status: draft
 
 # Repository topology
 
-*Settled in the design workspace on 2026-07-12, ratified by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md).*
+*Ratified in the design workspace on 2026-07-12 by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -162,12 +162,12 @@ not reopen this doc. Topology owns the room; each system furnishes its own.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| The engine is confined to namespaced corners — it exclusively occupies `.engine/`, with its Claude-native surfaces under `.claude/` and its own files under `.github/`. | Read this requirement against the built behavior and confirm they match. | operator |
-| The product owns the root — the adopter scaffolds their project at the repository root exactly as they would without the engine. | Read this requirement against the built behavior and confirm they match. | operator |
-| One directory per engine-governance surface, each named by the ontology. | Read this requirement against the built behavior and confirm they match. | operator |
-| Claude-native surfaces live where the tool dictates — agents, skills and hook scripts sit where Claude Code expects them, not where the engine would prefer. | Read this requirement against the built behavior and confirm they match. | operator |
-| Canonical data is never a committed path — experiential memory lives outside the committed tree. | Read this requirement against the built behavior and confirm they match. | operator |
-| The engine-owned file set is the module manifests' `provides` union together with the foundation's own file set; membership is decided by that set, never by a name. | Read this requirement against the built behavior and confirm they match. | operator |
-| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | Read this requirement against the built behavior and confirm they match. | operator |
-| Platform-defined infrastructure artifacts are governed by this document and the control plane, and are not treated as engine surfaces. | Read this requirement against the built behavior and confirm they match. | operator |
-| The partition fixes the laws now and defers the leaves — this document settles the placement laws, not every concrete path. | Read this requirement against the built behavior and confirm they match. | operator |
+| The engine is confined to namespaced corners — it exclusively occupies `.engine/`, with its Claude-native surfaces under `.claude/` and its own files under `.github/`. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The product owns the root — the adopter scaffolds their project at the repository root exactly as they would without the engine. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| One directory per engine-governance surface, each named by the ontology. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Claude-native surfaces live where the tool dictates — agents, skills and hook scripts sit where Claude Code expects them, not where the engine would prefer. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Canonical data is never a committed path — experiential memory lives outside the committed tree. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The engine-owned file set is the module manifests' `provides` union together with the foundation's own file set; membership is decided by that set, never by a name. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| Platform-defined infrastructure artifacts are governed by this document and the control plane, and are not treated as engine surfaces. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The partition fixes the laws now and defers the leaves — this document settles the placement laws, not every concrete path. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |

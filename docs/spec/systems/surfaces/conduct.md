@@ -4,7 +4,7 @@ status: draft
 
 # Conduct
 
-*Settled in the design workspace on 2026-06-14, ratified by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md).*
+*Ratified in the design workspace on 2026-06-14 by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -145,7 +145,7 @@ subsystem — lives in [core](../../modules/core.md).
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Pure posture, subordinate to every law.** Conduct shapes behavior and never enforces; it is tier-3 and never collides with a contract, policy, or mechanical gate. | Read this description against the built behavior and confirm they match. | operator |
-| **Present from cold boot, in every repo.** It rides `core` and the topology-governed floor (it cannot be optional), seeded so the operator's stance travels without re-teaching. | Read this description against the built behavior and confirm they match. | operator |
-| **Tunable but never silently weakening.** Operator-owned, preserved across overlay, authored by a verb; any change is merge-visible and guarded against weakening a guardrail. | Read this description against the built behavior and confirm they match. | operator |
-| **One job.** It carries behavioral stance only — not project narrative, structural fact, design rationale, or enforcement. | Read this description against the built behavior and confirm they match. | operator |
+| **Pure posture, subordinate to every law.** Conduct shapes behavior and never enforces; it is tier-3 and never collides with a contract, policy, or mechanical gate. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Present from cold boot, in every repo.** It rides `core` and the topology-governed floor (it cannot be optional), seeded so the operator's stance travels without re-teaching. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Tunable but never silently weakening.** Operator-owned, preserved across overlay, authored by a verb; any change is merge-visible and guarded against weakening a guardrail. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **One job.** It carries behavioral stance only — not project narrative, structural fact, design rationale, or enforcement. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

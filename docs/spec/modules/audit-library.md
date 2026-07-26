@@ -4,7 +4,7 @@ status: draft
 
 # audit-library
 
-*Settled in the design workspace on 2026-06-23, ratified by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md).*
+*Ratified in the design workspace on 2026-06-23 by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -186,8 +186,8 @@ concern-list, R-numbers). The audit digest itself stays the plain self-attestati
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are audits'; the delivery is this module** — no duplication of the posture laws here. | Read this description against the built behavior and confirm they match. | operator |
-| **required core, not one of the eleven foundations** — deployed-repo self-audit hygiene ships in every generated repo and is not an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **Wires nothing** — persona, workflow, and concern-list are all active by presence; install/uninstall is add/remove files. | Read this description against the built behavior and confirm they match. | operator |
-| **Present-by-default substrate, swappable runner** — the committed cron workflow arms automatically; the digest + staleness backstop is runner-independent, so the optional Cloud-Routine path adds no dependency and the engine never relies on a research-preview feature. | Read this description against the built behavior and confirm they match. | operator |
-| **Honest coverage** — the local-memory limit of any cloud/CI substrate is bridged through a least-privilege read-only read of memory's own backup (a provisioning-owned, heavy-consent turn-on), with belief content gated to a private project repo and the gap disclosed in plain language whenever either precondition is unmet — never silently skipped, never pretending memory is empty. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| **The laws are audits'; the delivery is this module** — no duplication of the posture laws here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **required core, not one of the eleven foundations** — deployed-repo self-audit hygiene ships in every generated repo and is not an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Wires nothing** — persona, workflow, and concern-list are all active by presence; install/uninstall is add/remove files. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Present-by-default substrate, swappable runner** — the committed cron workflow arms automatically; the digest + staleness backstop is runner-independent, so the optional Cloud-Routine path adds no dependency and the engine never relies on a research-preview feature. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Honest coverage** — the local-memory limit of any cloud/CI substrate is bridged through a least-privilege read-only read of memory's own backup (a provisioning-owned, heavy-consent turn-on), with belief content gated to a private project repo and the gap disclosed in plain language whenever either precondition is unmet — never silently skipped, never pretending memory is empty. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

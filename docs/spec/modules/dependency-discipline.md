@@ -4,7 +4,7 @@ status: draft
 
 # dependency-discipline
 
-*Settled in the design workspace on 2026-05-30, ratified by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md).*
+*Ratified in the design workspace on 2026-05-30 by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -156,9 +156,9 @@ so removing this module leaves the product's dependencies and its floor intact.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the check/validation/policies systems'; the delivery is this module** — no restating the laws here. | Read this description against the built behavior and confirm they match. | operator |
-| **Owns discipline, not the floor** — pinning + the review gate + cadence-as-posture; the secret-scan workflow + `dependabot.yml` floor stays the control-plane's, and this module never edits `dependabot.yml`. | Read this description against the built behavior and confirm they match. | operator |
-| **Honest tiers** — review gate `hard` at CI, pinning `soft`, cadence and the policy itself posture; no posture dressed as enforced ([§7](../../principles.md)). | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
-| **Wires nothing** — policy, checks, and detection logic all bind by presence; the review gate rides the existing required CI check with no new ruleset binding; `depends` ≠ wiring. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
-| **Ecosystem-agnostic with disclosed no-ops** — the review gate relays GitHub's cross-ecosystem dependency-review data; the pinning check detects the ecosystem and discloses its inapplicability rather than passing silently. | Read this description against the built behavior and confirm they match. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Read this description against the built behavior and confirm they match. | operator |
+| **The laws are the check/validation/policies systems'; the delivery is this module** — no restating the laws here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Owns discipline, not the floor** — pinning + the review gate + cadence-as-posture; the secret-scan workflow + `dependabot.yml` floor stays the control-plane's, and this module never edits `dependabot.yml`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Honest tiers** — review gate `hard` at CI, pinning `soft`, cadence and the policy itself posture; no posture dressed as enforced ([§7](../../principles.md)). | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| **Wires nothing** — policy, checks, and detection logic all bind by presence; the review gate rides the existing required CI check with no new ruleset binding; `depends` ≠ wiring. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| **Ecosystem-agnostic with disclosed no-ops** — the review gate relays GitHub's cross-ecosystem dependency-review data; the pinning check detects the ecosystem and discloses its inapplicability rather than passing silently. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

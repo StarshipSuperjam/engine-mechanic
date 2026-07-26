@@ -4,7 +4,7 @@ status: draft
 
 # qa-review
 
-*Settled in the design workspace on 2026-07-11, ratified by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md).*
+*Ratified in the design workspace on 2026-07-11 by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -122,7 +122,7 @@ is locked to check against"), never a silent green pass ([D-244](../../adr/0244-
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Judgment above mechanics** — the lenses judge; the validation suite and CI gate; no duplication. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
-| **The conformance guard** — `spec-conformance` (the systematic reviewer) and `divergence-hunter` (its adversarial, run-together counterpart) judge built-vs-the-`locked`-spec from two decorrelated cold contexts and restate verified-versus-unverified criteria so a thin spec cannot manufacture false confidence; together they are the **judgment** legs of the [conformance-enforcement floor](../../reference/glossary.md), whose mechanical legs are the criterion-granular [spec-obligation matrix](../../reference/glossary.md) and the deployed-environment demonstration harness ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — full rigor against a `locked` spec, a disclosed no-op without one. | Read this description against the built behavior and confirm they match. | operator |
-| **Dry-run is allowed** — read-only is no-mutation, so a lens may execute in a discarded worktree. | Read this description against the built behavior and confirm they match. | operator |
-| **File-drop, derived roster; reviewers report, the orchestrator decides.** | Read this description against the built behavior and confirm they match. | operator |
+| **Judgment above mechanics** — the lenses judge; the validation suite and CI gate; no duplication. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |
+| **The conformance guard** — `spec-conformance` (the systematic reviewer) and `divergence-hunter` (its adversarial, run-together counterpart) judge built-vs-the-`locked`-spec from two decorrelated cold contexts and restate verified-versus-unverified criteria so a thin spec cannot manufacture false confidence; together they are the **judgment** legs of the [conformance-enforcement floor](../../reference/glossary.md), whose mechanical legs are the criterion-granular [spec-obligation matrix](../../reference/glossary.md) and the deployed-environment demonstration harness ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — full rigor against a `locked` spec, a disclosed no-op without one. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Dry-run is allowed** — read-only is no-mutation, so a lens may execute in a discarded worktree. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **File-drop, derived roster; reviewers report, the orchestrator decides.** | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

@@ -4,7 +4,7 @@ status: draft
 
 # Control plane
 
-*Settled in the design workspace on 2026-06-27, ratified by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md).*
+*Ratified in the design workspace on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -428,18 +428,18 @@ likewise GitHub issue infrastructure governed here, not a catalogued surface.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| What travels does so as files; what cannot be a file is named as not travelling, never assumed. | Read this requirement against the built behavior and confirm they match. | operator |
-| The branch ruleset requires a pull request before merging. | The design states this as a required rule on the protected branch. | engine |
-| The branch ruleset requires status checks to pass before merging. | The design states this as a required rule on the protected branch. | engine |
-| The branch ruleset requires conversation resolution before merging. | The design states this as a required rule on the protected branch. | engine |
-| Force pushes are blocked and deletion is restricted on the protected branch. | The design states this as a required rule on the protected branch. | engine |
-| Bypass is named honestly, and weakening a protection takes exactly one additional deliberate affirmative act by the operator. | Read this requirement against the built behavior and confirm they match. | operator |
-| A weakening is explained in plain operator language — the concrete protection that weakens and what the AI could then do unwatched. | Read this requirement against the built behavior and confirm they match. | operator |
-| The bootstrap is applied by an operator-privileged actor; the engine cannot self-grant it. | Read this requirement against the built behavior and confirm they match. | operator |
-| A committed CI guard fails loud until protection is in place, and the unprotected state is surfaced to the operator in plain language, continuously. | The design states this as a committed guard that fails until protection is applied. | engine |
-| The merge gate matches the identity tier — solo by default, team on upgrade, and the external contribution path. | Read this requirement against the built behavior and confirm they match. | operator |
-| The pull-request contract carries its named sections, and its Review section is the gated judgment layer. | The design states the Review section's presence is mechanically checked for completeness. | engine |
-| A recognized external automation's pull request is categorically outside the contract's domain, and says so rather than passing silently. | Read this requirement against the built behavior and confirm they match. | operator |
-| The engine-domain label is the canonical routing substrate for engine work, and every engine-authored Issue carries the body contract. | Read this requirement against the built behavior and confirm they match. | operator |
-| The product spec is a committed corpus outside the label scheme; product work is tracked as ordinary work. | Read this requirement against the built behavior and confirm they match. | operator |
-| The security floor covers secrets, dependencies, code and disclosure — and discloses what is off rather than downgrading silently. | Read this requirement against the built behavior and confirm they match. | operator |
+| What travels does so as files; what cannot be a file is named as not travelling, never assumed. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The branch ruleset requires a pull request before merging. | The design states this as a required rule on the protected branch; the concrete check is defined when this capability is settled. | engine |
+| The branch ruleset requires status checks to pass before merging. | The design states this as a required rule on the protected branch; the concrete check is defined when this capability is settled. | engine |
+| The branch ruleset requires conversation resolution before merging. | The design states this as a required rule on the protected branch; the concrete check is defined when this capability is settled. | engine |
+| Force pushes are blocked and deletion is restricted on the protected branch. | The design states this as a required rule on the protected branch; the concrete check is defined when this capability is settled. | engine |
+| Bypass is named honestly, and weakening a protection takes exactly one additional deliberate affirmative act by the operator. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| A weakening is explained in plain operator language — the concrete protection that weakens and what the AI could then do unwatched. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The bootstrap is applied by an operator-privileged actor; the engine cannot self-grant it. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| A committed CI guard fails loud until protection is in place, and the unprotected state is surfaced to the operator in plain language, continuously. | The design states this as a committed guard that fails until protection is applied; the concrete check is defined when this capability is settled. | engine |
+| The merge gate matches the identity tier — solo by default, team on upgrade, and the external contribution path. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The pull-request contract carries its named sections, and its Review section is the gated judgment layer. | The design states the Review section's presence is mechanically checked; the concrete check is defined when this capability is settled. | engine |
+| A recognized external automation's pull request is categorically outside the contract's domain, and says so rather than passing silently. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The engine-domain label is the canonical routing substrate for engine work, and every engine-authored Issue carries the body contract. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The product spec is a committed corpus outside the label scheme; product work is tracked as ordinary work. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The security floor covers secrets, dependencies, code and disclosure — and discloses what is off rather than downgrading silently. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |

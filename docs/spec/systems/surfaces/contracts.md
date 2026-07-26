@@ -4,7 +4,7 @@ status: draft
 
 # Contracts
 
-*Settled in the design workspace on 2026-07-12, ratified by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md).*
+*Ratified in the design workspace on 2026-07-12 by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -108,6 +108,6 @@ lexically matches it (the scent / search), so a stable canon never burdens orien
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| A contract with no substantive anti-choice or significance statement is structurally not a contract — the template enforces those fields' presence (a `hard-fail`), while their *genuineness* stays posture. | Read this description against the built behavior and confirm they match. | operator |
-| Authority comes from the contract being `accepted` and non-superseded; supersession, not editing, changes a standing decision. | Read this description against the built behavior and confirm they match. | operator |
-| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon changes only by supersession and stays exceptional under the contract threshold — never edited in place, never accumulating routine decisions. | Read this description against the built behavior and confirm they match. | operator |
+| A contract with no substantive anti-choice or significance statement is structurally not a contract — the template enforces those fields' presence (a `hard-fail`), while their *genuineness* stays posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| Authority comes from the contract being `accepted` and non-superseded; supersession, not editing, changes a standing decision. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon changes only by supersession and stays exceptional under the contract threshold — never edited in place, never accumulating routine decisions. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

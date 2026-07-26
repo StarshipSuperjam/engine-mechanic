@@ -4,7 +4,7 @@ status: draft
 
 # routine-mode
 
-*Settled in the design workspace on 2026-05-30, ratified by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md).*
+*Ratified in the design workspace on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -85,7 +85,7 @@ affirmative case is the ratified drift-firewall, not a default.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The stance and workflow are the systems'; the entry is this module** — modes owns the Routine stance laws and build-orchestration owns the unattended workflow; `routine-mode` ships only the operator entry verb and the procedure it enters, restating neither. | Read this description against the built behavior and confirm they match. | operator |
-| **Wires nothing** — skill by presence, operation by reference; the permission posture is an operator-side Desktop preset (outside the repo), the push-wrapper/push-gate are build-orchestration build-spec leaves, and the write-gate hook is core/modes — none is `routine-mode`'s, so entering Routine seizes no shared state here. | Read this description against the built behavior and confirm they match. | operator |
-| **`required` core, not a foundation** — the routine stance ships in every generated repo and is never an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)); the eleven foundations stay minimal beneath it. | Read this description against the built behavior and confirm they match. | operator |
-| **The routine-entry operation is preserved on a ratified affirmative case** — the [D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md) drift-firewall, satisfying the operations anti-sprawl bar rather than defaulting past it. | Read this description against the built behavior and confirm they match. | operator |
+| **The stance and workflow are the systems'; the entry is this module** — modes owns the Routine stance laws and build-orchestration owns the unattended workflow; `routine-mode` ships only the operator entry verb and the procedure it enters, restating neither. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Wires nothing** — skill by presence, operation by reference; the permission posture is an operator-side Desktop preset (outside the repo), the push-wrapper/push-gate are build-orchestration build-spec leaves, and the write-gate hook is core/modes — none is `routine-mode`'s, so entering Routine seizes no shared state here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **`required` core, not a foundation** — the routine stance ships in every generated repo and is never an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)); the eleven foundations stay minimal beneath it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The routine-entry operation is preserved on a ratified affirmative case** — the [D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md) drift-firewall, satisfying the operations anti-sprawl bar rather than defaulting past it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

@@ -4,7 +4,7 @@ status: draft
 
 # core
 
-*Settled in the design workspace on 2026-07-12, ratified by [decision 0304](../../adr/0304-resolve-re-lock-modules-core-the-foreign-license-seed-detect.md).*
+*Ratified in the design workspace on 2026-07-12 by [decision 0304](../../adr/0304-resolve-re-lock-modules-core-the-foreign-license-seed-detect.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -214,9 +214,9 @@ adds a kind.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The depth is the systems'; the bundling is this module** — `core` names *which* locked machinery ships in the trusted root and what carves out to siblings; it does not restate the systems' laws. | Read this description against the built behavior and confirm they match. | operator |
-| **The contagious core stays minimal** ([§12](../../principles.md)) — a foundation rides `core` only when it cannot be an extension; anything carve-able is carved (the operational *remove-every-module* test). | Read this description against the built behavior and confirm they match. | operator |
-| **Core registers the kernel seams and owns the wiring-library firewall** — every shared-state edit goes through the closed [seam vocabulary](../../reference/glossary.md) and its guaranteed reversers; the library lives in `core` so it outlives the self-deleting instantiator. | Read this description against the built behavior and confirm they match. | operator |
-| **Core integrates but relays** ([§16](../../principles.md)) — it surfaces, ranks, dispatches, and applies over channels whose detection and mechanism stay with the owning substrates. | Read this description against the built behavior and confirm they match. | operator |
-| **Operator surfaces stay plain** — the maintainer vocabulary `core` carries never leaks; `/engine-help` and the orientation doc are degradation-proof and plain-language. | Read this description against the built behavior and confirm they match. | operator |
-| **Validation dispatcher + five closed kinds in core, rule corpus in `validators-core`** — forced by the locked kind-registry shape and the `core → validators-core` dependency direction, not a style choice. | Read this description against the built behavior and confirm they match. | operator |
+| **The depth is the systems'; the bundling is this module** — `core` names *which* locked machinery ships in the trusted root and what carves out to siblings; it does not restate the systems' laws. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The contagious core stays minimal** ([§12](../../principles.md)) — a foundation rides `core` only when it cannot be an extension; anything carve-able is carved (the operational *remove-every-module* test). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Core registers the kernel seams and owns the wiring-library firewall** — every shared-state edit goes through the closed [seam vocabulary](../../reference/glossary.md) and its guaranteed reversers; the library lives in `core` so it outlives the self-deleting instantiator. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Core integrates but relays** ([§16](../../principles.md)) — it surfaces, ranks, dispatches, and applies over channels whose detection and mechanism stay with the owning substrates. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Operator surfaces stay plain** — the maintainer vocabulary `core` carries never leaks; `/engine-help` and the orientation doc are degradation-proof and plain-language. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Validation dispatcher + five closed kinds in core, rule corpus in `validators-core`** — forced by the locked kind-registry shape and the `core → validators-core` dependency direction, not a style choice. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

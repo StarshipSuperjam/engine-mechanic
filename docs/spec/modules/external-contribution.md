@@ -4,7 +4,7 @@ status: draft
 
 # external-contribution
 
-*Settled in the design workspace on 2026-05-30, ratified by [decision 0143](../../adr/0143-lock-the-external-contribution-module-the-cross-repo-packagi.md).*
+*Ratified in the design workspace on 2026-05-30 by [decision 0143](../../adr/0143-lock-the-external-contribution-module-the-cross-repo-packagi.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -83,9 +83,9 @@ discipline. The dependency arrow stays Engine→product, and the product upstrea
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the lifecycle-system and locked-systems'; the delivery is this module** — no restating laws. | Read this description against the built behavior and confirm they match. | operator |
-| **Optional, not core** — [§12](../../principles.md); the cross-repo machinery is an extension an own-product deployment never needs. | Read this description against the built behavior and confirm they match. | operator |
-| **`depends: core`, not `validators-core`** — the nudge inspects the outgoing diff and presupposes no self-validation corpus. | Read this description against the built behavior and confirm they match. | operator |
-| **The Engine stays off the contribution by posture** — the product branch is engine-clean by origin, the §6 nudge catches an accidental engine path, and the upstream's own review backstops; honest posture, not a mechanical guarantee. | Read this description against the built behavior and confirm they match. | operator |
-| **Honest tiers** — the nudge is `soft` / local, the discipline is posture, the hard gate is the upstream's; an ungoverned upstream is disclosed, not papered over ([§7](../../principles.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **The wall holds and the operator is never stranded** — optional consent, outward read-and-propose, a working fork on any failure, removal leaves the product intact. | Read this description against the built behavior and confirm they match. | operator |
+| **The laws are the lifecycle-system and locked-systems'; the delivery is this module** — no restating laws. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Optional, not core** — [§12](../../principles.md); the cross-repo machinery is an extension an own-product deployment never needs. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **`depends: core`, not `validators-core`** — the nudge inspects the outgoing diff and presupposes no self-validation corpus. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The Engine stays off the contribution by posture** — the product branch is engine-clean by origin, the §6 nudge catches an accidental engine path, and the upstream's own review backstops; honest posture, not a mechanical guarantee. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Honest tiers** — the nudge is `soft` / local, the discipline is posture, the hard gate is the upstream's; an ungoverned upstream is disclosed, not papered over ([§7](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The wall holds and the operator is never stranded** — optional consent, outward read-and-propose, a working fork on any failure, removal leaves the product intact. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

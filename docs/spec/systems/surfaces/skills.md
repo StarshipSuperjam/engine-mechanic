@@ -4,7 +4,7 @@ status: draft
 
 # Skills
 
-*Settled in the design workspace on 2026-06-15, ratified by [decision 0201](../../../adr/0201-resolve-the-d-200-status-verb-cold-start-re-litigation-lande.md).*
+*Ratified in the design workspace on 2026-06-15 by [decision 0201](../../../adr/0201-resolve-the-d-200-status-verb-cold-start-re-litigation-lande.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -124,9 +124,9 @@ push-to-consult versus push-to-perform, never two parallel nag systems.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **One surface, invocation as a governed axis** — `model-auto` / `operator-typed` / `model-only` are values of the one `skill` surface, matching the platform's merged mechanism; a new invocation mode is a new value, additive, not a new surface. | Read this description against the built behavior and confirm they match. | operator |
-| **Few and sharp where model-invocable** — always-resident descriptions are an attention cost; ship a small set with precise trigger language, not a zoo. | Read this description against the built behavior and confirm they match. | operator |
-| **Discoverable where operator-typed** — a plain-language discovery path ships in v1; the operator is never left guessing what verbs the engine offers. | Read this description against the built behavior and confirm they match. | operator |
-| **Thin entry, shared body** — a deep or reused procedure lives in an [operation](operations.md); the skill references it rather than restating it. | Read this description against the built behavior and confirm they match. | operator |
-| **File-drop, no wiring** — discovery by presence; install/uninstall is add/remove a file. | Read this description against the built behavior and confirm they match. | operator |
-| **Engine-prefixed by convention** — the `engine-` prefix reserves the name (loose files are not platform-namespaced). | Read this description against the built behavior and confirm they match. | operator |
+| **One surface, invocation as a governed axis** — `model-auto` / `operator-typed` / `model-only` are values of the one `skill` surface, matching the platform's merged mechanism; a new invocation mode is a new value, additive, not a new surface. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Few and sharp where model-invocable** — always-resident descriptions are an attention cost; ship a small set with precise trigger language, not a zoo. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Discoverable where operator-typed** — a plain-language discovery path ships in v1; the operator is never left guessing what verbs the engine offers. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Thin entry, shared body** — a deep or reused procedure lives in an [operation](operations.md); the skill references it rather than restating it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **File-drop, no wiring** — discovery by presence; install/uninstall is add/remove a file. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Engine-prefixed by convention** — the `engine-` prefix reserves the name (loose files are not platform-namespaced). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

@@ -13,7 +13,7 @@ Ratify and **lock** the [external-contribution module](../spec/modules/external-
 
 ## Why
 
-This completes the external-contribution system/module split [D-121](0121-lock-the-external-contribution-system-doc-reconcile-the-stal.md) deliberately staged — the laws locked on the cold-session audit, the packaging locking now on its clean dry-run build + its own fresh cold audit (the [module-vs-system lock-gate](#) discipline). The module is upstream-anchored on the locked `core`, standalone (fills no Slot), and consumes locked laws by citation, so it sits atop no churn. The riskiest surface — the cross-fork PR mechanics — was the one most worth a fresh live-platform ground-truth (the [D-140](0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md) lesson), and it held against live `gh`/`git`. The nits are build-spec leaves or the desync-avoiding clean-code cite; none warrants a pre-lock edit.
+This completes the external-contribution system/module split [D-121](0121-lock-the-external-contribution-system-doc-reconcile-the-stal.md) deliberately staged — the laws locked on the cold-session audit, the packaging locking now on its clean dry-run build + its own fresh cold audit (the module-vs-system lock-gate discipline). The module is upstream-anchored on the locked `core`, standalone (fills no Slot), and consumes locked laws by citation, so it sits atop no churn. The riskiest surface — the cross-fork PR mechanics — was the one most worth a fresh live-platform ground-truth (the [D-140](0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md) lesson), and it held against live `gh`/`git`. The nits are build-spec leaves or the desync-avoiding clean-code cite; none warrants a pre-lock edit.
 
 ## What we ruled out
 

@@ -4,7 +4,7 @@ status: draft
 
 # Schemas
 
-*Settled in the design workspace on 2026-05-22, ratified by [decision 0019](../../../adr/0019-authoring-grammar-locked-end-state-as-laws-not-leaves.md).*
+*Ratified in the design workspace on 2026-05-22 by [decision 0019](../../../adr/0019-authoring-grammar-locked-end-state-as-laws-not-leaves.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -58,5 +58,5 @@ validated against the current schema absent a breaking bump.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Read this description against the built behavior and confirm they match. | operator |
-| The validation foundation parses a file (or its YAML frontmatter) to a data object before validating it against the schema; JSON Schema governs the loaded structure, not the raw text. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| The validation foundation parses a file (or its YAML frontmatter) to a data object before validating it against the schema; JSON Schema governs the loaded structure, not the raw text. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

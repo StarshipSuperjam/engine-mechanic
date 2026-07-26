@@ -4,7 +4,7 @@ status: draft
 
 # design-review
 
-*Settled in the design workspace on 2026-06-23, ratified by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md).*
+*Ratified in the design workspace on 2026-06-23 by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -89,8 +89,8 @@ at plan-review — distinct, not redundant.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Mirrors the engine's own audit** — the quartet is the product-facing analogue of the lock-time cold-session lenses, not a fresh taxonomy. | Read this description against the built behavior and confirm they match. | operator |
-| **Reviewers report; the orchestrator decides** — read-only personas feeding the finding-disposition loop via the uniform `output-contract`. | Read this description against the built behavior and confirm they match. | operator |
-| **File-drop, derived roster** — install/uninstall is add/remove a persona file; nothing wires. | Read this description against the built behavior and confirm they match. | operator |
-| **Referent-aware, not referent-bound** — only `product-intent` consumes the spec; the other three review with or without one. | Read this description against the built behavior and confirm they match. | operator |
-| **Two invocation points, both advisory** — the quartet runs at build-orchestration's plan-review gate (the build plan) and, when installed, advises product-design's spec-lock (the spec); both feed the operator's decision, neither is a gate the engine owns, so the wall and the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation hold ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)). | Read this description against the built behavior and confirm they match. | operator |
+| **Mirrors the engine's own audit** — the quartet is the product-facing analogue of the lock-time cold-session lenses, not a fresh taxonomy. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Reviewers report; the orchestrator decides** — read-only personas feeding the finding-disposition loop via the uniform `output-contract`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **File-drop, derived roster** — install/uninstall is add/remove a persona file; nothing wires. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Referent-aware, not referent-bound** — only `product-intent` consumes the spec; the other three review with or without one. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Two invocation points, both advisory** — the quartet runs at build-orchestration's plan-review gate (the build plan) and, when installed, advises product-design's spec-lock (the spec); both feed the operator's decision, neither is a gate the engine owns, so the wall and the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation hold ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

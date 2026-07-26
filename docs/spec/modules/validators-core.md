@@ -4,7 +4,7 @@ status: draft
 
 # validators-core
 
-*Settled in the design workspace on 2026-06-27, ratified by [decision 0263](../../adr/0263-resolve-re-lock-validators-core-the-disposition-issue-resolu.md).*
+*Ratified in the design workspace on 2026-06-27 by [decision 0263](../../adr/0263-resolve-re-lock-validators-core-the-disposition-issue-resolu.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
 
 ## Summary
 
@@ -159,8 +159,8 @@ a reasoned decision, well-grounded:
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are validation's, the engine is `core`'s, the corpus is this module** — no duplication of the validation laws or the kind logic here. | Read this description against the built behavior and confirm they match. | operator |
-| **Data files only** — `validators-core` ships rules, never kinds or detection; each rule relays to an owner-held kind/contract/mechanism ([§16](../../principles.md)). | Read this description against the built behavior and confirm they match. | operator |
-| **Wires nothing** — rules are active by presence, suite rosters derived; install/uninstall is add/remove files, and `depends` ≠ wiring. | Read this description against the built behavior and confirm they match. | operator |
-| **The consolidated self-validation floor** — feature modules extend it with domain checks and the semantic audit assumes it; that shared dependence is why it is one `required` base rather than scattered. | Read this description against the built behavior and confirm they match. | operator |
-| **The proven-to-bite enforcer is data here; its law and grammar are elsewhere** — the negative-fixture meta-check is a `custom/script` rule (validation's invariant, check's fixture grammar, the rule `validators-core`'s), self-covering per [§15](../../principles.md) and failing closed on a fixtureless in-scope unit; module-kind fixtures travel with their modules and core-kind fixtures with `core`, so `wires: none` and the add/remove-files reversibility both stand. | The design states this is enforced mechanically; the mechanism is named in the criterion. | engine |
+| **The laws are validation's, the engine is `core`'s, the corpus is this module** — no duplication of the validation laws or the kind logic here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Data files only** — `validators-core` ships rules, never kinds or detection; each rule relays to an owner-held kind/contract/mechanism ([§16](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Wires nothing** — rules are active by presence, suite rosters derived; install/uninstall is add/remove files, and `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The consolidated self-validation floor** — feature modules extend it with domain checks and the semantic audit assumes it; that shared dependence is why it is one `required` base rather than scattered. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The proven-to-bite enforcer is data here; its law and grammar are elsewhere** — the negative-fixture meta-check is a `custom/script` rule (validation's invariant, check's fixture grammar, the rule `validators-core`'s), self-covering per [§15](../../principles.md) and failing closed on a fixtureless in-scope unit; module-kind fixtures travel with their modules and core-kind fixtures with `core`, so `wires: none` and the add/remove-files reversibility both stand. | The design names the enforcing mechanism in the criterion itself; the concrete check is defined when this capability is settled. | engine |

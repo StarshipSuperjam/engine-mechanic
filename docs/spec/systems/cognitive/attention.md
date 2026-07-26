@@ -4,7 +4,7 @@ status: draft
 
 # Attention
 
-*Settled in the design workspace on 2026-07-16, ratified by [decision 0316](../../../adr/0316-resolve-re-lock-attention-the-work-record-commission-retired.md).*
+*Ratified in the design workspace on 2026-07-16 by [decision 0316](../../../adr/0316-resolve-re-lock-attention-the-work-record-commission-retired.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -105,8 +105,8 @@ values remain — they are not frozen here.
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| An explicit allocation policy, not magic numbers — reviewable and tunable. | Read this description against the built behavior and confirm they match. | operator |
-| Driven by [telemetry](../guardrails/telemetry.md) (debt) and [knowledge](knowledge.md) (structure), fed by [state](state.md); it reads these, it does not duplicate them. | Read this description against the built behavior and confirm they match. | operator |
-| A **deterministic** ranking function — the same inputs yield the same ordering; no scored-token store, no decay state, no machine learning. **Reference time is an explicit, recorded input** (a single as-of timestamp passed in), so "the same inputs" includes that timestamp — recency-dependent ordering is reproducible across clock skew and a ledger/host change, and the function still owns no state. | Read this description against the built behavior and confirm they match. | operator |
-| **Degrades over partial inputs** — it ranks over whatever inputs are present; the loud, plain-language degraded notice is [boot](../lifecycle/boot.md)'s. | Read this description against the built behavior and confirm they match. | operator |
-| **Heritage:** attention is the prioritization piece of *context engineering* (the discipline of deciding what to load, exclude, prioritize, and prune in the context window — the orientation family as a whole instantiates it); in CoALA terms it sits within the *decision-making procedure*. (See the glossary *Lineage* cluster — maintainer vocabulary only, never operator-facing.) | Read this description against the built behavior and confirm they match. | operator |
+| An explicit allocation policy, not magic numbers — reviewable and tunable. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| Driven by [telemetry](../guardrails/telemetry.md) (debt) and [knowledge](knowledge.md) (structure), fed by [state](state.md); it reads these, it does not duplicate them. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| A **deterministic** ranking function — the same inputs yield the same ordering; no scored-token store, no decay state, no machine learning. **Reference time is an explicit, recorded input** (a single as-of timestamp passed in), so "the same inputs" includes that timestamp — recency-dependent ordering is reproducible across clock skew and a ledger/host change, and the function still owns no state. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Degrades over partial inputs** — it ranks over whatever inputs are present; the loud, plain-language degraded notice is [boot](../lifecycle/boot.md)'s. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Heritage:** attention is the prioritization piece of *context engineering* (the discipline of deciding what to load, exclude, prioritize, and prune in the context window — the orientation family as a whole instantiates it); in CoALA terms it sits within the *decision-making procedure*. (See the glossary *Lineage* cluster — maintainer vocabulary only, never operator-facing.) | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |

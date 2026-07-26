@@ -4,7 +4,7 @@ status: draft
 
 # Docs
 
-*Settled in the design workspace on 2026-06-18, ratified by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md).*
+*Ratified in the design workspace on 2026-06-18 by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
 
 ## Summary
 
@@ -86,7 +86,7 @@ recommends; the operator adjudicates).
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **For the operator, not the AI** — the AI orients from derived output; docs serve the human. | Read this description against the built behavior and confirm they match. | operator |
-| **Plain language, always** — the operator-communication law governs every doc. | Read this description against the built behavior and confirm they match. | operator |
-| **Engine corner, never the product's** — docs document the engine; the product's docs are the product's. | Read this description against the built behavior and confirm they match. | operator |
-| **A floor, never empty** — at least one orientation doc ships in v1, named and committed. | Read this description against the built behavior and confirm they match. | operator |
+| **For the operator, not the AI** — the AI orients from derived output; docs serve the human. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Plain language, always** — the operator-communication law governs every doc. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Engine corner, never the product's** — docs document the engine; the product's docs are the product's. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **A floor, never empty** — at least one orientation doc ships in v1, named and committed. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
