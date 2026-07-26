@@ -6,6 +6,8 @@ Every decision behind the product spec, one file per decision, carried whole fro
 
 **These records are append-only.** The design workspace's rule, carried from the log they came from: supersede an entry with a newer one; never edit or delete a past entry.
 
+**A note on fidelity.** These records were carried whole from the design workspace, with two deliberate exceptions. Three carry a marked editorial note where a present-tense claim about a live system was later corrected or fixed. A small number had passages edited before publication to remove appraisals of third-party work and internal project metrics; the decisions and their reasoning are unchanged, and the unedited originals remain in the design workspace they came from.
+
 **What is not here.** These records were written alongside build-planning material (a `wbs/` directory) and a lock registry that were deliberately not carried across. Where a record refers to one of those by name, the reference is left as plain text rather than a link, because the file does not exist in this repository. Titles below are shortened where long; each record's own heading carries the full title.
 
 | # | Decision | Date |
