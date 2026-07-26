@@ -1,0 +1,20 @@
+---
+status: accepted
+engine_record: true
+---
+
+# Citation-accuracy re-litigation: repoint stale `Q4` references in three locked docs to provisioning's build-spec leaves
+
+*Decided 2026-05-26 in the design workspace.*
+
+## The decision
+
+Under the litigation-alarm protocol (operator-approved), re-litigate three locked docs — [module-system](../spec/systems/grammar/module-system.md) (×2), [memory](../spec/systems/cognitive/memory.md) (×2), [control-plane](../spec/systems/infrastructure/control-plane.md) (×1) — to repoint their five `[Q4]`/"Q4" references to **provisioning's bootstrap-UX build-spec leaves**, the home those residues moved to when [D-077](0077-lock-the-provisioning-system-terminal-foundation-lock-the-bo.md) locked [provisioning](../spec/systems/infrastructure/provisioning.md) and reclassified the Q4 copy as build-spec leaves. **Citation-accuracy only — no design law changes** (the manifest grammar, the memory backup floors, the control-plane bootstrap contract are all untouched; only the stale "open question Q4" label and its link are corrected). `python3 lock.py --relock` on each of the three; ratified_by D-078. This entry also **corrects [D-077](0077-lock-the-provisioning-system-terminal-foundation-lock-the-bo.md)'s "no neighbor re-lock" claim**: that claim was made before the propagation sweep completed; the sweep then found Q4 cited as live in three locked docs, so resolving Q4 did require these citation-accuracy re-locks. The append-only log corrects by newer entry.
+
+## Why
+
+[D-077](0077-lock-the-provisioning-system-terminal-foundation-lock-the-bo.md) resolved Q4 and deleted it from [open-questions.md](../reference/open-questions.md), but Q4 was still cited as a *live open question* in three locked docs. `validate.py` would **not** fail (the links target the `open-questions.md` file, which still exists, and no anchor is checked), so this is a **semantic current-state-truth** matter, not a mechanical link break — a locked living document must not assert a resolved question is open (the four authoring rules). The **graveyard** mechanism does not apply: it exempts only the append-only [decision-log](README.md) from links to *deleted files*, explicitly "from any live doc a missing link stays a hard error," and `open-questions.md` is not deleted (only its Q3/Q4 entries are). [D-074](0074-sweep-the-stale-q1-references-resolved-by-d-066-d-068-re-loc.md) is the direct precedent — it re-locked `module-system` and `agents` for exactly this class of stale open-question citation, scoping the four-lens cold audit **out** as disproportionate because no design surface is touched; the same proportionality applies here (`validate.py` link + lock-fingerprint integrity plus a current-state self-check are the right rigor). Propagation per the matrix: the three locked docs (re-locked end-state), this entry; no other doc references these specific citations.
+
+## What we ruled out
+
+**Leave the citations and log the debt** (rejected — the operator's call; a locked doc citing a resolved question as open is the precise current-state violation [D-074](0074-sweep-the-stale-q1-references-resolved-by-d-066-d-068-re-loc.md) chose to fix, and deferring it leaves the most authoritative docs stale). **Extend the graveyard to cover this** (rejected — the graveyard is scoped to deleted *files* linked by the append-only decision-log and explicitly refuses to exempt live docs; `open-questions.md` is not deleted, so there is no broken link for it to exempt, and widening it would be a new mechanism for a non-problem). **Run a full four-lens cold audit on the citation sweep** (rejected as disproportionate — no design law changes; the audit exists to probe design soundness before an irreversible design decision, and there is no design surface here, exactly the [D-074](0074-sweep-the-stale-q1-references-resolved-by-d-066-d-068-re-loc.md) reasoning). **Keep Q4 in open-questions.md as a resolved marker** (rejected — the deletion mandate and the resolve-⇒-delete rule forbid leaving a resolved question standing).
