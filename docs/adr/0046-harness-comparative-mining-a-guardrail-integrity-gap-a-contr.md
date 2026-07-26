@@ -7,6 +7,10 @@ engine_record: true
 
 *Decided 2026-05-25 in the design workspace.*
 
+> *Editorial note added when this record was carried into this repository (2026-07-26):*
+>
+> This record's claim that the platform ignores a `deny` rule for file-editing tools was later **falsified by live behavioral testing** — see [decision 0171](0171-correct-the-falsified-platform-ignores-a-pretooluse-deny-cla.md). The claim is left as written because these records are append-only; it records what was believed at the time, not what is true.
+
 ## The decision
 
 Mine **claude-code-harness** (a Claude Code workflow plugin) against the design and disposition the learnings. **(1)** Surface a **guardrail-integrity gap** — nothing prevents the in-session builder from weakening the Engine's *own* enforcement config — as **[Q13](../reference/open-questions.md)**, homed at the hooks/control-plane/modes trust seam, not a deny-list leaf. **(2)** Adopt a **contract-hardening directive** (additive, no new question): the [agents](../spec/systems/surfaces/agents.md) `output-contract` designed in [D-042](0042-procedural-content-grounding-surface-cluster-designed-the-bo.md) should, when its `schemas` instance is authored, be **schema-versioned and fixture-tested**, after harness's `*.v1` versioned-schema + fixture pattern — an authoring directive for the additive instance, not a change to the locked grammar. **(3)** Reject two harness mechanisms as **anti-choices** (below). No doc is locked or re-locked in this pass; the dispositions are an open-question plus append-only log entries only.
