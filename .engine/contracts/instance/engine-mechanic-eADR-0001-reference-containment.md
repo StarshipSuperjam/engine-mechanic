@@ -49,12 +49,13 @@ permanently fails release-integrity; one listed in it makes every upgrade refuse
 never carries an instance-specific module. Adding the rule to an existing module's manifest fails
 too — engine-owned, overlay-replaced. A future session must not re-attempt an engine-side home.
 
-**The self-protection gap, narrowed rather than closed.** The previous version had to state that a
-pull request editing its own scanner was a guardrail change nothing alarmed. The instance-extensible
-floor closes that for a *single* pull request: the declared prefix is read from the trusted base,
-unions with the engine's own set, can never subtract from it, and its removal is detected
-directionally. It does not close a *two*-request sequence — the declaration file is not itself
-guarded, so one change could drop it and a later one edit the scanner freely.
+**The self-protection gap this closes.** The previous version had to state that a pull request
+editing its own scanner was a guardrail change nothing alarmed. The instance-extensible floor
+closes it: the declared prefix is read from the trusted base, unions with the engine's own set and
+can never subtract from it, so a request cannot both unguard the scanner and edit it. Nor can a
+two-request sequence do it quietly — deleting the declaration, renaming it away, and removing the
+entry are each detected directionally and each demand the acknowledgement. What is not gated is a
+pure *addition*, which is a strengthening.
 
 ## Rationale
 
@@ -101,13 +102,11 @@ contribution pause points consult, is filed upstream.
 
 ## Status
 
-Accepted. Three gaps stay open. First, the scanner's code and runbook are guarded, but nothing
+Accepted. Two gaps stay open. First, the scanner's code and runbook are guarded, but nothing
 *installs* the push hook — it is a reviewed source file an operator copies by hand, so the outbound
-leg runs only where someone set it up. Second, the declaration file that guards the scanner is not
-itself guarded, so a two-pull-request sequence could unguard it and then edit the scanner. Third,
-the first landing of a guarded path enters without an acknowledgement (a pure addition is a
-strengthening), so this change's own correctness rests entirely on the review that merges it — the
-same wall named above.
+leg runs only where someone set it up. Second, the first landing of a guarded path enters without
+an acknowledgement (a pure addition is a strengthening), so this change's own correctness rests
+entirely on the review that merges it — the same wall named above.
 
 This identifier was issued once before at `b9dd58e`, for a narrower version of this decision, and
 removed by the revert at `229e1ee`. Reused deliberately rather than skipped, so history carries two

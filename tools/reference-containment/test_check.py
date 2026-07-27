@@ -219,6 +219,20 @@ class BaselineTest(unittest.TestCase):
         self.assertEqual(new, [])
         self.assertEqual(len(resolved), 1)
 
+    def test_reports_a_count_that_merely_dropped_not_only_one_that_vanished(self):
+        """An allowance left higher than reality is a silent hole: upstream fixes two of three
+        citations, nothing says so, and two brand-new ones later land inside the stale allowance
+        and never alarm. A partial fix has to nudge for a re-cut."""
+        base = {check._key(("a/f.py", 3, D_MID)): 3}
+        new, resolved = check.compare_to_baseline([("a/f.py", 3, D_MID)], base)
+        self.assertEqual(new, [])
+        self.assertEqual(len(resolved), 1)
+
+    def test_a_negative_recorded_count_cannot_suppress_a_finding(self):
+        base = {check._key(("a/f.py", 3, D_MID)): -1}
+        new, _ = check.compare_to_baseline([("a/f.py", 3, D_MID)], base)
+        self.assertEqual(len(new), 1)
+
     def test_absent_baseline_is_an_error_not_an_empty_set(self):
         """Treating an absent baseline as empty would make every known finding alarm; treating
         it as 'suppress everything' would be worse. It is an environment error."""
@@ -270,12 +284,17 @@ class DiffTest(_TempRepoTest):
         """The blocking miss the header heuristic caused: a REMOVED line whose text opens with
         '-- ' renders as '--- ', which a 'previous line was the old-file header' rule reads as a
         header — so the next added line is consumed as its partner and never scanned. '-- ' opens
-        a comment in SQL and Lua, and under -U0 a replaced line puts the two adjacent."""
+        a comment in SQL and Lua, and under -U0 a replaced line puts the two adjacent.
+
+        The fixture must REPLACE the line in place. Removing it and appending elsewhere puts a
+        hunk header between the two, which resets the old heuristic — so that shape passes on
+        the buggy parser too and pins nothing. Only an in-place replacement puts the rendered
+        '--- ' and '+++ ' lines adjacent inside one hunk, which is what the bug needed."""
         d = self._mkrepo()
-        self._write(d, "q.sql", "-- a removed marker line\nkeep\n")
+        self._write(d, "q.sql", "-- a removed marker line\n")
         self._commit(d)
         base = self._git(d, "rev-parse", "HEAD").strip()
-        self._write(d, "q.sql", "keep\n++ per " + D_MID + " we do X\n")
+        self._write(d, "q.sql", "++ per " + D_MID + " we do X\n")
         self._commit(d)
         findings = check.check_diff(base, "HEAD", cwd=d, allow_self=True)
         self.assertTrue(findings, "a removed '-- ' line suppressed a real token")
@@ -460,6 +479,13 @@ class CliTest(unittest.TestCase):
 
     def test_surfaces_refuses_a_baseline_it_cannot_read(self):
         self.assertEqual(self._run("surfaces", "--baseline", "/nonexistent/b.txt"), 2)
+
+    def test_a_submission_that_changes_nothing_is_clean_not_an_error(self):
+        """Zero examined is normally an environment error, but a net-empty submission genuinely
+        carries nothing. Refusing it blocked a legitimate push with a message telling the
+        operator to fix arguments that were fine."""
+        self.assertEqual(check._report([], "empty submission", 0, zero_is_clean=True), 0)
+        self.assertEqual(check._report([], "empty scan", 0), 2)
 
 
 if __name__ == "__main__":

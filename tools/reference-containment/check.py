@@ -45,8 +45,9 @@ Modes:
 HONEST BOUNDS. A clean result is a literal token match only — it narrows the risk, it never
 proves absence (split, encoded or homoglyph tokens pass, and paraphrase passes trivially).
 A clean run means no local token was found; it does NOT mean the surface names its
-capabilities rather than its references — no scanner can check that. The token scan is
-case-sensitive, so a lowercase `d-296` in prose passes. The review gate stays the real wall.
+capabilities rather than its references — no scanner can check that. A file that cannot be read
+as text is named and left out of the clean count, never folded into it. The review gate stays
+the real wall.
 
 Exit status: 0 clean, 1 findings (or demo falsified), 2 usage/environment error.
 """
@@ -245,10 +246,13 @@ def compare_to_baseline(findings, baseline):
         seen.setdefault(_key(f), []).append(f)
     new = []
     for k in sorted(seen):
-        allowed = baseline.get(k, 0)
+        allowed = max(0, baseline.get(k, 0))
         if len(seen[k]) > allowed:
             new.extend(seen[k][allowed:])
-    resolved = sorted(k for k in baseline if k not in seen)
+    # `resolved` must catch a count that merely DROPPED, not only one that vanished. An allowance
+    # left higher than reality is a silent hole: upstream fixes two of three citations, nothing
+    # says so, and two brand-new ones later land back inside the stale allowance and never alarm.
+    resolved = sorted(k for k in baseline if len(seen.get(k, [])) < baseline[k])
     return new, resolved
 
 
@@ -308,12 +312,20 @@ def check_diff(base, head="HEAD", cwd=None, allow_self=False):
         # repository would otherwise read as different ones.
         here = _repo_slug(_origin(cwd=str(Path(__file__).resolve().parent)))
         there = _repo_slug(_origin(cwd=cwd))
+        # Fail closed on BOTH sides. Only checking the target leaves the mirror case open: a copy
+        # of this file placed outside any checkout makes `here` empty, the equality guard is
+        # skipped, and a scan of this repository against itself reports as an outbound submission.
+        if not here:
+            raise RuntimeError(
+                "could not determine which repository this scanner belongs to — run it from "
+                "inside its own checkout rather than a copy, or pass --confirmed-target if you "
+                "have verified the target yourself")
         if not there:
             raise RuntimeError(
                 "could not determine which repository the target checkout belongs to (no origin "
                 "remote) — refusing rather than reporting a scan of an unknown target as clean; "
-                "pass --allow-self if you have confirmed the target yourself")
-        if here and here == there:
+                "pass --confirmed-target if you have verified the target yourself")
+        if here == there:
             raise RuntimeError(
                 "diff mode scans a submission bound for engine-template, but the target "
                 "checkout is this same repository (" + there + ") — point --cwd at the "
@@ -531,11 +543,28 @@ def _run_surfaces(baseline_path):
               "engine-template, where it names something that does not exist there:")
         for f in new:
             print("  - " + _fmt(f))
+        # The remediation differs from the outbound one and must be said here: almost every
+        # finding on THIS surface arrives from upstream in a file the engine overwrites, so
+        # "name the capability instead" is the wrong advice — the action is to work out who owns
+        # the file, then either fix it (if it is yours) or record and report it (if it is not).
+        print("")
+        print("What to do. This check is advisory: it cannot block your merge. If the file is")
+        print("one this project owns, reword it to name the capability rather than the record —")
+        print("a reader in a deployed repository cannot follow the reference. If it arrived from")
+        print("an engine release (anything under .engine/ usually did), the fix belongs upstream:")
+        print("report it there, then add a line to " + BASELINE_REL + " so")
+        print("this stays quiet until the fix comes back down. " + SELF_PREFIX + "README.md")
+        print("explains both paths.")
         return 1
     if scanned == 0:
         print(_LEAD + ": could not run — nothing was examined [traveling surfaces].")
         return 2
-    print(_LEAD + ": clean [traveling surfaces] — examined " + str(scanned) + " files; " +
+    # When something could not be read, the summary must not be the bare word "clean" — an
+    # unreadable file could be UTF-16 text carrying a real reference, and a non-UTF-8 encoding is
+    # the cheapest way to walk one past this scan.
+    verdict = ("clean apart from what could not be read" if unreadable else "clean")
+    print(_LEAD + ": " + verdict + " [traveling surfaces] — examined " + str(scanned) +
+          " files" + (", " + str(len(unreadable)) + " unread" if unreadable else "") + "; " +
           str(sum(baseline.values())) + " known reference(s) recorded as upstream's to fix, none "
           "new. Literal token match only; a clean result narrows the risk, it never proves "
           "absence.")
@@ -551,7 +580,7 @@ def main(argv):
     ap.add_argument("refs", nargs="*")
     ap.add_argument("--baseline")
     ap.add_argument("--cwd")
-    ap.add_argument("--allow-self", action="store_true")
+    ap.add_argument("--confirmed-target", action="store_true")
     try:
         args = ap.parse_args(argv[1:])
     except SystemExit:
@@ -568,8 +597,10 @@ def main(argv):
                 return 2
             base = args.refs[0]
             head = args.refs[1] if len(args.refs) == 2 else "HEAD"
-            findings = check_diff(base, head, cwd=args.cwd, allow_self=args.allow_self)
-            changed = len(_changed_paths(base, head, args.cwd))
+            findings = check_diff(base, head, cwd=args.cwd, allow_self=args.confirmed_target)
+            # Count what was SCANNED, not what changed: deletions are excluded from the scan,
+            # so an unfiltered count would warrant "examined 5 changed files" having read none.
+            changed = len(_changed_paths(base, head, args.cwd, filt="ACMRT"))
             return _report(findings, "outbound " + base + ".." + head, changed,
                            unit="changed file", zero_is_clean=True)
         if args.mode == "outbound":
