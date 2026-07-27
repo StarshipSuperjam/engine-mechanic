@@ -1,0 +1,60 @@
+# reference-containment — keeps this repository's own reference vocabulary off the surfaces that
+# travel. engine-template is distributed by "Use this template", which copies the FILE TREE as one
+# commit; issues, pull requests and history do not travel. So the harm guarded against is exactly
+# one thing: a repository deployed from engine-template holding a pointer to something that exists
+# only in engine-mechanic (a D-### decision number, a docs/adr/ record path, the retired workspace
+# name). The engine's own eADR-#### records are a separate sanctioned system and are never flagged.
+#
+# PRODUCT-TERRITORY, not an engine check. An engine-side module cannot host this: a module on disk
+# but absent from the engine manifest's packages map fails release-integrity, and one listed in
+# packages makes every engine upgrade refuse. Product territory is walled off from engine upgrades
+# by contract, so this file and tools/reference-containment/ survive every release.
+#
+# HOW IT SURVIVES REMOVAL. This file sits under the weakening guard's watched .github/workflows/
+# prefix, so deleting or loosening it is alarmed. The scanner's own code is separately declared in
+# .engine/operator-guarded-paths.json, so editing it requires the operator's deliberate
+# guardrail-ack — the gap the previous version of this guardrail had to state as open.
+#
+# ADVISORY, never a merge gate. The job name is deliberately NOT in the branch ruleset's required
+# list (protection_guard.REQUIRED_CHECKS = engine-ci, engine-guard), so a finding is surfaced for
+# the operator to weigh and can never block a merge a non-engineer cannot clear. This mirrors
+# actionlint.yml and secret-scan.yml.
+#
+# HONEST BOUNDS. A literal token match narrows the risk; it never proves absence (split, encoded or
+# homoglyph tokens pass, and paraphrase passes trivially). A green run means no local token was
+# found — NOT that the surface names its capabilities rather than its references, which no scanner
+# can check. The `surfaces` step compares against a committed baseline of references that arrived
+# from upstream and are upstream's to fix; it alarms only on a NEW one.
+name: reference-containment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  # Read the pull request's files to scan them. Nothing is written back — the workflow reports to
+  # the check log and never comments, labels, or pushes.
+  contents: read
+
+jobs:
+  reference-containment:
+    name: reference-containment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        # No fetch-depth override needed: every step below reads the worktree, never a
+        # base..head diff, so the default shallow clone is sufficient. The `diff` mode, which
+        # does need history, runs at the point of an outbound submission — not here.
+
+      - name: Traveling surfaces carry no reference this repository owns
+        run: python3 tools/reference-containment/check.py surfaces
+
+      - name: Falsification — each scanner must bite its own seeded-bad input
+        run: python3 tools/reference-containment/check.py demo
+
+      - name: Self-tests
+        # The full path is required: `unittest discover` does not recurse into a non-package
+        # directory, so `-s tools` would find nothing here and report success over zero tests.
+        run: python3 -m unittest discover -s tools/reference-containment -p 'test_*.py' -b

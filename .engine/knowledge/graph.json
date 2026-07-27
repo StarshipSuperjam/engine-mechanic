@@ -816,7 +816,8 @@
           "contract:eADR-0032-attention-policy-plus-function",
           "contract:eADR-0033-boot-refresh-family",
           "contract:eADR-0034-dual-provider-adapter-core",
-          "contract:eADR-0037-upgrade-overwrite-disclosure"
+          "contract:eADR-0037-upgrade-overwrite-disclosure",
+          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
         ]
       },
       "slug": "contract-frontmatter",
@@ -878,7 +879,8 @@
           "contract:eADR-0032-attention-policy-plus-function",
           "contract:eADR-0033-boot-refresh-family",
           "contract:eADR-0034-dual-provider-adapter-core",
-          "contract:eADR-0037-upgrade-overwrite-disclosure"
+          "contract:eADR-0037-upgrade-overwrite-disclosure",
+          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
         ]
       },
       "slug": "contract-shape",
@@ -941,7 +943,8 @@
           "contract:eADR-0032-attention-policy-plus-function",
           "contract:eADR-0033-boot-refresh-family",
           "contract:eADR-0034-dual-provider-adapter-core",
-          "contract:eADR-0037-upgrade-overwrite-disclosure"
+          "contract:eADR-0037-upgrade-overwrite-disclosure",
+          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
         ]
       },
       "slug": "contract-threshold",
@@ -3635,6 +3638,23 @@
       "source": {
         "fingerprint": "sha256:64d43cfd1ffe40a68fca4aa70175247774ad6ff1fa3f8fc3b66e3a6975ddbdc1",
         "path": ".engine/contracts/eADR-0037-upgrade-overwrite-disclosure.md"
+      },
+      "status": "accepted",
+      "type": "contract"
+    },
+    {
+      "id": "contract:instance.engine-mechanic-eADR-0001-reference-containment",
+      "name": ".engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md",
+      "owner": "deployment",
+      "predicates": {
+        "governed_by": [
+          "schema:contract.v1"
+        ]
+      },
+      "slug": "instance.engine-mechanic-eADR-0001-reference-containment",
+      "source": {
+        "fingerprint": "sha256:b7e4d0f1966e141b198d39042d94ee973f19cf8d244191778af63b4462b113f6",
+        "path": ".engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md"
       },
       "status": "accepted",
       "type": "contract"
