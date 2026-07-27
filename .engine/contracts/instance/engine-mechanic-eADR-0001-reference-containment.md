@@ -34,78 +34,84 @@ Enforcement lives in product territory: `tools/reference-containment/` and
 **What a green run does and does not mean.** It means no listed token was found. It does **not**
 mean the surface names its capabilities — prose naming neither passes, and no scanner can check the
 positive half of the rule. A literal token match narrows risk and never proves absence: split,
-encoded or homoglyph tokens pass, and paraphrase passes trivially. The scan is case-sensitive, so a
-lowercase `d-296` passes — a deliberate trade, because the lowercase form appears inside slugified
-record filenames, which are not references. The review at merge stays the real wall.
+encoded or homoglyph tokens pass, and paraphrase passes trivially. A file the scanner cannot read
+as text is named in the output and kept out of the clean tally rather than counted as examined. The
+review at merge stays the real wall.
 
-**What is enforced versus reported.** `surfaces` compares against a committed baseline of eight
-references that arrived from upstream, and alarms only on a **new** one. Those eight are not
-fixable here — the overlay replaces those files wholesale — so gating on them would be permanently
-red and unclearable, which is how a check trains people to ignore it. They are tracked upstream.
-The workflow is advisory, never in the branch ruleset's required list.
+**What is enforced versus reported.** `surfaces` compares against a committed baseline recording
+each upstream-authored reference *and how many times it occurs*, and alarms only on something new.
+Those are not fixable here — the overlay replaces those files wholesale — so gating on them would
+be permanently red and unclearable, which is how a check trains people to ignore it; they are
+tracked upstream. The workflow is advisory, never in the branch ruleset's required list.
 
-**Why this cannot be an engine check.** A module on disk but absent from the engine manifest's
-packages map permanently fails release-integrity; one listed in packages makes every engine upgrade
-refuse, because a release never contains an instance-specific module. Adding the rule to an existing
-module's manifest fails too — that manifest is engine-owned and overlay-replaced. Product territory
-is walled off by contract. A future session must not re-attempt an engine-side home.
+**Why this cannot be an engine check.** A module absent from the engine manifest's packages map
+permanently fails release-integrity; one listed in it makes every upgrade refuse, since a release
+never carries an instance-specific module. Adding the rule to an existing module's manifest fails
+too — engine-owned, overlay-replaced. A future session must not re-attempt an engine-side home.
 
-**The self-protection gap that is now closed.** The previous version of this guardrail had to state
-plainly that a pull request editing its own scanner was a guardrail change nothing alarmed. The
-instance-extensible floor closes it: the declared prefix is read from the trusted base, unions with
-the engine's own set and can never subtract from it, and its removal is detected directionally.
+**The self-protection gap, narrowed rather than closed.** The previous version had to state that a
+pull request editing its own scanner was a guardrail change nothing alarmed. The instance-extensible
+floor closes that for a *single* pull request: the declared prefix is read from the trusted base,
+unions with the engine's own set, can never subtract from it, and its removal is detected
+directionally. It does not close a *two*-request sequence — the declaration file is not itself
+guarded, so one change could drop it and a later one edit the scanner freely.
 
 ## Rationale
 
-The leak is documented, not hypothetical. At the time of writing, eight references from this
-repository's decision log sit in engine-template's own files — `.engine/pyproject.toml`,
-`boot.py`, `hooks.py`, `test_boot.py`, and `eADR-0037` — and every one ships to every repository
-generated from the template, where it names a decision log that repository cannot reach. A ninth
-sat in the root `.gitignore` and is fixed in the same change that adds this record: that file is
-carved out of the overlay, so the fix is durable, and rewriting its comment to name the capability
-instead of the decision numbers demonstrates the rule on the highest-traffic file in the tree.
+The leak is documented, not hypothetical. At the time of writing, ten sites in engine-template's own
+files carry a citation of this repository's decision log — three in `.engine/pyproject.toml`, three
+in `boot.py`, and one each in `hooks.py`, `test_boot.py`, `eADR-0037` and the root `.gitignore` —
+and every one ships to every repository generated from the template, where it names a decision log
+that repository cannot reach. Two further recorded entries are not defects at all but tokens used
+as test data, kept in the baseline rather than special-cased in the scanner.
 
-The token vocabulary was measured before it was chosen, and each rejected class is recorded with the
-command that produced its count so a later session can re-run rather than re-argue. At `ee87be1`,
-via `grep -rhoE '<pattern>' docs .engine | wc -l`: `R[0-9]{1,2}` — 762 in `docs`, colliding with
-registers, revisions and part designators; `Q[0-9]{1,2}` — 644, where `Q1`–`Q4` are calendar
-quarters; `§[0-9]{1,2}` — 1,972, and it would fire on engine-template's own `§`-numbered
-principles; `#[0-9]{2,4}` — 1,092 in `.engine` alone, and unresolvable from text, because in an
-outbound submission the target repository **is** engine-template, where a bare issue number is
-native and correct. `grep -rhoF 'docs/spec/' .engine` returns 623 — a generic engine convention,
-not a local identifier. Each rejection is a guard that would cry wolf, and a check people learn to
-click past is worse than no check.
+The `.gitignore` site is fixed in the same change that adds this record — that file is carved out
+of the overlay, so the fix is durable here. It demonstrates the rule rather than reducing the harm,
+since a deployed repository receives engine-template's copy; the site stays on the upstream list.
+
+Each rejected token class is recorded with the command that produced its count, so a later session
+re-runs rather than re-argues. At `ee87be1`, via `grep -rhoE '<pattern>' docs .engine | wc -l`:
+`R[0-9]{1,2}` — 762, colliding with registers, revisions and part designators; `Q[0-9]{1,2}` — 644,
+where `Q1`–`Q4` are calendar quarters; `§[0-9]{1,2}` — 1,972, and it would fire on
+engine-template's own `§`-numbered principles; `#[0-9]{2,4}` — 1,092 in `.engine` alone, and
+unresolvable from text, since in an outbound submission the target **is** engine-template, where a
+bare issue number is native. `grep -rhoF 'docs/spec/' .engine` returns 623 — a generic convention,
+not a local identifier. Each would cry wolf, and a check people learn to click past is worse than
+none. Case-INsensitivity was measured the same way: matching only uppercase let a lowercase
+reference through, and closing that costs one benign fixture hit across the scanned surfaces.
 
 ## Anti-choice
 
-The strongest rejected alternative was **gating on the traveling corners as received here** — which
-is what the originating request asked for, read literally. It was rejected on evidence: all eight
-references exist byte-identically upstream, the overlay reverts any local fix, and one of them
-(`ADR-0001` in the engine's own contract test) is a deliberately-invalid identifier a validator
-must reject, so going green would require breaking an upstream test. The scan still runs over those
-corners — the disagreement is between scanning and gating, and the request conflated them.
+The strongest rejected alternative was **gating on the traveling corners as received here** — what
+the originating request asked for, read literally. Rejected on evidence: the references exist
+byte-identically upstream, the overlay reverts any local fix, and one (`ADR-0001` in the engine's
+own contract test) is a deliberately-invalid identifier a validator must reject, so going green
+would require breaking an upstream test. The scan still runs over those corners — the disagreement
+is between scanning and gating, and the request conflated the two.
 
-Also rejected: an instance-local engine module, inside or outside the packages map (permanently red,
-or permanently refused upgrades); a line-numbered baseline (re-cut every release as the overlay
-moves lines — churn with no signal); scanning engine-template Issue and pull-request text (it does
-not travel, and the references there are required); scanning commit messages (history does not
-travel either); an escape syntax so a legitimate finding could be silenced in-band (a hole the
-scanner would then have to defend, and the first thing anyone reaches for to quiet a finding they
-would rather not think about); and baking the rule into engine-template itself, which would carry
-it into every deployed repository where it is meaningless — though the *generic* form, a
-deployment-declared vocabulary the existing contribution pause points consult, is filed upstream.
+Also rejected: an instance-local engine module, in or out of the packages map (permanently red, or
+permanently refused upgrades); a line-numbered baseline (re-cut every release as the overlay moves
+lines — churn with no signal); scanning engine-template Issue and pull-request text (it does not
+travel, and the references there are required); scanning commit messages (history does not travel
+either); an escape syntax letting a legitimate finding be silenced in-band (a hole the scanner
+would then have to defend, and the first thing anyone reaches for to quiet a finding they would
+rather not think about); and baking the rule into engine-template itself, meaningless in every
+deployed repository — though its *generic* form, a deployment-declared vocabulary the existing
+contribution pause points consult, is filed upstream.
 
 ## Status
 
-Accepted. Two gaps stay open and are not closed by this change. First, the scanner's **code** is
-guarded but its **wiring** is not: nothing alarms if the operator runbook or the push-hook install
-is removed, so the attachment rests on review. Second, the first landing of a guarded path enters
-without an acknowledgement (a pure addition is a strengthening), so this change's correctness rests
-entirely on the review that merges it — the same wall named above.
+Accepted. Three gaps stay open. First, the scanner's code and runbook are guarded, but nothing
+*installs* the push hook — it is a reviewed source file an operator copies by hand, so the outbound
+leg runs only where someone set it up. Second, the declaration file that guards the scanner is not
+itself guarded, so a two-pull-request sequence could unguard it and then edit the scanner. Third,
+the first landing of a guarded path enters without an acknowledgement (a pure addition is a
+strengthening), so this change's own correctness rests entirely on the review that merges it — the
+same wall named above.
 
-This identifier was issued once before, at `b9dd58e`, for a narrower version of this decision, and
-removed by the revert at `229e1ee`. It is reused deliberately rather than skipped; history
-therefore carries two records under it, and this one supersedes in substance what that one covered.
+This identifier was issued once before at `b9dd58e`, for a narrower version of this decision, and
+removed by the revert at `229e1ee`. Reused deliberately rather than skipped, so history carries two
+records under it.
 
 This deployment carries one **local patch to an engine-owned file**, disclosed here because the
 overlay reverts it on every upgrade. `.engine/tools/test_seed.py` asserts the absent-declaration

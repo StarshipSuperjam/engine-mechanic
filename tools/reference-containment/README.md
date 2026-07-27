@@ -78,10 +78,15 @@ for to silence a finding they would rather not think about.
   tokens pass, and a paraphrase passes trivially. The review at merge stays the real wall.
 - A clean run means no token was found. It does **not** mean the surface names its capabilities —
   prose that names neither passes. No scanner can check the positive half of the rule.
-- The scan is case-sensitive, so a lowercase `d-296` passes. That is a deliberate trade: the
-  lowercase form appears inside slugified record filenames, which are not references.
-- The `.engine/` copies here arrive from engine releases and are replaced wholesale on upgrade, so
-  a fix applied here does not survive. The recorded baseline entries are tracked upstream instead.
+- A file that cannot be read as text is **named in the output and left out of the clean count**,
+  never folded into it — it could be UTF-16 text carrying a real reference.
+- The baseline records how many times each reference occurs, not just that it occurs, so a second
+  citation of an already-recorded token in an already-recorded file still alarms.
+- Most `.engine/` copies here arrive from engine releases and are replaced wholesale on upgrade, so
+  a fix applied here does not survive; those are tracked upstream. The exceptions are `.gitignore`,
+  `CLAUDE.md` and `AGENTS.md`, whose content outside the engine-managed fence is never re-delivered
+  — so for those three this repository's copy can drift from what the template actually ships, and
+  a clean result here is not evidence about the template.
 
 ## Changing any of this
 

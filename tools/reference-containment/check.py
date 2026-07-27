@@ -62,9 +62,16 @@ from pathlib import Path
 # zero-padded four digits as the record id (D-0024) — docs/adr/README.md states both spellings.
 # The (?!\d) tail stops a five-digit run being clipped into a false match; an earlier draft used
 # (?![\d-]) which made D-0042 match NOTHING, trading a real blind spot for a D-1234 collision
-# that cannot exist in a 1..319 range. CASE-SENSITIVE: the lowercase form appears inside
-# slugified record filenames (0315-amend-d-314-...md), which are not references.
-D_TOKEN = re.compile(r"(?<![A-Za-z0-9])D-\d{1,4}(?!\d)")
+# that cannot exist in a 1..319 range.
+#
+# CASE-INSENSITIVE, on measurement. An earlier draft was case-sensitive, justified by the
+# lowercase form appearing inside slugified record filenames (0315-amend-d-314-...md). That
+# reasoning does not survive: those filenames live under docs/, which never travels and is out of
+# every scope here, and where a record PATH is scanned as a string ADR_PATH already matches it
+# whatever its case. Across the scanned surfaces the whole cost of matching case-insensitively is
+# ONE additional hit, of the same benign kind as the recorded ADR-0001 fixture — against a real
+# blind spot in which a lowercase reference walked straight through.
+D_TOKEN = re.compile(r"(?<![A-Za-z0-9])D-\d{1,4}(?!\d)", re.IGNORECASE)
 
 # The record path/link form, absolute and corpus-relative. The `.md` suffix is load-bearing: it
 # excludes `docs/adr/0007-slug` used as a generic illustration in the engine's own tools.
@@ -176,10 +183,11 @@ def _key(f):
 # --------------------------------------------------------------------------- surfaces
 
 def scan_surfaces(root=None):
-    """Returns (findings, files_scanned). The traveling corners as received here."""
+    """Returns (findings, files_scanned, unreadable). The traveling corners as received here."""
     root = Path(root) if root else _repo_root()
     findings = []
     scanned = 0
+    unreadable = []
     for rel in _git(["ls-files", "-z"], cwd=root).split("\0"):
         if not rel or rel.startswith(SELF_PREFIX) or rel.startswith(LOCAL_SCOPES):
             continue
@@ -187,46 +195,96 @@ def scan_surfaces(root=None):
             continue
         try:
             text = (root / rel).read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue  # binary, gitlink, or unreadable — not scannable text
+        except UnicodeDecodeError:
+            # Not UTF-8. Almost always a genuine binary (an image, a compiled asset), which
+            # carries no scannable prose — but it could be UTF-16 text holding a real reference,
+            # so it is COUNTED and named rather than silently dropped into the clean tally.
+            unreadable.append(rel)
+            continue
+        except OSError:
+            unreadable.append(rel)
+            continue
         scanned += 1
         findings.extend(_scan_text(text, PATTERNS, rel))
-    return findings, scanned
+    return findings, scanned, unreadable
 
 
 def read_baseline(path):
-    """The recorded, upstream-owned residue. Absent file -> empty set (a first run records
-    everything as new, which is the loud and correct behavior)."""
+    """The recorded, upstream-owned residue as {key: count}. Absent file -> None, which the caller
+    treats as an environment error: an absent baseline read as "suppress nothing" would alarm on
+    every known finding, and read as "suppress everything" would be worse."""
     try:
-        text = Path(path).read_text(encoding="utf-8")
+        text = Path(path).read_text(encoding="utf-8-sig")  # -sig: a BOM must not corrupt entry 1
     except OSError:
         return None
-    keys = set()
+    counts = {}
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        keys.add(line)
-    return keys
+        parts = line.split("\t")
+        key = parts[0] + "\t" + parts[1] if len(parts) >= 2 else line
+        try:
+            n = int(parts[2]) if len(parts) >= 3 else 1
+        except ValueError:
+            n = 1
+        counts[key] = counts.get(key, 0) + n
+    return counts
 
 
 def compare_to_baseline(findings, baseline):
     """Returns (new, resolved). `new` is what must alarm: a reference that reached a traveling
-    surface after the residue was recorded. `resolved` is good news, reported not alarmed."""
+    surface after the residue was recorded.
+
+    COUNTS MATTER, not just presence. Keying on file+token alone would make a SECOND citation of
+    an already-recorded token in an already-recorded file invisible forever — and `boot.py` today
+    holds three separate citations of one token, so a fourth landing in a future release is
+    exactly the event this guard exists to catch. `resolved` is good news, reported not alarmed."""
     seen = {}
     for f in findings:
         seen.setdefault(_key(f), []).append(f)
     new = []
     for k in sorted(seen):
-        if k not in baseline:
-            new.extend(seen[k])
-    resolved = sorted(baseline - set(seen))
+        allowed = baseline.get(k, 0)
+        if len(seen[k]) > allowed:
+            new.extend(seen[k][allowed:])
+    resolved = sorted(k for k in baseline if k not in seen)
     return new, resolved
 
 
 # --------------------------------------------------------------------------- diff
 
 _DIFF_HEADERS = ("+++ b/", '+++ "b/')
+
+
+def _unquote_path(raw):
+    """Undo git's C-quoting of a path in a diff header. A path with a non-ASCII, tab, quote or
+    backslash character arrives as "b/caf\\303\\251.md"; leaving it encoded means it never matches
+    the raw path list from `-z` output, so the file gets scanned twice and the second finding names
+    a path that does not exist."""
+    s = raw.rstrip("\t")
+    if not s.endswith('"'):
+        return s
+    s = s[:-1]
+    out = bytearray()
+    i = 0
+    while i < len(s):
+        if s[i] == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt in "01234567" and i + 3 < len(s):
+                try:
+                    out.append(int(s[i + 1:i + 4], 8))
+                    i += 4
+                    continue
+                except ValueError:
+                    pass
+            out.extend({"n": b"\n", "t": b"\t", "r": b"\r",
+                        '"': b'"', "\\": b"\\"}.get(nxt, nxt.encode()))
+            i += 2
+            continue
+        out.extend(s[i].encode())
+        i += 1
+    return out.decode("utf-8", "replace")
 
 
 def _changed_paths(base, head, cwd, filt=None):
@@ -241,17 +299,29 @@ def check_diff(base, head="HEAD", cwd=None, allow_self=False):
     """An outbound code submission to engine-template. Commit messages are NOT scanned:
     history does not travel to a repository deployed from the template."""
     if not allow_self:
-        here = _repo_slug(_origin())
+        # "This repository" must come from where THIS FILE lives, never from the process working
+        # directory. A git pre-push hook runs with its cwd at the top of the repository being
+        # pushed, so a cwd-based read returns the TARGET on both sides, compares equal, and
+        # refuses every push — telling the operator to do the thing they already did, whose only
+        # documented escape is to turn scanning off. Compare by remote rather than resolved path,
+        # because this repository is normally worked in a git worktree and two paths of the same
+        # repository would otherwise read as different ones.
+        here = _repo_slug(_origin(cwd=str(Path(__file__).resolve().parent)))
         there = _repo_slug(_origin(cwd=cwd))
-        # Compare by remote, not by resolved path: this repository is normally worked in a git
-        # worktree, so two paths of the SAME repository would otherwise read as different ones.
-        if here and there and here == there:
+        if not there:
+            raise RuntimeError(
+                "could not determine which repository the target checkout belongs to (no origin "
+                "remote) — refusing rather than reporting a scan of an unknown target as clean; "
+                "pass --allow-self if you have confirmed the target yourself")
+        if here and here == there:
             raise RuntimeError(
                 "diff mode scans a submission bound for engine-template, but the target "
                 "checkout is this same repository (" + there + ") — point --cwd at the "
                 "engine-template checkout and re-run")
     findings = []
-    for rel in _changed_paths(base, head, cwd):
+    # Deletions are excluded: removing a file whose NAME carries a reference is the fix, not the
+    # leak, and flagging it would make the upstream cleanup submission fail its own guard.
+    for rel in _changed_paths(base, head, cwd, filt="ACMRT"):
         findings.extend(_scan_path_string(rel, PATTERNS))
 
     # Added or renamed files: scan their FULL content. A pure rename lists only the destination
@@ -266,18 +336,31 @@ def check_diff(base, head="HEAD", cwd=None, allow_self=False):
         findings.extend(_scan_text(text, PATTERNS, rel))
 
     # Added lines of everything else.
+    #
+    # Distinguishing a file header from content is the subtle part. A "+++ " line is a header only
+    # inside the per-file preamble; an ADDED content line beginning "++" also renders as "+++…",
+    # and a REMOVED content line beginning "-- " renders as "--- ". Keying off "the previous line
+    # started with '--- '" therefore mis-fires on the second case: a removed "-- " line makes the
+    # scanner swallow the next added line as a header and never scan it. `-- ` opens a comment in
+    # SQL and Lua, so that is a live miss, and under -U0 a replaced line puts the two adjacent.
+    # Anchor on "diff --git" instead — the preamble always starts there and always ends at the
+    # first hunk header — so content can never be mistaken for a header.
     diff = _git(["diff", "-U0", base + "..." + head], cwd=cwd)
     current = "?"
-    prev_was_old_header = False
+    in_preamble = False
     for line in diff.splitlines():
-        # A "+++ " line is a header ONLY right after its "--- " partner — an added content line
-        # that itself begins with "++" also renders as "+++…" and must still be scanned.
-        if prev_was_old_header and line.startswith("+++ "):
-            if line.startswith(_DIFF_HEADERS[0]) or line.startswith(_DIFF_HEADERS[1]):
-                current = line.split("b/", 1)[1].rstrip().rstrip('"').rstrip("\t")
-            prev_was_old_header = False
+        if line.startswith("diff --git "):
+            in_preamble = True
+            current = "?"
             continue
-        prev_was_old_header = line.startswith("--- ")
+        if in_preamble:
+            if line.startswith("@@"):
+                in_preamble = False
+            elif line.startswith(_DIFF_HEADERS):
+                current = _unquote_path(line.split("b/", 1)[1].rstrip())
+            continue
+        if line.startswith("@@"):
+            continue
         if line.startswith("+") and current not in whole:
             for pat in PATTERNS:
                 for m in pat.finditer(line[1:]):
@@ -307,10 +390,15 @@ def check_files(paths):
 _LEAD = "reference containment"
 
 
-def _report(findings, label, scanned, unit="file"):
+def _report(findings, label, scanned, unit="file", zero_is_clean=False):
     """A clean warrant states the VOLUME actually examined. "I found nothing" and "I examined
-    nothing" must never print the same word, so a scan that reached zero inputs is an
-    environment error, not a clean pass."""
+    nothing" must never print the same word, so a scan that reached zero inputs is normally an
+    environment error rather than a clean pass.
+
+    `zero_is_clean` is for the one case where zero is a real answer instead of a broken one: a
+    submission whose net diff changes nothing genuinely carries nothing, and refusing it would
+    block a legitimate push with a message telling the operator to fix arguments that are fine.
+    The count is still printed, so nobody has to take "clean" on trust."""
     if findings:
         print(_LEAD + ": " + str(len(findings)) + " finding(s) [" + label + "] — this "
               "repository's reference vocabulary must not reach a surface that travels to a "
@@ -319,10 +407,14 @@ def _report(findings, label, scanned, unit="file"):
         for f in findings:
             print("  - " + _fmt(f))
         return 1
-    if scanned == 0:
+    if scanned == 0 and not zero_is_clean:
         print(_LEAD + ": could not run — nothing was examined [" + label + "]. A clean "
               "result over zero " + unit + "s is not evidence; check the arguments.")
         return 2
+    if scanned == 0:
+        print(_LEAD + ": clean [" + label + "] — this submission changes no files, so it "
+              "carries nothing that could travel.")
+        return 0
     print(_LEAD + ": clean [" + label + "] — examined " + str(scanned) + " " + unit +
           ("" if scanned == 1 else "s") + ". Literal token match only; a clean result "
           "narrows the risk, it never proves absence.")
@@ -344,7 +436,10 @@ def demo():
     failures = []
 
     def expect(name, got, want_bite):
-        bit = bool(got)
+        # `got` is normally a findings list. A bool is accepted explicitly, because wrapping a
+        # comparison in a list — `[code == 2]` — makes it truthy either way, so the assertion can
+        # never fail. Two assertions here were written that way and were permanently green.
+        bit = got if isinstance(got, bool) else bool(got)
         ok = bit == want_bite
         print(("PASS" if ok else "FAIL") + ": " + name + " — " +
               ("bit" if bit else "quiet") + " (wanted " +
@@ -367,11 +462,11 @@ def demo():
            scan("per eADR-0037 and acme-eADR-0007"), False)
     expect("quiet on a record path without the .md suffix",
            scan("an id like docs/" + "adr/0007-slug"), False)
-    # Pins the case-sensitivity decision. An earlier draft pinned this with a string whose
-    # lowercase token was followed by a hyphen — which the lookahead rejected regardless of
-    # case, so the assertion passed under IGNORECASE and locked nothing.
-    expect("quiet on a lowercase decision token (case-sensitivity is deliberate)",
-           scan("per " + d_long.lower() + " we do X"), False)
+    # Pins case-INsensitivity, which was a measured decision: matching only uppercase let a
+    # lowercase reference through, and closing that costs one benign fixture hit across the
+    # scanned surfaces. An earlier pin used a string whose lowercase token was followed by a
+    # hyphen — rejected by the lookahead regardless of case, so it locked nothing either way.
+    expect("bites a lowercase decision token", scan("per " + d_long.lower() + " we do X"), True)
     # Pins the rejected token classes, so a later broadening breaks a test rather than
     # silently landing. Each was rejected on a measured collision rate; see the record.
     expect("quiet on the rejected token classes",
@@ -380,15 +475,24 @@ def demo():
 
     # The report contract: a scan that examined nothing must not read as clean.
     code = _report([], "demo empty", 0)
-    expect("an empty scan reports as could-not-run, not clean", [code == 2], True)
+    expect("an empty scan reports as could-not-run, not clean", code == 2, True)
 
     # The baseline contract: a recorded finding does not alarm; an unrecorded one does.
     known = [("a/f.py", 3, d_long)]
-    fresh = [("a/f.py", 3, d_long), ("b/g.py", 9, d_short)]
-    base = set(_key(f) for f in known)
-    new_only, _ = compare_to_baseline(fresh, base)
+    base = {_key(f): 1 for f in known}
+    new_only, _ = compare_to_baseline(known + [("b/g.py", 9, d_short)], base)
     expect("baseline suppresses recorded residue and surfaces a new leak",
-           [len(new_only) == 1 and new_only[0][0] == "b/g.py"], True)
+           len(new_only) == 1 and new_only[0][0] == "b/g.py", True)
+    # A SECOND occurrence of an already-recorded token in an already-recorded file must alarm —
+    # the count, not just the file-and-token pair, is what the baseline records.
+    repeat, _ = compare_to_baseline(known + [("a/f.py", 99, d_long)], base)
+    expect("baseline surfaces a repeat of a recorded token in a recorded file",
+           len(repeat) == 1, True)
+    # Path unquoting: a C-quoted header path must resolve to the real name, or the file is scanned
+    # twice and the duplicate names a path that does not exist.
+    # The header's leading `"b/` is already consumed by the split, so the input is the tail only.
+    expect("a C-quoted diff path is decoded to its real name",
+           _unquote_path('caf\\303\\251.md"') == "café.md", True)
 
     print("DEMO " + ("FAILED" if failures else "PASSED"))
     return 1 if failures else 0
@@ -398,7 +502,7 @@ def demo():
 
 def _run_surfaces(baseline_path):
     root = _repo_root()
-    findings, scanned = scan_surfaces(root)
+    findings, scanned, unreadable = scan_surfaces(root)
     path = baseline_path or str(root / BASELINE_REL)
     baseline = read_baseline(path)
     if baseline is None:
@@ -413,6 +517,14 @@ def _run_surfaces(baseline_path):
         for k in resolved:
             f, _, t = k.partition("\t")
             print("  - " + f + ": '" + t + "' (resolved)")
+    if unreadable:
+        # Named, never folded into the clean tally: one of these could be UTF-16 text carrying a
+        # real reference, and a file the scanner could not read must not be counted as one it
+        # read and found clean.
+        print(_LEAD + ": " + str(len(unreadable)) + " file(s) could not be read as text and "
+              "were NOT scanned:")
+        for rel in unreadable:
+            print("  ? " + rel)
     if new:
         print(_LEAD + ": " + str(len(new)) + " NEW finding(s) [traveling surfaces] — a "
               "reference reached a surface that ships to every repository deployed from "
@@ -424,12 +536,16 @@ def _run_surfaces(baseline_path):
         print(_LEAD + ": could not run — nothing was examined [traveling surfaces].")
         return 2
     print(_LEAD + ": clean [traveling surfaces] — examined " + str(scanned) + " files; " +
-          str(len(baseline)) + " known reference(s) recorded as upstream's to fix, none new. "
-          "Literal token match only; a clean result narrows the risk, it never proves absence.")
+          str(sum(baseline.values())) + " known reference(s) recorded as upstream's to fix, none "
+          "new. Literal token match only; a clean result narrows the risk, it never proves "
+          "absence.")
     return 0
 
 
 def main(argv):
+    if any(a in ("-h", "--help") for a in argv[1:]):
+        print(__doc__)
+        return 0
     ap = argparse.ArgumentParser(add_help=False)
     ap.add_argument("mode", nargs="?")
     ap.add_argument("refs", nargs="*")
@@ -455,7 +571,7 @@ def main(argv):
             findings = check_diff(base, head, cwd=args.cwd, allow_self=args.allow_self)
             changed = len(_changed_paths(base, head, args.cwd))
             return _report(findings, "outbound " + base + ".." + head, changed,
-                           unit="changed file")
+                           unit="changed file", zero_is_clean=True)
         if args.mode == "outbound":
             if not args.refs:
                 print("usage: check.py outbound <path|-> [...]")
