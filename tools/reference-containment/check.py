@@ -87,6 +87,17 @@ PATTERNS = (D_TOKEN, ADR_PATH, ADR_TOKEN, PLANNING_TOKEN)
 TRAVELING_SCOPES = (".engine/", ".claude/", ".codex/", ".agents/", ".github/",
                     "CLAUDE.md", "AGENTS.md", ".gitignore")
 
+# Carved out of the corners above: paths that sit under .engine/ but belong to THIS deployment and
+# never ship. The engine preserves each of them across an upgrade precisely because they are the
+# operator's, not the engine's — which is the same reason they cannot leak into a deployed
+# repository. `contracts/instance/` is this deployment's own decision stream, and a record
+# explaining a containment rule has to be able to name the vocabulary it contains — the same
+# sanctioned-home argument that excludes docs/. Discovered by the guard biting its own record.
+LOCAL_SCOPES = (".engine/contracts/instance/", ".engine/operator-guarded-paths.json",
+                ".engine/operator-overrides.json", ".engine/conduct/operator.md",
+                ".engine/provisioning/readme-seed.md", ".engine/provisioning/conduct-seed.md",
+                ".engine/provisioning/security-seed.md", ".engine/state/", ".engine/memory/")
+
 # This directory necessarily discusses the vocabulary it bans. The tests do not RELY on this
 # exclusion — they assemble token literals at runtime, so no matchable string sits in them.
 SELF_PREFIX = "tools/reference-containment/"
@@ -170,7 +181,7 @@ def scan_surfaces(root=None):
     findings = []
     scanned = 0
     for rel in _git(["ls-files", "-z"], cwd=root).split("\0"):
-        if not rel or rel.startswith(SELF_PREFIX):
+        if not rel or rel.startswith(SELF_PREFIX) or rel.startswith(LOCAL_SCOPES):
             continue
         if not rel.startswith(TRAVELING_SCOPES):
             continue

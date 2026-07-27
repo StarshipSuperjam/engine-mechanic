@@ -123,6 +123,27 @@ class SurfacesScopeTest(_TempRepoTest):
         self.assertEqual(origins, [".engine/tools/x.py", "CLAUDE.md"])
         self.assertEqual(scanned, 2)
 
+    def test_skips_this_deployments_own_records_but_not_the_engine_canon(self):
+        """`.engine/contracts/instance/` is this deployment's own decision stream — preserved
+        across upgrades because it is the operator's, and never shipped. A record explaining a
+        containment rule must be able to name the vocabulary it contains. The engine's own
+        canon one directory up DOES travel, so it stays in scope."""
+        d = self._mkrepo()
+        self._write(d, ".engine/contracts/instance/x-eADR-0001-y.md", "per " + D_MID + "\n")
+        self._write(d, ".engine/contracts/eADR-0037-z.md", "per " + D_MID + "\n")
+        self._commit(d)
+        findings, _ = check.scan_surfaces(d)
+        self.assertEqual(sorted(set(f[0] for f in findings)),
+                         [".engine/contracts/eADR-0037-z.md"])
+
+    def test_skips_operator_owned_config_under_the_engine_directory(self):
+        d = self._mkrepo()
+        self._write(d, ".engine/conduct/operator.md", "per " + D_MID + "\n")
+        self._write(d, ".engine/conduct/defaults.md", "per " + D_MID + "\n")
+        self._commit(d)
+        findings, _ = check.scan_surfaces(d)
+        self.assertEqual(sorted(set(f[0] for f in findings)), [".engine/conduct/defaults.md"])
+
     def test_skips_the_scanner_directory(self):
         d = self._mkrepo()
         self._write(d, ".engine/x.md", "clean\n")

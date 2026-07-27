@@ -18,8 +18,9 @@
 # reports a NEW one, do not add it here to silence it — that is the finding working. Add a
 # line only for a reference you have confirmed is upstream-authored and tracked for repair.
 #
-# TRACKED UPSTREAM. All eight below are named, with file:line, in the follow-up issue filed at
-# StarshipSuperjam/engine-template. Note the last entry is NOT a defect: `ADR-0001` there is a
+# TRACKED UPSTREAM. All eight below are named, with file:line, in StarshipSuperjam/engine-template
+# issue 637 — delete a line here once that issue lands the fix and an engine release carries it
+# down. Note the last entry is NOT a defect: `ADR-0001` there is a
 # deliberately-invalid identifier in a list the engine's own validator must reject. It is
 # recorded rather than special-cased, because a carve-out in the scanner would be a hole the
 # scanner then has to defend.
