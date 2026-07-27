@@ -1,0 +1,57 @@
+#!/bin/sh
+# Reviewed SOURCE for a local pre-push hook, installed by hand into the engine-template
+# checkout — not into this repository. It scans what a push would add to engine-template for
+# references that only resolve here. See ../README.md for the install step.
+#
+# It CANNOT locate the scanner on its own: it runs inside a different checkout with no link
+# back to this one. So the path comes from REFCON_CHECK, and if the scanner is not found the
+# push is REFUSED rather than allowed. That is deliberate — the earlier version of this hook
+# printed a warning and exited 0, which made "the scan passed" and "the scan never ran" look
+# identical at the one moment the difference matters. Set REFCON_SKIP=1 to push anyway; that
+# way skipping is a thing you chose, not a thing that happened to you.
+#
+# Bounds: local, uncommitted, absent on every other clone, and bypassable with --no-verify.
+# This is a convenience layer, never the wall.
+
+set -eu
+
+if [ "${REFCON_SKIP:-}" = "1" ]; then
+    echo "pre-push: reference-containment scan SKIPPED (REFCON_SKIP=1)" >&2
+    exit 0
+fi
+
+CHECK="${REFCON_CHECK:-}"
+if [ -z "$CHECK" ] || [ ! -f "$CHECK" ]; then
+    echo "pre-push: reference-containment scanner not found." >&2
+    echo "  Set REFCON_CHECK to the absolute path of tools/reference-containment/check.py" >&2
+    echo "  in your engine-mechanic checkout, or set REFCON_SKIP=1 to push without scanning." >&2
+    echo "  Refusing the push: a scan that did not run must not look like one that passed." >&2
+    exit 1
+fi
+
+REMOTE_HEAD="${REFCON_BASE_REMOTE:-origin}/${REFCON_BASE_BRANCH:-main}"
+ZERO=$(printf '0%.0s' $(seq 1 40))
+status=0
+
+# Refs arrive on stdin as: <local-ref> <local-sha> <remote-ref> <remote-sha>. Reading them is
+# what makes the hook correct for a push of a branch that is not the one checked out.
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+    [ "$local_sha" = "$ZERO" ] && continue          # a deletion publishes nothing
+
+    if [ "$remote_sha" = "$ZERO" ]; then            # brand-new remote ref: no counterpart
+        base=$(git merge-base "$REMOTE_HEAD" "$local_sha" 2>/dev/null || true)
+    else
+        base="$remote_sha"
+    fi
+
+    if [ -z "$base" ]; then
+        echo "pre-push: no base commit resolved for $local_sha — scan SKIPPED for this ref." >&2
+        echo "  (set REFCON_BASE_BRANCH if this repository's default branch is not 'main')" >&2
+        status=1
+        continue
+    fi
+
+    python3 "$CHECK" diff "$base" "$local_sha" --cwd "$(git rev-parse --show-toplevel)" || status=1
+done
+
+exit "$status"
