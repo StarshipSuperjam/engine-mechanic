@@ -1,0 +1,40 @@
+# Recorded residue on the traveling surfaces — upstream's to fix, not this repository's.
+#
+# WHY THIS FILE EXISTS. Every reference listed below already sits in engine-template, and this
+# repository received it through an engine release. The upgrade overlay replaces these files
+# wholesale, so a fix applied here does not survive the next `module_manager.py upgrade` — the
+# fix belongs upstream, where the file is authored. Without this record, each of these would
+# alarm on every single run forever, which is exactly how a check trains people to ignore it.
+#
+# WHAT IT BUYS. Recording the known set is what makes a NEW reference visible. `check.py
+# surfaces` alarms only on a finding that is NOT listed here, so the day an engine release
+# lands a fresh reference on a surface that ships, it is the only thing in the output.
+#
+# FORMAT. One record per line: the file path, a tab, the token, a tab, and HOW MANY times it
+# occurs in that file. Deliberately WITHOUT the line number — engine releases move these lines
+# wholesale, and a baseline keyed to line numbers would need re-cutting on every upgrade, which
+# is churn with no signal. The COUNT is not optional: without it a second citation of an
+# already-recorded token in an already-recorded file would be invisible forever, and boot.py
+# already holds three citations of one token — so a fourth is exactly the event to catch.
+#
+# MAINTAINING IT. When `surfaces` reports a reference as resolved, delete that line. When it
+# reports a NEW one, do not add it here to silence it — that is the finding working. Add a
+# line only for a reference you have confirmed is upstream-authored and tracked for repair.
+#
+# TRACKED UPSTREAM. All below are named, with file:line, in StarshipSuperjam/engine-template
+# issue 637 — delete a line here once that issue lands the fix and an engine release carries it
+# down. Note the last entry is NOT a defect: `ADR-0001` there is a
+# deliberately-invalid identifier in a list the engine's own validator must reject. It is
+# recorded rather than special-cased, because a carve-out in the scanner would be a hole the
+# scanner then has to defend. The lowercase entry in test_unresolved_conversation_notice.py is
+# the same benign kind: a token used as test data in a banned-word list, not a citation.
+
+.engine/contracts/eADR-0037-upgrade-overwrite-disclosure.md	D-268	1
+.engine/pyproject.toml	D-090	1
+.engine/pyproject.toml	D-156	1
+.engine/pyproject.toml	D-158	1
+.engine/tools/boot.py	D-309	3
+.engine/tools/hooks.py	D-309	1
+.engine/tools/test_boot.py	D-309	1
+.engine/tools/test_contract.py	ADR-0001	1
+.engine/tools/test_unresolved_conversation_notice.py	d-134	1

@@ -625,8 +625,16 @@ class TestWeakeningClassifier(unittest.TestCase):
             self.assertTrue(weakening_guard.is_guardrail(p, derived_scripts=frozenset(), instance_guards=(set(), ())), p)
 
     def test_instance_read_is_empty_and_silent_and_filters_degenerate(self):
-        # Absent declaration (the steady state in this construction repo) -> the empty pair, silently.
-        self.assertEqual(weakening_guard._read_instance_guards(), (set(), ()))
+        # DEPLOYMENT-LOCAL PATCH (engine-mechanic). Upstream asserts the ABSENT case by calling this with no
+        # argument, which reads the HOST repository's own declaration — so the assertion holds only while no
+        # deployment uses the feature. This deployment declares its containment scanner in
+        # .engine/operator-guarded-paths.json, exactly the case weakening_guard.py documents the mechanism for,
+        # and upstream's form then fails. Asserting against a path that cannot exist tests the same property
+        # (absent -> the empty pair, silently) without asserting a fact about the host repository. Filed
+        # upstream; the overlay reverts this on every engine upgrade, so re-apply it (post-upgrade checklist in
+        # .engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md).
+        self.assertEqual(weakening_guard._read_instance_guards(
+            os.path.join(tempfile.gettempdir(), "engine-no-such-operator-guarded-paths.json")), (set(), ()))
         # Defensive parse behind the CI shape gate: non-string / empty / degenerate members are dropped so the
         # catastrophic empty-prefix (`startswith("")` guards everything) can never take effect even off-gate.
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
