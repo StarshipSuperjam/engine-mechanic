@@ -1,7 +1,6 @@
 """Unit tests for memory.capture — ambient turn-delta capture.
 
-Run via the engine test suite: `uv run --directory .engine --frozen -- python -m unittest discover -s
-tools -p 'test_*.py'`. These exercise the REAL capture path against throwaway temp ledgers/transcripts;
+Run via the engine test suite: `uv run --directory .engine --frozen -- python tools/selftest.py`. These exercise the REAL capture path against throwaway temp ledgers/transcripts;
 ENGINE_MEMORY_DIR points the ledger at a temp dir and ENGINE_MEMORY_TRANSCRIPT_DIR allow-lists the temp
 transcript so the path-safety gate does not reject the fixture.
 """
@@ -323,15 +322,34 @@ class ProjectionTests(CaptureTestCase):
         self.assertNotIn(str(rec["ts"]), body)        # ts (int) is skipped
         self.assertNotIn("transcript", body)          # top-level tags are excluded
 
-    def test_a_captured_turn_delta_is_not_recall_retrievable_at_all(self):
-        # Post-#332 the end-to-end consequence is stronger: an ambient turn-delta is NOT recall content, so neither
-        # its provenance NOR its words retrieve it — recall surfaces only the curated layer. (The provenance-from-body
-        # exclusion itself is asserted on the projected body in test_only_the_content_text_enters_the_search_body.)
+    def test_a_captured_turn_is_retrievable_without_any_rebuild(self):
+        # THE test that can fail if capture stops extending the index. Note what is deliberately absent: no
+        # `index.rebuild()`. Nothing else refreshes the index between full rebuilds, and `ledger.append` does not
+        # move the generation stamp — so if capture did not extend it, this turn would sit in the ledger while the
+        # index still looked CURRENT, and the fast path would answer without it and report itself healthy. The
+        # usual cabinet pattern rebuilds before querying and would sail past that.
+        # The setup is load-bearing and reproduces production: an index that ALREADY EXISTS (built by the last
+        # consolidation) and whose stamped generation still matches, because appending never moves it. Without a
+        # pre-existing index the fast path is skipped entirely and `query` falls back to the scan, which reads
+        # the ledger and finds the turn either way — so the assertion below would pass while the real fast path
+        # was broken. Checked: with `extend` stubbed out, this test fails.
+        if not index.fts5_available():
+            self.skipTest("no FTS5 on this machine — there is no fast path to go stale")
+        self.transcript("seed.jsonl", [_msg("user", "an earlier unrelated turn")])
+        capture.capture_turn_delta(self.payload(os.path.join(self.tmp, "seed.jsonl"), session_id="sess-seed"))
+        index.rebuild()                                            # the index is now current...
         self.transcript("s.jsonl", [_msg("user", "deploy the new pricing page")])
-        capture.capture_turn_delta(self.payload("%s" % os.path.join(self.tmp, "s.jsonl")))
-        self.assertEqual(index.query("user").records, [])          # provenance is not retrievable
-        self.assertEqual(index.query("pricing").records, [])       # and a raw delta's content is not recall content
-        self.assertTrue(any("pricing" in r.get("text", "") for r in self.records()))  # but it is resident, recoverable
+        capture.capture_turn_delta(self.payload(os.path.join(self.tmp, "s.jsonl"), session_id="sess-later"))
+        self.assertTrue(any("pricing" in r.get("text", "") for r in self.records()))  # resident in the ledger...
+        fast = index.query("pricing")                              # ...and reachable, with NO rebuild in between
+        self.assertTrue(fast.records, "the fast path missed a turn captured after the last rebuild")
+        self.assertFalse(fast.degraded, "this must be the fast path, not a fallback that masks the defect")
+        # Both retrieval paths must agree — the parity law. The scan reads the ledger directly, so a divergence
+        # here is precisely the "index says current but isn't" failure.
+        self.assertTrue(index.query("pricing", force_scan=True).records)
+        # Provenance is still NOT retrievable: `session_id`, `kind` and `speaker` stay out of the search body, so
+        # a search for "user" must not drag in every captured turn.
+        self.assertEqual(index.query("user").records, [])
 
 
 class CloseSeamTests(CaptureTestCase):
@@ -440,86 +458,6 @@ class NoiseFilterTests(CaptureTestCase):
         n = capture.capture_turn_delta(self.payload(t))
         self.assertEqual(n, 1)
         self.assertIn("<command-name>", self.texts()[0])
-
-
-class ConsolidationLeaseTests(unittest.TestCase):
-    """The session-lease heartbeat (#396): a sessions-since liveness signal the consolidation sweep reads."""
-
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp(prefix="engine-lease-test-")
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp, ignore_errors=True)
-
-    def _write_raw(self, text):
-        with open(os.path.join(self.tmp, capture.LEASE_FILENAME), "w", encoding="utf-8") as fh:
-            fh.write(text)
-
-    def test_a_missing_sidecar_reads_as_empty_not_corrupt(self):
-        # DELIBERATE split: absent => (0, {}) so the sweep PROCEEDS (all prior sessions recoverable), never "skip".
-        self.assertEqual(capture.read_lease_state(self.tmp), (0, {}))
-
-    def test_a_corrupt_sidecar_reads_as_none(self):
-        # present-but-unparseable => None so the sweep FAILS SAFE (all possibly-live), distinct from absent.
-        self._write_raw("{not json at all")
-        self.assertIsNone(capture.read_lease_state(self.tmp))
-        self._write_raw("[1, 2, 3]")   # valid json, wrong shape
-        self.assertIsNone(capture.read_lease_state(self.tmp))
-
-    def test_an_empty_sidecar_reads_as_empty(self):
-        self._write_raw("")
-        self.assertEqual(capture.read_lease_state(self.tmp), (0, {}))
-
-    def test_open_session_lease_bumps_the_epoch_and_stamps_self(self):
-        self.assertTrue(capture.open_session_lease(self.tmp, "sess-A"))
-        epoch, leases = capture.read_lease_state(self.tmp)
-        self.assertEqual(epoch, 1)
-        self.assertEqual(leases, {"sess-A": 1})
-        self.assertTrue(capture.open_session_lease(self.tmp, "sess-B"))
-        epoch, leases = capture.read_lease_state(self.tmp)
-        self.assertEqual(epoch, 2)
-        self.assertEqual(leases, {"sess-A": 1, "sess-B": 2})   # A's older lease is preserved, not clobbered
-
-    def test_open_session_lease_on_a_corrupt_sidecar_repairs_and_defers(self):
-        # Corrupt at SessionStart => repair to a fresh valid sidecar seeded with self, and return False (DEFER the
-        # sweep this pass) — never heal-to-empty-then-sweep, which would consolidate every concurrent live session.
-        self._write_raw("{corrupt")
-        self.assertFalse(capture.open_session_lease(self.tmp, "sess-A"))
-        epoch, leases = capture.read_lease_state(self.tmp)          # repaired to valid
-        self.assertEqual((epoch, leases), (1, {"sess-A": 1}))
-
-    def test_refresh_lease_locked_stamps_self_at_the_current_epoch(self):
-        capture.open_session_lease(self.tmp, "sess-A")             # epoch 1
-        capture.open_session_lease(self.tmp, "sess-B")             # epoch 2
-        capture.refresh_lease_locked(self.tmp, "sess-A")           # A takes a turn => tracks the frontier
-        epoch, leases = capture.read_lease_state(self.tmp)
-        self.assertEqual(epoch, 2)
-        self.assertEqual(leases["sess-A"], 2)
-
-    def test_refresh_lease_locked_refuses_to_write_on_corrupt(self):
-        # The critical fix: refresh must NOT reset a corrupt sidecar to {} (unlike _write_cursor) — it leaves the
-        # corrupt file for the SessionStart repair so the corrupt->skip fail-safe upstream keeps holding.
-        self._write_raw("{corrupt")
-        capture.refresh_lease_locked(self.tmp, "sess-A")
-        with open(os.path.join(self.tmp, capture.LEASE_FILENAME), encoding="utf-8") as fh:
-            self.assertEqual(fh.read(), "{corrupt")                # untouched
-
-    def test_far_aged_leases_are_pruned_on_the_next_bump(self):
-        # Seed a lease far in the past; a later bump drops it (GC for a session that never got a marker to reap it).
-        self._write_raw(json.dumps({"epoch": 5, "leases": {"old": 5 - capture.LEASE_PRUNE_HORIZON - 1, "recent": 5}}))
-        capture.open_session_lease(self.tmp, "sess-A")             # epoch -> 6
-        _, leases = capture.read_lease_state(self.tmp)
-        self.assertNotIn("old", leases)
-        self.assertIn("recent", leases)
-        self.assertIn("sess-A", leases)
-
-    def test_drop_lease_locked_reaps_one_entry(self):
-        capture.open_session_lease(self.tmp, "sess-A")
-        capture.open_session_lease(self.tmp, "sess-B")
-        capture.drop_lease_locked(self.tmp, "sess-A")
-        _, leases = capture.read_lease_state(self.tmp)
-        self.assertNotIn("sess-A", leases)
-        self.assertIn("sess-B", leases)
 
 
 class MigrationWindowTests(unittest.TestCase):
@@ -644,6 +582,41 @@ class CodexTranscriptTests(CaptureTestCase):
         self.assertIn("Please rename the export job.", self.texts())
         self.assertEqual(self._status(), "captured")
 
+    def test_a_non_jsonl_transcript_diagnostic_names_its_reason(self):
+        """The whole-format-change refusal (bytes but no JSON records) carries its own reason too."""
+        path = os.path.join(self.tmp, "plain2.jsonl")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("the format moved off JSON lines entirely\n")
+        self.assertEqual(capture.capture_turn_delta(self.payload(path)), 0)
+        self.assertEqual(capture.read_capture_status().get("detail", {}).get("reason"), "no-json-records")
+
+    def test_unparseable_records_a_content_free_diagnostic(self):
+        """A changed format is not just 'unparseable': the marker carries a content-free structural
+        fingerprint (which check refused it + the record/payload type names present) so the next drift
+        is diagnosable — and it NEVER leaks message text."""
+        body = "sensitive-message-body-do-not-leak"
+        path = self.transcript("shifted.jsonl", [
+            {"type": "session_meta", "payload": {"id": "s"}},
+            {"type": "response_item", "payload": {"type": "msg_v2", "who": "user", "says": body}},
+        ])
+        self.assertEqual(capture.capture_turn_delta(self.payload(path)), 0)
+        record = capture.read_capture_status()
+        self.assertEqual(record.get("state"), "unparseable")
+        detail = record.get("detail")
+        self.assertIsInstance(detail, dict)
+        self.assertEqual(detail.get("reason"), "no-conversation-messages")
+        self.assertIn("response_item", detail.get("record_types", []))
+        self.assertIn("msg_v2", detail.get("payload_types", []))
+        self.assertNotIn(body, json.dumps(record))   # content-free: no transcript text in the diagnostic
+
+    def test_unknown_envelope_diagnostic_names_its_reason(self):
+        path = self.transcript("future.jsonl", [
+            {"type": "totally_new_record", "body": {"role": "user", "text": "hello"}}])
+        self.assertEqual(capture.capture_turn_delta(self.payload(path)), 0)
+        detail = capture.read_capture_status().get("detail")
+        self.assertEqual(detail.get("reason"), "no-known-record-type")
+        self.assertIn("totally_new_record", detail.get("record_types", []))
+
     def test_a_claude_shaped_transcript_never_falls_through_on_codex(self):
         """No fall-through to the tolerant Claude parser: a Codex-tagged session handed a
         Claude-shaped transcript captures NOTHING and says so loudly."""
@@ -719,6 +692,41 @@ class ClaudeCaptureStatusTests(CaptureTestCase):
     def test_an_invalid_path_reports_loudly_on_claude_too(self):
         self.assertEqual(capture.capture_turn_delta(self.payload("/nowhere/at/all.jsonl")), 0)
         self.assertEqual(capture.read_capture_status().get("state"), "invalid-path")
+
+
+class CaptureScrubTests(CaptureTestCase):
+    """Secret scrubbing at capture (eADR-0038): a credential in a turn is redacted in the STORED record,
+    ordinary text is byte-identical, and a secret in a >4KB multi-chunk turn is caught (scrub runs before
+    chunking). The unit-level precision/non-corruption matrix lives in test_scrub.py — these prove the
+    seam is wired into the capture write path for both runtimes' shared delta loop."""
+
+    def test_a_secret_in_a_turn_is_redacted_in_the_ledger(self):
+        secret = "AKIAIOSFODNN7EXAMPLE"
+        turn = "deploy note: key " + secret + " should be rotated quarterly"
+        path = self.transcript("s.jsonl", [_msg("user", turn)])
+        self.assertEqual(capture.capture_turn_delta(self.payload(path)), 1)
+        stored = self.texts()[0]
+        self.assertNotIn(secret, stored)
+        self.assertIn("[redacted:aws-key]", stored)
+        self.assertIn("should be rotated quarterly", stored)   # surrounding prose preserved
+
+    def test_an_ordinary_turn_is_stored_verbatim(self):
+        turn = "the production database password lives in the vault, never in the repo"
+        path = self.transcript("clean.jsonl", [_msg("user", turn)])
+        self.assertEqual(capture.capture_turn_delta(self.payload(path)), 1)
+        self.assertEqual(self.texts(), [turn])
+
+    def test_a_secret_in_a_large_multichunk_turn_is_redacted(self):
+        """A >4KB turn is split into multiple chunks; scrubbing BEFORE the split means a secret is caught
+        whole regardless of where the chunk boundary lands."""
+        filler = "detail line here. " * 300
+        pem = "-----BEGIN RSA PRIVATE KEY-----\n" + "MIIEbase64body\n" * 4 + "-----END RSA PRIVATE KEY-----"
+        turn = filler + pem + filler
+        appended = capture.capture_turn_delta(self.payload(self.transcript("big.jsonl", [_msg("user", turn)])))
+        self.assertGreater(appended, 1)                        # >4KB → multiple chunks
+        joined = "\n".join(self.texts())
+        self.assertNotIn("PRIVATE KEY", joined)
+        self.assertIn("[redacted:private-key]", joined)
 
 
 if __name__ == "__main__":

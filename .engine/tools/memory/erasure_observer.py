@@ -1,10 +1,10 @@
 """erasure_observer.py — the cross-session Layer-2 erasure OBSERVER (memory substrate).
 
-This is the memory substrate's single irreversible act: physically erasing a remembered note. An earlier step built
-the enactment core — a content-free `operator-adjudicated-erasure` marker, a gated removal inside `compact()`, and
-`compact.enact_erasure(target_id, merge_sha)` (the SOLE minter, append-only) — and shipped it INERT (no live caller).
-THIS module is the live caller: at SessionStart it turns a *merged single-purpose erasure pull request* into that
-marker, so the next compaction removes the named note.
+This is the memory substrate's single irreversible act: physically erasing a remembered note. The enactment core is
+a content-free `operator-adjudicated-erasure` marker, a gated removal inside `compact()`, and
+`compact.enact_erasure(target_id, merge_sha)` (the SOLE minter, append-only). THIS module is that minter's one live
+caller: at SessionStart it turns a *merged single-purpose erasure pull request* into the marker, so the next
+compaction removes the named note.
 
 The consent gate is the locked law: erasure happens ONLY because the operator merged a single-purpose
 erasure PR — *the merge event only*; a merely-closed (declined / auto-resolved) Issue or PR NEVER erases. So the
@@ -25,11 +25,19 @@ Posture: **fail-SAFE on consent, fail-OPEN on host.** Any doubt — no token, un
 unreadable/malformed proposal, a bad id shape — yields no erasure and a silent proceed (retry next session). The
 SessionStart hook can never block or slow the session past one bounded, swallowed read.
 
-Why this is not an AI-reachable note-shredder (the hazard the earlier step dropped the `erase` CLI to avoid): the merge SHA
-comes from a GENUINE merge to protected `main`, never from argv. An AI in-session cannot merge to protected `main`,
-cannot fabricate `merged_at`/`merge_commit_sha`, and cannot forge the committed proposal at the merge tree — so there
-is deliberately NO real-ledger arbitrary-mint verb here either. The label only *discovers*; the binding is the
-immutable proposal@sha, so a mislabelled random merged PR (no proposal at its tree) is a no-op.
+Why this is not an AI-reachable note-shredder — stated precisely, because the honest bound is narrower than the
+obvious one. The merge SHA comes from a GENUINE merge to protected `main`, never from argv: nothing here can
+fabricate `merged_at`/`merge_commit_sha` or forge the committed proposal at the merge tree, and there is
+deliberately no arbitrary-mint verb. The label only *discovers*; the binding is the immutable proposal@sha, so a
+mislabelled random merged PR (no proposal at its tree) is a no-op.
+
+WHAT THE MERGE ITSELF IS WORTH DEPENDS ON THE TIER, and this used to claim more than it had. In a TEAM
+repository the ruleset requires an approving review the author cannot give themselves, and the merge genuinely
+prevents. In SOLO — the shipped default — the provisioned ruleset requires zero approving reviews, so the same
+actor that opens an erasure pull request can merge it. There the merge is a VISIBILITY gate: it makes the act a
+reviewable, attributable commit that cannot happen quietly. What bounds the MODEL path in solo is upstream of
+here: `erase.py` refuses unless it is attached to a controlling terminal, which an automated shell does not
+have.
 
 Leaf discipline: stdlib + the cycle-free `memory` set (`compact` / `ledger` / `records`) + the sibling `hooks`; the
 GitHub reader (`boot` resolvers + `telemetry`'s 2-tuple transport) is lazy-imported inside the network path so the
@@ -305,8 +313,8 @@ def _stub_transport(*, target_id: str = None, targets: "list | None" = None, bod
 
 def _plant(text: str) -> str:
     """Plant one real, always-live note through the live factory; return its content-free id."""
-    from memory import consolidate
-    rec = consolidate._make_episodic(_DEMO_SESSION, {"role": "decision", "text": text}, "demo-batch")
+    from memory import legacy_shapes as _legacy
+    rec = _legacy.episodic(_DEMO_SESSION, "decision", text, "demo-batch")
     rec.pop(records.BATCH_KEY, None)               # always-live (not a crashed-pass orphan)
     ledger.append(rec)
     return rec[records.RECORD_ID_KEY]

@@ -2,7 +2,7 @@
 
 The compaction MECHANISM (crash-safe fold-and-swap) is pinned in test_compact.py. THIS file pins the live
 TRIGGER: the gate that fires `compact()` only once enough reclaimable waste has piled up, rides the PreCompact
-hook (`consolidate._pre_compact_handler`), and is fail-open + Layer-1-only. The load-bearing guard is BEHAVIORAL:
+hook (`compact._pre_compact_handler`), and is fail-open + Layer-1-only. The load-bearing guard is BEHAVIORAL:
 the auto-trigger path must never reduce the set of recall-CONTENT records (a name-grep would miss a real
 regression — PR #153's lesson). Throwaway `ENGINE_MEMORY_DIR` cabinet throughout.
 """
@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import hooks  # noqa: E402
 import quiet_call  # noqa: E402  (capture a demo walkthrough's stdout so it can't bury the suite summary)
-from memory import capture, compact, consolidate, forget, index, ledger, records, rollup  # noqa: E402
+from memory import capture, compact, forget, index, ledger, legacy_shapes as legacy, records  # noqa: E402
 
 _DAY = 86400
 _THRESHOLD = compact._COMPACT_WASTE_THRESHOLD
@@ -43,7 +43,7 @@ class _Base(unittest.TestCase):
         self._tmp.cleanup()
 
     def _episodic(self, text, *, age_days=0, role="decision", session_id="S", batchless=True):
-        rec = consolidate._make_episodic(session_id, {"role": role, "text": text}, "b")
+        rec = legacy.episodic(session_id, role, text, "b")
         if batchless:
             rec.pop(records.BATCH_KEY, None)
         rec["ts"] = int(time.time()) - age_days * _DAY
@@ -58,8 +58,11 @@ class _Base(unittest.TestCase):
         ledger.append(capture._make_record(session, seq, speaker, text))
 
     def _pile_waste(self, rid, n):
+        """Plant `n` reinforcement markers naming `rid` — the reclaimable bookkeeping an older engine left
+        behind on every recall. Nothing writes these now, which is why the fixture mints them directly; what
+        the gate must still do is notice them and reclaim the space."""
         for _ in range(n):
-            forget.record_access(rid)
+            ledger.append(legacy.reinforcement(rid))
 
     def _content_ids(self):
         return {r.get(records.RECORD_ID_KEY) for r in ledger.iter_records()
@@ -94,17 +97,68 @@ class GateTests(_Base):
         report = compact.maybe_compact()
         self.assertEqual(report["status"], "ok")
         self.assertGreater(ledger.generation(), gen_before)            # it actually compacted
+
+    def test_a_merged_erasure_is_carried_out_on_a_ledger_with_no_foldable_waste(self):
+        """Consent honoured but not executed is its own defect. Physical removal happens ONLY inside `compact`,
+        and the waste gate used to sit in front of it unconditionally — so an erasure the operator had already
+        merged waited for ~64 units of UNRELATED bookkeeping to pile up before it was carried out, with nothing
+        surfacing that it had not happened. A pending erasure now fires the pass on its own account."""
+        keep = self._episodic("a note that stays", age_days=0)
+        doomed = self._episodic("the note the operator asked to erase", age_days=0)
+        target = doomed[records.RECORD_ID_KEY]
+        index.rebuild()
+        compact.enact_erasure(target, "merge-sha-abc")                 # the merge-gated marker (the only minter)
+
+        self.assertEqual(compact.reclaimable_waste(), 0)               # nothing foldable: the old gate would skip
+        self.assertFalse(compact.should_compact())
+        self.assertEqual(compact.pending_erasures(), 1)
+
+        report = compact.maybe_compact()
+        self.assertEqual(report["status"], "ok")                       # it fired anyway
+        ids = {r.get(records.RECORD_ID_KEY) for r in ledger.iter_records() if isinstance(r, dict)}
+        self.assertNotIn(target, ids)                                  # the erasure was actually carried out
+        self.assertIn(keep[records.RECORD_ID_KEY], ids)                # and nothing else went with it
+
+    def test_a_marker_naming_another_marker_cannot_rewrite_the_ledger_forever(self):
+        """The adversarial termination case. `compact` REFUSES to remove an erasure marker — that refusal is what
+        makes the tombstone durable — so if the gate counted a marker as an erasable record, a marker naming
+        another marker's id would read as pending on every pass and rewrite the whole ledger, indefinitely, on a
+        ledger with nothing to do. The read-side validity floor promises such a marker is INERT; this proves the
+        new trigger keeps that promise."""
+        doomed = self._episodic("erase me", age_days=0)
+        index.rebuild()
+        compact.enact_erasure(doomed[records.RECORD_ID_KEY], "merge-sha-abc")
+        marker_id = next(r[records.RECORD_ID_KEY] for r in ledger.iter_records()
+                         if isinstance(r, dict) and r.get("kind") == records.ERASURE_KIND)
+        compact.enact_erasure(marker_id, "merge-sha-def")     # a marker targeting a marker
+
+        self.assertEqual(compact.maybe_compact()["status"], "ok")   # the genuine erasure is carried out
+        self.assertEqual(compact.pending_erasures(), 0,
+                         "a marker can never be erased, so it must never count as pending work")
+        gen_before = ledger.generation()
+        self.assertEqual(compact.maybe_compact()["status"], "skipped")
+        self.assertEqual(ledger.generation(), gen_before)            # and the gate has come to rest
+
+    def test_an_already_enacted_erasure_does_not_keep_firing_the_gate(self):
+        """`compact` keeps the marker as an idempotency tombstone after removing its target. Counting markers
+        rather than still-resident targets would make that tombstone re-fire a full rewrite every session,
+        forever, on a ledger with nothing to do."""
+        doomed = self._episodic("erase me", age_days=0)
+        index.rebuild()
+        compact.enact_erasure(doomed[records.RECORD_ID_KEY], "merge-sha-abc")
+        self.assertEqual(compact.maybe_compact()["status"], "ok")      # first pass carries it out
+
+        self.assertEqual(compact.pending_erasures(), 0)                # the tombstone is not pending work
+        gen_before = ledger.generation()
+        self.assertEqual(compact.maybe_compact()["status"], "skipped")
+        self.assertEqual(ledger.generation(), gen_before)              # and nothing was rewritten
         self.assertEqual(compact.reclaimable_waste(), 0)               # and the waste was folded away
 
     def test_unclosed_supersessions_never_trip_the_gate(self):
         # the gate counts only CLOSED-batch supersessions (exactly what compact prunes), never un-closed
         # (crashed-pass) ones — else it would fire and rewrite a byte-identical ledger forever (waste never drops).
         raws = self._raws(_THRESHOLD + 4, session_id="crash-S")
-        try:
-            rollup.store_gist("crash-S", [{"role": "lesson", "text": "summary",
-                                           records.SOURCE_IDS_KEY: raws}], _crash_after="markers")
-        except rollup._InjectedCrash:
-            pass                                                       # batch written but NOT closed
+        legacy.store_gist("crash-S", "summary", raws, close=False)     # batch written but NOT closed
         index.rebuild()
         self.assertGreaterEqual(len(raws), _THRESHOLD)
         self.assertEqual(compact.reclaimable_waste(), 0)              # un-closed supersessions are not reclaimable
@@ -132,15 +186,14 @@ class Layer1InvariantTests(_Base):
         live = self._episodic("a fresh live decision", age_days=0)
         self._episodic("an old archived lesson", age_days=40, role="lesson")            # archived, still content
         raws = self._raws(3, session_id="roll-S")                                       # rolled up -> closed waste
-        rollup.store_gist("roll-S", [{"role": "lesson", "text": "rolled-up summary compendium",
-                                      records.SOURCE_IDS_KEY: raws}])
+        legacy.store_gist("roll-S", "rolled-up summary compendium", raws)
         self._episodic("a crashed-pass duplicate", age_days=0, batchless=False)         # an orphan, still content
         self._turn_delta("a raw turn note")                                             # a turn-delta content record
         self._pile_waste(live[records.RECORD_ID_KEY], _THRESHOLD)                        # push waste over the line
         index.rebuild()
         before = self._content_ids()
         self.assertGreaterEqual(compact.reclaimable_waste(), _THRESHOLD)
-        code, _out, _err = self._run_hook("PreCompact", consolidate._pre_compact_handler, {"trigger": "auto"})
+        code, _out, _err = self._run_hook("PreCompact", compact._pre_compact_handler, {"trigger": "auto"})
         self.assertEqual(code, hooks.EXIT_PROCEED)                    # the trigger fired AND the squash proceeded
         self.assertEqual(self._content_ids(), before)                # every recall-content record survived
         self.assertEqual(compact.reclaimable_waste(), 0)             # the non-recall waste was actually folded away
@@ -164,13 +217,13 @@ class Layer1InvariantTests(_Base):
         before = self._content_ids()
         self.assertIn(target[records.RECORD_ID_KEY], before)
         self.assertTrue(compact.should_compact())
-        code, _out, _err = self._run_hook("PreCompact", consolidate._pre_compact_handler, {"trigger": "auto"})
+        code, _out, _err = self._run_hook("PreCompact", compact._pre_compact_handler, {"trigger": "auto"})
         self.assertEqual(code, hooks.EXIT_PROCEED)                    # the trigger fired AND the squash proceeded
         after = self._content_ids()
         self.assertNotIn(target[records.RECORD_ID_KEY], after)        # the marked target is physically gone
         self.assertEqual(after, before - {target[records.RECORD_ID_KEY]})  # and ONLY it (every unmarked id survives)
         self.assertEqual(slips(), 1)                                  # the marker is retained (the tombstone)
-        code2, _o2, _e2 = self._run_hook("PreCompact", consolidate._pre_compact_handler, {"trigger": "auto"})
+        code2, _o2, _e2 = self._run_hook("PreCompact", compact._pre_compact_handler, {"trigger": "auto"})
         self.assertEqual(code2, hooks.EXIT_PROCEED)
         self.assertEqual(self._content_ids(), after)                 # 2nd fire: gate skips (waste folded), no change
         self.assertEqual(slips(), 1)
@@ -191,7 +244,7 @@ class FailOpenTests(_Base):
         self._pile_waste(live[records.RECORD_ID_KEY], _THRESHOLD)
         index.rebuild()
         with mock.patch.object(compact, "compact", side_effect=RuntimeError("disk full")):
-            code, _out, _err = self._run_hook("PreCompact", consolidate._pre_compact_handler, {"trigger": "auto"})
+            code, _out, _err = self._run_hook("PreCompact", compact._pre_compact_handler, {"trigger": "auto"})
         self.assertEqual(code, hooks.EXIT_PROCEED)                   # PreCompact must never block the squash
 
 

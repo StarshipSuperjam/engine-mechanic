@@ -5,13 +5,12 @@ title: Contribute to a project you don't own — open a clean pull request to an
 ## Purpose
 
 How the engine sends a change to a project you **do not own** — an open-source project you've forked, or (the
-special case) engine-template itself, which the engine-mechanic contributes to from a **separate checkout** — as
+special case) engine-template itself, when a fork-native deployment escalates an engine fix up to it — as
 a pull request, carrying only the project's files and never the engine's own. Enter this when you have work you
 want to offer upstream. The engine does the mechanical git a non-engineer shouldn't have to (cutting a clean
 branch, comparing against the upstream, matching the project's pull-request form); **opening the pull request is
 always your call**, and at no point are you dropped into a raw git conflict — anything that needs a choice
-becomes a plain question. The tool is `tools/external_contribution/submit.py`. **Heads-up:** the final
-open-the-pull-request step has not yet been exercised against a live project — see Notes.
+becomes a plain question. The tool is `tools/external_contribution/submit.py`.
 
 ## Steps
 
@@ -19,10 +18,11 @@ open-the-pull-request step has not yet been exercised against a live project —
    - *Contributing to a project you forked (the usual case):* you've forked the upstream project and the engine
      is installed in your fork (an ordinary brownfield install). You own the fork; the upstream you only
      contribute *to*.
-   - *Building engine-template itself (the engine-mechanic):* your workspace is a **separate copy** of
-     engine-template that you contribute to — the engine is not installed *into* it (that would put the engine
-     inside a repo that already is the engine). It only ever contributes up to the template; the template
-     never depends on it.
+   - *Escalating an engine fix to engine-template from a fork of it:* you forked engine-template and the engine
+     is installed in your fork; you contribute the fix up to the template you do not own, exactly like any other
+     forked project. (The engine-MECHANIC, which OWNS its engine-template product as a **separate checkout**,
+     does NOT use this runbook — it opens a **direct** pull request into its own checkout; see
+     build-orchestration.md's owned-product arm.)
 
    If neither fits — if this is a repo you own and control outright — stop here; this runbook is only for
    contributing to a project you don't own.
@@ -42,18 +42,37 @@ open-the-pull-request step has not yet been exercised against a live project —
    the upstream project happens to keep its own file with an engine-like name (its own `CLAUDE.md`, say),
    you'll see that flagged too — clearing it or telling the engine to proceed is your call. A clean
    contribution passes silently.
-   - **Contributing back to the engine's own home** (the special case above — the engine-mechanic building
-     engine-template, or a fork escalating an engine fix): here the engine's own code *is* the contribution, so
+   - **Contributing back to the engine's own home** (the special case above — a fork escalating an engine fix
+     to engine-template): here the engine's own code *is* the contribution, so
      it's allowed to travel — the check only flags what belongs to *this* copy and no one else: your saved
      memory and state, your project's own settings and identity, your private tuning, and your own decision
      records. Those never ride into the shared template, but the engine's code and its regenerated maps do.
-5. **Have the change looked over before you submit.** For a change to the engine's *own* project, the engine
+5. **Check it doesn't carry references only your project understands.** Every project has shorthand that
+   means something only inside it — its own decision numbers, spec sections, ticket prefixes. Sent to another
+   project, each one names a record nobody there can reach: a reader meets a bare identifier and has nowhere
+   to go. If you've told the engine what your project's own shorthand looks like, it checks the lines the
+   change adds, the file names it touches, and the pull-request text itself, and **pauses to show you
+   anything it finds** — rewriting each one to say what it *means* is the clean fix, or you can tell the
+   engine to go ahead as is. It is a decision, never a wall.
+   - You tell the engine your shorthand by listing it in `.engine/operator-local-references.json`: id
+     prefixes like `D-`, whole phrases, and document names that should only be flagged when a section number
+     follows them. There's no such list until you make one — just ask the engine to set it up.
+   - **If your project has no shorthand of its own, say so once and it stops asking** — an empty list is the
+     way to record that, and it is a perfectly good answer. The engine then says there was nothing of that
+     kind to look for, rather than claiming it checked.
+   - **If you haven't made that list at all, the engine says so** rather than telling you the contribution
+     was checked, and offers to set one up.
+   - **If the list can't be read, or nothing in it could be used** — an entry the engine doesn't recognise,
+     or one too short to be a reference — **the engine says that too, and offers to put it right.** It never
+     reports those as clean: "I couldn't look" and "I looked and it's clean" are not the same thing, and
+     neither is "you wrote something I had to throw away."
+6. **Have the change looked over before you submit.** For a change to the engine's *own* project, the engine
    runs a second, independent review that hunts for mistakes the tests can miss. That review does **not** run
    by itself on a contribution to another project — so for anything beyond a trivial change, ask the engine to
    run it before you send this (it uses the same review it runs on its own work). If it isn't run, the engine
    says so plainly — on the prepared pull request and in a note in the pull-request text — rather than letting
    the change look as reviewed as any other; **that note is a backstop, not a substitute for the review**.
-6. **Review the prepared pull request.** The engine assembles the pull-request text to the **project's own
+7. **Review the prepared pull request.** The engine assembles the pull-request text to the **project's own
    template** when it has one (a contributor follows the host's conventions), or a plain fallback shape when
    it doesn't. For a project whose template has sections to fill and a check that the pull-request text is
    complete — engine-template itself is one — the engine **writes those sections in full** (the same way it
@@ -65,7 +84,7 @@ open-the-pull-request step has not yet been exercised against a live project —
    the title, the text, which branch goes where, **and the branch it measured your change against** (the
    project's own default). That comparison is what the clean-check rests on, so if the branch it names isn't
    the project you're contributing to, say so before it opens — it's the one thing to glance at here.
-7. **Authorize the submission — your call.** The engine opens the pull request **only on your go-ahead**;
+8. **Authorize the submission — your call.** The engine opens the pull request **only on your go-ahead**;
    without it, the prepared request just waits. When it opens, it tells you plainly that *submitting is not
    the same as being accepted* — the project's maintainers decide, it may take a while or be declined, and
    either way your fork keeps the work.
@@ -73,6 +92,10 @@ open-the-pull-request step has not yet been exercised against a live project —
 ## Done when
 
 The engine reports the pull request is **open** and prints its link — or, if you haven't authorized it yet,
+that it is **held because it carries references only your project understands**, with each one named for you
+to rewrite or wave through — or that it is **held because that check could not run** (your list of local
+references couldn't be read, or the change itself couldn't be read), which the engine says plainly rather
+than calling the contribution clean — or
 that it is **prepared and waiting** for your go-ahead, its text either complete or plainly flagged as still
 needing sections filled — or, if the pull-request text isn't authored for a contribution to the engine's own
 home, that it is **held until that text is written** (with the engine offering to write it) — or, if the
@@ -94,6 +117,6 @@ engine couldn't resolve on its own was put to you as a plain "I need a decision 
 - **If the upstream is unreachable,** nothing is lost: the work is committed on your fork, and the engine
   drafts the submission so it can be filed once the project is reachable (or you can open it yourself with
   your own `gh`).
-- **Not yet exercised end to end.** Every part of this except the final open-the-pull-request step is tested
-  offline; the live `gh pr create` runs for the first time when you make a real submission. Treat your first
-  contribution as the shake-out of that last step.
+- **The live step runs when you submit.** Every part of this except the final open-the-pull-request step is tested
+  offline; the live `gh pr create` runs the first time you make a real submission, the way any released feature's
+  live path runs the first time it's used. Treat your first contribution as the shake-out of that last step.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-tests for the self-map (surface-level + wiring-graph) + its drift gate.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the self-map's defenses: the map is DERIVED (sorted, deterministic, no volatile content);
 it is human-readable Markdown with NO `](` byte-sequence (so link-integrity passes); the fingerprint
@@ -26,7 +26,7 @@ import validate          # noqa: E402
 import hooks             # noqa: E402  (the run_hook harness the commit-boundary regen rides)
 import self_map          # noqa: E402
 import self_map_check    # noqa: E402
-import hard_check_bite_check as hcb  # noqa: E402  (construction-vs-deployed detector for the bridge guard)
+import census_completeness_check as _ccc   # noqa: E402  (reuse its construction-repo marker read, not a new copy)
 
 # The closed seam vocabulary, read live from the schema so the wires render cannot silently diverge.
 MODULE_SCHEMA = validate.load_json(os.path.join(validate.SCHEMAS_DIR, "module.v1.json"))
@@ -477,11 +477,11 @@ class TestRetiredAssetFilter(unittest.TestCase):
                               "skill": [".claude/skills/example-retired-skill/SKILL.md",
                                         ".claude/skills/example-kept-skill/SKILL.md"]}}
 
-    @unittest.skipUnless(hcb._is_construction_root(validate.ROOT),
-                         "construction-only: asserts the real _retired_absent() is empty, which holds only "
-                         "in a construction repo; a deployed repo legitimately lacks retired demo assets "
-                         "(bridge guard for engine-template#599; the deployed shape is covered by "
-                         "test_deployed_shape_filters_the_real_retired_entries)")
+    @unittest.skipUnless(
+        _ccc._in_home_repo(),
+        "construction-only invariant: nothing is retired here yet, so _retired_absent() is empty. In a deployed "
+        "repo the first-run retire step has legitimately removed those assets, so this would fail — the deployed "
+        "shape is covered by test_deployed_shape_filters_the_real_retired_entries below.")
     def test_construction_repo_filters_nothing(self):
         # In this repo every census entry exists on disk, so the filter sets are empty and the map renders
         # every provides entry as before.

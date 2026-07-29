@@ -14,6 +14,7 @@ already imports `index`, defining them here — a leaf that imports nothing from
 stdlib-only; imports nothing from `memory`.
 """
 
+import re
 import uuid
 
 # Record kinds (the `kind` field). These are the shared kinds the reflection and forgetting layers
@@ -25,12 +26,15 @@ AMBIENT_CAPTURE_KIND = "turn-delta"  # the role-less, Stop-appended verbatim cap
 EPISODIC_KIND = "episodic"          # an AI-written episodic summary record
 MARKER_KIND = "consolidated"        # the in-ledger "this session has been tidied" marker (survives backup)
 
-# Recall membership (issue #332). Recall surfaces the curated layer — episodic records + gists — and
-# excludes ambient `turn-delta` capture, which is fuel for consolidation and the abandoned-session sweep, never
-# recall content. `forget._is_ambient_capture` keys on AMBIENT_CAPTURE_KIND above; the discriminator is the
-# record's `kind`, re-derived on every recall read / index rebuild (no per-record marker, no carried bit — it
-# survives compaction for free). It is a targeted exclusion of the ambient kind, not a curated-kind allowlist: a
-# record carrying a `role` + `text` but no explicit kind is an episodic-shaped recall record and stays surfaced.
+# Recall membership. Recall surfaces the recorded conversation AND the curated layer over it — the transcript
+# is the canonical record and the summaries above it are the disposable layer (eADR-0038). The whole
+# `turn-delta` kind was once excluded, because verbatim turns vastly outnumber paraphrased summaries and matched
+# more exactly, crowding them out of every recall; the answer now is that the summaries are the layer being
+# retired, not the conversation. `forget._is_excluded_capture` holds what remains of the exclusion: harness-
+# injected pseudo-turns only, keyed on `is_injected_record` below. It is re-derived on every recall read / index
+# rebuild (no per-record marker, no carried bit — it survives compaction for free), and it is a targeted
+# exclusion rather than an allowlist: a record carrying a `role` + `text` but no explicit kind is an
+# episodic-shaped recall record and stays surfaced.
 
 # Tags.
 DEFAULT_EPISODIC_TAG = "episodic"
@@ -39,15 +43,19 @@ MARKER_TAG = "consolidated"
 # Harness-injected pseudo-turns (issue #274, folding in #333). Claude Code injects non-conversational blocks as
 # `user`-role transcript turns — a background-agent completion notice (`<task-notification>`) and the `/compact`
 # continuation summary (`This session is being continued from a previous conversation…`). They reach the ledger
-# as ambient `turn-delta` records and are already EXCLUDED FROM RECALL by kind (above), but the consolidation
-# sweep reads the raw ledger, so without a filter the in-context AI would consolidate them as if the operator had
-# said them. The fix is NOT a pre-ledger drop — #333 chose to keep them RESIDENT + recoverable (the durability
+# as ambient `turn-delta` records, and this tag is now the WHOLE of what keeps them out of recall — the rest of
+# the conversation is recall content, so nothing else is holding them back (see the membership block above).
+# The consolidation sweep also reads the raw ledger, so without this filter the in-context AI would consolidate
+# them as if the operator had said them. The fix is NOT a pre-ledger drop — #333 chose to keep them RESIDENT
+# + recoverable (the durability
 # law: an abandoned session loses the reflection, not the content). Instead capture TAGS them (`INJECTED_TAG`, on
 # every chunk of an injected message, recognised before chunking so a multi-chunk continuation summary is fully
 # tagged) and `consolidate` SKIPS a tagged/injected record as fuel. The prefix set is deliberately the two
 # DISTINCTIVE, ground-truthed standalone sentinels: each is the WHOLE injected message (never fused with a real
 # prompt, confirmed against the live ledger), so a start-anchored match cannot eat conversation. `<system-reminder>`
-# is deliberately EXCLUDED — it fuses with a human prompt in the same turn, so dropping it would lose real content.
+# is deliberately EXCLUDED from this set — it fuses with a human prompt in the same turn, so dropping the whole
+# record would lose real content. It is handled instead by `mark_harness_spans` below, which removes just the
+# block wherever the text is indexed or shown.
 INJECTED_TAG = "injected"               # the tag capture stamps on every chunk of a harness-injected pseudo-turn
 _INJECTED_PSEUDO_TURN_PREFIXES = (
     "<task-notification>",                                              # background-agent completion notice
@@ -62,11 +70,48 @@ def is_injected_pseudo_turn_text(text) -> bool:
     return isinstance(text, str) and text.strip().startswith(_INJECTED_PSEUDO_TURN_PREFIXES)
 
 
+# A harness-inserted block that arrives FUSED into the same turn as a real prompt. Unlike the standalone
+# pseudo-turns above, it cannot be excluded record-wise without losing the operator's own words alongside it —
+# which is why it was deliberately left out of the injected set. That was harmless while captured conversation
+# was unsearchable. It is not harmless now: such a turn is keyword-findable and carries `speaker: "user"`, so a
+# reader is told the operator said something the engine inserted. Measured on the maintainer's store when this
+# was found, 2 user turns carry a complete block — and in one, 420 of 456 characters were the block.
+#
+# The fix is presentational, never destructive: the stored bytes are untouched (the ledger is the canonical
+# record and this is not erasure), and the span is replaced by a visible marker wherever the text is INDEXED or
+# SHOWN. So the harness half is not searchable and is never quoted as speech, while the operator's own words in
+# the same turn survive intact.
+_HARNESS_SPAN = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
+HARNESS_SPAN_MARKER = "[engine-inserted note removed]"
+
+
+def mark_harness_spans(text):
+    """`text` with every fused harness block replaced by `HARNESS_SPAN_MARKER`. Returns the input unchanged for
+    a non-string or when no block is present. Idempotent — the marker matches no pattern — and it never raises:
+    a reader that fails here would be worse than one that under-marks.
+
+    HONEST BOUND: it matches a COMPLETE block within ONE record. An opening tag with no close in the same
+    record is left alone, which is right for the common case (an assistant quoting the tag while discussing it —
+    real content) and is a residual for the rare one (a block split across the chunk boundary, whose halves land
+    in different records). Verified on the maintainer's store after this landed: no complete block is searchable
+    any more, and every remaining occurrence is an unclosed tag."""
+    if not isinstance(text, str) or "<system-reminder>" not in text:
+        return text
+    try:
+        return _HARNESS_SPAN.sub(HARNESS_SPAN_MARKER, text)
+    except Exception:  # noqa: BLE001 — presentation must never break a read
+        return text
+
+
 def is_injected_record(record) -> bool:
     """True iff `record` is a harness-injected pseudo-turn the consolidation sweep should skip as fuel: tagged
     `INJECTED_TAG` at capture (the durable path — covers every chunk), OR — back-compat for records captured
     before tagging existed — its text begins with an injected marker. The record stays physically resident and
-    recoverable in the ledger and is already recall-excluded by kind; this only keeps it out of consolidation."""
+    recoverable in the ledger; what this withholds is only ever surfacing, never storage. THREE readers share
+    this predicate, and it carries more weight than it used to: the consolidation sweep skips such a record as
+    fuel, the transcript-window reader leaves it out of a window, and recall itself now excludes it — since the
+    rest of the conversation became recall content, this predicate is the whole of what recall withholds, so a
+    gap here would surface machine scaffolding as something the operator said."""
     if not isinstance(record, dict):
         return False
     tags = record.get("tags")
@@ -98,14 +143,16 @@ THROUGH_SEQ_KEY = "through_seq"     # on the `consolidated` marker (#446): the p
 # (index._NON_BODY_KEYS): a uuid's hex fragments are real words, exactly the `session_id`/`batch` problem.
 RECORD_ID_KEY = "id"
 
-# The reinforcement (access) marker (scored demotion). An append-only ledger record minted each time
-# a record is RECALLED: it names, by the reinforced record's stable id, that the record was used. `forget.score`
-# folds these into a frecency × role-weight × recency score, demoting an old, unused record in tiers
-# (hot → warm → cold → archived); `archived` is excluded from recall but stays resident + recoverable in the
-# ledger. A reinforcement marker is pure derivation fuel — non-content provenance — so it carries no `text`/
+# The reinforcement (access) marker. An append-only ledger record minted each time a record is RECALLED: it
+# names, by the reinforced record's stable id, that the record was used. `score` folds these into a
+# frecency × role-weight × recency value on a four-step scale (hot → warm → cold → archived). That value RANKS
+# recall results and picks roll-up candidates. No step of the scale is itself a membership rule — `live_records`
+# reads no tier — but it is not inert either: a completed roll-up supersedes the episodes it folded out of
+# recall, so the cold end of this scale reaches membership through roll-up (see `score.tier`).
+# A reinforcement marker is pure derivation fuel — non-content provenance — so it carries no `text`/
 # `session_id`; `index` keeps its `target` (a uuid hex, the `id`/`batch` problem) OUT of the search body
 # (index._NON_BODY_KEYS), and `forget.live_records` drops the marker itself from recall. The live caller that
-# appends it on recall is the search server; this change ships the kind + the appender + the demo only.
+# appends it on recall is the search server (`mcp_server`); this module ships the kind, and `forget` the appender.
 REINFORCEMENT_KIND = "reinforcement"   # the `kind` field of an access marker
 TARGET_KEY = "target"                  # the reinforced record's RECORD_ID_KEY value (whom the access points at)
 REINFORCEMENT_TAG = "reinforcement"    # the marker's tag (kept out of the search body like every tag)
@@ -115,14 +162,15 @@ REINFORCEMENT_TAG = "reinforcement"    # the marker's tag (kept out of the searc
 # folded-away markers: `score` reproduces the pre-compaction score from `FRECENCY_SNAPSHOT_KEY` (the frecency
 # value at compaction time) decayed forward from `SNAPSHOT_TS_KEY`, with `LAST_ACCESS_TS_KEY` flooring recency.
 # This is legal precisely because frecency is a RECURRENCE on the carried snapshot (score.frecency). `TIER_KEY`
-# carries the snapshot-time tier as a legibility field ONLY — the authoritative tier is still RECOMPUTED on read
-# from the snapshot (it ages as time passes), so a future reader must never trust the carried `tier` as current.
-# `index` keeps `TIER_KEY` (a string: "hot"/"cold"/"archived") OUT of the search body (index._NON_BODY_KEYS); the
-# numeric snapshot fields are excluded from the body by type already.
+# is NO LONGER WRITTEN: compaction used to stamp the snapshot-time tier as a legibility field, back when a tier
+# decided whether a record still surfaced. None does now, so the name survives only because a record an OLDER
+# engine compacted still carries one — and `index` must keep it (a string: "hot"/"cold"/"archived") OUT of the
+# search body (index._NON_BODY_KEYS), else those words would match every such record. The numeric snapshot
+# fields are excluded from the body by type already.
 FRECENCY_SNAPSHOT_KEY = "frecency_snapshot"   # float: score.frecency value at compaction time t0
 SNAPSHOT_TS_KEY = "snapshot_ts"               # int: t0, the compaction time the snapshot was stamped at
 LAST_ACCESS_TS_KEY = "last_access_ts"         # int: max(birth, *accesses) at t0, the recency floor
-TIER_KEY = "tier"                             # str: the snapshot-time tier (legibility; recomputed on read)
+TIER_KEY = "tier"                             # str: written by older engines only; kept out of the search body
 
 # The gist roll-up vocabulary. Active forgetting's first move is a SECOND-order
 # consolidation: an AI-judged maintenance pass rolls up OLD, low-frecency EPISODIC summaries of one session into a
@@ -152,16 +200,67 @@ SOURCE_IDS_KEY = "source_ids"       # on the gist: the RECORD_ID_KEY values of t
 # unconditionally. A uuid hex, so `index` keeps it OUT of the search body (index._NON_BODY_KEYS).
 SUPERSEDED_BY_KEY = "superseded_by"
 
+# The pin vocabulary — durable operator intent that has no better canonical home (eADR-0038). A pin is
+# CONTENT, not a marker: it carries `text` and rides ordinary recall, and it is a record-type inside this one
+# substrate rather than a second store.
+#
+# PROVENANCE IS RECORDED BECAUSE IT CANNOT BE VERIFIED. A pin is minted when the operator says "remember
+# this", but what lands in the ledger is whatever the calling session passed — and a session's context can
+# contain a page it recalled, a file it read, or tool output, any of which may be shaped like an instruction.
+# Nothing downstream can tell those apart from something the operator typed. So a pin records the ROUTE it
+# arrived by and nothing stronger, and every reader presents it as "saved when you asked me to remember
+# this" rather than as a verified quotation. PIN_VIA_ASSISTANT is a model calling the write tool;
+# PIN_VIA_CLI is the command line. Neither proves a person: an AI session runs commands here too (the actor
+# model), so the field distinguishes paths, never authorities.
+#
+# WHY A PIN IS SCRUBBED ON THE WAY IN. Capture scrubs secret-shaped text as it stores conversation, but a pin
+# does not come through capture — it is written directly by a verb. A credential pasted into a session and
+# then pinned would otherwise be stored unscrubbed AND read back into the briefing of every future session,
+# which is a worse exposure than the one capture's scrub exists to prevent. `pins.add` runs the same scrubber.
+PIN_KIND = "pin"                    # the record kind: durable operator intent, surfaced by ordinary recall
+PIN_VIA_KEY = "pinned_via"          # how it arrived — a route, never a claim about who authored it
+PIN_VIA_ASSISTANT = "assistant"     # a model called the write tool, transcribing what the operator asked
+PIN_VIA_CLI = "cli"                 # typed at the command line
+PIN_SOURCE_SESSION_KEY = "source_session"   # the session it was asked for in (a session id; kept non-body)
+PIN_TAG = "pin"                     # the pin's tag (kept out of the search body like every tag)
+
+# The withhold vocabulary — the operator's own REVERSIBLE control over what recall may surface.
+#
+# WHY "WITHHELD" AND NOT "HIDDEN". "Hidden from recall" is already spoken for: it is the phrase the
+# erasure consent copy uses for a note queued for PHYSICAL, irreversible removal (`erase`), and
+# "set aside" is already the roll-up's summarised-and-unfoldable class (`forget.set_aside`). A third control
+# wearing either word would blur the one distinction that must never blur — what comes back and what does
+# not. Withholding keeps the record exactly where it is, byte for byte, and stops recall returning it.
+#
+# TWO TARGET KEYS, NOT ONE FIELD WITH TWO MEANINGS. A record id and a session id are both uuid hex, so a
+# single `target` carrying either would be indistinguishable to every reader. A marker names ONE of them:
+# TARGET_KEY for a single record, TARGET_SESSION_KEY for a whole session's conversation.
+#
+# ORDER IS LEDGER POSITION, NEVER `ts`. Capture stamps whole-second timestamps, so a withhold and the
+# restore that reverses it can share one `ts`; ordering by time would leave the pair tied and the outcome
+# arbitrary. The ledger is append-only, so its own order is the authority — the LAST marker naming a target
+# decides, exactly as `_closed_batches` derives closure from position rather than time.
+#
+# Both markers are pure non-content provenance: no `text`, no `session_id` of their own, so `index` keeps
+# their uuid-hex target fields OUT of the search body (index._NON_BODY_KEYS) and `forget._is_bookkeeping`
+# drops the markers themselves from recall. Layer-1 to the letter: nothing is deleted, and `recall`'s window
+# reader honours them too, so a withheld session is not merely unsearchable but unquoted.
+WITHHOLD_KIND = "withheld"           # the marker that takes a record, or a session, out of recall
+RESTORE_KIND = "restored"            # the marker that reverses a withhold — the same two target keys
+TARGET_SESSION_KEY = "target_session"  # a whole session's conversation (a session id, never a record id)
+WITHHOLD_TAG = "withheld"            # the markers' tag (kept out of the search body like every tag)
+
 # The operator-adjudicated-erasure marker (Layer-2 physical erasure). Its OWN evidence class (NOT a
 # stretch of `operator-directed`): the one marker that authorises COMPACTION to physically REMOVE a recall record
 # from the ledger — the single irreversible act in the memory system, reachable ONLY because the operator merged a
 # single-purpose erasure pull request (the consent gate). It names the target by its stable, content-free
 # RECORD_ID_KEY (reusing TARGET_KEY — already non-body) and carries MERGE_SHA_KEY, the merge identity that
 # authorised it. Pure non-content provenance: no `text`/`session_id`; `index` keeps MERGE_SHA_KEY (and TARGET_KEY)
-# OUT of the search body, and `forget.live_records` drops the marker from recall (forget._is_demoted). `compact`
+# OUT of the search body, and `forget.live_records` drops the marker from recall (forget._is_bookkeeping). `compact`
 # removes the TARGET but RETAINS the marker itself (the idempotency tombstone, so a re-compaction is a clean no-op).
-# In this PR the marker is minted ONLY by hand — the test + the throwaway-cabinet demo (compact.enact_erasure,
-# the SOLE minter); no automatic producer exists until the cross-session observer reads a merged erasure PR.
+# `compact.enact_erasure` is the SOLE minter, and its one live caller is the cross-session observer
+# (`erasure_observer.enact_from_merged_prs`), which mints a marker only from a MERGED single-purpose erasure pull
+# request; a test and the throwaway-cabinet demo mint one directly. No path mints one from an AI's say-so alone.
 # The MERGE_SHA presence is a STRUCTURAL fail-safe floor, NOT consent verification — the real merged-not-closed /
 # immutable-merge-tree binding is the observer's job; `compact`'s read-side validity check ignores a
 # SHA-less marker so a hand-written or bypassed one can never erase.
@@ -176,16 +275,14 @@ ERASURE_TAG = "operator-adjudicated-erasure"     # the marker's tag (kept out of
 # key OUT of the search body too (index._NON_BODY_KEYS) — belt-and-suspenders, since scored copies are never indexed.
 SCORE_KEY = "score"
 
-# Cross-session roll-up cluster sentinels (#235). Roll-up's coarse "related" pre-filter was group-by-
-# session; the richer signal relates COLD episodes ACROSS sessions — a shared-topic-tag cluster (`tag:<tag>`) or a
-# lexical-similarity cluster (`sim:<id8>`). Such a gist has no single originating session, so it carries the
-# CLUSTER KEY as its `session_id` — a non-empty string, so every store/veto invariant that assumes a session_id
-# still holds. The gist's real-session provenance is NOT lost: it lives in SOURCE_IDS_KEY, from which
-# `forget.earned_consolidated_raw` recovers each contributing real session to credit the erasure veto. A real work
-# session id is a uuid hex, so it can never collide with these `<prefix>:` sentinels.
+# Cross-session roll-up cluster sentinel (#235). Roll-up's coarse "related" pre-filter was group-by-session; the
+# richer signal relates COLD episodes ACROSS sessions by shared topic tag (`tag:<tag>`). Such a gist has no single
+# originating session, so it carries the CLUSTER KEY as its `session_id` — a non-empty string, so every store
+# invariant that assumes a session_id still holds. The gist's real-session provenance is NOT lost: it lives in
+# SOURCE_IDS_KEY, and `recall.resolve_sessions` reads it back to reach the real conversations. A real work session
+# id is a uuid hex, so it can never collide with a `<prefix>:` sentinel.
 TAG_SESSION_PREFIX = "tag:"      # a gist rolling up a cross-session shared-topic-tag cluster
-SIM_SESSION_PREFIX = "sim:"      # a gist rolling up a cross-session lexical-similarity cluster
-_CROSS_SESSION_SENTINEL_PREFIXES = (TAG_SESSION_PREFIX, SIM_SESSION_PREFIX)
+_CROSS_SESSION_SENTINEL_PREFIXES = (TAG_SESSION_PREFIX,)
 
 
 def is_cross_session_sentinel(session_id) -> bool:

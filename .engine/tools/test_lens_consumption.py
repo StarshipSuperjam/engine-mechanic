@@ -2,7 +2,7 @@
 """Self-tests for the lens-consumption consumer (lens_consumption_check.py): the custom/script guard
 that diffs the installed review lenses against the consumed set build orchestration records.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the CONSUMER's contract (the pure diff leg validate.dangling_lens_findings is locked in
 test_agent.py): the fenced consumed-review-lenses block in build-orchestration.md parses to exactly the
@@ -70,8 +70,19 @@ class TestLiveRepository(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             rc = lc.main(["demo"])
         self.assertEqual(rc, 0)
-        self.assertIn("all clear", buf.getvalue())
-        self.assertIn("turns RED", buf.getvalue())
+        out = buf.getvalue()
+        # The fail-then-pass narration assumes review packs are installed. A deployment that DECLINED both
+        # review packs has no reviews to consume, so the demo prints the empty-roster line and returns before
+        # the fail/pass halves — a legitimate state, not a failure (#646). Key the assertion on whether any
+        # review persona is actually installed.
+        import agent_coherence_check
+        reviews_installed = any(a.get("role") in {"plan-review", "pre-submission-review"} and a.get("lens")
+                                for a in agent_coherence_check.engine_agents())
+        if reviews_installed:
+            self.assertIn("all clear", out)
+            self.assertIn("turns RED", out)
+        else:
+            self.assertIn("no review packs are installed", out)
 
 
 if __name__ == "__main__":

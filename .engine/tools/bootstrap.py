@@ -35,13 +35,8 @@ without modifying a rule the operator set themselves. The exact pieces added are
 ("the ruleset is augmented, never weakened"). Greenfield
 (no product ruleset) is unchanged: the engine creates and owns its own ruleset.
 
-Scope OUT of this slice (named, deferred):
-  - module manager add/remove + group-scoped uv-sync derivation + the orphan-wire reverse coherence leg
-  - engine updater/upgrade + migrations (module_manager); CODEOWNERS renderer (wiring), with its
-    live first-run/upgrade wire owed to the instantiator (which captures the operator handle)
-  - the operator verb + boot's one-click-fix copy update
-  - the second engine-scheme (spec-marker) label, deferred to the product-design module (core ensures only the
-    engine-domain label here)
+This tool owns ruleset provisioning and first-run label provisioning (`ensure_labels`). Module add/remove
+and engine upgrade + migrations live in `module_manager`; the CODEOWNERS renderer lives in `wiring`.
 """
 # `from __future__ import annotations` (PEP 563) is LOAD-BEARING, not cosmetic: the first-run
 # instantiator imports this module and runs it on the operator's SYSTEM python during the
@@ -60,12 +55,14 @@ import os
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402
 import github_client  # noqa: E402  (the shared authenticated GitHub API client; request-build)
-import boot  # noqa: E402  (repo_slug, gh_token, PROTECTED_BRANCH — the shared GitHub-context helpers)
+import boot  # noqa: E402  (repo_slug, gh_token — the shared GitHub-context helpers)
+import repo_identity  # noqa: E402  (resolve_default_branch — the authoritative branch the protection floor lands on)
 import protection_guard  # noqa: E402  (REQUIRED_CHECKS + missing_floor — the SINGLE home of the floor)
 import telemetry  # noqa: E402  (GitHubIssues.ensure_label — the minimal ensure this inherits)
 import weakening_guard  # noqa: E402  (ACK_LABEL — reuse the frozen guardrail-ack name, never re-decide it)
@@ -202,6 +199,20 @@ def remainder_ruleset(name: str = ENGINE_RULESET_NAME) -> dict:
     return rs
 
 
+def checkless_floor_ruleset(name: str = ENGINE_RULESET_NAME, *, tier: str) -> dict:
+    """The brownfield-ARRIVAL bootstrap floor (#673): the full TIER floor MINUS the engine's
+    required-status-checks rule. On arrival the engine's own workflows (engine-ci / engine-guard) are not yet
+    on the target's main — they land in the arrival PR itself — so requiring those checks would make that first
+    PR impossible to merge (the deadlock). This keeps the tier's REAL pull_request shape (review requirement,
+    conversation resolution), no force-push and no deletion in force, and omits only the checks until finalize
+    binds them once the workflows are on main. DISTINCT from remainder_ruleset(): that is the de-bootstrap
+    REMOVAL remainder, pinned to SOLO because the engine identity is being removed; this is tier-aware, so a
+    team arrival keeps its team protections through the arrival→finalize window."""
+    rs = floor_ruleset(name, tier=tier)
+    rs["rules"] = [r for r in rs["rules"] if r.get("type") != "required_status_checks"]
+    return rs
+
+
 # ---- augmenting a pre-existing PRODUCT ruleset in place (brownfield) ----------------------------
 #
 # When the engine arrives on a project that already protects its main branch with its OWN ruleset, it
@@ -278,22 +289,26 @@ def augment_payload(product_full: dict, required_checks: list | None = None, *, 
     added_rules: list = []
 
     # 1. Union the engine's required checks into the required_status_checks rule (create it if absent).
-    rsc = next((r for r in rules if r.get("type") == "required_status_checks"), None)
-    created_rsc = rsc is None
-    if created_rsc:
-        rsc = {"type": "required_status_checks",
-               "parameters": {"required_status_checks": [],
-                              "strict_required_status_checks_policy": False,
-                              "do_not_enforce_on_create": False}}
-        rules.append(rsc)
-        added_rules.append("required_status_checks")
-    rsc.setdefault("parameters", {}).setdefault("required_status_checks", [])
-    bound = {c.get("context") for c in rsc["parameters"]["required_status_checks"] if c.get("context")}
-    for name in required_checks:
-        if name not in bound:
-            rsc["parameters"]["required_status_checks"].append({"context": name})
-            if not created_rsc:  # when the engine created the rule, its removal covers these checks
-                added_checks.append(name)
+    #    Skipped ENTIRELY when required_checks is empty (the checkless brownfield bootstrap, #673): the engine
+    #    binds no checks until finalize, so it neither creates nor touches a checks rule here — never leaving a
+    #    pointless empty required_status_checks rule on the operator's ruleset.
+    if required_checks:
+        rsc = next((r for r in rules if r.get("type") == "required_status_checks"), None)
+        created_rsc = rsc is None
+        if created_rsc:
+            rsc = {"type": "required_status_checks",
+                   "parameters": {"required_status_checks": [],
+                                  "strict_required_status_checks_policy": False,
+                                  "do_not_enforce_on_create": False}}
+            rules.append(rsc)
+            added_rules.append("required_status_checks")
+        rsc.setdefault("parameters", {}).setdefault("required_status_checks", [])
+        bound = {c.get("context") for c in rsc["parameters"]["required_status_checks"] if c.get("context")}
+        for name in required_checks:
+            if name not in bound:
+                rsc["parameters"]["required_status_checks"].append({"context": name})
+                if not created_rsc:  # when the engine created the rule, its removal covers these checks
+                    added_checks.append(name)
 
     # 2. Add any WHOLLY-MISSING floor rule type (strengthen-to-floor) — never modify an existing one.
     present_types = {r.get("type") for r in rules}
@@ -376,6 +391,15 @@ def _product_preserved(pre: dict, post: dict, added: dict) -> bool:
 
 # Built-in fallbacks. The plain-language SURFACE source is .engine/templates/control-plane-bootstrap.md;
 # a test asserts the template carries each of these so they cannot silently drift.
+# The #514 Actions-enablement reminder, re-emitted at FINALIZE (#673) — finalize is the moment the engine's
+# checks become required, so it is the moment Actions must be on for them to run. Inline (not a load_copy key),
+# so it needs no template-parity section.
+FINALIZE_ACTIONS_NOTE = (
+    "One more thing: these checks only run if GitHub Actions is enabled for this repository. If you haven't "
+    "already, open the repository's Actions tab and enable workflows — otherwise the required checks stay "
+    "pending and pull requests can't merge."
+)
+
 FALLBACK_COPY = {
     "before-you-approve": (
         "I'm about to turn on your safety gate — the branch protection that keeps work from reaching "
@@ -573,7 +597,8 @@ class ControlPlane:
     `transport(method, path, body) -> (status, json, headers)` is injectable so tests/demo replace ONLY
     the network and run the real logic."""
 
-    def __init__(self, repo: str, token: str, transport=None, refresh_fn=None, issues=None, tier=None):
+    def __init__(self, repo: str, token: str, transport=None, refresh_fn=None, issues=None, tier=None,
+                 checkless=False):
         self.repo = repo
         self.token = token
         self._transport = transport or self._http
@@ -585,6 +610,14 @@ class ControlPlane:
         # method as self.tier, so no method independently defaults it. Injectable for tests; resolved from the
         # committed manifest otherwise.
         self.tier = tier if tier is not None else protection_guard.resolve_tier()
+        # CHECKLESS is the brownfield-arrival bootstrap mode (#673): protect main WITHOUT requiring the engine's
+        # own checks, whose workflows are not yet on the branch. Resolved ONCE here to instance state (like
+        # self.tier) so floor_missing/_write_floor/_augment_ruleset all read self and no call site can thread it
+        # inconsistently. self.required_checks is the effective set the whole instance evaluates and binds: the
+        # frozen home in steady state, empty during the arrival window. finalize() constructs a NON-checkless
+        # instance to bind them once the workflows have landed.
+        self.checkless = checkless
+        self.required_checks = [] if checkless else list(protection_guard.REQUIRED_CHECKS)
 
     def _http(self, method: str, path: str, body=None):
         data = json.dumps(body).encode("utf-8") if body is not None else None
@@ -629,10 +662,12 @@ class ControlPlane:
         endpoint (the default token can read it) and protection_guard's own evaluation. Raises
         BootstrapError on an unreadable response — never a false 'protected'."""
         status, data, _ = self._transport(
-            "GET", f"/repos/{self.repo}/rules/branches/{branch}", None)
+            "GET", f"/repos/{self.repo}/rules/branches/{urllib.parse.quote(branch, safe='')}", None)
         if status >= 400 or not isinstance(data, list):
             raise BootstrapError(f"could not read evaluated branch rules (status {status})")
-        return protection_guard.missing_floor(data, protection_guard.REQUIRED_CHECKS, tier=self.tier)
+        # self.required_checks is checkless-aware: empty during the arrival window (so a checkless-protected
+        # branch reads as fully in force and re-runs are idempotent), the frozen set in steady state.
+        return protection_guard.missing_floor(data, self.required_checks, tier=self.tier)
 
     def engine_ruleset(self) -> dict | None:
         """The engine's own ruleset, if it already exists (matched by ENGINE_RULESET_NAME). Returns None
@@ -655,7 +690,7 @@ class ControlPlane:
         redundant rulesets list; it is resolved here when not supplied. Raises BootstrapError on an
         unreadable response (fail-closed — never guess the set)."""
         status, data, _ = self._transport(
-            "GET", f"/repos/{self.repo}/rules/branches/{branch}", None)
+            "GET", f"/repos/{self.repo}/rules/branches/{urllib.parse.quote(branch, safe='')}", None)
         if status >= 400 or not isinstance(data, list):
             raise BootstrapError(f"could not read evaluated branch rules (status {status})")
         if own_id == "__resolve__":
@@ -683,8 +718,10 @@ class ControlPlane:
     # -- writes -----------------------------------------------------------------------------------
 
     def _write_floor(self, existing: dict | None):
-        """Create the engine ruleset (POST) or repair it in place (PUT). Returns (status, body)."""
-        payload = floor_ruleset(tier=self.tier)
+        """Create the engine ruleset (POST) or repair it in place (PUT). Returns (status, body). In checkless
+        mode (brownfield arrival) it writes the tier-aware floor MINUS the required-checks rule, so the arrival
+        PR can merge; finalize (a non-checkless instance) later PUTs the full floor to bind the checks."""
+        payload = checkless_floor_ruleset(tier=self.tier) if self.checkless else floor_ruleset(tier=self.tier)
         if existing:
             status, body, _ = self._transport(
                 "PUT", f"/repos/{self.repo}/rulesets/{existing['id']}", payload)
@@ -727,7 +764,10 @@ class ControlPlane:
     def apply(self, branch: str | None = None, announce=None) -> Result:
         """Idempotently ensure the protection floor is in force on the branch, then ensure the engine
         labels. `announce(text)` surfaces operator copy at the right moments (default: print)."""
-        branch = branch or boot.PROTECTED_BRANCH
+        # The gate's one-click repair lands the protection floor on the AUTHORITATIVE default branch (env ->
+        # recorded -> origin/HEAD -> "main"), the same branch boot's safety-gate signal probes — so the fix
+        # can never protect a different branch than the one reported unprotected.
+        branch = branch or repo_identity.resolve_default_branch()
         copy = load_copy()
         say = announce if announce is not None else (lambda text: print(text))
 
@@ -805,6 +845,46 @@ class ControlPlane:
             return Result("degraded", branch, still_missing, "verify-failed", labels_ok, mode=mode)
         return Result("applied", branch, [], None, labels_ok, mode=mode, marker=marker)
 
+    def workflows_present_on(self, branch: str) -> bool:
+        """Whether BOTH engine workflows that emit the required checks are actually on `branch` — the
+        precondition finalize checks before it makes those checks REQUIRED (#673). A required check whose
+        workflow file is absent on the branch would 'wait forever' and re-create the arrival deadlock, so
+        finalize refuses until both are present. Fail-CLOSED: any non-200 (incl. an unreadable response) reads
+        as absent — finalize would rather refuse than bind into a deadlock. The two filenames are the workflows
+        that produce protection_guard.REQUIRED_CHECKS; the filename<->check-name coupling is the engine's own
+        fixed convention (the same engine-*.yml the collision check globs), so a rename must move both."""
+        for fname in ("engine-ci.yml", "engine-guard.yml"):
+            try:
+                status, _data, _ = self._transport(
+                    "GET", f"/repos/{self.repo}/contents/.github/workflows/{fname}?ref={branch}", None)
+            except BootstrapError:
+                return False
+            if status != 200:
+                return False
+        return True
+
+    def finalize(self, branch: str | None = None, announce=None) -> Result:
+        """Post-merge second phase of the brownfield two-phase bootstrap (#673). The arrival applied the
+        CHECKLESS floor so its own pull request could merge; now that it has, the engine's workflows are on the
+        branch and their checks (engine-ci / engine-guard) can finally be made REQUIRED. Refuses fail-closed
+        when the workflows are NOT yet on the branch — binding them then would re-create the deadlock (usually
+        it means the arrival PR has not merged). Otherwise delegates to a NORMAL (non-checkless) apply — so it
+        must be called on a non-checkless instance (the CLI constructs one) — which is idempotent: an
+        already-bound branch reads 'already'. On success it re-emits the Actions-enablement reminder, because
+        finalize is the moment the checks become load-bearing and they only run if Actions is enabled."""
+        if self.checkless:   # finalize's whole job is to BIND the checks; a checkless instance would no-op them
+            raise BootstrapError("finalize must run on a non-checkless ControlPlane — it binds the checks a "
+                                 "checkless arrival deferred.")
+        branch = branch or boot.PROTECTED_BRANCH
+        say = announce if announce is not None else (lambda text: print(text))
+        if not self.workflows_present_on(branch):
+            return Result("degraded", branch, list(protection_guard.REQUIRED_CHECKS), "workflows-absent",
+                          True, mode="finalize")
+        result = self.apply(branch=branch, announce=announce)
+        if result.is_protected():
+            say(FINALIZE_ACTIONS_NOTE)
+        return result
+
     def _augment_ruleset(self, rid: int, branch: str, missing, say, copy) -> Result:
         """AUGMENT a single pre-existing PRODUCT ruleset in place: add the engine's required checks and any
         wholly-missing floor protection, preserving everything of the operator's. A fail-closed
@@ -823,11 +903,14 @@ class ControlPlane:
                 return Result("unverified", branch, missing or [], "verify-unreadable", labels_ok,
                               mode="augmented")
             pre = _project_ruleset(pre_full)
-            payload, added, residual = augment_payload(pre_full, tier=self.tier)
+            payload, added, residual = augment_payload(pre_full, required_checks=self.required_checks,
+                                                       tier=self.tier)
             if not added["checks"] and not added["rules"]:
                 # Already augmented — a verified no-op. Record the engine checks in force so a later
                 # de-bootstrap still strips them (and never deadlocks); leave added rule-types empty (safe).
-                added = {"checks": [c for c in protection_guard.REQUIRED_CHECKS
+                # In checkless mode self.required_checks is empty, so this records no checks (correct — none
+                # were bound), and finalize will re-augment WITH them once the workflows are on main.
+                added = {"checks": [c for c in self.required_checks
                                     if c in _bound_checks(pre["rules"])], "rules": []}
                 post = pre
                 break
@@ -851,8 +934,8 @@ class ControlPlane:
                 labels_ok = self.ensure_labels()
                 return Result("degraded", branch, missing or [], "preserve-failed", labels_ok,
                               mode="augmented")
-            if all(c in _bound_checks(post["rules"]) for c in protection_guard.REQUIRED_CHECKS):
-                break                                     # our checks are in force
+            if all(c in _bound_checks(post["rules"]) for c in self.required_checks):
+                break                                     # our checks are in force (vacuously true when checkless)
             if attempts < 2:
                 continue                                  # a concurrent overwrite landed — re-read, retry once
             labels_ok = self.ensure_labels()
@@ -866,7 +949,7 @@ class ControlPlane:
         # plan tier), and the engine must not then claim that protection is on. `residual` is the floor pieces
         # the engine deliberately LEFT to the operator (gaps in their own rules it won't modify); anything
         # missing BEYOND that is something the engine tried to add but the server didn't apply.
-        actual_missing = protection_guard.missing_floor(post["rules"], protection_guard.REQUIRED_CHECKS, tier=self.tier)
+        actual_missing = protection_guard.missing_floor(post["rules"], self.required_checks, tier=self.tier)
         unexpected = [m for m in actual_missing if m not in residual]
         if unexpected:
             return Result("degraded", branch, actual_missing, "verify-failed", labels_ok, mode="augmented")
@@ -941,7 +1024,7 @@ class ControlPlane:
         # product ruleset that carries them (bounded, never a product's own rules), never delete, disclose.
         # This is deadlock-prevention first: the engine's checks must come off before its workflows vanish.
         try:
-            prod_ids = self.product_rulesets(branch=boot.PROTECTED_BRANCH)
+            prod_ids = self.product_rulesets(branch=repo_identity.resolve_default_branch())
         except BootstrapError:
             prod_ids = []
         for rid in prod_ids:
@@ -990,6 +1073,15 @@ def render(result: Result, copy: dict | None = None) -> str:
                "left the rest of your rule exactly as it was, so I've stopped rather than risk changing "
                "your protection. Nothing of yours should have changed — please check your repository's "
                "rules, and tell me if anything looks off.")
+    elif result.cause == "workflows-absent":
+        # Finalize (#673) refused because the engine's workflows aren't on the branch yet — binding the checks
+        # now would deadlock every future pull request. Say so plainly, and name the likely cause.
+        msg = ("I can't switch the engine's own checks on yet: I couldn't confirm the workflows that produce "
+               "them (engine-ci and engine-guard) are on the '" + result.branch + "' branch. That usually "
+               "means the pull request that adds the engine hasn't merged yet — merge it first, then run this "
+               "again. (If it has merged, the other possibility is that this sign-in can't read the repository's "
+               "files; a login that can administer branch protection can normally read them too.) Nothing was "
+               "changed.")
     elif result.cause == "verify-failed":
         # The write reported success but the gate still isn't fully in force — honest, not "not-admin".
         detail = (": " + "; ".join(result.missing)) if result.missing else ""
@@ -1055,20 +1147,98 @@ def cmd_apply(args) -> int:
     return 0 if result.is_protected() else 1
 
 
+def _engine_json_path() -> str:
+    return os.path.join(validate.ROOT, ".engine", "engine.json")
+
+
+def _union_added(prev_marker, cur_marker):
+    """Merge the augment 'added' sets across arrival(checkless)+finalize so a later de_bootstrap reverses
+    EXACTLY the whole sequence's additions (#673): the arrival records the wholly-missing floor RULES it added
+    (no checks); finalize records the CHECKS it binds. Without the union, finalize's marker would overwrite the
+    arrival's, and de_bootstrap would leave the engine-added floor rules orphaned on the operator's ruleset.
+    Only carries when both markers augment the SAME product ruleset; the create/repair shape (added is None —
+    the engine owns its own ruleset, reversed by keep/drop) needs no union, so cur wins."""
+    if not cur_marker or cur_marker.get("added") is None:
+        return cur_marker
+    if (prev_marker or {}).get("augmented_ruleset_id") != cur_marker.get("augmented_ruleset_id"):
+        return cur_marker
+    prev_added = (prev_marker or {}).get("added") or {}
+    cur_added = cur_marker.get("added") or {}
+    merged = dict(cur_marker)
+    merged["added"] = {
+        "checks": sorted(set(prev_added.get("checks") or []) | set(cur_added.get("checks") or [])),
+        "rules": sorted(set(prev_added.get("rules") or []) | set(cur_added.get("rules") or [])),
+    }
+    return merged
+
+
+def _persist_finalize_marker(marker) -> None:
+    """Record finalize's control-plane marker in engine.json, UNIONed with the arrival's (#673). Best-effort:
+    a write failure never fails finalize — it only means de_bootstrap later falls back to a bounded, name-only
+    strip. Temp-file + os.replace so a crashed write never leaves a truncated manifest."""
+    if not marker:
+        return
+    path = _engine_json_path()
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return
+    data["control_plane"] = _union_added(data.get("control_plane"), marker)
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2)
+            fh.write("\n")
+        os.replace(tmp, path)
+    except OSError:
+        return
+
+
+def cmd_finalize(args) -> int:
+    """Post-merge: bind the engine's required checks that a brownfield arrival deliberately left off (#673) —
+    now that the arrival pull request has merged and the engine's workflows are on the branch. Idempotent;
+    refuses (exit 1) if those workflows aren't on the branch yet (the arrival PR hasn't merged)."""
+    repo = _resolve_repo(args.repo)
+    token = boot.gh_token()
+    if not repo or not token:
+        print("Can't finalize branch protection from here — no repository access is available. "
+              "Run this where you're logged in to GitHub (`gh auth login`).")
+        return 1
+    cp = ControlPlane(repo, token)
+    try:
+        result = cp.finalize(branch=args.branch)
+    except BootstrapError as e:
+        print(f"Couldn't reach GitHub to finalize branch protection ({e}). Nothing changed — try again "
+              "when you're back online.")
+        return 1
+    print(render(result))
+    if result.is_protected():
+        _persist_finalize_marker(result.marker)
+    return 0 if result.is_protected() else 1
+
+
 def main(argv: list | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bootstrap",
         description="Turn the protected-branch safety gate on (the control-plane bootstrap).")
     parser.add_argument("--repo", default=None, help="owner/repo (default: derived from the git remote)")
-    parser.add_argument("--branch", default=boot.PROTECTED_BRANCH, help="the protected branch")
+    parser.add_argument("--branch", default=None,
+                        help="the protected branch (default: the repo's resolved default branch)")
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("status", help="report whether the safety gate is on (read-only)")
     sub.add_parser("apply", help="turn the safety gate on (idempotent)")
+    sub.add_parser("finalize", help="after a brownfield arrival merges, turn on the engine's required checks")
     args = parser.parse_args(argv)
+    # Resolve the default once for whichever verb runs (env -> recorded -> origin/HEAD -> "main"), so a repo
+    # whose default is not `main` is reported and repaired on its real branch.
+    args.branch = args.branch or repo_identity.resolve_default_branch()
     if args.cmd == "status":
         return cmd_status(args)
     if args.cmd == "apply":
         return cmd_apply(args)
+    if args.cmd == "finalize":
+        return cmd_finalize(args)
     parser.print_help()
     return 0
 

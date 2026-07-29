@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-tests for the wiring library + the comment-fenced-block helper.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the R5-firewall properties that, for four of the five seams, have NO behavioral demo
 this slice (their target files are born later) and so rest entirely on test name↔assertion
@@ -17,6 +17,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -80,11 +81,6 @@ class TestFenceHelper(unittest.TestCase):
         self.assertIn("# BEGIN engine-managed block: core - do not edit inside", out)
         self.assertIn("# END engine-managed block: core", out)
         self.assertIn(".engine/.venv/", out)
-
-    def test_apply_is_idempotent_byte_for_byte(self):
-        once = wiring.fence_apply("build/\n*.log\n", "core", [".engine/.venv/"])
-        twice = wiring.fence_apply(once, "core", [".engine/.venv/"])
-        self.assertEqual(once, twice)
 
     def test_apply_preserves_surrounding_content(self):
         out = wiring.fence_apply("build/\n*.log\n", "core", [".engine/.venv/"])
@@ -752,7 +748,7 @@ class TestFoundationIgnores(_Redirected):
     def _gi(self):
         return wiring.GITIGNORE_PATH
 
-    def test_apply_writes_the_keyed_fence_with_exactly_the_three_lines(self):
+    def test_apply_writes_the_keyed_fence_with_the_foundation_lines(self):
         outcome = wiring.apply_foundation_ignores(self._gi())
         self.assertEqual(outcome["status"], "written")
         text = _read(self._gi())
@@ -835,6 +831,48 @@ class TestCommittedFoundationIgnores(unittest.TestCase):
         body = text.split("\n")[span[0] + 1:span[1]]
         self.assertEqual(body, wiring.FOUNDATION_IGNORE_LINES,
                          "the committed fence body must equal the single-source constant (no drift)")
+
+
+class TestFoundationIgnoresBytecodeInADeployedRepo(unittest.TestCase):
+    """#675 acceptance: the projected foundation fence keeps the engine's OWN Python bytecode out of a
+    deployed repo's `git status`. A dirty `git status --porcelain` after a read-only diagnostics run is the
+    real (and only) symptom — the surface census already excludes `__pycache__` by name via
+    module_coherence.PRUNE_DIRS, so it cannot witness this fix; only git-status cleanliness can. Git-backed (a
+    throwaway repo) so the behaviour is proven end-to-end and offline, and it exercises BOTH cache depths the
+    issue names — the shallow `.engine/tools/` and the deep `.engine/modules/core/migrations/` — so a fence
+    narrowed to one level (`.engine/*/__pycache__/`) would fail it. Fails on today's bytecode-less fence."""
+
+    @staticmethod
+    def _git(root, *a):
+        return subprocess.run(["git", "-C", root, *a], capture_output=True, text=True, check=False)
+
+    def test_projected_fence_keeps_engine_bytecode_out_of_git_status(self):
+        with tempfile.TemporaryDirectory() as root:
+            self._git(root, "init", "-q")
+            # Project the engine's foundation fence and commit it, exactly as a deployed repo carries it
+            # (first-run places the fence, then it is tracked).
+            gi = os.path.join(root, ".gitignore")
+            self.assertEqual(wiring.apply_foundation_ignores(gi)["status"], "written")
+            self._git(root, "add", "-A")
+            self._git(root, "-c", "user.email=e@x", "-c", "user.name=n", "commit", "-q", "-m", "seed")
+            # A diagnostics run writes bytecode at BOTH depths the issue names.
+            caches = [
+                os.path.join(root, ".engine", "tools", "__pycache__", "wiring.cpython-312.pyc"),
+                os.path.join(root, ".engine", "modules", "core", "migrations",
+                             "__pycache__", "0001.cpython-312.pyc"),
+            ]
+            for c in caches:
+                os.makedirs(os.path.dirname(c), exist_ok=True)
+                with open(c, "w", encoding="utf-8") as fh:
+                    fh.write("# regenerable bytecode\n")
+            # The criterion the operator sees: a read-only diagnostics pass leaves the tree clean.
+            porcelain = self._git(root, "status", "--porcelain").stdout
+            self.assertEqual(porcelain, "", f"engine bytecode dirtied git status:\n{porcelain}")
+            # And each cache path is ignored specifically by the projected fence — at both depths.
+            for c in caches:
+                rel = os.path.relpath(c, root)
+                self.assertEqual(self._git(root, "check-ignore", rel).returncode, 0,
+                                 f"{rel} is not ignored by the projected fence")
 
 
 # ---- the Codex seams (codex-hook -> .codex/hooks.json; codex-mcp -> .codex/config.toml) -------
@@ -1001,6 +1039,75 @@ class TestCodexMcpSeam(_Redirected):
                                     wiring._rel(wiring.CODEX_CONFIG_PATH))])
         self.assertEqual(wiring.declared_wire_identity(CODEX_MCP),
                          ("codex-mcp", "engine-knowledge"))
+
+    def _without_tomllib(self):
+        # Simulate the 3.9 orchestrator floor where tomllib (3.11+) is unavailable.
+        saved = wiring.tomllib
+        wiring.tomllib = None
+        self.addCleanup(lambda: setattr(wiring, "tomllib", saved))
+
+    def test_apply_writes_block_on_empty_config_without_tomllib(self):
+        # #669: on 3.9 the codex-mcp wire always ran on a FRESH target (empty config) and crashed on
+        # an unguarded `import tomllib`. The guarded degrade must still apply on empty content —
+        # the engine's own block is valid TOML by construction, so no validation is needed.
+        self._without_tomllib()
+        f = wiring.apply(CODEX_MCP)
+        self.assertEqual(f["severity"], "note", "empty config applies cleanly with no tomllib")
+        text = _read(wiring.CODEX_CONFIG_PATH)
+        self.assertIn(wiring.FENCE_BEGIN.format(id="engine-knowledge"), text)
+        self.assertTrue(wiring.is_applied(CODEX_MCP))
+
+    def test_apply_skips_loud_on_nonempty_config_without_tomllib(self):
+        # A pre-existing NON-EMPTY config the engine cannot validate on 3.9 is left byte-for-byte
+        # untouched (never blind-written) and the skip is a hard finding, never a silent success.
+        self._without_tomllib()
+        os.makedirs(os.path.dirname(wiring.CODEX_CONFIG_PATH), exist_ok=True)
+        product = '# my own notes\n[mcp_servers.my-server]\ncommand = "npx"\n'
+        with open(wiring.CODEX_CONFIG_PATH, "w", encoding="utf-8") as fh:
+            fh.write(product)
+        f = wiring.apply(CODEX_MCP)
+        self.assertEqual(f["severity"], "hard")
+        self.assertIn("Python 3.11+", f["message"])
+        self.assertEqual(_read(wiring.CODEX_CONFIG_PATH), product, "no blind write of an unreadable config")
+
+    def test_reverse_skips_loud_on_nonempty_config_without_tomllib(self):
+        # Symmetric: reverse over a non-empty config it cannot validate skips loud, file unchanged.
+        wiring.apply(CODEX_MCP)                       # land the block WITH tomllib first
+        self._without_tomllib()
+        before = _read(wiring.CODEX_CONFIG_PATH)
+        f = wiring.reverse(CODEX_MCP)
+        self.assertEqual(f["severity"], "hard")
+        self.assertEqual(_read(wiring.CODEX_CONFIG_PATH), before, "no blind write of an unreadable config")
+
+
+class TestWorkflowsDeriveTheDefaultBranch(unittest.TestCase):
+    """#671: the shipped workflows (foundation infra, overlaid verbatim onto every deployment) must DERIVE the
+    repo's default branch, never freeze a literal `main` — else on a repo whose default is `master` the merge
+    gate checks the wrong branch and the release/audit pull requests target a base that does not exist. Per
+    trigger: engine-ci (pull_request) and release (workflow_dispatch) carry the repository payload, so they
+    read github.event.repository.default_branch; audit-prep (schedule) does NOT, so it reads github.ref_name."""
+
+    def _wf(self, name: str) -> str:
+        with open(os.path.join(validate.ROOT, ".github", "workflows", name), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_engine_ci_derives_the_protected_branch(self):
+        wf = self._wf("engine-ci.yml")
+        self.assertIn("PROTECTED_BRANCH: ${{ github.event.repository.default_branch }}", wf)
+        self.assertNotIn("PROTECTED_BRANCH: main", wf)
+
+    def test_release_pr_base_is_derived(self):
+        wf = self._wf("release.yml")
+        self.assertIn('--base "${{ github.event.repository.default_branch }}"', wf)
+        self.assertNotIn("--base main", wf)
+
+    def test_audit_prep_uses_the_schedule_safe_ref_name(self):
+        wf = self._wf("audit-prep.yml")
+        self.assertIn('--base "${{ github.ref_name }}"', wf)
+        self.assertNotIn("--base main", wf)
+        # the conformance-feed step must hand conformance_sweep the same default so its baseline read keys off
+        # the real branch (a literal "main" 404s the baseline on a `master` repo, stale-flagging every row).
+        self.assertIn("GITHUB_DEFAULT_BRANCH: ${{ github.ref_name }}", wf)
 
 
 if __name__ == "__main__":

@@ -16,9 +16,10 @@ The open-removal-PR DEDUPE is a SEPARATE, best-effort, ONLINE step (`removal_pr_
 never sits on the offline detector's critical path (the `checkout_health` offline/online seam).
 
 Fix-never-here: the removal lands as a reviewed pull request the operator merges (build-orchestration's trivial
-fast path), never a boot-time delete. No-op in the engine's OWN template/construction repo, where the
-root LICENSE is legitimately the engine's, not a leftover — judged against the EXAMINED checkout's committed
-`HEAD:CLAUDE.md` (not this process's repo), so the guard tracks the repo whose LICENSE is being judged.
+fast path), never a boot-time delete. No-op in the engine's OWN home repository, where the root LICENSE is
+legitimately the engine's, not a leftover — judged by whether the EXAMINED checkout's git origin equals the
+update home its manifest records (not this process's repo), so the guard tracks the repo whose LICENSE is
+being judged.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import license_seeds  # noqa: E402
-import memory_pointer_public_safety_check as _construction  # noqa: E402  (reuse the construction-marker constant)
+import repo_identity  # noqa: E402  (is_home_repo — the home-repo identity seam; #323)
 
 # The fixed title of the reviewed removal PR — the SHARED CONTRACT between the fix author and this dedupe. The
 # boot-session-start repair-offer wiring instructs the assistant to title the cleanup PR EXACTLY this, and
@@ -36,10 +37,6 @@ import memory_pointer_public_safety_check as _construction  # noqa: E402  (reuse
 # guarantee holds (a `Maintenance:` upkeep change, per build-orchestration's kind grammar). If this string
 # changes, the boot-session-start bullet must change with it.
 REMOVAL_PR_TITLE = "Maintenance: remove the leftover template LICENSE"
-
-# The construction-governance marker (the engine's own template repo's root CLAUDE.md header, superseded at v1).
-# Imported, never restated, so the two guards can never drift apart.
-_CONSTRUCTION_MARKER = _construction._CONSTRUCTION_MARKER
 
 
 def _run(cmd: list, cwd: str | None = None, timeout: int = 30) -> str | None:
@@ -89,29 +86,23 @@ def _committed(main: str, rel: str) -> str | None:
     return _run(["git", "-C", main, "show", f"HEAD:{rel}"])
 
 
-def _is_engine_template_repo(main: str) -> bool:
-    """True iff the EXAMINED main checkout is the engine's own template/construction repo — its committed root
-    CLAUDE.md carries the construction-governance marker — where the root LICENSE is legitimately the engine's,
-    never a leftover to offer removing (the engine==product carve-out). Read from HEAD so it tracks the same
-    committed state as the LICENSE read. Unreadable/absent CLAUDE.md -> False (treat as a product repo, so a real
-    leftover is still caught; the reviewed-PR consent gate is the backstop against a wrong offer)."""
-    text = _committed(main, "CLAUDE.md")
-    return bool(text) and _CONSTRUCTION_MARKER in text.lower()
-
-
 def detect_foreign_license(cwd: str | None = None) -> dict | None:
     """OFFLINE, READ-ONLY. Returns {"present": True, "main": <path>, "fingerprint": <seed id>} when the main
     checkout's committed root LICENSE positively matches one of the engine's OWN historically-shipped template
     seeds; else None — healthy (the product's own license, or no LICENSE), unresolvable, or the engine's own
-    template/construction repo. All non-fire paths are fail-soft quiet (never a crash into boot's SessionStart).
+    home repository. All non-fire paths are fail-soft quiet (never a crash into boot's SessionStart).
     The `fingerprint` is the matched-seed id: stable session-to-session for the same license (so the ledger
     collapse works), changing if the license becomes a DIFFERENT recognizable seed (so a retired finding
     re-surfaces on a new leak)."""
     main = _main_checkout(cwd)
     if main is None:
         return None
-    if _is_engine_template_repo(main):
-        return None                       # the engine's OWN template repo: its root LICENSE is legitimately ours
+    # The EXAMINED checkout is the engine's OWN home repo — its git origin equals its recorded home_repository
+    # — where the root LICENSE is legitimately the engine's, never a leftover to offer removing. Fails TOWARD
+    # home when the origin can't be read, so an unplaceable repo gets no spurious removal offer; a deployed repo
+    # with a genuine leftover and no readable origin loses only the nudge, and the reviewed-PR gate still backs it.
+    if repo_identity.is_home_repo(main):
+        return None
     text = _committed(main, "LICENSE")
     if text is None:
         return None                       # no committed LICENSE -> nothing to clear
@@ -146,18 +137,24 @@ def _git(root: str, *args: str) -> None:
     subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=False)
 
 
-def _fixture(tmp: str, name: str, *, license_text: str | None, construction: bool = False) -> str:
-    """A throwaway committed git checkout: optional root LICENSE, optional construction CLAUDE.md, one commit."""
+def _fixture(tmp: str, name: str, *, license_text: str | None,
+             origin: str = "https://github.com/adopter/their-product.git") -> str:
+    """A throwaway committed git checkout: optional root LICENSE, a git origin, and a recorded home_repository,
+    one commit. The engine==product carve-out keys on git origin == recorded home (repo_identity.is_home_repo);
+    the default origin is a deployed repo (origin != home), so a leftover template LICENSE fires."""
+    import json
     root = os.path.join(tmp, name)
-    os.makedirs(root, exist_ok=True)
+    os.makedirs(os.path.join(root, ".engine"), exist_ok=True)
     _git(root, "init", "-q")
     _git(root, "config", "user.email", "t@t")
     _git(root, "config", "user.name", "t")
+    if origin:
+        _git(root, "remote", "add", "origin", origin)
+    with open(os.path.join(root, ".engine", "engine.json"), "w", encoding="utf-8") as fh:
+        json.dump({"home_repository": "StarshipSuperjam/engine-template"}, fh)
     if license_text is not None:
         with open(os.path.join(root, "LICENSE"), "w", encoding="utf-8") as fh:
             fh.write(license_text)
-    with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as fh:
-        fh.write("# construction governance\n" if construction else "# a product\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "seed")
     return root
@@ -172,18 +169,18 @@ def _demo() -> int:
         leftover = _fixture(tmp, "leftover", license_text=seed)
         renamed = _fixture(tmp, "renamed", license_text=seed.replace("StarshipSuperjam", "Acme Corp"))
         absent = _fixture(tmp, "absent", license_text=None)
-        template = _fixture(tmp, "template", license_text=seed, construction=True)
+        home = _fixture(tmp, "home", license_text=seed, origin="https://github.com/StarshipSuperjam/engine-template.git")
 
         d_leftover = detect_foreign_license(cwd=leftover)
         d_renamed = detect_foreign_license(cwd=renamed)
         d_absent = detect_foreign_license(cwd=absent)
-        d_template = detect_foreign_license(cwd=template)
+        d_home = detect_foreign_license(cwd=home)
 
         print(f"1) A generated repo still carrying the template LICENSE -> FIRES: {d_leftover is not None} "
               f"(fingerprint {d_leftover and d_leftover['fingerprint']})")
         print(f"2) An adopter who kept the text but renamed the Licensor -> preserved (None): {d_renamed is None}")
         print(f"3) A repo with no LICENSE                               -> preserved (None): {d_absent is None}")
-        print(f"4) The engine's OWN template/construction repo          -> no-op (None):     {d_template is None}")
+        print(f"4) The engine's OWN home repo (origin == home)          -> no-op (None):     {d_home is None}")
 
         print("\n5) The plain-language line the operator sees (an OFFER, ranked below the safety alarms):\n")
         import boot  # lazy: boot is fully loaded by demo time
@@ -195,7 +192,7 @@ def _demo() -> int:
         # Self-check: the detector separates the four shapes, and boot renders a non-empty offer line for the fire.
         rendered = boot.render_dashboard(signals)
         ok = (d_leftover is not None and d_leftover.get("fingerprint")
-              and d_renamed is None and d_absent is None and d_template is None
+              and d_renamed is None and d_absent is None and d_home is None
               and "license" in rendered.lower())
         if not ok:
             print("\nDEMO UNEXPECTED: detection or the boot offer line did not behave as expected.", file=sys.stderr)

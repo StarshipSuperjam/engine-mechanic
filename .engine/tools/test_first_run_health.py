@@ -24,6 +24,7 @@ from unittest import mock
 
 import first_run_health
 import module_coherence
+import repo_identity  # the dependency-light home-repo identity seam is_downstream_copy now lives in
 
 HOME = "StarshipSuperjam/engine-template"
 
@@ -52,7 +53,8 @@ def _repo(tmp: str, name: str, *, origin: str, home: str | None = HOME,
         with open(os.path.join(root, ".engine", "tools", "instantiator.py"), "w", encoding="utf-8") as fh:
             fh.write("# placeholder setup tool\n")
     with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as fh:
-        fh.write("# Your project runs on an Engine\n" if floor_swapped else "# construction governance\n")
+        fh.write("# Your project runs on an Engine\n" if floor_swapped
+                 else "# a fresh copy of the engine template\n")   # content is incidental; keyed on origin + tool
     if commit:
         _git(root, "add", "-A")
         _git(root, "commit", "-qm", "seed")
@@ -109,6 +111,14 @@ class TestDetectFirstRunPending(unittest.TestCase):
         repo = _repo(self.tmp, "skew", origin="git@github.com:starshipsuperjam/Engine-Template.git")
         self.assertIsNone(first_run_health.detect_first_run_pending(cwd=repo))
 
+    def test_look_alike_host_origin_is_not_a_slug(self):
+        # Host anchor (defense-in-depth): an origin on a look-alike host that merely CONTAINS "github.com"
+        # (notgithub.com) must NOT parse to a real slug — else a copy there could be mis-placed as the home.
+        repo = _repo(self.tmp, "lookalike", origin="https://notgithub.com/starshipsuperjam/engine-template.git")
+        self.assertIsNone(first_run_health._origin_slug(repo))
+        self.assertIsNone(first_run_health._origin_slug(_repo(self.tmp, "evil2",
+                          origin="https://github.com.evil.com/starshipsuperjam/engine-template.git")))
+
     def test_resolves_the_main_checkout_from_a_linked_worktree(self):
         main = _repo(self.tmp, "main", origin="https://github.com/adopter/their-product.git")
         wt = os.path.join(self.tmp, "wt")
@@ -121,6 +131,61 @@ class TestDetectFirstRunPending(unittest.TestCase):
         plain = os.path.join(self.tmp, "notgit")
         os.makedirs(plain, exist_ok=True)
         self.assertIsNone(first_run_health.detect_first_run_pending(cwd=plain))
+
+
+class TestDetectHomeWorkshop(unittest.TestCase):
+    # The strict-positive complement (#323): fires ONLY on a confirmed origin==home match, so boot surfaces the
+    # home-development grounding in the engine's own home and NOWHERE else. Marker-independent — it keys on git
+    # origin vs recorded home, never on the root CLAUDE.md content.
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def test_fires_in_the_workshop_where_origin_equals_home(self):
+        repo = _repo(self.tmp, "workshop", origin=f"https://github.com/{HOME}.git")
+        d = first_run_health.detect_home_workshop(cwd=repo)
+        self.assertIsNotNone(d)
+        self.assertTrue(d["present"])
+        self.assertEqual(d["own"], HOME)
+        self.assertEqual(d["home"], HOME)
+
+    def test_quiet_in_a_downstream_copy(self):
+        repo = _repo(self.tmp, "copy", origin="https://github.com/adopter/their-product.git")
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=repo))
+
+    def test_quiet_when_origin_cannot_be_read(self):
+        # STRICT positive (the deliberate opposite of is_home_repo's fail-toward-home): an unreadable origin is
+        # NOT confirmably home, so the overlay stays quiet — it must never point a repo with no engine-development
+        # runbook (a deployed copy) at that retired doc.
+        repo = _repo(self.tmp, "noorigin", origin="")
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=repo))
+
+    def test_quiet_when_home_is_absent(self):
+        repo = _repo(self.tmp, "nohome", origin=f"https://github.com/{HOME}.git", home=None)
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=repo))
+
+    def test_quiet_on_a_corrupt_manifest(self):
+        repo = _repo(self.tmp, "corrupt", origin=f"https://github.com/{HOME}.git")
+        with open(os.path.join(repo, ".engine", "engine.json"), "w", encoding="utf-8") as fh:
+            fh.write("{ not valid json ")
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=repo))
+
+    def test_a_case_and_git_skewed_home_origin_still_fires(self):
+        repo = _repo(self.tmp, "skew", origin="git@github.com:starshipsuperjam/Engine-Template.git")
+        self.assertIsNotNone(first_run_health.detect_home_workshop(cwd=repo))
+
+    def test_unresolvable_checkout_degrades_quietly(self):
+        plain = os.path.join(self.tmp, "notgit")
+        os.makedirs(plain, exist_ok=True)
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=plain))
+
+    def test_home_and_copy_are_mutually_exclusive(self):
+        # A placed checkout is home XOR a downstream copy — the two detectors never both fire.
+        home = _repo(self.tmp, "home2", origin=f"https://github.com/{HOME}.git")
+        copy = _repo(self.tmp, "copy2", origin="https://github.com/adopter/their-product.git")
+        self.assertIsNotNone(first_run_health.detect_home_workshop(cwd=home))
+        self.assertIsNone(first_run_health.detect_first_run_pending(cwd=home))
+        self.assertIsNone(first_run_health.detect_home_workshop(cwd=copy))
+        self.assertIsNotNone(first_run_health.detect_first_run_pending(cwd=copy))
 
 
 class TestIsDownstreamCopy(unittest.TestCase):
@@ -140,8 +205,9 @@ class TestIsDownstreamCopy(unittest.TestCase):
 
     def test_malformed_manifest_home_degrades_to_not_a_copy(self):
         # The fail-soft path: when home defaults (None passed) and home_repository() RAISES on a corrupt
-        # manifest, the predicate returns False rather than crashing its read-only caller.
-        with mock.patch.object(module_coherence, "home_repository", side_effect=ValueError("corrupt")):
+        # manifest, the predicate returns False rather than crashing its read-only caller. is_downstream_copy
+        # resolves home_repository in repo_identity's namespace (its single home), so the patch targets there.
+        with mock.patch.object(repo_identity, "home_repository", side_effect=ValueError("corrupt")):
             self.assertFalse(module_coherence.is_downstream_copy("adopter/their-product"))
 
 

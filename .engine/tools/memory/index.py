@@ -12,14 +12,19 @@ loses nothing (`rebuild()` reconstructs it), and backup is still "copy the ledge
 Leaf discipline: this module DETECTS the FTS5-absent / slow-path condition and RETURNS it to the caller; it
 never renders operator-facing prose (boot does that). It writes no telemetry and logs no findings.
 
-This module builds the index machinery + the two retrieval paths, record-shape-agnostic and UNRANKED (`query`). Ranked, filtered recall is `search` (BM25 best-first reinforced by usage; role/tag filters), implementing the
-`search.json` contract and exposed by the engine-memory MCP server (`mcp_server.py`). `query` stays UNRANKED for the
-rebuild/scan callers. The boot/attention per-prompt scent over this index is `scent_lookup`: a fast,
-OR-match, relevance-ONLY top-k lookup (no usage pass, fast-path only) the boot-owned `scent.py` UserPromptSubmit hook
-calls to surface attributed pointers. The closed record shape + role vocabulary come from the reflection step.
+This module builds the index machinery + the two retrieval paths, record-shape-agnostic and UNRANKED (`query`).
+Ranked, filtered recall is `search` (BM25 best-first, equally-relevant matches newest first; tag and session
+filters) — the RANKING ENGINE beneath the `search.json` contract, not the conforming implementation of it. The
+engine-memory MCP server (`mcp_server.py`) is what conforms: it supplies the default bound the contract requires
+on an omitted `limit` (this library leaves it unbounded, which only a caller passing its own ceiling can rely on)
+and it is the declared fallback handle. `query` stays UNRANKED for the
+rebuild/scan callers. Nothing queries this index per prompt: the boot-owned `scent.py` UserPromptSubmit hook
+pushes a constant cue asking the model to run the recall workflow, and every query here is one the model then
+makes deliberately.
 
 Both retrieval paths split text into words with ONE tokenizer (`_tokenize`, modeled on SQLite's FTS5
-`unicode61`): the fast lookup stores the tokens it produces, and the slow scan matches the same way. That one
+`unicode61`): the fast lookup is BUILT from the tokens it produces (the FTS table is contentless — it keeps the
+inverted index, not a second copy of the text), and the slow scan matches the same way. That one
 shared word-splitter — not FTS5's own, which folds some scripts differently — is what makes the slow backup
 return the same set of records the fast lookup does, not a degraded different answer.
 """
@@ -44,17 +49,26 @@ _PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
-from memory import forget, ledger, records, score  # noqa: E402
+from memory import forget, ledger, records  # noqa: E402
 
 INDEX_FILENAME = "index.sqlite3"
+# The index's own shape version, stamped into `meta` and checked on every read. Bump it whenever what the
+# index is allowed to CONTAIN changes (membership), or how it is built changes (projection, tokenizer, table
+# shape) — a generation bump cannot signal any of those, because generation tracks the ledger, not the rules.
+#   1 — curated records only; content-bearing FTS table.
+#   2 — captured conversation admitted (harness-injected pseudo-turns excluded); contentless FTS table.
+#   3 — fused harness blocks removed from the searchable projection.
+#   4 — the archived-tier age-out removed, so records an older index left out are now members.
+#   5 — the operator's withholds are members of the index's own state: it stamps what was withheld when it
+#       was built, so the incremental update can honour a withhold it did not itself see.
+INDEX_SCHEMA_VERSION = 5
 _FTS_PROBE_TABLE = "engine_fts5_probe"
 # Top-level record fields kept OUT of the searchable text. `tags` honors the locked typing law (tags are a
 # secondary filter, never in the FTS body, so tag drift never poisons term statistics). The capture-record
 # ENVELOPE metadata is excluded for the same reason: `session_id` (a per-session UUID — its hex fragments are
 # real words: dead/beef/cafe/face…), `kind` ("turn-delta"), and `speaker` ("user"/"assistant") are provenance,
 # not content, and indexing them makes `query("user")`/`query("delta")` match every record. Only the human
-# `text` (and any other non-metadata string leaf) is searchable. The closed role vocabulary the reflection
-# step adds is a structured filter, so `role` joins this set: searching a label like "decision" must
+# `text` (and any other non-metadata string leaf) is searchable. A `role` an older engine stamped on a summary is a label, not content, so it joins this set: searching a label like "decision" must
 # never drag in every record that carries it (the same pollution the capture-record provenance fields would
 # cause). Episodic provenance (`consolidated_ts`, `source_seqs`) is non-string and stays out by type. The
 # per-pass `batch` id the forgetting step adds is a uuid — its hex fragments are real words, exactly the
@@ -72,7 +86,11 @@ _TAGS_KEY = "tags"
 _NON_BODY_KEYS = frozenset(
     {"tags", "session_id", "kind", "speaker", "role",
      records.BATCH_KEY, records.RECORD_ID_KEY, records.TARGET_KEY, records.TIER_KEY,
-     records.SUPERSEDED_BY_KEY, records.SOURCE_IDS_KEY, records.SCORE_KEY, records.MERGE_SHA_KEY}
+     records.SUPERSEDED_BY_KEY, records.SOURCE_IDS_KEY, records.SCORE_KEY, records.MERGE_SHA_KEY,
+     # A withhold marker's session target and a pin's source session are both uuid hex — the same
+     # fragments-are-real-words problem every id field has. A pin's route is worse still: "assistant" and
+     # "cli" are ordinary words, so indexing that field would make every pin match a search for either.
+     records.TARGET_SESSION_KEY, records.PIN_SOURCE_SESSION_KEY, records.PIN_VIA_KEY}
 )
 
 
@@ -138,14 +156,18 @@ def _record_text(record) -> str:
 
     Gathers the record's string leaf values and joins them, EXCLUDING the top-level envelope-metadata keys
     in `_NON_BODY_KEYS` (the locked tags-not-in-the-FTS-body law, plus the capture-record provenance fields
-    that are not content). Otherwise shape-agnostic; the reflection step finalizes the projection against
-    the full record shape.
+    that are not content), and replacing any fused harness block with a marker (`records.mark_harness_spans`)
+    so engine-inserted text is never searchable as the operator's words. Otherwise shape-agnostic; the
+    reflection step finalizes the projection against the full record shape.
     """
     parts: list = []
 
     def walk(value) -> None:
         if isinstance(value, str):
-            parts.append(value)
+            # A fused harness block is not content: it arrives inside a real turn, marked as spoken by the
+            # operator, and indexing it would make engine-inserted text keyword-findable under their name.
+            # Removed from the SEARCHABLE projection only — the stored record keeps every byte.
+            parts.append(records.mark_harness_spans(value))
         elif isinstance(value, dict):
             for v in value.values():
                 walk(v)
@@ -199,12 +221,100 @@ def _build_schema(conn: sqlite3.Connection) -> None:
     # against and the two paths agree across scripts. No porter stemming — `search` ranks the un-stemmed
     # tokens (bm25 over this body); stemming stays a future ranking concern.
     conn.execute("CREATE TABLE entries (ord INTEGER PRIMARY KEY, record_json TEXT NOT NULL)")
-    conn.execute("CREATE VIRTUAL TABLE entries_fts USING fts5(body, tokenize='unicode61 remove_diacritics 0')")
+    # CONTENTLESS (`content=''`): FTS5 keeps the inverted index but does NOT keep a second copy of the body.
+    # Nothing reads the body back — `_ranked` and `query` both MATCH and then hydrate the record from `entries`
+    # — so the copy was pure duplication. It stopped being negligible when the conversation became recall
+    # content: measured through this very `rebuild` over the maintainer's real store, the index went from 894
+    # records / 2.3 MB to 21,507 / 20.5 MB, where the same pipeline keeping a second copy of the text costs
+    # ~31 MB — so contentless saves roughly a third, at the same rebuild time (1.8 s) and with bm25 unaffected
+    # (FTS5 still keeps the per-document lengths bm25 normalises by). An earlier figure in this comment claimed
+    # 72.2 -> 45.5 MB; that was measured with the injected-pseudo-turn exclusion switched off and overstated
+    # both the size and the saving. This is a schema change, so it belongs with the change that made the index
+    # an order of magnitude larger rather
+    # than after it. The index is derived and throwaway, so an older index built the other way is simply
+    # replaced by the next rebuild.
+    conn.execute("CREATE VIRTUAL TABLE entries_fts USING fts5(body, content='', "
+                 "tokenize='unicode61 remove_diacritics 0')")
     # `meta` carries the ledger GENERATION this index was built against. `query` trusts the fast
     # lookup only when this matches the ledger's current generation — so a compaction that swapped the ledger
     # out from under a stale index is detected and the query falls back to the always-correct scan, never a
     # stale fast answer (a full index rebuild gated on a monotonic ledger-generation stamp).
-    conn.execute("CREATE TABLE meta (rowid INTEGER PRIMARY KEY, generation INTEGER NOT NULL)")
+    # `meta` carries BOTH the ledger generation this index was built against AND the index's own SCHEMA
+    # VERSION. The generation leg alone is not enough, and the gap is not theoretical: generation moves only on
+    # compaction, so a change to what the index is allowed to CONTAIN leaves an existing index stamped current
+    # while holding the wrong set. That is exactly what admitting captured conversation did — an index built
+    # before it holds no conversation at all, matches on generation, and `_ranked` answers from it reporting
+    # `degraded=False` while the plain scan finds the turns. Silent, and it heals only when some unrelated event
+    # happens to force a rebuild. The version leg forces an old-SHAPE index to be treated as stale, exactly as
+    # `knowledge_index.INDEX_SCHEMA_VERSION` does for the knowledge graph. Bump it whenever membership, the
+    # projection, the tokenizer or the table shape changes. Removing the archived-tier age-out is the second
+    # membership change to need it, and the failure was reproduced rather than assumed: an index built by the
+    # previous version over a store holding one 60-day-old note answered a query for that note with nothing and
+    # `degraded=False`, while the plain scan answered with the note. A change to what recall MAY reach is
+    # exactly a change to what the index is allowed to contain, even when no line of the build code moved.
+    # `withheld` carries the operator's withholds AS OF THIS BUILD, as JSON. It is state the index needs about
+    # itself, not a second copy of the ledger's truth: `extend` inserts a freshly captured turn without ever
+    # reading the ledger, so without this it re-admits turns from a conversation the operator withheld — and
+    # it does so on the fast path only, which is the divergence direction that RESURFACES withheld content.
+    # Stamping is sound precisely because `extend` refuses to touch an index whose generation no longer
+    # matches, and a withhold bumps the generation: so whenever `extend` runs at all, this stamp is current.
+    conn.execute("CREATE TABLE meta (rowid INTEGER PRIMARY KEY, generation INTEGER NOT NULL, "
+                 "schema_version INTEGER NOT NULL DEFAULT 0, withheld TEXT NOT NULL DEFAULT '[]', "
+                 "index_epoch INTEGER NOT NULL DEFAULT 0)")
+
+
+def _index_is_current(conn: sqlite3.Connection, src: str) -> bool:
+    """True iff the fast index may be trusted for `src`: its stamped ledger generation matches the ledger's
+    CURRENT generation AND its stamped schema version matches this module's. Both legs are load-bearing and
+    they catch different failures — the generation leg catches a compaction that swapped the ledger out from
+    under the index; the schema leg catches an index built when the rules about what belongs in it were
+    different, which no generation bump would ever signal. A missing or unreadable stamp reads as stale, so an
+    index built before this stamp existed falls back to the always-correct scan rather than answering
+    confidently from the wrong set."""
+    if _index_epoch_of(conn) != ledger.index_epoch(for_path=src):
+        return False
+    return (_index_schema_version(conn) == INDEX_SCHEMA_VERSION
+            and _index_generation(conn) == ledger.generation(for_path=src))
+
+
+def _index_epoch_of(conn: sqlite3.Connection) -> int:
+    """The index epoch this index was built against. Guarded like `_index_schema_version`: an index built by an
+    older engine has no such column, and reading -1 there makes it honestly stale rather than raising."""
+    try:
+        row = conn.execute("SELECT index_epoch FROM meta WHERE rowid = 1").fetchone()
+    except sqlite3.Error:
+        return -1
+    val = row[0] if row else None
+    return val if isinstance(val, int) and not isinstance(val, bool) else -1
+
+
+def _stamped_withholds(conn: sqlite3.Connection) -> tuple:
+    """`({record_id}, {session_id})` the index was built under, from its own `meta` row.
+
+    Guarded exactly the way `_index_schema_version` is: an older index has no such column, and a read that
+    raised here would land inside the incremental update, whose whole contract is that it never gates a turn's
+    close. Failure returns EMPTY sets, which is the direction that admits a record rather than dropping one —
+    safe because a withhold bumps the generation, so an index that has not seen it is already refused by
+    `_index_is_current` before this is consulted."""
+    try:
+        row = conn.execute("SELECT withheld FROM meta WHERE rowid = 1").fetchone()
+        data = json.loads(row[0]) if row and row[0] else {}
+        return set(data.get("ids") or ()), set(data.get("sessions") or ())
+    except (sqlite3.Error, ValueError, TypeError, IndexError):
+        return set(), set()
+
+
+def _index_schema_version(conn: sqlite3.Connection) -> int:
+    """The index's own schema version, or -1 when absent/unreadable — including the pre-stamp shape, whose
+    `meta` table has no such column, so the SELECT raises and this returns the never-matching -1."""
+    try:
+        row = conn.execute("SELECT schema_version FROM meta WHERE rowid = 1").fetchone()
+    except sqlite3.Error:
+        return -1
+    if not row:
+        return -1
+    val = row[0]
+    return val if isinstance(val, int) and not isinstance(val, bool) else -1
 
 
 def _index_generation(conn: sqlite3.Connection) -> int:
@@ -247,6 +357,14 @@ def rebuild(*, ledger_file: "str | None" = None, index_file: "str | None" = None
         conn = sqlite3.connect(tmp)
         try:
             _build_schema(conn)
+            # READ THE LINEAGE BEFORE STREAMING, never after. This build takes over a second on a real store
+            # and holds no lock, so a withhold landing mid-stream would otherwise be stamped as though the
+            # index had seen it — leaving a withheld record in the fast answer, reported `degraded=False`,
+            # with nothing to invalidate it until the next bump. Reading first makes that race stamp the index
+            # honestly STALE instead, which costs one wasted rebuild and never a wrong answer.
+            built_generation = ledger.generation(for_path=src)
+            built_epoch = ledger.index_epoch(for_path=src)
+            w_ids, w_sessions = forget.withheld_targets(src)
             ordinal = 0
             # `live_records` excludes logically-retired duplicates (a crashed pass's orphans) — the SAME shared
             # filter the slow `_scan` uses, so the fast and slow lookups retire identically (parity).
@@ -267,8 +385,13 @@ def rebuild(*, ledger_file: "str | None" = None, index_file: "str | None" = None
             # trusted only while it matches `ledger.generation`. Resolved from the SAME ledger file being read
             # (its sidecar sibling), never the default dir, so an explicit `ledger_file=` build stamps its own
             # store's generation.
-            conn.execute("INSERT INTO meta (rowid, generation) VALUES (1, ?)",
-                         (ledger.generation(for_path=src),))
+            conn.execute(
+                "INSERT INTO meta (rowid, generation, schema_version, withheld, index_epoch) "
+                "VALUES (1, ?, ?, ?, ?)",
+                (built_generation, INDEX_SCHEMA_VERSION,
+                 json.dumps({"ids": sorted(w_ids), "sessions": sorted(w_sessions)}, separators=(",", ":")),
+                 built_epoch),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -281,6 +404,90 @@ def rebuild(*, ledger_file: "str | None" = None, index_file: "str | None" = None
             pass
         raise
     return report
+
+
+def extend(new_records: list, *, ledger_file: "str | None" = None, index_file: "str | None" = None) -> int:
+    """Add just-appended ledger records to the EXISTING fast index, returning how many rows were inserted.
+
+    Why this exists. Nothing else refreshes the index between full rebuilds, and `ledger.append` does not move
+    the generation stamp (only compaction does). Before the conversation became recall content that was
+    harmless: every record `live_records` yielded was written by a path that rebuilds afterwards, and captured
+    turns — the only records appended without one — were excluded by kind anyway. Now they are content, so
+    without this a captured turn sits in the ledger while the index does not hold it AND the generation still
+    MATCHES — so `query`/`search` would trust the fast path, return the stale set, and report `degraded=False`
+    while the plain scan found the turn. That is a silent fast/slow divergence, exactly what the parity law
+    forbids, and it would be invisible to any test built on the usual throwaway cabinet, because those rebuild
+    before querying.
+
+    Appends at the next free ordinal. Ledger order is append-only, so a row added here keeps `ord` monotone in
+    ledger position — which is all the ranking tiebreak asks of it.
+
+    NARROW CONTRACT, deliberately: this accepts CAPTURED TURNS ONLY and rejects any other kind outright. A full
+    `rebuild` streams `forget.live_records`, which ORs together four exclusions (injected capture, crash-orphan
+    retirement, gist-orphan + supersession, and the bookkeeping markers); this applies the one that can apply to a turn just
+    written. Passing anything else would let the fast path hold a record `rebuild` and the plain scan both drop
+    — a fast/slow divergence in the direction that RESURFACES set-aside content, which is the worse direction.
+    Rejecting is cheap and keeps the invariant true rather than merely usually-true.
+
+    BEST-EFFORT BY CONTRACT: every failure path returns 0 and leaves the index untouched, because the caller is
+    end-of-turn capture and ambient capture must never gate a turn's close. Declines silently when this machine
+    has no FTS5, when no index exists yet, or when the index's stamped epoch/generation no longer matches the
+    ledger's: in that last case the index is already stale and every reader already knows it, so extending it
+    would be writing into a file none of them trusts.
+
+    A FAULT MARKS THE INDEX STALE RATHER THAN LEAVING A HOLE. This used to say a skipped extend was
+    self-healing, because the next full rebuild — consolidation, roll-up, compaction or restore — would
+    reconstruct from the ledger. Three of those four are gone with the curation lifecycle, and the fourth is
+    operator-initiated, so nothing routinely rebuilds any more. That turned a transient fault here (a locked
+    database, a disk hiccup) into a PERMANENT hole: the turn would sit in the ledger while the index stayed
+    stamped CURRENT, so the fast path would answer authoritatively without it and report `degraded=False`,
+    while the plain scan found it. So a fault now bumps the index epoch, which makes `_index_is_current` false
+    and the next search rebuild. Costs one rebuild; the alternative is a silently missing turn forever."""
+    src = ledger.ledger_path() if ledger_file is None else ledger_file
+    dst = index_path() if index_file is None else index_file
+    if not new_records or not fts5_available() or not os.path.exists(dst):
+        return 0
+    inserted = 0
+    try:
+        conn = sqlite3.connect(dst)
+        try:
+            if not _index_is_current(conn, src):
+                return 0
+            # The operator's withholds, as the index itself recorded them. A withheld SESSION is the case that
+            # matters: withholding a conversation the operator is still in is the most natural way to use the
+            # control, and every turn captured after it would otherwise be inserted straight back here — found
+            # by the fast path, absent from the scan, and reported as an authoritative answer.
+            w_ids, w_sessions = _stamped_withholds(conn)
+            row = conn.execute("SELECT MAX(ord) FROM entries").fetchone()
+            ordinal = (row[0] + 1) if row and isinstance(row[0], int) else 0
+            for record in new_records:
+                if not isinstance(record, dict) or record.get("kind") != records.AMBIENT_CAPTURE_KIND:
+                    continue          # the narrow contract: captured turns only (see the docstring)
+                if forget._is_excluded_capture(record):
+                    continue
+                if forget.is_withheld(record, w_ids, w_sessions):
+                    continue          # the operator took this conversation out of recall; a new turn in it is
+                    # not a new exception to that
+                tokens = _tokenize(_record_text(record))
+                conn.execute(
+                    "INSERT INTO entries (ord, record_json) VALUES (?, ?)",
+                    (ordinal, json.dumps(record, ensure_ascii=False, separators=(",", ":"))),
+                )
+                conn.execute("INSERT INTO entries_fts (rowid, body) VALUES (?, ?)", (ordinal, " ".join(tokens)))
+                ordinal += 1
+                inserted += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 — the index is derived and rebuildable; capture must never fail for it
+        # The turn is in the ledger and may not be in the index. Say so, so the next search repairs it: this
+        # runs inside the capture lock the caller already holds, which is what the epoch bump requires.
+        try:
+            ledger.bump_index_epoch(for_path=src)
+        except Exception:  # noqa: BLE001 — even the honesty is best-effort; capture still must not fail
+            pass
+        return 0
+    return inserted
 
 
 def _scan(query_tokens: list, src: str, limit: "int | None") -> list:
@@ -310,12 +517,12 @@ def query(
 ) -> QueryResult:
     """Recall the records matching `text` — every query word must appear (implicit AND). Uses the fast lookup
     when this machine has FTS5 and the index exists; otherwise the slow backup scan over the ledger. Both paths
-    apply the SAME tokenizer, so they return the same set of records. UNRANKED (ledger order);
-    ranking is a later concern.
+    apply the SAME tokenizer, so they return the same set of records. UNRANKED (ledger order) on purpose — this
+    is the membership primitive the rebuild/scan callers need; ranked recall is `search`.
     """
     src = ledger.ledger_path() if ledger_file is None else ledger_file
     dst = index_path() if index_file is None else index_file
-    tokens = _tokenize(text)
+    tokens = _query_terms(text)
     if not tokens:
         return QueryResult(records=[], degraded=False)
     if (not force_scan) and fts5_available() and os.path.exists(dst):
@@ -339,7 +546,7 @@ def query(
                 # it like a missing index and fall through to the always-correct scan over the CURRENT ledger,
                 # never a stale fast answer. The stamp is read from the same `conn`; the ledger generation from
                 # the queried ledger file's own sidecar.
-                if _index_generation(conn) == ledger.generation(for_path=src):
+                if _index_is_current(conn, src):
                     rows = conn.execute(sql, params).fetchall()
                     records = [json.loads(row[0]) for row in rows]
                     return QueryResult(records=records, degraded=False)
@@ -361,64 +568,69 @@ def query(
 # never writes the ledger; the live reinforcement-on-recall caller is the engine-memory MCP server (mcp_server.py),
 # at the recall boundary, never here (rebuild/_scan/the demos all call read-only).
 
-# Build-spec leaf `search-rank`: the decimal places bm25/relevance is rounded to before the usage tiebreak. It
-# groups NEAR-equal matches into one relevance bucket so usage can reorder them (the "reinforced by usage" move),
-# while a clearly-stronger match lands in its own better bucket and is NEVER overtaken by usage ("BM25 leads").
-# Coarser (fewer places) lets usage reorder more; finer makes lexical relevance stricter — the demo validates both
-# directions. The ordering is LEXICOGRAPHIC, deliberately NOT a multiplicative blend: a multiplicative
-# rel * (1 + k*usage) gives usage ZERO leverage where bm25 ties at ~0 (a common query term) and UNBOUNDED leverage
-# where bm25 separates (frecency is unwindowed) — inverting "BM25 leads".
-_REL_DECIMALS = 1
+# RANKING: lexical relevance alone, ties broken NEWEST FIRST.
+#
+# There used to be a second term — how often a record had been recalled — and a rounding step that grouped
+# near-equal matches into one relevance bucket so that usage could reorder inside it. Both are gone with
+# reinforcement-on-read (eADR-0038 ends per-record scoring). Removing the usage term alone would have left the
+# rounding as pure information loss AND left the final tiebreak deciding on its own: ledger position ascending,
+# which is OLDEST first. On a store that is overwhelmingly conversation, and on exactly the broad query where
+# bm25's separating term collapses and every match ties, that would have answered every such question with the
+# oldest thing in the store. So the rounding goes with it and the tiebreak flips: equal relevance is broken by
+# ledger position DESCENDING — the most recent of equally-good matches, which is the one more likely meant.
 
 
-def _validate_roles(roles):
-    """The role filter as a set, or None for no filter. An unknown role (outside the closed vocabulary —
-    `score.ROLE_WEIGHTS` keys, which a test pins == `consolidate.ROLE_VOCABULARY` == `search.json`'s roles) raises
-    ValueError: a caller asking for a misspelled role is told, never silently handed all-roles results. The
-    engine-memory server surfaces the raise as a tool error; the server survives."""
-    if roles is None:
-        return None
-    valid = set(score.ROLE_WEIGHTS)
-    unknown = set(roles) - valid
-    if unknown:
-        raise ValueError(f"unknown role(s): {sorted(unknown)}; valid roles are {sorted(valid)}")
-    return set(roles)
+def _query_terms(text: str) -> list:
+    """The query's terms: the shared tokenization, with repeats collapsed and first-seen order kept.
+
+    Deduping belongs HERE and never in `_tokenize`, which also splits record bodies — a body's repeats are
+    exactly what term frequency counts. A query's are not: "cache cache" asks the same question as "cache".
+    It is also what keeps the two retrieval paths honest. The fast path hands its terms to fts5 as a MATCH
+    expression, and fts5 sums a repeated term's bm25 contribution once per occurrence, so an undeduped repeat
+    scored a record at 7.815 where the plain scan — which counts each distinct term once — scored the same
+    record 3.907, and a wide enough gap moved records across relevance buckets and reordered the answer.
+    """
+    return list(dict.fromkeys(_tokenize(text)))
 
 
-def _passes_filters(record, roles, tags) -> bool:
-    """The structured POST-FETCH filters (role/tags are non-body — never FTS MATCH terms). `roles`: the record's
-    `role` must be in the set. `tags`: any-match — the record shares at least one of the requested tags. Both apply
-    identically on the fast and slow paths, so the degraded path returns the same FILTERED set."""
-    if roles is not None:
-        if not isinstance(record, dict) or record.get("role") not in roles:
-            return False
+def _passes_filters(record, tags, session=None) -> bool:
+    """The structured POST-FETCH filters (tags/session are non-body — never FTS MATCH terms). `tags`: any-match
+    — the record shares at least one of the requested tags. `session`: the record belongs to that one
+    conversation. Both apply identically on the fast and slow paths, so the degraded path returns the same
+    FILTERED set.
+
+    THERE IS NO ROLE FILTER. There used to be, over a closed vocabulary the summary writer stamped onto what it
+    produced. Nothing writes a `role` any more, so in any repository the engine deploys into, that filter could
+    only ever have matched nothing — an input a caller could pass, be answered "no results" for, and reasonably
+    read as "memory does not hold it". Removing it is the honest form.
+
+    WHY SESSION IS A FILTER AND NOT A SECOND SEARCH. Reaching a remembered thing has two moves: find which
+    conversation it was in, then find the moment inside it. The first was already answered; the second had no
+    answer at all, so a hit that carried no position sent the reader to the start of the session to page
+    forward — against a median session of well over a hundred records here, with the largest past what one
+    window can hold. Scoping the SAME ranked search to one conversation makes the second move the same shape as
+    the first, and being a filter rather than a new operation is what keeps one ranking and one seam."""
     if tags is not None:
         have = record.get("tags") if isinstance(record, dict) else None
         if not isinstance(have, (list, tuple)) or not (set(have) & tags):
             return False
+    if session is not None:
+        if not isinstance(record, dict) or record.get("session_id") != session:
+            return False
     return True
-
-
-def _usage_of(record, access_index, now: int) -> float:
-    """The usage signal for the tiebreak: `score.score` (frecency × role-weight × recency) over the record's
-    accesses, collected once into `access_index`. A record with no id / no accesses still scores from birth —
-    never zero, so it is only deprioritized, never dropped (ranking, not retention)."""
-    rid = record.get(records.RECORD_ID_KEY) if isinstance(record, dict) else None
-    access_ts = access_index.get(rid, ()) if isinstance(rid, str) and rid else ()
-    return score.score(record, access_ts, now)
 
 
 def _rank_slice_score(candidates: list, limit: "int | None") -> list:
     """Order the candidates best-first, slice to `limit`, and attach `records.SCORE_KEY` (the lexical relevance) to
     a SHALLOW COPY of each kept record (never mutate the live record — the score must not leak back into the
-    ledger/index). Each candidate is `(rel, usage, ord, record)` with `rel` the positive lexical relevance
-    (higher = better). Sort key: bucketed relevance DESC (via `-rel` rounded, ASC), then usage DESC, then ledger
-    `ord` ASC (a stable, deterministic final tiebreak)."""
-    candidates.sort(key=lambda c: (round(-c[0], _REL_DECIMALS), -c[1], c[2]))
+    ledger/index). Each candidate is `(rel, ord, record)` with `rel` the positive lexical relevance
+    (higher = better). Sort key: relevance DESC, then ledger `ord` DESC — newest of equally-good matches first,
+    a total and deterministic order."""
+    candidates.sort(key=lambda c: (-c[0], -c[1]))
     if limit is not None:
         candidates = candidates[:limit]
     out = []
-    for rel, _usage, _ord, record in candidates:
+    for rel, _ord, record in candidates:
         scored = dict(record) if isinstance(record, dict) else record
         if isinstance(scored, dict):
             scored[records.SCORE_KEY] = rel
@@ -426,33 +638,167 @@ def _rank_slice_score(candidates: list, limit: "int | None") -> list:
     return out
 
 
-def _ranked(tokens, src, dst, *, roles, tags, limit, force_scan, now):
-    """The shared ranked retrieval. Fast path: bm25 over the FTS5 index (when present + generation-current); slow
-    path: a full scan computing a damped term-frequency relevance. BOTH rank the FULL matched set, THEN slice —
-    never an early ledger-order truncation, so the fast and slow paths return the same SET (the availability law;
-    exact ORDER may differ on the degraded path). Returns a QueryResult."""
-    access_index = forget._access_index(src)
+# SQLite fts5's own bm25 constants, so the plain-Python scan scores identically to the FTS5 index rather than
+# approximately. `k1` damps repetition, `b` is how hard a long document is penalised for its length. The epsilon
+# floor is fts5's too, and it is not a rounding detail: the textbook inverse-document-frequency goes NEGATIVE for
+# a term carried by more than half the corpus, which would rank a document DOWN for containing the word it was
+# searched for; fts5 clamps it to a positive sliver instead, so every match of a very common word scores the same
+# near-zero and the usage tiebreak decides between them. Verified against fts5's own `bm25()` over a generated
+# corpus: the largest disagreement across 685 scores was 8.5e-22.
+_BM25_K1 = 1.2
+_BM25_B = 0.75
+_BM25_MIN_IDF = 1e-6
+
+
+def _bm25_idf(n_docs: int, doc_freq: int) -> float:
+    """The inverse document frequency of one query term, exactly as fts5 computes it. `doc_freq` can never
+    exceed `n_docs` (it is counted in the same pass), so the logarithm's argument is never non-positive."""
+    idf = math.log((n_docs - doc_freq + 0.5) / (doc_freq + 0.5))
+    return idf if idf > 0.0 else _BM25_MIN_IDF
+
+
+# How many matched rows the fast path fetches bodies for per round trip while walking the bm25 order. Sized from
+# the caller's `limit` so a small page fetches little, with a floor that keeps a heavily-filtered query (which
+# must keep reading past everything the filter rejects) from paying a round trip per record.
+_HYDRATE_CHUNK = 200
+_HYDRATE_MIN = 32
+
+
+def _fast_candidates(conn, match, *, tags, session, limit):
+    """The fast path's candidate list — ranked WITHOUT holding the whole matched set in memory.
+
+    The old shape fetched every matching row up front and parsed each one into a record dict before ranking. On
+    a curated-only store that was a rounding error. Once the conversation became recall content it was not: a
+    single common word matches by the tens of thousands (20,092 records for "the" against the maintainer's
+    store), so answering a ten-record query parsed and RETAINED the whole store — a measured 134 MB resident
+    spike inside the long-lived recall server, growing linearly with the store.
+
+    Two bounds, because they cover different queries and neither covers both:
+
+    * **Nothing is retained but the sort key.** Each record is parsed, tested against the filters and released;
+      only `(relevance, ord)` survives the walk, and the record bodies of the survivors are re-read at the end.
+      Retained cost falls from a parsed dict per match to a flat tuple per match. This is the bound that holds
+      for a COMMON word, where bm25's IDF term collapses to ~0 and tens of thousands of rows tie.
+    * **The walk stops early once no unread row could reach the top `limit`.** `_rank_slice_score` sorts by
+      relevance, then ledger position descending, and the SQL already returns rows in bm25 order. Once `limit`
+      candidates have been kept, the relevance of the last of them is the BOUNDARY: a row with the SAME
+      relevance can still overtake on the newer-first tiebreak, so it is read too, but a strictly worse row
+      sorts behind all of them and can never reach the top `limit`. With no `limit` the caller asked for
+      everything, so nothing is skipped.
+
+    Either way the returned records are exactly the ones ranking the full matched set would have returned."""
+    cur = conn.execute(
+        "SELECT rowid, bm25(entries_fts) AS relevance FROM entries_fts "
+        "WHERE entries_fts MATCH ? ORDER BY relevance", [match])
+    span = _HYDRATE_CHUNK if limit is None else min(_HYDRATE_CHUNK, max(2 * limit, _HYDRATE_MIN))
+    keys: list = []                      # (relevance, ord) — deliberately NOT the record
+    boundary = None                      # the raw bm25 of the limit-th kept row; more-positive is worse
+    done = False
+    while not done:
+        chunk = cur.fetchmany(span)
+        if not chunk:
+            break
+        if boundary is not None and float(chunk[0][1]) > boundary:
+            break                        # the whole chunk is past the boundary — do not read any of it
+        bodies = dict(conn.execute(
+            "SELECT ord, record_json FROM entries WHERE ord IN (%s)" % ",".join("?" * len(chunk)),
+            [row[0] for row in chunk]).fetchall())
+        for ordinal, relevance in chunk:
+            raw = float(relevance)
+            if boundary is not None and raw > boundary:
+                done = True
+                break
+            record_json = bodies.get(ordinal)
+            if record_json is None:
+                continue                 # an fts row with no `entries` row — what the old JOIN dropped silently
+            record = json.loads(record_json)
+            if not _passes_filters(record, tags, session):
+                continue
+            # bm25 is more-negative for a better match; flip to a positive relevance (higher = better).
+            keys.append((-raw, ordinal))
+            if limit is not None and boundary is None and len(keys) >= limit:
+                boundary = raw
+        bodies = None                    # release the chunk before reading the next one
+    return _hydrate_winners(conn, keys, limit)
+
+
+def _hydrate_winners(conn, keys, limit):
+    """Turn the surviving sort keys back into the `(rel, ord, record)` candidates `_rank_slice_score`
+    expects, reading ONLY the records that can still make the answer. Sorts and slices by the same key that
+    function does — doing it twice costs nothing and is what lets the walk above keep no record bodies at all."""
+    keys.sort(key=lambda c: (-c[0], -c[1]))
+    if limit is not None:
+        keys = keys[:limit]
+    if not keys:
+        return []
+    # CHUNKED, and that is not tidiness. An unlimited query keeps every match, and one placeholder per match
+    # runs into SQLite's cap on parameters per statement (32,766 on the bundled build). Over that cap the
+    # driver raises `OperationalError`, which is a `sqlite3.Error` — so `_ranked`'s broken-index guard would
+    # have swallowed it and dropped a perfectly healthy index through to the full plain-Python scan, seven
+    # times slower and reported only as `degraded`. Reproduced at 33,000 matches before this loop existed.
+    bodies = {}
+    for start in range(0, len(keys), _HYDRATE_CHUNK):
+        ords = [k[1] for k in keys[start:start + _HYDRATE_CHUNK]]
+        bodies.update(conn.execute(
+            "SELECT ord, record_json FROM entries WHERE ord IN (%s)" % ",".join("?" * len(ords)),
+            ords).fetchall())
+    out = []
+    for rel, ordinal in keys:
+        record_json = bodies.get(ordinal)
+        if record_json is not None:
+            out.append((rel, ordinal, json.loads(record_json)))
+    return out
+
+
+def _heal_if_stale(src: str, dst: str) -> bool:
+    """Rebuild the index when it exists but no longer matches the code that reads it. Returns whether it did.
+
+    WHY THIS IS HERE. A stale index is not a crash — `_ranked` simply declines the fast path and answers from
+    the full-ledger scan, correctly but far more slowly, and it will keep doing so for as long as the index
+    stays stale. Nothing else brings it back on its own: the scheduled rebuilds all belong to the curation
+    lifecycle, so a store can sit on the slow path indefinitely with every answer still correct and nothing
+    saying why recall got slow. Measured on a real 29.7 MB store the difference was 1.15 s against 95 ms per
+    query, and the repair takes about a second.
+
+    Healing here rather than at a hook keeps it tied to the thing that actually notices: whoever reads is
+    whoever repairs, so this survives any change of what runs at session start. It costs one cheap staleness
+    read on a hot path and does real work only when the index is genuinely behind.
+
+    FAIL-SOFT AND SILENT ON FAILURE, deliberately: a rebuild that cannot run leaves the slow path in place,
+    which is the correct answer either way. Recall must not fail because a repair did.
+    """
+    if not fts5_available() or not os.path.exists(dst):
+        return False                      # no index to heal, or no fast path to heal it for
+    try:
+        conn = sqlite3.connect(dst)
+        try:
+            if _index_is_current(conn, src):
+                return False
+        finally:
+            conn.close()
+        rebuild(ledger_file=src, index_file=dst)
+        return True
+    except Exception:
+        return False
+
+
+def _ranked(tokens, src, dst, *, tags, session, limit, force_scan):
+    """The shared ranked retrieval. Fast path: bm25 read from the FTS5 index (when present +
+    generation-current); slow path: a full scan over the ledger computing THE SAME bm25 in plain Python. So the
+    two paths agree on the matched set AND on its order — the availability law now holds for the answer, not
+    just for the fact that one comes back. NEITHER truncates in ledger order. The fast path stops walking its
+    (already relevance-ordered) matches once no unread row could reach the top `limit` — a bound on work, never
+    on the answer; see `_fast_candidates`. Returns a QueryResult."""
+    if not force_scan:
+        _heal_if_stale(src, dst)
     # Fast path — trust the FTS5 index only while its stamped generation matches the ledger's current one.
     if (not force_scan) and fts5_available() and os.path.exists(dst):
         match = " ".join('"' + token + '"' for token in tokens)
-        sql = (
-            "SELECT e.ord, e.record_json, bm25(entries_fts) AS relevance "
-            "FROM entries_fts JOIN entries e ON e.ord = entries_fts.rowid "
-            "WHERE entries_fts MATCH ? ORDER BY relevance"
-        )
         try:
             conn = sqlite3.connect(dst)
             try:
-                if _index_generation(conn) == ledger.generation(for_path=src):
-                    rows = conn.execute(sql, [match]).fetchall()
-                    candidates = []
-                    for ordinal, record_json, relevance in rows:
-                        record = json.loads(record_json)
-                        if not _passes_filters(record, roles, tags):
-                            continue
-                        # bm25 is more-negative for a better match; flip to a positive relevance (higher = better).
-                        rel = -float(relevance)
-                        candidates.append((rel, _usage_of(record, access_index, now), ordinal, record))
+                if _index_is_current(conn, src):
+                    candidates = _fast_candidates(conn, match, tags=tags, session=session, limit=limit)
                     return QueryResult(records=_rank_slice_score(candidates, limit), degraded=False)
             finally:
                 conn.close()
@@ -460,213 +806,76 @@ def _ranked(tokens, src, dst, *, roles, tags, limit, force_scan, now):
             # Broken/corrupt index: fall through to the always-correct scan (availability law). A malformed MATCH
             # cannot land here (the tokens are always valid), so this only catches a broken index, never a bad query.
             pass
-    # Slow path — rank the FULL matched set (no early limit break, so the SET matches the fast path).
-    want = set(tokens)
-    candidates = []
-    for ordinal, record in enumerate(forget.live_records(path=src, now=now)):
+    # Slow path — rank the FULL matched set (no early limit break, so the SET matches the fast path), scoring it
+    # with the SAME bm25 the fast path reads out of FTS5. One streaming pass collects both the corpus statistics
+    # bm25 needs (document count, average length, per-term document frequency) and the matched records; the
+    # scores follow once the pass is complete, because a document's rank depends on the whole corpus.
+    want = list(tokens)                  # already unique — `_query_terms` is the one place that collapses repeats
+    wanted = set(want)
+    n_docs = total_len = 0
+    doc_freq = dict.fromkeys(want, 0)
+    matched = []
+    for ordinal, record in enumerate(forget.live_records(path=src)):
         body_tokens = _tokenize(_record_text(record))
-        if not (want <= set(body_tokens)):
+        n_docs += 1
+        total_len += len(body_tokens)
+        present = set(body_tokens)
+        for term in wanted & present:
+            doc_freq[term] += 1
+        if not (wanted <= present) or not _passes_filters(record, tags, session):
             continue
-        if not _passes_filters(record, roles, tags):
-            continue
-        tf = sum(1 for t in body_tokens if t in want)   # total query-term occurrences in the body
-        candidates.append((math.log1p(tf), _usage_of(record, access_index, now), ordinal, record))
+        # Per-term counts as a flat TUPLE in `want` order, not a dict keyed by the term strings. A matched
+        # record has to be held until the pass ends (its score depends on statistics only the end of the pass
+        # knows), so what is held per match is the whole cost here — and a dict per match, on a query whose
+        # word is common enough to match most of the store, is a measurable share of it.
+        counts = dict.fromkeys(want, 0)
+        for token in body_tokens:
+            if token in wanted:
+                counts[token] += 1
+        matched.append((ordinal, len(body_tokens), tuple(counts[term] for term in want), record))
+    candidates = []
+    if matched:
+        avgdl = (total_len / n_docs) if n_docs and total_len else 1.0
+        idfs = [_bm25_idf(n_docs, doc_freq[term]) for term in want]
+        for ordinal, doc_len, tfs, record in matched:
+            norm = _BM25_K1 * (1 - _BM25_B + _BM25_B * doc_len / avgdl)
+            rel = sum(idf * (tf * (_BM25_K1 + 1)) / (tf + norm) for idf, tf in zip(idfs, tfs))
+            candidates.append((rel, ordinal, record))
     return QueryResult(records=_rank_slice_score(candidates, limit), degraded=True)
-
-
-# --- The cold-start recent-decisions pull (#394) -------------------------------------------------------
-# The roles that ARE the decision record — what "recent decisions" means when boot pulls recall into the cold
-# -start pack. A recorded build-spec leaf: the decision itself plus the reasoning/pushback behind
-# it. A lesson, dead-end, preference, intent or observation is recall, but it is not a DECISION, so it does not
-# compete for this partition's slice. Members of the closed role vocabulary (score.ROLE_WEIGHTS).
-_DECISION_ROLES = ("decision", "rationale/pushback")
-# How many the reader scans back for; how many SURFACE is the attention policy's budget_recent_decisions slice.
-_RECENT_DECISIONS_LIMIT = 20
-
-
-def recent_decisions(*, limit: int = _RECENT_DECISIONS_LIMIT, roles=_DECISION_ROLES,
-                     ledger_file: "str | None" = None) -> list[dict]:
-    """The most recently RECORDED decisions, newest first — the memory half of attention's recent-decisions
-    partition (that partition draws from recently merged pull requests plus what the memory-recall boot assembles
-    into the pack; at cold start boot pulls memory recall when their servers are up).
-
-    NON-QUERY by construction, and that is the point: a cold start has no prompt yet to match against, so this
-    is RECENCY-ordered, not lexical. Lexical recall against the operator's words is the per-prompt scent's job
-    (`scent_lookup`); this answers the different question boot asks at orientation — "what was decided lately?".
-
-    Reads the CURATED layer through `forget.live_records`, the one shared read path (so the ambient `turn-delta`
-    verbatim is excluded here exactly as it is from search), and filters to the decision-bearing
-    roles. SIDE-EFFECT-FREE: never reinforces, never writes the ledger — boot is read-only, and merely
-    orienting must not silently re-rank what recall surfaces later.
-
-    Deterministic: ordered by the record's own recorded `ts` (newest first), ties broken by record id, so the
-    same ledger always yields the same list — the ranking downstream stays reproducible. Records with no usable
-    `ts` sort last rather than crash the sort. Degrades to [] on any read fault: recall is orientation context,
-    and boot surfaces an unreadable store separately (its own memory-offline notice), never from here."""
-    def _order(record):
-        # A TOTAL key: a `ts` that is not a real number (absent, a string, a bool, NaN) sorts into the
-        # unusable bucket and carries a fixed 0, so tuples of mixed records only ever compare like with like.
-        # Falling back to the raw value instead would compare a str against an int the moment one record's ts
-        # was a string and another's was absent — raising, from a function whose whole contract is that a
-        # damaged record costs its own place in the order and nothing else.
-        ts = record.get("ts")
-        usable = isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)
-        return usable, (ts if usable else 0), str(record.get(records.RECORD_ID_KEY) or "")
-
-    wanted = set(roles)
-    try:
-        out = [r for r in forget.live_records(ledger_file) if r.get("role") in wanted]
-        out.sort(key=_order, reverse=True)   # inside the guard: the contract is [] on ANY read fault
-    except Exception:  # noqa: BLE001 — an unreadable/degraded store costs the digest, never the pack
-        return []
-    return out[:limit]
 
 
 def search(
     query_text: str,
     *,
-    roles: "list | None" = None,
     tags: "list | None" = None,
+    session: "str | None" = None,
     limit: "int | None" = None,
     force_scan: bool = False,
     ledger_file: "str | None" = None,
     index_file: "str | None" = None,
 ) -> QueryResult:
     """Ranked, filtered recall — the `search` interface (search.json). Every query word must appear (implicit AND),
-    and the matches come back BEST-FIRST: by lexical relevance (bm25 on the fast path, a damped term-frequency
-    proxy on the slow backup), with usage (frecency × role-weight × recency) breaking near-ties but never
-    overriding a clearly-stronger match. Optional `roles` (the closed vocabulary; an unknown role raises
-    ValueError) and `tags` (any-match) narrow. Each result is a shallow copy carrying `records.SCORE_KEY` (the
-    lexical relevance). `degraded` is True when answered by the slow backup scan.
+    and the matches come back BEST-FIRST by lexical relevance — the SAME bm25 on both paths, read from FTS5 on
+    the fast one and recomputed in plain Python on the slow backup — with equally-relevant matches ordered
+    newest first. Optional `tags` (any-match) narrows. Each result is a shallow copy carrying
+    `records.SCORE_KEY` (the lexical relevance). `degraded` is True when answered by the slow backup scan.
 
-    SIDE-EFFECT-FREE: never reinforces, never writes the ledger — the live reinforcement-on-recall caller is the
-    engine-memory MCP server, at the recall boundary, not here."""
+    `session` narrows to ONE conversation — the second move of a recall, once the first has named which
+    conversation to look in (`_passes_filters` carries why this is a filter rather than a second operation).
+    A blank string is treated as no filter rather than as a session nothing can match, so a caller passing an
+    empty value through gets the whole store instead of a silent nothing.
+
+    SIDE-EFFECT-FREE, and now free of the ledger entirely on the fast path: it reads no records the index does
+    not already hold, so what a search costs tracks how much it matched rather than how much is stored."""
     src = ledger.ledger_path() if ledger_file is None else ledger_file
     dst = index_path() if index_file is None else index_file
-    roles_set = _validate_roles(roles)
     tags_set = set(tags) if tags is not None else None
-    tokens = _tokenize(query_text)
+    session_key = session if isinstance(session, str) and session else None
+    tokens = _query_terms(query_text)
     if not tokens:
         return QueryResult(records=[], degraded=False)
-    now = int(time.time())
-    return _ranked(tokens, src, dst, roles=roles_set, tags=tags_set, limit=limit, force_scan=force_scan, now=now)
-
-
-# --- The per-prompt scent lookup: `scent_lookup` -------------------------------------------
-# The scent is a HOT PATH (the boot-owned `scent.py` UserPromptSubmit hook fires it every prompt) under a
-# single-digit-ms budget (single-digit ms; no embeddings, no LLM, no graph walk). So `search` is
-# the WRONG primitive for it on two counts, both measured: (1) `search`/`_ranked` does an unconditional
-# O(ledger) `forget._access_index` + `live_records` usage pass (~46 ms on a ~1800-record ledger) — the
-# "reinforced by usage" tiebreak the scent's threshold gate does not even read; (2) `search` is implicit-AND, so
-# a raw multi-word prompt requires ONE record holding EVERY prompt word and matches almost nothing. `scent_lookup`
-# is the scent-shaped primitive: OR-match the prompt's tokens, rank by bm25 ALONE (relevance-only — NO usage
-# pass, so no O(ledger) cost: the FTS5 index is already rebuilt from `live_records`, so a direct query returns
-# only live records), bounded top-k, and FAST-PATH ONLY — it never runs the slow scan (that both blows the
-# latency budget and uses a different score scale, log1p(tf) vs bm25, so the threshold gate would diverge).
-# `available=False` is reserved for the design's ONE degraded-latency condition — FTS5 absent on this machine
-# (memory detects, boot renders the scent's slower-mode disclosure); a merely missing/stale/broken
-# index is "no fast recall right now" -> silent (records=[], available=True), never a misleading slower-mode notice.
-
-# How many distinct prompt tokens feed the OR-match, and the default bm25 top-k. Bounded so a long prompt cannot
-# build an unbounded MATCH and a common term cannot return the whole ledger before the bm25 ORDER BY ... LIMIT
-# trims to the strongest. (Common terms score ~0 via bm25 IDF, so they are kept only as weak OR alternates and
-# fall below any sane salience threshold downstream — no stopword list is needed for correctness.)
-_SCENT_MAX_QUERY_TERMS = 32
-_SCENT_DEFAULT_TOPK = 20
-
-
-@dataclass
-class ScentResult:
-    """The per-prompt scent's lookup outcome. `records` are bm25-ranked best-first shallow copies, each carrying
-    `records.SCORE_KEY` (the positive lexical relevance) — the input to the scent's salience threshold gate.
-    `available` is False ONLY when this machine has no FTS5 (the design's degraded-latency condition: the scent
-    surfaces a slower-mode disclosure and stays silent on pointers, never running a per-prompt slow scan). A
-    missing/stale/broken index, or a prompt with no usable terms, returns `available=True` with empty `records`
-    (silent — no fast recall this prompt), never a degraded notice."""
-
-    records: list = field(default_factory=list)
-    available: bool = True
-
-
-def _salient_terms(query_text: str) -> list:
-    """The de-duplicated prompt tokens that feed the OR-match, length>=2 and capped at `_SCENT_MAX_QUERY_TERMS`
-    (a bounded MATCH). Uses the shared `_tokenize` so the scent folds words exactly as the index stored them."""
-    terms: list = []
-    for token in _tokenize(query_text):
-        if len(token) >= 2 and token not in terms:
-            terms.append(token)
-            if len(terms) >= _SCENT_MAX_QUERY_TERMS:
-                break
-    return terms
-
-
-def scent_lookup(
-    query_text: str,
-    *,
-    limit: "int | None" = None,
-    ledger_file: "str | None" = None,
-    index_file: "str | None" = None,
-) -> ScentResult:
-    """The per-prompt scent's fast lexical lookup over the FTS5 index — OR-match, bm25-ranked, RELEVANCE-ONLY.
-
-    Returns up to `limit` (default `_SCENT_DEFAULT_TOPK`) records whose words best match the prompt's, best-first by
-    bm25, each a shallow copy carrying `records.SCORE_KEY` (the positive relevance — higher = better). It does NOT
-    compute usage/frecency (the scent's salience gate reads relevance alone), so it pays NO O(ledger) pass; and it is
-    FAST-PATH ONLY — on FTS5-absent / missing / stale / broken index it returns empty rather than running the slow
-    scan, protecting the single-digit-ms budget. SIDE-EFFECT-FREE: never reinforces, never writes the ledger (the
-    push does not count as usage; reinforcement stays at the model-initiated MCP `search` pull). `available` is False
-    only for FTS5-absent — the design's one slower-mode disclosure condition."""
-    # Resolve the shared memory dir ONCE when both paths default: `ledger_path`/`index_path` each call
-    # `ledger_dir` -> a worktree-aware `git rev-parse` subprocess (~tens of ms), so resolving per-path would
-    # pay it TWICE every prompt. One resolution keeps the per-prompt path cost to a single git call; the FTS5
-    # query itself is sub-millisecond. (This git step is constant in memory size — it does not grow with the
-    # ledger, unlike the O(ledger) usage pass `search` pays — and every engine hook that touches memory, e.g.
-    # close's capture relay, already pays it.)
-    if ledger_file is None or index_file is None:
-        mem_dir = ledger.ledger_dir()
-        src = ledger_file or os.path.join(mem_dir, ledger.LEDGER_FILENAME)
-        dst = index_file or os.path.join(mem_dir, INDEX_FILENAME)
-    else:
-        src, dst = ledger_file, index_file
-    terms = _salient_terms(query_text)
-    topk = _SCENT_DEFAULT_TOPK if limit is None else max(1, int(limit))
-    if not terms:
-        return ScentResult(records=[], available=True)        # nothing to look up -> silent, not degraded
-    if not fts5_available():
-        return ScentResult(records=[], available=False)       # the ONE degraded-latency condition (slower-mode)
-    if not os.path.exists(dst):
-        return ScentResult(records=[], available=True)        # no index built yet -> silent (never a slow scan)
-    match = " OR ".join('"' + token + '"' for token in terms)
-    sql = (
-        "SELECT e.record_json, bm25(entries_fts) AS relevance "
-        "FROM entries_fts JOIN entries e ON e.ord = entries_fts.rowid "
-        "WHERE entries_fts MATCH ? ORDER BY relevance LIMIT ?"
-    )
-    try:
-        conn = sqlite3.connect(dst)
-        try:
-            # Trust the fast lookup only while its stamped generation matches the ledger's current one (a
-            # compaction that swapped the ledger out leaves a stale index). Stale -> silent, NOT the slow scan.
-            if _index_generation(conn) != ledger.generation(for_path=src):
-                return ScentResult(records=[], available=True)
-            rows = conn.execute(sql, [match, topk]).fetchall()
-        finally:
-            conn.close()
-    except sqlite3.Error:
-        # Broken/corrupt index -> silent this prompt (no slow scan on the hot path). A malformed MATCH cannot
-        # land here: the tokens are letters/numbers only and each is double-quoted, so this only catches a broken
-        # index, never a bad query.
-        return ScentResult(records=[], available=True)
-    out = []
-    for record_json, relevance in rows:
-        record = json.loads(record_json)
-        scored = dict(record) if isinstance(record, dict) else record
-        if isinstance(scored, dict):
-            # bm25 is more-negative for a better match; flip to a positive relevance (higher = better), the same
-            # convention `search` exposes via SCORE_KEY, so the scent's salience gate reads one scale.
-            scored[records.SCORE_KEY] = -float(relevance)
-        out.append(scored)
-    return ScentResult(records=out, available=True)
+    return _ranked(tokens, src, dst, tags=tags_set, session=session_key,
+                   limit=limit, force_scan=force_scan)
 
 
 # --- Operator demonstration -------------------------------------------------------------------------------
@@ -722,9 +931,8 @@ def _demo_still_answered_when_fast_off(cabinet: str, index_file: str) -> bool:
         print(f"    still found: {record['body']}")
     print("\n  Nothing is broken — the question is still answered. On a large memory this backup is slower than")
     print("  the fast lookup; you will not see that here because this practice cabinet is tiny. In real use, when")
-    print("  the fast recall is unavailable the engine tells you — its automatic per-prompt memory hints pause and")
-    print("  say so once — so a slower answer is never a mystery. A missing fast-search feature is a non-event,")
-    print("  never a failure.")
+    print("  the fast recall is unavailable the engine tells you — the session-start briefing says so — so a")
+    print("  slower answer is never a mystery. A missing fast-search feature is a non-event, never a failure.")
     print(f"  => {'Answered without the fast lookup.' if answered else '!!! not answered'}")
     return answered
 
@@ -772,6 +980,38 @@ def _demo_one_bad_entry(cabinet: str, index_file: str) -> bool:
     return ok
 
 
+def _demo_conversation_is_findable(cabinet: str, index_file: str) -> bool:
+    print("\n" + "=" * 80)
+    print("PART 5 — something said once in conversation and never summarised. Can it be FOUND?")
+    print("=" * 80)
+    said = {"kind": records.AMBIENT_CAPTURE_KIND, records.RECORD_ID_KEY: "turn-1", "session_id": "s-demo",
+            "seq": 7, "speaker": "user", "tags": ["transcript", "stop"], "ts": int(time.time()),
+            "text": "the quokka connector keeps dropping friday deploys"}
+    scaffolding = {"kind": records.AMBIENT_CAPTURE_KIND, records.RECORD_ID_KEY: "turn-2", "session_id": "s-demo",
+                   "seq": 8, "speaker": "user", "tags": ["transcript", "stop", records.INJECTED_TAG],
+                   "ts": int(time.time()),
+                   "text": "<task-notification> the quokka background job finished </task-notification>"}
+    ledger.append(said, path=cabinet)
+    ledger.append(scaffolding, path=cabinet)
+    rebuild(ledger_file=cabinet, index_file=index_file)
+    fast = [r.get("text") for r in query("quokka", ledger_file=cabinet, index_file=index_file).records]
+    slow = [r.get("text") for r in query("quokka", force_scan=True,
+                                         ledger_file=cabinet, index_file=index_file).records]
+    found = said["text"] in fast
+    scaffolding_kept_out = all("task-notification" not in (t or "") for t in fast)
+    agree = fast == slow
+    print("\n  you asked about: \"quokka\"")
+    for text in fast:
+        print("    found:", text)
+    print("\n  The sentence was said once and no summary of it was ever written — the only record of it is the")
+    print("  conversation itself, and it came back anyway. That is the whole point of this change.")
+    print("  What did NOT come back is the machine's own notification, which also contained the word: text the")
+    print("  engine inserted is never handed back as something you said.")
+    ok = found and scaffolding_kept_out and agree
+    print(f"  => {'Found it, and kept the scaffolding out.' if ok else '!!! ' + ('the conversation was not findable' if not found else 'machine scaffolding leaked into recall' if not scaffolding_kept_out else 'the two lookups disagreed')}")
+    return ok
+
+
 def _demo() -> int:
     import shutil
 
@@ -788,17 +1028,18 @@ def _demo() -> int:
             _demo_still_answered_when_fast_off(cabinet, index_file),
             _demo_throwaway_nothing_lost(cabinet, index_file),
             _demo_one_bad_entry(cabinet, index_file),
+            _demo_conversation_is_findable(cabinet, index_file),
         ]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
     print("\n" + "-" * 80)
     print("Reminder: what you just saw is the engine looking things up in a PRACTICE cabinet we filled for this")
-    print("demo. In real use the cabinet is still EMPTY — nothing has filed anything into it yet — and the")
-    print("engine still does NOT remember across sessions. The piece that files your real work into the cabinet,")
-    print("and the piece that looks things up while you work, are later steps. Today only proves: once things")
-    print("ARE filed, you can always look them up — fast when the search feature is present, slower but never")
-    print("broken when it is not, and nothing is lost if the fast lookup is thrown away.")
+    print("demo, then threw away — your own saved memory was never opened. What this proves is narrow and")
+    print("durable: once things ARE filed, you can always look them up — fast when the search feature is")
+    print("present, slower but never broken when it is not, and nothing is lost if the fast lookup is thrown")
+    print("away. Whether your own cabinet has anything in it depends on how long the engine has been running")
+    print("here; ask me and I'll tell you what is actually stored.")
     print("\nVary it yourself: edit the questions and memories near the top of this file and run it again.")
     return 0 if all(results) else 1
 

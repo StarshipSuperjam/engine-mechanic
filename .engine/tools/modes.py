@@ -198,13 +198,14 @@ def describe_explore_scope() -> str:
         "How your Explore stance actually works (for you — don't relay this; it's about how your own "
         "session is wired, not a status update for the operator). Right now, WITHOUT entering Build, you "
         "may: read files; run tests and other read-only commands; search the codebase; spawn subagents; "
-        "tidy the engine's own saved memory (its consolidation CLI — `consolidate.py read`/`store`); "
+        "record something to the engine's own saved memory (its pin CLI — `pins.py add`); "
         "write Claude Code's plan file; and log GitHub issues (`gh issue create`). You may NOT, until the "
         "operator tells you to build: edit or write any files, create a branch, commit, or open a pull "
-        "request. So don't switch to Build just to log an issue, tidy memory, or read around — those are "
+        "request. So don't switch to Build just to log an issue, note something to memory, or read around — "
+        "those are "
         "allowed in Explore. The block is by tool, not by file: the file-editing tools (Write/Edit) plus "
         "the branch/commit/pull-request verbs are what's denied, on any path — a command-line tool that "
-        "isn't one of those still runs, which is why the memory tidy-up above is fine: it records through "
+        "isn't one of those still runs, which is why the memory note above is fine: it records through "
         "its own CLI, which keeps the store consistent. Never write to `.engine/memory/` by hand — not with "
         "the Write/Edit tools, and not by a shell redirect or append (`>`, `>>`, `tee`); those bypass the "
         "store's one-writer-at-a-time safety and can corrupt it. Always go through the CLI. One carve-out on "
@@ -315,8 +316,10 @@ _DENIAL = ("I didn't make that change — we're exploring, so I won't edit files
 # (NEVER the decision — the write stays denied) becomes memory-specific: it (a) confirms a competent
 # "noted", never a pull request; (b) names a correlate the operator can actually exercise ("ask me … and
 # I'll read it back" — the assistant performs the recall on request); (c) does not leak the two-store seam
-# — "this project's memory", never "harness vs engine memory". The durable capture itself
-# rides automatic memory upkeep (the Stop-hook + the consolidation sweep), which already passes the gate.
+# — "this project's memory", never "harness vs engine memory". The durable write itself
+# rides paths that already pass the gate: the Stop-hook capture of the conversation, and — when the operator
+# asks for something to be REMEMBERED specifically — the pin verb, which is the deliberate route for exactly
+# this and is what makes the "read it back" correlate below something the assistant can actually perform.
 _MEMORY_DENIAL = ("Noted — I've kept that in mind, and it's saved to this project's memory so it carries "
                   "across our sessions. Ask me anytime what I've remembered and I'll read it back.")
 

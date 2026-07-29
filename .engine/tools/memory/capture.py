@@ -4,9 +4,10 @@ The locked design splits memory capture
 along a "content survives / reflection defers" seam. This module is the CONTENT half:
 
   - **Every completed turn (`Stop`) appends the turn's session-id-tagged delta to the ledger** — an
-    *append, not a summarization*, so it never taxes mid-session use. The expensive AI-judged
-    consolidation into clean, role-typed episodic records is the REFLECTION half, deferred
-    because it needs the in-context AI's judgment, which a fire-and-forget hook does not have.
+    *append, not a summarization*, so it never taxes mid-session use. There used to be a second half — an
+    AI-judged pass that folded each session into role-typed summaries — and it is gone: the transcript
+    itself is the record now (eADR-0038), and meaning is spent at read time by the session's own model
+    rather than accumulated as summaries that go stale.
 
   - **Capture is cheap, generous, and LOSSLESS over conversation.** A long *turn* is *chunked*
     (paragraph-preferred, 4 KB) and every chunk is stored — conversational content is never elided at
@@ -34,8 +35,8 @@ along a "content survives / reflection defers" seam. This module is the CONTENT 
     (on contention it gives up after ~1s and the delta is caught at the next Stop). Write-safety across
     the per-session appends is the ledger-integrity law (serialized writes), not hook ordering.
 
-The record SHAPE established here (and the per-record `v` version envelope the ledger left as a
-forward-owe) is record-kind `"turn-delta"`; the closed memory *role* vocabulary attaches to the
+The record SHAPE established here (with the per-record `v` version envelope, which the ledger's own
+format version does not cover) is record-kind `"turn-delta"`; the closed memory *role* vocabulary attaches to the
 `"episodic"` records the reflection step adds, not to raw turn-deltas. stdlib-only; runs on the venv
 python alongside close.
 """
@@ -59,9 +60,11 @@ _PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
-from memory import ledger, records  # noqa: E402
+from memory import ledger, records, scrub  # noqa: E402
 
-RECORD_VERSION = 1                       # the per-record ledger-version envelope (a forward-owe)
+RECORD_VERSION = 1                       # stamped as `v` on each record: the shape it was written in. Nothing
+                                         # reads it while only one shape has existed; a restore routes its
+                                         # migration on ledger.LEDGER_FORMAT_VERSION, not on this.
 RECORD_KIND = records.AMBIENT_CAPTURE_KIND   # the ambient-capture kind, now homed in `records` (the cycle-free
                                              # leaf `forget` also reads); aliased here so the string never drifts
 CURSOR_FILENAME = "capture-state.json"   # {session_id: captured-message-count}; gitignored sibling
@@ -71,7 +74,7 @@ CHUNK_MAX_CHARS = 4_000                  # per-record body cap (paragraph-prefer
 MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024  # 64 MiB hard ceiling; refuse a larger transcript
 
 TRANSCRIPT_DIR_ENV = "ENGINE_MEMORY_TRANSCRIPT_DIR"  # adopter/test escape hatch (an ADDITIONAL root)
-SESSION_ENV = "CLAUDE_CODE_SESSION_ID"   # the live platform session var (matches consolidate.py); the env
+SESSION_ENV = "CLAUDE_CODE_SESSION_ID"   # the live platform session var (the shared convention); the env
                                          # fallback used only when the hook payload omits `session_id`
 TRANSCRIPT_ENV = "CLAUDE_TRANSCRIPT_PATH"
 
@@ -227,7 +230,11 @@ def _codex_message(rec: dict):
     """One recognized Codex conversation message as a plain {'role','text'} dict, or None for a
     non-conversation record (reasoning, function calls, meta — the same 'is this conversation at
     all?' filter doctrine, never a worth judgment). Accepts the rollout envelope
-    ({'type':'response_item','payload':{...}}) and a bare message record."""
+    ({'type':'response_item','payload':{...}}) and a bare message record. Only a `message` payload with
+    an explicit user/assistant role is a conversation turn: the newer multi-agent `agent_message` record
+    is deliberately NOT captured — on the real corpus its dominant `event_msg` form is a byte-identical
+    echo of the assistant `message` already captured here (capturing it would double-store every
+    assistant turn), so recognizing it adds duplication, not conversation."""
     payload = None
     if rec.get("type") == "response_item" and isinstance(rec.get("payload"), dict):
         payload = rec["payload"]
@@ -252,14 +259,31 @@ def _codex_message(rec: dict):
     return {"role": role, "text": text}
 
 
+def _codex_shape_detail(reason: str, recs: list) -> dict:
+    """A CONTENT-FREE structural fingerprint of an unrecognized Codex transcript: which predicate refused
+    it, the distinct record `type` and payload `type` names present, and the record count. It NEVER
+    includes any message text — this is a diagnostic of a CHANGED FORMAT (so the next drift is
+    actionable, not a bare 'unparseable'), never a capture of the transcript's content. Both the list
+    length AND each individual type-name are bounded, so a pathological transcript (a huge type value, or
+    thousands of distinct ones) cannot bloat the marker."""
+    def _names(values):
+        return sorted({str(v)[:64] for v in values})[:20]   # cap each name AND the list
+    rtypes = _names(r.get("type") for r in recs if isinstance(r, dict))
+    ptypes = _names(r["payload"].get("type") for r in recs
+                    if isinstance(r, dict) and isinstance(r.get("payload"), dict))
+    return {"reason": reason, "record_types": rtypes, "payload_types": ptypes,
+            "record_count": len(recs)}
+
+
 def _codex_messages(transcript_path: str):
-    """(messages, recognized): the conversation messages of a Codex transcript as plain
-    {'role','text'} dicts, and whether the transcript's format was recognized. recognized is False —
-    the caller must surface it loudly instead of capturing fragments — in EVERY zero-yield shape a
-    format change can take (the review-gate holes): a non-empty file that parses to no JSON records
-    at all (the whole format moved off JSON lines); JSON records none of which carries a known Codex
-    record type (the envelope changed); and known record types that yield NO conversation messages
-    (the message payload shape changed inside a familiar envelope). A genuinely empty file is
+    """(messages, recognized, detail): the conversation messages of a Codex transcript as plain
+    {'role','text'} dicts, whether the transcript's format was recognized, and — when it was NOT — a
+    content-free structural fingerprint (`_codex_shape_detail`) naming which check refused it, else None.
+    recognized is False — the caller must surface it loudly instead of capturing fragments — in EVERY
+    zero-yield shape a format change can take (the review-gate holes): a non-empty file that parses to no
+    JSON records at all (the whole format moved off JSON lines); JSON records none of which carries a
+    known Codex record type (the envelope changed); and known record types that yield NO conversation
+    messages (the message payload shape changed inside a familiar envelope). A genuinely empty file is
     recognized-and-empty (nothing happened yet, nothing to say)."""
     recs = _extract_records(transcript_path)
     if not recs:
@@ -267,13 +291,15 @@ def _codex_messages(transcript_path: str):
             non_empty = os.path.getsize(transcript_path) > 0
         except OSError:
             non_empty = False
-        return [], not non_empty       # bytes but no JSON records → the format changed → refuse
+        if non_empty:                  # bytes but no JSON records → the format changed → refuse, loudly
+            return [], False, _codex_shape_detail("no-json-records", recs)
+        return [], True, None          # genuinely empty → recognized-and-empty
     if not any(r.get("type") in _CODEX_KNOWN_TYPES for r in recs):
-        return [], False
+        return [], False, _codex_shape_detail("no-known-record-type", recs)
     messages = [m for m in (_codex_message(r) for r in recs) if m is not None]
-    if not messages:
-        return [], False               # familiar envelope, zero conversation → payload shape changed
-    return messages, True
+    if not messages:                   # familiar envelope, zero conversation → payload shape changed
+        return [], False, _codex_shape_detail("no-conversation-messages", recs)
+    return messages, True, None
 
 
 # --- Transcript-path safety (defense-in-depth) ------------------------------------------------
@@ -389,140 +415,6 @@ def _release_lock(fd) -> None:
             fcntl.flock(fd, fcntl.LOCK_UN)
     finally:
         os.close(fd)
-
-
-# --- The consolidation lease (a "sessions-since" liveness heartbeat) ---------------------------
-# The lease sidecar answers the one question the abandoned-session sweep (consolidate.py) cannot answer
-# from the ledger alone: is a session with un-consolidated deltas still LIVE right now, or genuinely gone?
-# It holds a monotonic session-epoch counter (bumped once per SessionStart) plus a lease map
-# {session_id: the epoch at that session's last check-in}. A session is "silent" when its lease has aged past
-# a small threshold N (consolidate.py owns N) — so the sweep recovers a truly-gone session promptly while a
-# live concurrent session (which re-stamps its lease every turn) is spared. The lease lives beside the cursor
-# and is guarded by the SAME `.capture.lock`, so a per-turn refresh and the sweep's store-time re-check
-# serialize against each other. It is the "no lease heartbeat" signal the durability law names.
-
-LEASE_FILENAME = "consolidation-lease.json"   # {"epoch": int, "leases": {session_id: epoch}}; gitignored sibling
-LEASE_PRUNE_HORIZON = 64      # drop a lease aged this far past the epoch (long-gone; re-stamps if it revives)
-
-
-def _lease_path(data_dir: str) -> str:
-    return os.path.join(data_dir, LEASE_FILENAME)
-
-
-def read_lease_state(data_dir: str):
-    """The lease sidecar as `(epoch, leases)`, or **None if the file exists but is unparseable (CORRUPT)**.
-    A MISSING/empty sidecar reads as `(0, {})` (the intended first-run state — every prior session is absent,
-    i.e. recoverable), split DELIBERATELY from corrupt: consolidate must treat corrupt as "skip the sweep"
-    (all sessions possibly-live) but absent as "proceed". This split is exactly why the lease reader does NOT
-    mirror `_read_cursor`, which folds missing and corrupt into one `return 0`."""
-    path = _lease_path(data_dir)
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            raw = fh.read()
-    except FileNotFoundError:
-        return 0, {}
-    except OSError:
-        return None                      # unreadable => fail safe (corrupt), never "absent"
-    if not raw.strip():
-        return 0, {}
-    try:
-        state = json.loads(raw)
-    except ValueError:
-        return None                      # present but unparseable => CORRUPT
-    if not isinstance(state, dict):
-        return None
-    epoch = state.get("epoch", 0)
-    leases = state.get("leases", {})
-    if not (isinstance(epoch, int) and epoch >= 0) or not isinstance(leases, dict):
-        return None
-    clean = {k: v for k, v in leases.items() if isinstance(k, str) and isinstance(v, int) and v >= 0}
-    return epoch, clean
-
-
-def _write_lease_state(data_dir: str, epoch: int, leases: dict) -> None:
-    """Atomically replace the lease sidecar (temp + os.replace inside the capture lock). Writes EXACTLY what
-    it is given — the caller decides what to persist; it never resets-to-empty on its own (unlike
-    `_write_cursor`), so a corrupt read can be handled by refusing to write rather than healing to `{}`."""
-    path = _lease_path(data_dir)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump({"epoch": epoch, "leases": leases}, fh, separators=(",", ":"))
-    os.replace(tmp, path)
-
-
-def _prune_far_aged(leases: dict, epoch: int) -> dict:
-    """Drop any lease aged more than LEASE_PRUNE_HORIZON past the current epoch. Reaping-on-marker (consolidate)
-    misses a session that never produces a genuine delta (so never gets a marker); this secondary prune keeps
-    the per-turn-rewritten map bounded. A pruned session that revives simply re-stamps its lease next turn."""
-    return {sid: e for sid, e in leases.items() if epoch - e <= LEASE_PRUNE_HORIZON}
-
-
-def open_session_lease(data_dir: str, session_id: str) -> bool:
-    """The SessionStart heartbeat (holds NO lock on entry, so it acquires the capture lock itself): bump the
-    epoch, prune far-aged leases, stamp this session's lease at the new epoch, write. Returns True if the stamp
-    LANDED — the caller may then run the sweep — and False if it could not (lock contention OR a corrupt
-    sidecar), in which case the caller MUST DEFER the sweep this pass (never sweep with a missing self-lease,
-    which would make this very session look consolidatable to a concurrent sweep). Best-effort: never raises."""
-    try:
-        os.makedirs(data_dir, exist_ok=True)
-        lock_fd = _acquire_lock(os.path.join(data_dir, LOCK_FILENAME))
-        if lock_fd is None:
-            return False                 # contended ~1s; defer the sweep, caught next start
-        try:
-            state = read_lease_state(data_dir)
-            if state is None:
-                # CORRUPT: all prior lease info is unrecoverable. This is the ONE writer that resets the sidecar
-                # (refresh/drop deliberately REFUSE on corrupt, to keep the corrupt->skip fail-safe holding) —
-                # because if every writer refused, a corrupt sidecar would wedge consolidation shut forever. We
-                # repair to a fresh valid sidecar seeded with only this session and DEFER the sweep this pass. The
-                # cost: other parked sessions lose their lease, so on the NEXT start they read absent -> stale
-                # with no cushion — a rare, corruption-gated one-off. No content is ever at risk (raw deltas stay
-                # in the ledger); a live concurrent session re-stamps via its heartbeat and the re-check spares it.
-                _write_lease_state(data_dir, 1, {session_id: 1})
-                return False
-            epoch, leases = state
-            epoch += 1
-            leases = _prune_far_aged(leases, epoch)
-            leases[session_id] = epoch
-            _write_lease_state(data_dir, epoch, leases)
-            return True
-        finally:
-            _release_lock(lock_fd)
-    except Exception:  # noqa: BLE001 — the heartbeat is best-effort; never take down the SessionStart directive
-        return False
-
-
-def refresh_lease_locked(data_dir: str, session_id: str) -> None:
-    """The per-turn heartbeat — the CALLER MUST ALREADY HOLD the capture lock (an inline write, never a nested
-    `_acquire_lock`: `flock` is not re-entrant across fds, so a second acquire would fail the non-blocking lock
-    and silently drop the heartbeat). Stamps this session's lease at the CURRENT epoch, so an active session
-    tracks the frontier and reads fresh to the sweep's store-time re-check. On a corrupt sidecar it REFUSES to
-    write (leaves it for the next SessionStart repair) — never heals-to-empty. Cheap: a no-op once fresh this
-    epoch."""
-    state = read_lease_state(data_dir)
-    if state is None:
-        return                           # corrupt => refuse to write (do not reset to {})
-    epoch, leases = state
-    if leases.get(session_id) == epoch:
-        return                           # already stamped this epoch; skip the rewrite
-    leases[session_id] = epoch
-    _write_lease_state(data_dir, epoch, leases)
-
-
-def drop_lease_locked(data_dir: str, session_id: str) -> None:
-    """Reap a session's lease (called when a consolidation marker is written). This stays safe even though a
-    marked session CAN now be re-swept for a later half (#446): if the session revives it re-stamps its lease
-    on its next captured turn (refresh_lease_locked), and a concurrent sweep landing in the gap recomputes an
-    empty residual and no-ops — so reaping only bounds the per-turn-rewritten lease map, never strands a live
-    session. The CALLER MUST HOLD the lock; this RE-READS the sidecar under that lock and rewrites, so it never
-    clobbers a concurrent heartbeat by writing back a copy cached across the lock. No-op on corrupt/absent."""
-    state = read_lease_state(data_dir)
-    if state is None:
-        return
-    epoch, leases = state
-    if session_id in leases:
-        del leases[session_id]
-        _write_lease_state(data_dir, epoch, leases)
 
 
 # --- The in-flight-migration marker (compaction refuses within a migration window) -------------
@@ -680,7 +572,9 @@ def _make_record(session_id: str, seq: int, speaker: str, text: str, *, injected
     stable, content-free record id minted at capture — kept out of the search body too
     (index._NON_BODY_KEYS). `injected` adds `records.INJECTED_TAG` so the consolidation sweep skips a
     harness-injected pseudo-turn as fuel (issue #274) — the record still lands and stays fully recoverable;
-    the tag (like every tag) is kept out of the search body, and turn-deltas are recall-excluded by kind anyway."""
+    the tag (like every tag) is kept out of the search body. That tag now also keeps the pseudo-turn out of
+    RECALL: genuine turns are recall content, so this tag is what separates the operator's words from the
+    harness's."""
     tags = ["transcript", "stop"]
     if injected:
         tags.append(records.INJECTED_TAG)
@@ -702,20 +596,24 @@ def _make_record(session_id: str, seq: int, speaker: str, text: str, *, injected
 # SILENTLY on a fault. Now every capture attempt records its outcome to a gitignored marker —
 # captured / no-transcript / invalid-path / unparseable — which boot renders as one plain dashboard
 # line when the previous session's conversation could not be saved, and telemetry's inbox drain
-# promotes a persistently failing marker to one tracked finding. Best-effort: a marker write failure
-# never disturbs the capture or the turn.
+# promotes a persistently failing marker to one tracked finding. An `unparseable` (a changed transcript
+# format) also records a CONTENT-FREE structural `detail` — which recognizer check refused it and the
+# record/payload type names present, never any message text — so the next drift is diagnosable rather
+# than a bare state. Best-effort: a marker write failure never disturbs the capture or the turn.
 
 CAPTURE_STATUS_STATES = ("captured", "no-transcript", "invalid-path", "unparseable", "failed")
 _ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CAPTURE_STATUS_PATH = os.path.join(_ENGINE_DIR, "telemetry", ".cache", "memory-capture.status")
 
 
-def _write_capture_status(state: str, session_id=None) -> None:
+def _write_capture_status(state: str, session_id=None, *, detail=None) -> None:
     try:
         os.makedirs(os.path.dirname(CAPTURE_STATUS_PATH), exist_ok=True)
+        record = {"state": state, "session_id": session_id, "ts": int(time.time())}
+        if detail is not None:
+            record["detail"] = detail   # a CONTENT-FREE structural fingerprint on a failure (no text)
         with open(CAPTURE_STATUS_PATH, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps({"state": state, "session_id": session_id,
-                                 "ts": int(time.time())}))
+            fh.write(json.dumps(record))
     except OSError:
         pass
 
@@ -777,18 +675,14 @@ def _capture(payload, *, cwd) -> int:
     if lock_fd is None:
         return 0  # contended ~1s; the delta is caught at the next Stop
     try:
-        # The per-turn lease heartbeat: stamp this session live at the current epoch, INSIDE the lock we already
-        # hold and BEFORE the no-delta early return — so even a no-delta turn (noise-only, interrupted) still
-        # refreshes liveness and a live session can never drift stale to the consolidation sweep.
-        refresh_lease_locked(data_dir, session_id)
         # PROVIDER-ROUTED parsing (eADR-0034): a Codex session's transcript goes ONLY through the
         # Codex recognizer — an unrecognized (changed) format is a loud zero-capture, never a
         # fall-through to the tolerant Claude parser below, which could capture fragments.
         import providers  # lazy: the tools-dir seam; this package puts the tools dir on sys.path
         if providers.detect(payload) == providers.CODEX:
-            messages, recognized = _codex_messages(transcript_path)
+            messages, recognized, detail = _codex_messages(transcript_path)
             if not recognized:
-                _write_capture_status("unparseable", session_id)
+                _write_capture_status("unparseable", session_id, detail=detail)
                 return 0
         else:
             messages = [r for r in _extract_records(transcript_path) if _is_message(r)]
@@ -799,23 +693,39 @@ def _capture(payload, *, cwd) -> int:
             return 0
         ledger_file = ledger.ledger_path(cwd)
         appended = 0
+        fresh: list = []          # what landed this turn, for the incremental index extend below
         for offset, rec in enumerate(delta):
             text = _message_text(rec)
             if not text or not text.strip():
                 continue
             if _is_noise(text):
                 continue
+            # Redact secret-shaped content AFTER the empty/noise discard — large machine-output noise
+            # (command stdout: hex, base64, minified) is dropped without being scrubbed — but BEFORE
+            # chunking, so a credential straddling the >4KB chunk boundary is still caught as one unit
+            # (eADR-0038: scrubbed at capture; precision-biased, fail-soft).
+            text = scrub.scrub_text(text)
             speaker = _speaker(rec)
             # Recognise a harness-injected pseudo-turn on the WHOLE message, before chunking, so every chunk of a
             # multi-chunk block (e.g. the >4 KB /compact continuation summary) is tagged — not just the first
             # (issue #274). The record still lands + stays recoverable; consolidation skips it as fuel.
             injected = records.is_injected_pseudo_turn_text(text)
             for chunk in chunk_text(text):
-                ledger.append(_make_record(session_id, cursor + offset, speaker, chunk, injected=injected),
-                              path=ledger_file)
+                record = _make_record(session_id, cursor + offset, speaker, chunk, injected=injected)
+                ledger.append(record, path=ledger_file)
+                fresh.append(record)
                 appended += 1
         _write_cursor(data_dir, session_id, len(messages))
         _write_capture_status("captured", session_id)
+        # The conversation is recall content, and nothing else refreshes the fast index between full rebuilds
+        # (`ledger.append` does not move the generation stamp — only compaction does). Without this a turn would
+        # be in the ledger, absent from the index, and the index would still look CURRENT — so the fast path
+        # would answer without it and call itself healthy while the plain scan found it. Still inside the
+        # capture lock, so a compaction swap cannot race it. Best-effort by contract: `extend` swallows its own
+        # failures and returns 0, and the next full rebuild reconstructs from the ledger regardless.
+        if fresh:
+            from memory import index  # lazy: index -> forget -> capture, so a module-level import would cycle
+            index.extend(fresh, ledger_file=ledger_file, index_file=index.index_path(cwd))
         return appended
     finally:
         _release_lock(lock_fd)
@@ -843,8 +753,15 @@ def _demo_transcript(path: str, turns) -> None:
 
 
 def _demo_notes(query_text: str):
-    from memory import index
-    return [r.get("text", "") for r in index.query(query_text).records]
+    """Read the saved turn-notes straight back out of the cabinet (the ledger) and return those whose text
+    contains the asked-for words. The LEDGER is the one source of truth and the index is derived from it, so
+    the honest read-back for what capture just wrote is the ledger itself — which is exactly what this demo
+    proves ('saved and can't be lost'), independently of whether any index exists. Recall and ranking are a
+    separate part of the engine, not exercised here — a plain substring match stands in for 'ask for these
+    words'."""
+    needle = query_text.lower()
+    return [r.get("text", "") for r in ledger.read(path=ledger.ledger_path()).records
+            if needle in (r.get("text") or "").lower()]
 
 
 def _demo_excerpt(texts, needle: str, width: int = 64) -> str:
@@ -939,6 +856,26 @@ def _demo() -> int:
         print("  => The step the engine runs at every turn-end really files a note (proven by reading")
         print("     it back out of the cabinet, not by trusting an 'it worked' message).")
 
+        print("\nPART 5 — a secret in your conversation is scrubbed before it is ever saved")
+        print("-" * 80)
+        fake_secret = "AKIAIOSFODNN7EXAMPLE"   # a SYNTHETIC, non-real AWS-shaped example key
+        secret_transcript = os.path.join(tmp, "secret.jsonl")
+        secret_turn = ("Deploy note: the pelican-migration access key " + fake_secret
+                       + " should never be stored — rotate it quarterly.")
+        _demo_transcript(secret_transcript, [("user", secret_turn)])
+        capture_turn_delta({"session_id": "practice-session-secret", "transcript_path": secret_transcript})
+        all_texts = [r.get("text", "") for r in ledger.read(path=ledger.ledger_path()).records]
+        leaked = any(fake_secret in t for t in all_texts)                 # the raw key must be NOWHERE
+        redacted_present = any("[redacted:aws-key]" in t for t in all_texts)
+        prose_kept = any("pelican-migration" in t and "quarterly" in t for t in all_texts)
+        redaction_ok = (not leaked) and redacted_present and prose_kept
+        print("  Filed a turn that contained a fake AWS-shaped key (not printed here — that's the point).")
+        print(f"  Is the raw secret anywhere in the saved notes?   {'YES — LEAK!' if leaked else 'no'}")
+        print(f"  ask for \"pelican-migration\"  ->  {_demo_excerpt(_demo_notes('pelican-migration'), 'pelican-migration')}")
+        print("  => The secret was replaced with [redacted:aws-key] before saving; the surrounding note")
+        print("     (\"pelican-migration … rotate it quarterly\") is kept intact. Redaction happens at")
+        print("     capture, so the secret never touches the cabinet — or any backup of it.")
+
         del os.environ["ENGINE_MEMORY_DIR"]
         del os.environ[TRANSCRIPT_DIR_ENV]
 
@@ -950,10 +887,12 @@ def _demo() -> int:
     print("your memory while you work is another; this demo just doesn't exercise them. It proves only that")
     print("notes are saved and can't be lost — even if you just close the window.")
     print("To vary it: edit _DEMO_TURNS at the top of this file and re-run.")
-    ok = (n > 0 and filed > 0 and again == 0 and not before_handoff and bool(after_handoff))
+    ok = (n > 0 and filed > 0 and again == 0 and not before_handoff and bool(after_handoff)
+          and redaction_ok)
     if not ok:
-        print("\nDEMO UNEXPECTED: a practice turn did not file notes, a re-run was not a no-op, or the "
-              "end-of-turn ambient capture did not save a note.", file=sys.stderr)
+        print("\nDEMO UNEXPECTED: a practice turn did not file notes, a re-run was not a no-op, the "
+              "end-of-turn ambient capture did not save a note, or a secret was NOT scrubbed before "
+              "saving (leaked, no placeholder, or the surrounding note was corrupted).", file=sys.stderr)
         return 1
     return 0
 

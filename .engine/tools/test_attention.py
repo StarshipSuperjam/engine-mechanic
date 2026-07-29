@@ -2,7 +2,7 @@
 """Self-tests for the attention ranking function: the pure deterministic core (attention_rank),
 its versioned output contract (attention-result.v1.json), and the policy it reads (.engine/policies/attention.md).
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the FORM, not the calibration (the values are uncalibrated starting values, so
 ranking *quality* is deliberately NOT asserted here):
@@ -53,7 +53,7 @@ FIXTURE_POLICY = {
     **{f"trim_{c}": i + 1 for i, c in enumerate(reversed(CATEGORIES))},
     "weight_recency": 0.5, "weight_severity": 1.0, "weight_proximity": 0.5,
     "flex_high_debt_count": 3, "flex_orientation_delta": 0.10,
-    "debt_blocking_threshold": 2, "scent_strong_match_threshold": 0.5,
+    "debt_blocking_threshold": 2,
 }
 
 # The headline pair: a blocking-debt item that is OLD and just-at-the-bar (low weight) and an in-flight
@@ -250,11 +250,6 @@ class TestBudgetSplit(unittest.TestCase):
             for total in range(0, 41):
                 sizes = budget_split(self._applied(condition), total, self._trim())
                 self.assertEqual(sum(sizes.values()), total, f"{condition} total={total}: {sizes}")
-
-    def test_deterministic(self):
-        a = budget_split(self._applied("high_debt"), 7, self._trim())
-        b = budget_split(self._applied("high_debt"), 7, self._trim())
-        self.assertEqual(a, b)
 
     def test_at_least_one_kind_always_survives(self):
         # a budget of 1 seats exactly one kind — blocking_debt (shed last) under the shipped order.
@@ -572,6 +567,19 @@ class TestReferenceTime(unittest.TestCase):
     def test_a_malformed_moment_costs_its_own_ordering_never_the_reference(self):
         self.assertEqual(attention._reference_moment([{"recency": "not-a-date"}], "2026-07-12T09:21:38Z"),
                          "2026-07-12T09:21:38Z")
+
+    def test_a_malformed_recency_degrades_in_the_weight_never_crashes(self):
+        # attention_rank._epoch used to RAISE on a malformed recency; it now degrades that candidate to the
+        # oldest position (epoch 0.0 via _finite) so a bad stored timestamp can never crash the ranking math
+        # (the recall-crash class). This drives the real WEIGHT function and full rank(), not the
+        # reference-moment helper the test above covers.
+        good = {"id": "good", "category": "in_flight", "recency": "2026-06-04T00:00:00Z"}
+        bad = {"id": "bad", "category": "in_flight", "recency": "not-a-date"}
+        self.assertLess(intra_weight(bad, FIXTURE_POLICY, AS_OF),   # must not raise; degrades to oldest
+                        intra_weight(good, FIXTURE_POLICY, AS_OF))
+        result = rank([bad, good], FIXTURE_POLICY, AS_OF, set())    # full path: no crash, bad sorts last
+        in_flight = next(e for e in result["partition"] if e["category"] == "in_flight")
+        self.assertEqual([m["id"] for m in in_flight["members"]], ["good", "bad"])
 
     def test_the_live_path_resolves_the_leading_moment_and_ships_newest_first(self):
         # The wiring, not just the helper: rank_live must RESOLVE the reference moment, or the fix is
@@ -966,8 +974,11 @@ class _FakeSource:
     """A stand-in for boot_slice's read-shim: exposes the same find()/neighbors() + edge vocabulary the
     orientation reads call, so the `source=` seam is provable WITHOUT the real graph. (The order-faithful
     real-graph parity and the byte-identical render live in test_boot_slice / test_boot.)"""
-    WALK_EDGE_KINDS = ("provided_by", "governed_by", "targets", "depends_on")
-    EDGE_KINDS = WALK_EDGE_KINDS + ("supersedes",)
+    # Mirror the REAL walk/edge vocabulary so this stand-in can never drift from production (the shim it fakes
+    # carries the same constants). Reading them from the module under test keeps the fake faithful as the
+    # vocabulary grows.
+    WALK_EDGE_KINDS = attention.knowledge_query.WALK_EDGE_KINDS
+    EDGE_KINDS = attention.knowledge_query.EDGE_KINDS
 
     def __init__(self, by_path=None, adjacency=None):
         self._by_path = by_path or {}

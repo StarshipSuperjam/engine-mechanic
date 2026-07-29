@@ -34,7 +34,6 @@ CLI (the operator-runnable demo on a throwaway fixture — no registered hook ex
   uv run --directory .engine -- python tools/hooks.py demo
 """
 from __future__ import annotations
-import datetime
 import json
 import os
 import re
@@ -44,6 +43,7 @@ import traceback
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import providers  # noqa: E402  (stdlib-only; the provider-normalization seam run_hook applies)
+import moment  # noqa: E402  (stdlib-only; the trailing-Z time seam — kept off no happy path, imports nothing back)
 import validate  # noqa: E402
 
 
@@ -60,7 +60,8 @@ import validate  # noqa: E402
 #             trigger injects an assistant-internal stance directive (additionalContext) on Build entry
 #             still non-blocking; SessionEnd is hooks-owned
 #             (cleanup/flush, cannot block); UserPromptSubmit is boot/orientation's per-prompt scent.
-#             SessionStart has THREE owners: boot's orientation pack + memory's consolidation sweep
+#             SessionStart has THREE owners: boot's orientation pack + memory's own session-start work
+#             (the cross-session erasure observer and the backup push)
 #             + the optional github-projects-sync board refresh, which coexist on one event by keyed
 #             registration (the PostToolUse multi-owner precedent). The board-sync owner is present only
 #             while that optional module is installed; the entry names every system that may own the event.
@@ -237,11 +238,10 @@ def inject(context: str) -> dict:
     return {"action": "inject", "context": context}
 
 
-# The platform's per-value output cap (#495, a pre-existing latent defect the D-309 pass surfaced): past
-# 10,000 characters the platform saves the full payload to a file and substitutes a preview of the first
-# 2,000 characters (plus the file path) — both figures verified against the shipped Claude Code 2.1.185
-# binary. The boot pack's grounding marker sits near the top, so it
-# survives inside that preview; what drops from the injected context is everything past it — the status
+# The platform's per-value output cap: past 10,000 characters the platform saves the full payload to a file
+# and substitutes a preview of the first 2,000 characters (plus the file path) — both figures verified against
+# the shipped Claude Code 2.1.185 binary. The boot pack's grounding marker sits near the top, so it survives
+# inside that preview; what drops from the injected context is everything past it — the status
 # headline, the write-gate summary, and the dashboard. So measure-before-inject sheds the lowest-value
 # tiers to keep the essential content within the surviving preview window. The cap binds EACH output
 # value, not the event total.
@@ -353,7 +353,7 @@ def _do_promote_fail_open(event: str, kind: str, message: str) -> bool:
     tail #391 depends on)."""
     try:
         import telemetry  # lazy: keep telemetry's stack + the network off every hook's happy path
-        now = telemetry.utc_now()
+        now = moment.utc_now()
         record = {"source_id": _fail_open_source_id(event, kind), "severity": telemetry.TRUST_CRITICAL,
                   "message": message, "first_seen": now, "last_seen": now}
         return bool(telemetry.emit_finding(record))
@@ -405,7 +405,7 @@ def _record_crash_debug(event: str, exc: BaseException, path: str | None = None)
     tb = getattr(exc, "__traceback__", None)
     frames = traceback.extract_tb(tb) if tb else []
     where = f" @ {os.path.basename(frames[-1].filename)}:{frames[-1].lineno}" if frames else ""
-    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    stamp = moment.utc_now()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(f"{stamp} {event} handler crash: {type(exc).__name__}: {exc}{where}\n")
@@ -543,7 +543,7 @@ def _demo_promoter(event: str, kind: str, message: str):
     fake = telemetry._FakeGitHub()
     gh = telemetry.GitHubIssues("you/your-project", "demo-token", transport=fake.transport)
     record = {"source_id": _fail_open_source_id(event, kind), "severity": telemetry.TRUST_CRITICAL,
-              "message": message, "first_seen": telemetry.utc_now(), "last_seen": telemetry.utc_now()}
+              "message": message, "first_seen": moment.utc_now(), "last_seen": moment.utc_now()}
     return telemetry.emit_finding(record, gh=gh)
 
 

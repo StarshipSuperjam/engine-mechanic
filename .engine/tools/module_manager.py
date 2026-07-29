@@ -349,12 +349,13 @@ def _fetch_release_tree(ref: str, dest_dir: str, repo: str | None = None,
 
 def _archive_tree(ref: str, dest_dir: str) -> str:
     """The OFFLINE sibling of `_fetch_release_tree`: materialize a local tag/ref's tree via `git archive`
-    piped into `dest_dir` — no network, no token. Used by the real-tag regression belt to upgrade a genuine
-    past release's tree and assert the reconciled result passes the engine's full CI (the proof the synthetic
-    fixture cannot make — B1). Returns `dest_dir` ITSELF: `git archive` writes the tree with NO owner-repo-sha
-    wrapper directory (unlike GitHub's tarball), so there is no top-level dir to descend into (arch-N2).
-    Raises if the ref's tree object is absent (a shallow checkout with no tags — the belt skips on that)."""
-    import subprocess   # local: only the offline belt needs it
+    piped into `dest_dir` — no network, no token. The cut-time deployment gate uses it to project a genuine
+    past release to its deployed shape and practice-upgrade it to the release candidate, asserting the
+    structural gate stays green — the proof a synthetic fixture cannot make. Returns `dest_dir` ITSELF: `git
+    archive` writes the tree with NO owner-repo-sha wrapper directory (unlike GitHub's tarball), so there is no
+    top-level dir to descend into (arch-N2). Raises if the ref's tree object is absent (a shallow checkout with
+    no tags — the gate blocks the cut on that)."""
+    import subprocess   # local: only the offline projection needs it
     os.makedirs(dest_dir, exist_ok=True)
     proc = subprocess.run(["git", "-C", validate.ROOT, "archive", "--format=tar", ref],
                           capture_output=True, timeout=120)
@@ -585,12 +586,11 @@ _UNSET = object()   # sentinel: "no GitHub boundary passed (resolve close._githu
 
 # Root CLAUDE.md is keyed-MERGED on upgrade, not wholesale-overlaid: it carries the engine's `floor` as a
 # comment-fenced section so a brownfield adopter's own CLAUDE.md co-exists with the engine's entries rather
-# than being seized (the #234/#272 coexistence obligation). The floor is sourced
-# from the release's CLAUDE.deployed.md by `_merge_claude_floor`.
+# than being seized (the #234/#272 coexistence obligation). Since #323 the floor is sourced from the `floor`
+# fence in the release's committed root CLAUDE.md/AGENTS.md (the promoted adopter floor) by `_merge_claude_floor`
+# / `_read_release_floor`, not a whole-file `.deployed.md`.
 _ROOT_CLAUDE_REL = "CLAUDE.md"
 _ROOT_AGENTS_REL = "AGENTS.md"                     # the Codex floor — same keyed-merge/block-reverse posture
-_DEPLOYED_AGENTS_FLOOR_REL = "AGENTS.deployed.md"
-_DEPLOYED_FLOOR_REL = "CLAUDE.deployed.md"
 _FLOOR_FENCE = "floor"
 _GITIGNORE_REL = ".gitignore"           # the foundation-ignores fence lives here (#409) — a shared keyed
 #                                         file, so it is block-reversed like CODEOWNERS/CLAUDE.md, never
@@ -602,8 +602,9 @@ _GITIGNORE_REL = ".gitignore"           # the foundation-ignores fence lives her
 # whose package versions upgrade bumps in place, identity preserved); CODEOWNERS (re-rendered locally from
 # the post-overlay engine path set by upgrade step (2d) / `_refresh_codeowners`, never fetched from a
 # release — a release's block would carry the wrong owner + paths); and root CLAUDE.md (keyed-merged by
-# `_merge_claude_floor` from the release's CLAUDE.deployed.md so operator content is preserved and the
-# release's construction-governance CLAUDE.md never overlays an adopter's floor); and root `.gitignore`
+# `_merge_claude_floor`, which reads only the `floor` fence out of the release's root CLAUDE.md so operator
+# content outside the fence is preserved and the release's own file never overlays an adopter's whole floor);
+# and root `.gitignore`
 # (the foundation-ignores fence is re-asserted locally by apply_foundation_ignores on upgrade — step (2f)
 # below — never fetched, since a release's file would clobber the adopter's own ignore lines + module
 # fences). Gitignored data and the deployment's per-instance eADR stream (`.engine/contracts/instance/`, off
@@ -676,11 +677,30 @@ def _load_migration(module_dir: str, run_rel: str):
     return fn
 
 
+def _ver_key(v):
+    """A LENGTH-NORMALIZED version tuple for RANGE-boundary comparison, so a two-part key ('0.4') and its
+    three-part form ('0.4.0') compare EQUAL rather than '0.4' sorting BELOW '0.4.0' as a tuple prefix. Migration
+    and retired-capability keys are conventionally MAJOR.MINOR.PATCH but that is NOT schema-enforced (the schemas
+    constrain the entry VALUE, not the key), so a hand-authored two-part key at a range boundary is possible and
+    must not fall on the wrong side. Padding is a no-op for conventional three-part (and any 4+-part, e.g. a
+    digit-bearing pre-release suffix) tuples, so behaviour is unchanged for every real version in the tree.
+
+    THE SINGLE NORMALIZER for version-key range comparison: called directly by select_migrations and
+    select_retired_capabilities, and reached by release_cut._norm_ver (which delegates here) for BOTH
+    release-cut accumulation guards. So editing this moves a release-refusal safety guard's normalization too —
+    the mirrored regression tests (test_module_manager selector-boundary tests + test_release_cut
+    test_rekeyed_migration_is_not_a_false_drop) are the backstop."""
+    t = validate._ver_tuple(v)
+    return (t + (0,) * (3 - len(t))) if len(t) < 3 else t
+
+
 def select_migrations(from_versions: dict, target_versions: dict, manifests: list) -> list:
     """PURE: the migration entries an upgrade must run, in execution order. For each present module pick
     the `migrations` keys strictly ABOVE its from-version and AT-OR-BELOW its target-version; order modules
     by dependency (validate.topological_order) and, within a module, by ASCENDING version using
-    validate._ver_tuple (NEVER string order — '0.10.0' must sort AFTER '0.9.0'). `manifests` is a list of
+    validate._ver_tuple (NEVER string order — '0.10.0' must sort AFTER '0.9.0'). The range-boundary comparison
+    uses the LENGTH-NORMALIZED key (_ver_key), matching the release-cut accumulation guard, so a two-part key
+    ('0.4') never falls on the wrong side of its three-part boundary ('0.4.0'). `manifests` is a list of
     manifest dicts; `from_versions`/`target_versions` are {module_id: version}. Returns a list of
     {module_id, version, description, run, kind} — fixture-testable with no disk/network.
 
@@ -691,13 +711,39 @@ def select_migrations(from_versions: dict, target_versions: dict, manifests: lis
     out = []
     for m in validate.topological_order(list(manifests)):
         mid = m.get("id")
-        frm = validate._ver_tuple(from_versions.get(mid, "0"))
-        tgt = validate._ver_tuple(target_versions.get(mid, from_versions.get(mid, "0")))
+        frm = _ver_key(from_versions.get(mid, "0"))
+        tgt = _ver_key(target_versions.get(mid, from_versions.get(mid, "0")))
         for ver in sorted((m.get("migrations") or {}), key=validate._ver_tuple):
-            if frm < validate._ver_tuple(ver) <= tgt:
+            if frm < _ver_key(ver) <= tgt:
                 e = (m.get("migrations") or {})[ver] or {}
                 out.append({"module_id": mid, "version": ver, "description": e.get("description"),
                             "run": e.get("run"), "kind": e.get("kind")})
+    return out
+
+
+def select_retired_capabilities(from_versions: dict, target_versions: dict, manifests: list) -> list:
+    """PURE: the capability-retirement ANNOUNCEMENTS an upgrade must show, in module/version order. The exact
+    RANGE selection as select_migrations — for each present module, every `retired_capabilities` key strictly
+    ABOVE its from-version and AT-OR-BELOW its target-version, modules ordered by dependency and, within a
+    module, by ASCENDING version (validate._ver_tuple, NEVER string order); the range-boundary comparison uses
+    the LENGTH-NORMALIZED key (_ver_key), as select_migrations and the release-cut guard do. Returns a list of
+    {module_id, version, description} — announcement-only: no `run`, no `kind`, NOTHING executes, so (unlike
+    run_migrations) it can never refuse and needs no backup seam. Fixture-testable with no disk/network.
+
+    ACCUMULATION CONTRACT (enforced at release-cut by release_cut._retired_capabilities_accumulation_violations):
+    selection is by RANGE, so a key removed from a manifest is simply never iterated for an engine sitting below
+    it — the notice silently vanishes for the very lagging upgrader it exists to reach. So a shipped
+    retired-capabilities key must NEVER be dropped; and unlike a migration there is no no-op form to retire it
+    to — the key is append-only for the life of the module."""
+    out = []
+    for m in validate.topological_order(list(manifests)):
+        mid = m.get("id")
+        frm = _ver_key(from_versions.get(mid, "0"))
+        tgt = _ver_key(target_versions.get(mid, from_versions.get(mid, "0")))
+        for ver in sorted((m.get("retired_capabilities") or {}), key=validate._ver_tuple):
+            if frm < _ver_key(ver) <= tgt:
+                e = (m.get("retired_capabilities") or {})[ver] or {}
+                out.append({"module_id": mid, "version": ver, "description": e.get("description")})
     return out
 
 
@@ -1176,6 +1222,35 @@ def _resync_tool_runtime() -> bool:
         return False
 
 
+# The Markdown-structural characters a retired-capability description is escaped against so it renders as the
+# author's LITERAL words in the PR body: inline code (`), emphasis (* _), links/images ([ ] !), inline HTML
+# (< >), strikethrough (~). Each is backslash-escaped (GitHub renders '\x' as a literal 'x' for ASCII
+# punctuation), so nothing the author wrote is deleted and no construct can reshape or disguise the notice.
+# Leading block markers (#, >, -) need no handling: the "- " list prefix already puts the text in INLINE context,
+# where they are literal — and deleting them (an earlier approach) silently corrupted content like '>50% mode'
+# or '--force', which is exactly the notice this feature must render faithfully.
+_MD_LITERAL = str.maketrans({c: "\\" + c for c in "\\`*_[]<>~!"})
+
+
+def _retired_capability_text(description) -> str:
+    """The retired-capability description as one plain single line for a TERMINAL surface (the upgrade preview and
+    the applied-upgrade echo): collapse newlines and runs of whitespace to single spaces, and nothing else. The
+    terminal is not Markdown, so the author's characters are shown VERBATIM — never stripped or altered, so a
+    retired flag like '--force' or a claim like '>50% memory mode' survives exactly as written."""
+    return " ".join(str(description or "").split()) or "a capability was removed"
+
+
+def _retired_capability_line(description) -> str:
+    """The description as a Markdown list item for the upgrade PR body's Scope section — the durable consent
+    surface a non-engineer reads at the merge, and the FIRST free-text manifest field to render there (a
+    migration's description never reaches the PR body). Render the author's words as LITERAL text: whitespace is
+    collapsed (so no embedded newline breaks the list) and every Markdown-structural character is escaped (so an
+    inline link, code span, HTML tag, or emphasis run can't reshape or disguise the notice) — while every
+    character the author wrote SURVIVES, escaped rather than deleted. A truthful-rendering control, not a security
+    boundary: the text is maintainer-authored, schema-validated, and human-reviewed at the release cut."""
+    return "- " + _retired_capability_text(description).translate(_MD_LITERAL)
+
+
 def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: dict) -> str:
     """The engine update's own pull-request body, authored in the repository template's shape — the eight
     required sections plus the consent preamble every engine pull request carries — so an engine update reads
@@ -1184,7 +1259,7 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
     to merge an engine self-update, so it speaks of an *update* (never a release/publish — that is the other
     direction), carries every shared-file outcome the update produced OR refused (a floor the update could not
     touch must never be invisible at the merge), and its Validation section claims only the consistency check
-    that actually ran before the update was opened — never a fuller CI pass the tail does not yet run.
+    that actually ran before the update was opened — never a fuller CI pass the tail does not run.
 
     Reuses release_cut's public template helpers (`pr_section`/`template_preamble`) — one preamble source, no
     second copy to drift from the gate's anchor phrases. Imported LAZILY: release_cut imports this module, so a
@@ -1219,6 +1294,15 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
                 saved += (" One heads-up: the engine could not confirm that recovery copy is locked, so it "
                           "could be deleted by hand — leave it in place to keep the undo available.")
             scope.append(saved)
+    # Capability retirements — the plain "you could do this before, and now you can't" line the operator would
+    # otherwise never get. The description IS the whole notice (there is no kind/gloss to fall back on the way a
+    # migration has), so unlike the migration block above this DOES render the authored description, literalized
+    # so stray Markdown can't garble it.
+    retired = result.get("retired_capabilities") or []
+    if retired:
+        scope += ["", f"Capabilities this update removed — things you could ask for before and no longer can "
+                  f"({len(retired)}):"]
+        scope += [_retired_capability_line(r.get("description")) for r in retired]
     shared: list = []
     co = result.get("codeowners")
     if co == "written":
@@ -1256,8 +1340,8 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
     fi = (result.get("foundation_ignores") or {}).get("status")
     if fi == "written":
         shared.append("- Updated the engine's ignore list (the marked block in .gitignore that keeps the "
-                      "engine's own tool files and per-session folders out of git) to this version. Any ignore "
-                      "lines you added yourself are untouched.")
+                      "engine's own tool files, per-session folders, and regenerable caches out of git) to this "
+                      "version. Any ignore lines you added yourself are untouched.")
     elif fi == "degraded":
         shared.append("- Could not update the engine's ignore list — the marked block in .gitignore looked "
                       "damaged, so I left the file unchanged. Check the marker lines, then update again.")
@@ -1299,9 +1383,14 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
         "merging is your consent to run the updated engine; nothing changes until you merge.")
     out += release_cut.pr_section(
         "Scope",
-        "The version this update records and the shared-file blocks it refreshed.",
+        ("The version this update records, the shared-file blocks it refreshed, and the capabilities it retires."
+         if retired else
+         "The version this update records and the shared-file blocks it refreshed."),
         scope,
-        "these are the exact versions written into the engine's records, plus the marked-block refreshes noted.")
+        ("the exact versions written into the engine's records, the marked-block refreshes noted, and — listed "
+         "above — the things you could ask for before and no longer can."
+         if retired else
+         "these are the exact versions written into the engine's records, plus the marked-block refreshes noted."))
     out += release_cut.pr_section(
         "Out of scope",
         "What merging does not do.",
@@ -1309,17 +1398,30 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
          "- It does not change any settings you configured yourself.",
          "- It changes nothing outside the engine's own files and its marked blocks in shared files."],
         "the update touches only engine-owned files and the engine's marked blocks in shared files.")
+    risk_bullets = []
+    if retired:
+        # The one change in an update that alters what the operator can ASK the engine to do — surfaced here, in
+        # "what to weigh before merging", so a header-skimming reader meets it and not only in the Scope body.
+        risk_bullets.append(
+            "- A capability you could use before is gone — see \"Capabilities this update removed\" under Scope. "
+            "This is the one part of an update that changes what you can ask the engine to do, so read it before "
+            "you merge.")
+    risk_bullets += [
+        "- An update replaces the engine's own tool and rule files with the new version's, and removes engine "
+        "files this version renamed or dropped; your project content is not touched.",
+        "- Every file this update removed is listed under Scope above — read them, and flag any that was "
+        "yours before merging.",
+        "- Any shared-file block the update could not refresh is also called out under Scope — read those "
+        "before merging."]
     out += release_cut.pr_section(
         "Risk",
         "What to weigh before merging.",
-        ["- An update replaces the engine's own tool and rule files with the new version's, and removes engine "
-         "files this version renamed or dropped; your project content is not touched.",
-         "- Every file this update removed is listed under Scope above — read them, and flag any that was "
-         "yours before merging.",
-         "- Any shared-file block the update could not refresh is also called out under Scope — read those "
-         "before merging."],
-        "the update changes and removes engine-owned files; every removal and anything it could not apply is "
-        "disclosed in Scope.")
+        risk_bullets,
+        ("a capability you could use is gone (see Scope); and the update changes and removes engine-owned files, "
+         "with every removal and anything it could not apply disclosed in Scope."
+         if retired else
+         "the update changes and removes engine-owned files; every removal and anything it could not apply is "
+         "disclosed in Scope."))
     out += release_cut.pr_section(
         "Validation",
         "What the engine checked before opening this.",
@@ -1345,7 +1447,7 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
          "under Scope."],
         "the changed files are the engine's own records and files plus its marked blocks in shared files.")
     out += release_cut.pr_section(
-        "Claude involvement",
+        "AI involvement",
         "Who did what.",
         ["- I assembled this update mechanically — fetching the new version, applying it, and running the "
          "engine's consistency check.",
@@ -1354,31 +1456,116 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
     return "\n".join(out)
 
 
+def _github_error_detail(exc) -> str:
+    """GitHub's human-readable reason from a FAILED API response body, safe to show the operator — WITHOUT
+    surfacing anything sensitive. The body is field-validation JSON and never echoes request headers, so the
+    auth token cannot leak through it. A 422 on `/pulls` carries a generic top-level `message` ("Validation
+    Failed") with the ACTUAL cause in `errors[].message` (e.g. "A pull request already exists for …", "No
+    commits between base and head"), so join the top-level message with each nested error. `exc.read()` yields
+    bytes, may be empty, and can be read only ONCE; decode defensively and NEVER raise from here — a diagnostic
+    helper must not replace the original HTTP failure with a read/parse error. Returns "" when there is nothing
+    usable to add."""
+    try:
+        raw = exc.read()
+    except Exception:  # noqa: BLE001 — an unreadable body must not mask the HTTP error it is explaining
+        return ""
+    if not raw:
+        return ""
+    try:
+        body = json.loads(raw.decode("utf-8", errors="replace"))
+    except Exception:  # noqa: BLE001 — a non-JSON body: a bounded slice of the raw text is still useful
+        return raw.decode("utf-8", errors="replace")[:300].strip()
+    if not isinstance(body, dict):
+        return ""
+    parts = []
+    top = body.get("message")
+    if isinstance(top, str) and top.strip():
+        parts.append(top.strip())
+    errs = body.get("errors")
+    for err in errs if isinstance(errs, list) else []:      # `errors` may be absent or a non-list — never iterate a scalar
+        msg = err.get("message") or err.get("code") if isinstance(err, dict) else None
+        if isinstance(msg, str) and msg.strip():
+            parts.append(msg.strip())
+    return "; ".join(parts)
+
+
 def _open_upgrade_pr(branch: str, title: str, body: str, repo=None, token=None) -> dict:
     """THE GIT+PR BOUNDARY (provisioning step 6): stage the overlaid change on a new branch, commit, push,
     and open a pull request so an upgrade is reviewed + reversible like any change. NET-NEW (no
     git-automation helper existed) — branch/commit/push via subprocess (the bootstrap.py pattern), the PR
-    via POST /repos/{slug}/pulls (the telemetry.open_issue pattern). INJECTED for tests + the demo
-    (upgrade(opener=...)), so this real path NEVER runs in the construction repo — one of the four named
-    inductive gaps (no release to upgrade to, no PR to open)."""
-    import subprocess, urllib.request, json as _json, boot   # local: only the real open needs these
+    via POST /repos/{slug}/pulls built through the shared github_client.request (the one authenticated-Request
+    home). INJECTED for tests + the demo (upgrade(opener=...)), so this real path NEVER runs in the construction
+    repo — one of the four named inductive gaps (no release to upgrade to, no PR to open).
+
+    On a failed POST it raises a DIAGNOSABLE, caller-agnostic RuntimeError (#672): the branch is already
+    committed and pushed by the time the POST runs, so the message names the resolved repo/base/head/URL and
+    GitHub's own safe reason (read via _github_error_detail — never the auth token or headers) and says the
+    branch is already pushed so the recovery is to open the pull request by hand, not to re-run. A git step
+    failing EARLIER (checkout/add/commit/push) raises the OPPOSITE contract — the branch was NOT pushed, so it
+    names the failed step, surfaces git's stderr, and says to clear a leftover branch and run again — because a
+    "branch is pushed" claim would be false there. Each caller frames its own surrounding recovery; this
+    boundary supplies only the diagnostics both callers share."""
+    import subprocess, urllib.request, urllib.error, json as _json, boot, github_client  # local: only the real open needs these
+    import repo_identity  # local: the shared default-branch resolver (dependency-light)
     slug = repo or boot.repo_slug()
     tok = token if token is not None else boot.gh_token()
     if not slug or not tok:
         raise RuntimeError("could not determine the engine repository / credentials to open the update "
                            "pull request.")
-    base = getattr(boot, "PROTECTED_BRANCH", "main")
+    base = repo_identity.resolve_default_branch()
+    # STAGE-AND-PUSH. A git step failing here means the branch was NOT (fully) pushed, so the recovery is the
+    # OPPOSITE of the POST-failure case below — there is no branch to open a pull request from yet. The most
+    # common cause is a leftover branch from an earlier partial attempt colliding on `checkout -b`, so the
+    # message names the failed step, surfaces git's own stderr (captured but otherwise dropped), and says
+    # plainly the branch is not pushed and how to clear the collision — never the false "already pushed" claim.
     for args in (["git", "checkout", "-b", branch], ["git", "add", "-A"],
                  ["git", "commit", "-m", title], ["git", "push", "-u", "origin", branch]):
-        subprocess.run(args, cwd=validate.ROOT, check=True, capture_output=True)
-    url = f"https://api.github.com/repos/{slug}/pulls"
+        try:
+            subprocess.run(args, cwd=validate.ROOT, check=True, capture_output=True)
+        except subprocess.CalledProcessError as exc:
+            err = exc.stderr.decode("utf-8", errors="replace").strip() if isinstance(exc.stderr, bytes) \
+                else (exc.stderr or "").strip()
+            head = (f"preparing the pull-request branch failed at `{' '.join(args)}`"
+                    + (f": {err}" if err else f" (exit {exc.returncode})"))
+            if args[1] == "checkout":
+                # The CREATE step failed, so no branch (and no commit) exists yet — most often a name collision
+                # with a leftover branch from an earlier attempt. Deleting that is safe (nothing new is on it).
+                recovery = (f" — so the branch '{branch}' was not created and there is no pull request to open "
+                            f"yet. A common cause is a leftover '{branch}' branch from an earlier attempt; "
+                            f"remove it (locally with `git branch -D {branch}`, and on the remote if it was "
+                            f"pushed) and run this again.")
+            else:
+                # A LATER step failed (add/commit/push): the branch was already created and may hold the
+                # arrival's committed changes, so DO NOT tell the operator to delete it — that would discard
+                # their work. A push failure (the common case) is usually authentication, network, or branch
+                # protection. Fix the reported cause, then finish by hand.
+                recovery = (f" — the branch '{branch}' was created and holds the arrival's changes, so do not "
+                            f"delete it. The pull request was not opened; fix the cause reported above, then "
+                            f"finish by pushing the branch (`git push -u origin {branch}`) and opening the pull "
+                            f"request yourself: `gh pr create --repo {slug} --base {base} --head {branch}`.")
+            raise RuntimeError(head + recovery) from exc
+    path = f"/repos/{slug}/pulls"
     payload = _json.dumps({"title": title, "head": branch, "base": base, "body": body}).encode("utf-8")
-    headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-               "User-Agent": "engine-module-manager", "Authorization": f"Bearer {tok}",
-               "Content-Type": "application/json"}
-    with urllib.request.urlopen(urllib.request.Request(url, data=payload, headers=headers),
-                                timeout=60) as resp:
-        return _json.loads(resp.read())
+    req = github_client.request(path, tok, user_agent="engine-module-manager", method="POST", data=payload)
+    # THE POST. Reached only after the branch is committed and pushed above — so here the recovery IS to open
+    # the pull request by hand from the pushed branch. State it once, concretely, and never interpolate the
+    # token or headers (only exc.code + GitHub's response reason + the resolved repo/base/head).
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            return _json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        detail = _github_error_detail(exc)
+        reason = f"GitHub returned HTTP {exc.code}" + (f" — {detail}" if detail else "")
+        raise RuntimeError(
+            f"the branch '{branch}' was pushed but opening the pull request failed ({reason}). Open it "
+            f"yourself: `gh pr create --repo {slug} --base {base} --head {branch}`."
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"the branch '{branch}' was pushed but GitHub could not be reached ({exc.reason}), so the pull "
+            f"request was not opened. Open it yourself once you are back online: "
+            f"`gh pr create --repo {slug} --base {base} --head {branch}`."
+        ) from exc
 
 
 def _refresh_codeowners(handle) -> str:
@@ -1399,38 +1586,58 @@ def _refresh_codeowners(handle) -> str:
         return "degraded"
 
 
+def _read_release_floor(release_tree: str, root_rel: str) -> "list | None":
+    """The floor SOURCE for the upgrade path (#323): the `floor` fence body extracted from the release's
+    committed root file (CLAUDE.md / AGENTS.md — the promoted adopter floor). None when the release ships no
+    usable floor — its root file is absent, carries no `floor` fence, or carries a malformed one (an old
+    pre-promotion release, whose root file is the construction body with no fence, reads as None and is
+    skipped). A fence body needs no whole-file trailing-newline trim — fence_read returns the body lines
+    exactly as fenced. An empty or all-blank fence body reads as None too (no usable floor), so the upgrade
+    path skips it exactly as the arrival path (_insert_floor) does — the two never diverge on a degenerate
+    empty floor the engine would never emit."""
+    src = os.path.join(release_tree, root_rel)
+    if not os.path.isfile(src):
+        return None
+    try:
+        body = wiring.fence_read(validate.read(src), _FLOOR_FENCE, style=wiring.MD_FENCE)
+    except wiring.WiringError:
+        return None   # a malformed release fence is no usable source → skipped, never a mid-upgrade crash
+    return body if (body and any(ln.strip() for ln in body)) else None
+
+
 def _merge_agents_floor(release_tree: str) -> str:
-    """The AGENTS.md half of the floor keyed-merge — _merge_claude_floor's mechanics over the Codex
-    floor pair (local AGENTS.md, release AGENTS.deployed.md). Same return vocabulary."""
-    return _merge_floor(release_tree, _ROOT_AGENTS_REL, _DEPLOYED_AGENTS_FLOOR_REL)
+    """The AGENTS.md half of the floor keyed-merge — _merge_claude_floor's mechanics over the Codex root
+    floor (local AGENTS.md, the `floor` fence in the release's AGENTS.md). Same return vocabulary."""
+    return _merge_floor(release_tree, _ROOT_AGENTS_REL)
 
 
 def _merge_claude_floor(release_tree: str) -> str:
-    """Keyed-merge the engine's root-CLAUDE.md floor from the release's CLAUDE.deployed.md into the local
+    """Keyed-merge the engine's root-CLAUDE.md floor from the RELEASE's committed root CLAUDE.md into the local
     CLAUDE.md, replacing ONLY the engine `floor` fence and preserving any operator content outside it
-    (keyed, reversible entries; the #234/#272 coexistence obligation). The
-    floor is sourced from the release's CLAUDE.deployed.md, NEVER its CLAUDE.md (the maintainer
-    construction-governance file) — which also closes the latent bug where CLAUDE.md ∈ FOUNDATION_CODE
-    would copy the construction file over an adopter's floor on every upgrade.
+    (keyed, reversible entries; the #234/#272 coexistence obligation). The floor SOURCE is the `floor` fence
+    body extracted from the release's root CLAUDE.md — the promoted adopter floor (#323). CLAUDE.md is kept
+    OUT of FOUNDATION_CODE and keyed-merged (never wholesale-overlaid), so the release's own root file is only
+    ever read for its fenced floor block, never copied whole over an adopter's file.
 
     Returns: 'merged' (the engine block was replaced); 'created' (the floor file was ABSENT and is created
-    from the deployed floor source — the AGENTS.md-never-created case, #599 class 2); 'skipped' (the release
-    ships no floor source); 'skipped-no-section' (the local CLAUDE.md EXISTS but carries no engine `floor`
-    fence — leave it untouched, NEVER append a duplicate floor: the pre-keyed-merge raw-floor case);
-    'degraded' (a malformed local fence — leave it untouched, never a mid-upgrade crash). Structural sibling
-    of `_refresh_codeowners`, but with no handle dependency."""
-    return _merge_floor(release_tree, _ROOT_CLAUDE_REL, _DEPLOYED_FLOOR_REL)
+    from the release floor source — the AGENTS.md-never-created case, #599 class 2); 'skipped' (the release
+    ships no floor source — its root file is absent or carries no/ malformed `floor` fence, e.g. a pre-promotion
+    release); 'skipped-no-section' (the local CLAUDE.md EXISTS but carries no engine `floor` fence — leave it
+    untouched, NEVER append a duplicate floor: the pre-keyed-merge raw-floor case); 'degraded' (a malformed
+    LOCAL fence — leave it untouched, never a mid-upgrade crash). Structural sibling of `_refresh_codeowners`,
+    but with no handle dependency."""
+    return _merge_floor(release_tree, _ROOT_CLAUDE_REL)
 
 
-def _merge_floor(release_tree: str, root_rel: str, source_rel: str) -> str:
-    """The shared keyed-merge mechanics for one (local root file, release floor source) pair — see
-    _merge_claude_floor's contract."""
-    src = os.path.join(release_tree, source_rel)
-    if not os.path.isfile(src):
+def _merge_floor(release_tree: str, root_rel: str) -> str:
+    """The shared keyed-merge mechanics for one root floor file (CLAUDE.md or AGENTS.md) — see
+    _merge_claude_floor's contract. The floor SOURCE is the `floor` fence body extracted from the RELEASE's
+    committed root file (the promoted adopter floor), NOT a whole-file `.deployed.md` (retired) and NEVER the
+    local target. A release root file that is absent, carries no `floor` fence, or carries a malformed one is
+    'skipped' — no source, never a strand."""
+    floor_lines = _read_release_floor(release_tree, root_rel)
+    if floor_lines is None:
         return "skipped"
-    floor_lines = validate.read(src).split("\n")
-    if floor_lines and floor_lines[-1] == "":
-        floor_lines = floor_lines[:-1]   # drop the trailing-newline empty element; fence_apply re-terminates
     local_path = os.path.join(validate.ROOT, root_rel)
     local_exists = os.path.isfile(local_path)
     local = validate.read(local_path) if local_exists else ""
@@ -1586,8 +1793,9 @@ def _reconcile_surface(release_tree: str, candidates: dict, old_owned: list, old
 # full CI: the full `engine-ci` required check is a TWO-step job (the validator AND the self-tests), and its
 # hard checks read a PR/event/network context that does not exist pre-open on the operator's machine
 # (arch-S4, feasibility-B1/S1). This subset reads the reconciled TREE live and is exactly what #599 trips —
-# and none of it reaches the network or needs the repo token. The full-CI proof lives in the tests' real-tag
-# belt and the cut-time upgrade-path matrix (Slice 4), never on an operator's upgrade.
+# and none of it reaches the network or needs the repo token. The full-CI proof lives in the cut-time
+# deployment gate, which practice-upgrades real past releases to the candidate before a release is cut (#664),
+# never on an operator's upgrade.
 _STRUCTURAL_GATE_CHECK_IDS = frozenset({
     "engine/check/catalog-coverage",        # a delivered/removed file leaving the surface catalog incomplete
     "engine/check/census-completeness",     # the census of catalogued surfaces vs the tree
@@ -1601,6 +1809,13 @@ _STRUCTURAL_GATE_CHECK_IDS = frozenset({
 # deployed tree, and some checks only bite with construction/vault state a deployed repo need not have. The
 # fixture DELIVERY it once caught missing (#599 class 3) is now guaranteed by the reconcile's deliver leg and
 # asserted by the regression; the release's own CI still runs hard-check-bite on the opened pull request.
+
+
+# The note the upgrade tail appends when it runs in PRACTICE mode (a local release injected, no pull request
+# opened). Exposed as a module constant because the release-cut deployment gate matches on it to confirm a
+# practice upgrade took the real child path (`release_gate._upgrade_from`) rather than silently fetching a
+# published release — a single shared source, so a reword here can never quietly break that check.
+PRACTICE_RUN_NOTE = "(practice run — the pull request was not opened)"
 
 
 def _reconcile_gate(body: str) -> list:
@@ -1621,8 +1836,8 @@ def _coherence_only_gate(body: str) -> list:
     `ROOT/script` and so cannot run against a throwaway fixture tree (B1). The in-process path is NEVER a real
     deployed upgrade (`in_process` ⇒ an injected release tree + injected callables — a real upgrade fetches a
     release and spawns a child), so the full gate on the child path is the one that matters, and it is proven
-    against a real reconciled tree by the tests' real-tag belt + `demo_599`. `body` is accepted for signature
-    parity with `_reconcile_gate`."""
+    against a real reconciled tree by `demo_599` and by the cut-time deployment gate's practice upgrades from
+    real past releases (#664). `body` is accepted for signature parity with `_reconcile_gate`."""
     return list(module_coherence.check_coherence())
 
 
@@ -1686,8 +1901,14 @@ def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, o
     tail = {"wiring": [], "codeowners": None, "claude_floor": None, "agents_floor": None,
             "foundation_ignores": None, "fixtures_delivered": [],
             "orphans_removed": {"engine": [], "suspect": [], "left_in_place": []},
-            "migrations": {"ran": [], "refused": []},
+            "migrations": {"ran": [], "refused": []}, "retired_capabilities": [],
             "findings": [], "pr": None, "notes": [], "applied": False, "reason": None}
+    # (a0) RETIRED-CAPABILITY ANNOUNCEMENTS — derived from the FULL present-manifest set (`candidates`), NEVER
+    # from `selected`: a version that retires a capability but ships no migration must still announce it, so this
+    # is independent of migration selection (design-review). Announcement-only, so it is computed once up front
+    # and simply rides the result — it runs nothing and can never refuse.
+    tail["retired_capabilities"] = select_retired_capabilities(
+        from_versions, target_versions, list(candidates.values()))
     # (a) WIRING DELTAS — reverse a wire the new version drops, (re)apply the wires it declares now, with the
     # freshly-overlaid appliers (this is the seam #594 fixed: a new wire type now actually applies).
     tail["wiring"] = _apply_wiring_deltas(old_by_id, candidates)
@@ -1751,7 +1972,7 @@ def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, o
         return tail
     # (f) LAND as a reviewed pull request (skipped on a practice run — no git/PR boundary).
     if practice or opener is None:
-        tail["notes"].append("(practice run — the pull request was not opened)")
+        tail["notes"].append(PRACTICE_RUN_NOTE)
         return tail
     title = f"Maintenance: update the engine to {target_ref}"
     branch = "engine-update-" + re.sub(r"[^a-zA-Z0-9._-]+", "-", target_ref)
@@ -1862,6 +2083,38 @@ def _describe_wire(w: dict) -> str:
     return label
 
 
+def _below_floor_refusal(deployed_release: str | None, release_tree: str) -> str | None:
+    """The clean-upgrade floor preflight (#599 Slice 4). Returns a plain refusal reason when the DEPLOYED engine
+    is OLDER than the target release's recorded `min_upgradeable_from`, else None (proceed). Below the floor the
+    deployed engine's own already-shipped upgrade code predates the reconcile, so an automatic update cannot fully
+    tidy files renamed/removed since then — it would stall without opening a pull request. So refuse cleanly here,
+    pre-overlay, and route to the undo + staying on the current version. Fails OPEN (proceed) on anything that must
+    not block a legitimate update: an absent/unreadable target engine.json, a target that declares no floor, or a
+    deployed version that is absent, unparseable, or the 0.0.0-dev construction sentinel — a bad string never
+    coerces to 'below floor' (validate._ver_tuple would silently map it low). Single-homed: called from both
+    upgrade() and plan_upgrade() so the compare-and-refuse and its operator copy cannot drift."""
+    mf = os.path.join(release_tree, ".engine", "engine.json")
+    if not os.path.isfile(mf):
+        return None
+    try:
+        floor = (validate.load_json(mf) or {}).get("min_upgradeable_from")
+    except Exception:   # noqa: BLE001 — an unreadable target manifest never blocks; other gates handle it
+        return None
+    if not isinstance(floor, str) or not floor:   # absent, or a JSON-valid-but-mistyped floor -> proceed
+        return None
+    dep = str(deployed_release or "").strip()     # coerce: a non-string deployed version must never crash here
+    m = re.match(r"^(\d+\.\d+\.\d+)", dep)
+    if not m or m.group(1) == "0.0.0":            # absent, unparseable, or the dev/construction build -> proceed
+        return None
+    if validate._ver_tuple(dep) >= validate._ver_tuple(floor):
+        return None
+    return (f"This engine (release {dep}) is older than the oldest release that can update cleanly to this one "
+            f"({floor}). An automatic update from a version this old can't fully tidy up the files that were "
+            f"renamed or removed since then, so it would stop without opening a pull request. The engine is "
+            f"unchanged — stay on {dep} for now; an automatic clean update from a release this old isn't "
+            f"available. (If a previous update stopped half-applied, ask me to undo it.)")
+
+
 def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
                  available: str | None = None, target_ref: str | None = None) -> dict:
     """READ-ONLY upgrade impact preview: what an update WOULD change — the engine files it replaces or adds,
@@ -1885,7 +2138,7 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
            "from_versions": {}, "target_versions": {},
            "files": {"replaced": [], "added": []},
            "wires": {"added": [], "removed": [], "updated": []},
-           "migrations": [], "backed_up": None}
+           "migrations": [], "retired_capabilities": [], "backed_up": None}
     tmp = None
     try:
         engine = module_coherence.load_engine_manifest() or {"packages": {}}
@@ -1923,6 +2176,11 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
                 release_tree = _fetch_release_tree(target_ref, tmp, repo=home)
             except Exception as exc:   # noqa: BLE001
                 return _preview_degrade(out, home, exc, target=target_ref)
+        # FLOOR PREFLIGHT (#599 Slice 4): if this engine is below the target's clean-upgrade floor, say so in the
+        # preview too — an update from a version this old would refuse, so the operator learns it before --confirm.
+        below = _below_floor_refusal(out["current"], release_tree)
+        if below:
+            return {**out, "refused": True, "status": "below-floor", "reason": below}
         # Read the release's manifests + capture the installed ones — the SAME reads upgrade() does, no writes.
         candidates = {}
         for mid in present_ids:
@@ -1958,6 +2216,10 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
         selected = select_migrations(from_versions, out["target_versions"], list(candidates.values()))
         out["migrations"] = [{"module_id": s.get("module_id"), "version": s.get("version"),
                               "description": s.get("description"), "kind": s.get("kind")} for s in selected]
+        # Capability retirements — the same range selector, from the SAME present-manifest set, independent of
+        # whether any migration was selected (a retirement can ship with no migration). Preview mirrors apply.
+        out["retired_capabilities"] = select_retired_capabilities(
+            from_versions, out["target_versions"], list(candidates.values()))
         if any(s.get("kind") == "data" for s in selected):
             out["backed_up"] = _resolve_backup_seam(None) is not None   # engine-wide readiness probe; no write
         out["status"] = "update-available"
@@ -2052,13 +2314,16 @@ def _render_upgrade_preview(p: dict) -> None:
         what = ("stored data" if m.get("kind") == "data"
                 else "a setting" if m.get("kind") == "config" else "an engine record")
         print(f"  Changes {what}: {m.get('description') or m.get('module_id')}")
+    retired = p.get("retired_capabilities") or []
+    for r in retired:
+        print(f"  Removes a capability: {_retired_capability_text(r.get('description'))}")
     if any(m.get("kind") == "data" for m in migs):
         if p.get("backed_up") is True:
             print("  Your stored data is backed up before any data change.")
         elif p.get("backed_up") is False:
             print("  Note: a stored-data change needs a backup set up first — ask me to set one up before "
                   "applying, or the update refuses that step and changes nothing.")
-    if not (nrep or nadd or any(w.get(k) for k in ("added", "updated", "removed")) or migs):
+    if not (nrep or nadd or any(w.get(k) for k in ("added", "updated", "removed")) or migs or retired):
         print("  No file or settings changes — a version bump only.")
     tail = f" (or run `upgrade --confirm{(' ' + named) if named else ''}`)"
     print(f"\nThis only checked your engine — nothing changed. To apply, type `/engine-upgrade` and confirm"
@@ -2100,8 +2365,8 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
     practice = injected_release and not in_process                    # local release, no callables ⇒ child, no resync/PR
     result = {"refused": False, "applied": False, "reason": None, "from": None, "to": None,
               "copied": [], "wiring": [], "synced": None, "migrations": {"ran": [], "refused": []},
-              "findings": [], "pr": None, "notes": [], "codeowners": None, "claude_floor": None,
-              "agents_floor": None}
+              "retired_capabilities": [], "findings": [], "pr": None, "notes": [], "codeowners": None,
+              "claude_floor": None, "agents_floor": None}
     tmp = None
     try:
         engine = module_coherence.load_engine_manifest() or {"packages": {}}
@@ -2152,6 +2417,11 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
             cur = os.path.join(_modules_dir(mid), "manifest.json")
             old_by_id[mid] = validate.load_json(cur) if os.path.isfile(cur) else {}
         result["to"] = target_versions
+        # FLOOR PREFLIGHT (#599 Slice 4): refuse cleanly BEFORE any overlay if this engine is older than the
+        # target's clean-upgrade floor — a version this old can't reconcile cleanly and would stall without a PR.
+        below = _below_floor_refusal(engine.get("engine_release"), release_tree)
+        if below:
+            return {**result, "refused": True, "reason": below}
         # Capture the OLD engine-owned surface NOW — pre-overlay, with THIS (source) version's code: the old
         # `provides` globbed against the pristine deployed tree, UNIONED with the old FOUNDATION_INFRA (a code
         # constant only the pre-overlay process holds). The reconcile delete leg (in the tail) needs it to
@@ -2162,7 +2432,7 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
         # have already overlaid. So if an update is interrupted AFTER the overlay but BEFORE the delete leg
         # removed a rename orphan, a plain re-run recomputes `old_owned` from the overlaid manifests and no
         # longer sees that orphan — the gate then keeps refusing. It fails SAFE (nothing merges); the recourse
-        # is the undo, then update again. A self-healing fix (persisting the pre-overlay set) is deferred.
+        # is the undo, then update again. A self-healing recovery (persisting the pre-overlay set) is not attempted.
         old_owned = sorted(set(module_coherence.engine_owned_paths(module_coherence.discover_manifests())))
         # PRE-FLIGHT the data-migration backup guard BEFORE any overlay (the half-state law): refuse the
         # WHOLE upgrade if a data migration in range has no backup seam — nothing is applied.
@@ -2527,6 +2797,8 @@ def _render_upgrade(result: dict) -> None:
         print(f"  - ran update: {r}")
     for r in result.get("migrations", {}).get("refused", []):
         print(f"  - {r}")
+    for r in result.get("retired_capabilities", []):
+        print(f"  - removed a capability: {_retired_capability_text(r.get('description'))}")
     for line in result.get("notes", []):
         print("  - " + line)
     pr = result.get("pr")
@@ -2890,7 +3162,10 @@ def _build_upgrade_release(root: str) -> str:
                      "0.1.0": {"description": "Tidy a committed settings file for the new layout.",
                                "run": "migrations/config_010.py", "kind": "config"},
                      "0.2.0": {"description": "Reshape the stored data for the new format.",
-                               "run": "migrations/data_020.py", "kind": "data"}}})
+                               "run": "migrations/data_020.py", "kind": "data"}},
+                 "retired_capabilities": {
+                     "0.2.0": {"description": "The base tool no longer offers its one-shot cache reset; clear "
+                                              "the cache with the standard cleanup instead."}}})
     with open(os.path.join(eng, "tools", "base_tool.py"), "w") as fh:
         fh.write("# base v2 (updated)\n")
     # the migration code runs IN the tool-runtime; it imports validate (module_manager already put the
@@ -2930,16 +3205,21 @@ def _build_upgrade_release(root: str) -> str:
         fh.write("> A green mechanical check below shows this change conforms to the engine's rules; it does "
                  "not judge whether the change is correct. Your merge is the binding gate. A safety check "
                  "that could not run leaves its area unverified.\n\n## Purpose\n\n<why this change exists>\n")
-    # The release ships BOTH the floor (CLAUDE.deployed.md — what the keyed-merge reads) and the maintainer
-    # construction CLAUDE.md (which must NEVER overlay an adopter's floor — the latent-bug regression Part L
-    # checks). The floor body carries a v2 marker so the merge is observable.
-    with open(os.path.join(root, "CLAUDE.deployed.md"), "w", encoding="utf-8") as fh:
-        fh.write("# Your project runs on an Engine (v2)\n\nProject status block, refreshed in v2.\n")
-    with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as fh:
-        fh.write("# engine-template — construction governance (v2 release)\n\nbuild scaffolding\n")
-    # The AGENTS floor source, so a repo with no AGENTS.md yet has it CREATED on upgrade (#599 class 2).
-    with open(os.path.join(root, "AGENTS.deployed.md"), "w", encoding="utf-8") as fh:
-        fh.write("# Your project runs on an Engine — Codex floor (v2)\n\nCodex status block, refreshed in v2.\n")
+    # Since #323 the release's root CLAUDE.md/AGENTS.md ARE the fenced adopter floor — the source the keyed-merge
+    # reads (its `floor` fence body). The floor body carries a v2 marker so the merge is observable; the AGENTS
+    # floor is likewise fenced so a repo with no AGENTS.md yet has it CREATED on upgrade (#599 class 2).
+    for rel, body in (
+            ("CLAUDE.md", "# Your project runs on an Engine (v2)\n\nProject status block, refreshed in v2.\n"),
+            ("AGENTS.md", "# Your project runs on an Engine — Codex floor (v2)\n\nCodex status block, refreshed in v2.\n")):
+        lines = body.split("\n")
+        if lines and lines[-1] == "":
+            lines = lines[:-1]
+        with open(os.path.join(root, rel), "w", encoding="utf-8") as fh:
+            # A DECOY line OUTSIDE the floor fence: the keyed-merge reads only the fence BODY (via fence_read),
+            # so this release-only content must NEVER travel into an adopter's guide. Asserting its absence is
+            # what gives the merge test real bite (a fence_read that grabbed the whole file would leak it).
+            fh.write(wiring.fence_apply("", _FLOOR_FENCE, lines, style=wiring.MD_FENCE)
+                     + "\n<!-- release-only content outside the floor fence; must never travel -->\n")
     # The committed FIXTURE namespace the copy-only overlay missed (#599 class 3) — delivered by the reconcile.
     os.makedirs(os.path.join(eng, "_fixtures", "probe"), exist_ok=True)
     with open(os.path.join(eng, "_fixtures", "probe", "bad_input.md"), "w", encoding="utf-8") as fh:
@@ -2971,7 +3251,7 @@ def upgrade_demo() -> bool:
           "migration runner, and the consistency check. (None of those four ever runs for real here.)")
     pulls = []
     def fake_opener(branch, title, body):
-        pulls.append({"branch": branch, "title": title})
+        pulls.append({"branch": branch, "title": title, "body": body})
         return {"number": 0, "title": title}
     snapshots = []
     def fake_backup(store, engine_version, **kw):                # **kw absorbs the migration_id run_migrations binds in
@@ -3036,6 +3316,10 @@ def upgrade_demo() -> bool:
                 "consistent after the update":
                     not [f for f in res.get("findings", []) if f["severity"] == "hard"],
                 "opened a pull request for review": bool(res.get("pr")) and len(pulls) == 1,
+                "retired-capability notice selected on the version jump":
+                    [r.get("version") for r in res.get("retired_capabilities", [])] == ["0.2.0"],
+                "retired-capability notice carried into the review PR body":
+                    bool(pulls) and "no longer offers its one-shot cache reset" in (pulls[-1].get("body") or ""),
             }
             for label, good in checks.items():
                 print(f"    [{'ok' if good else 'FAIL'}] {label}")
@@ -3099,12 +3383,12 @@ def upgrade_demo() -> bool:
                 ok = ok and good
 
     print("\nPart L — the update KEYED-MERGES the root CLAUDE.md floor: it replaces ONLY the engine's marked "
-          "block and keeps the operator's own content byte-for-byte, and the release's construction file "
-          "never overlays the floor (the #234/#272 coexistence obligation + the latent-bug fix):")
+          "block and keeps the operator's own content byte-for-byte, and content the release ships OUTSIDE "
+          "its fence never overlays the floor (the #234/#272 coexistence obligation + the latent-bug fix):")
     with tempfile.TemporaryDirectory() as d:
         live = os.path.join(d, "live")
         os.makedirs(live)
-        release = _build_upgrade_release(os.path.join(d, "release"))   # ships a v2 floor + a construction file
+        release = _build_upgrade_release(os.path.join(d, "release"))   # ships a v2 fenced floor + a decoy outside the fence
         with _redirect_root(live):
             _build_upgrade_fixture(live)
             claude_path = os.path.join(live, "CLAUDE.md")
@@ -3124,7 +3408,7 @@ def upgrade_demo() -> bool:
                 "the operator's content below the block survived": bottom in after,
                 "the new engine floor replaced the block": "Project status block, refreshed in v2." in after,
                 "the old engine floor is gone": "Old engine floor (v1)" not in after,
-                "the construction file did NOT overlay CLAUDE.md": "construction governance" not in after,
+                "only the fence BODY merged, not the release file's other content": "must never travel" not in after,
             }
             for label, good in cl_checks.items():
                 print(f"    [{'ok' if good else 'FAIL'}] {label}")
@@ -3355,16 +3639,38 @@ def _git_status_paths(root: str) -> set:
     return paths
 
 
+def _git_deleted_paths(root: str) -> set:
+    """Repo-relative paths git reports as a DELETION of a tracked file (status 'D' in either column of
+    `git status --porcelain`). A staged or unstaged deletion of a tracked file is losslessly reversible — the
+    discard's `git checkout <branch>` restores it from HEAD, and the recovery point commits it first — so it is
+    NEVER operator work at risk. The reconcile's delete leg leaves a renamed-away OLD path here as a staged
+    deletion (a rename that also rewrote the file shows as `D`+`A`, not `R`), and it must not be mistaken for
+    the operator's own uncommitted work and refuse the undo (#599). Empty when git is unavailable."""
+    paths: set = set()
+    for line in (_git(root, "status", "--porcelain") or "").splitlines():
+        if len(line) < 4:
+            continue
+        if "D" in line[:2]:                    # 'D' in either status column — a tracked-file deletion
+            p = line[3:]
+            if " -> " in p:                    # defensive: a rename never carries 'D', but keep the new side
+                p = p.split(" -> ", 1)[1]
+            paths.add(p.strip().strip('"'))
+    return paths
+
+
 def _upgrade_footprint() -> set:
     """Every repo-relative path an upgrade's tail can WRITE — single-sourced so the discard's foreign-work
-    guard and the staged-update signal cannot drift from what an update actually touches. The overlay's own
-    membership (a module's `provides` files + module manifests + FOUNDATION_CODE) ∪ the wiring-seam target
-    files ∪ engine.json ∪ CODEOWNERS ∪ the keyed-merge floor files (CLAUDE.md/AGENTS.md) — the tail's floor
-    merge writes the last pair, which FOUNDATION_CODE deliberately carves out of the overlay set."""
-    paths = set(overlay_replace_paths())
+    guard cannot drift from what an update actually touches. Seeded from the RECONCILE DELIVER SET
+    (`engine_synced_paths`, project_retire=False): the overlay membership (a module's `provides` files +
+    module manifests + FOUNDATION_CODE) PLUS the `.engine/_fixtures/**` namespace the reconcile delivers PLUS
+    the five keyed/rendered foundation files (engine.json, CODEOWNERS, root CLAUDE.md/AGENTS.md, .gitignore) —
+    then the wiring-seam target files. Sourcing from the deliver set is what keeps a reconcile-delivered fixture
+    from reading as the operator's own work at discard time (#599: the pre-Slice-2a footprint knew only the
+    overlay copy-map, never the fixtures the reconcile now delivers). `project_retire=False` skips the
+    first-run-assets read so this never raises on the rollback path."""
+    manifests_by_id = {m.get("id"): m for _rel, m in module_coherence.discover_manifests()}
+    paths = set(engine_synced_paths(validate.ROOT, manifests_by_id, project_retire=False))
     paths.update(module_coherence.WIRING_TARGETS.values())
-    paths.update({module_coherence.ENGINE_MANIFEST_REL, ".github/CODEOWNERS",
-                  _ROOT_CLAUDE_REL, _ROOT_AGENTS_REL})
     return paths
 
 
@@ -3439,7 +3745,10 @@ def _discard_staged_update(resync, transport) -> dict:
     root = validate.ROOT
     result: dict = {"state": "staged", "undone": False}
     # (a) GUARD — refuse if the operator has their OWN uncommitted work (anything the update didn't write).
-    foreign = sorted(_git_status_paths(root) - _upgrade_footprint())
+    # Tracked-file deletions are excluded: a staged/unstaged delete is losslessly restored by the branch
+    # switch below (and captured on the recovery point first), so a reconcile's renamed-away old path — or even
+    # the operator's own deletion — is never work at risk, and must not false-refuse the undo (#599).
+    foreign = sorted(_git_status_paths(root) - _upgrade_footprint() - _git_deleted_paths(root))
     if foreign:
         result["refused"] = True
         result["your_changes"] = foreign[:20]

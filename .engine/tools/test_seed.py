@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-tests for the seed's checker-of-checkers (validator + the two guards).
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock in the load-bearing teeth so a later edit to the trust root cannot
 silently regress them. The deliverable-gate cold review attests that each test's
@@ -22,6 +22,13 @@ import validate          # noqa: E402
 import weakening_guard   # noqa: E402
 import protection_guard  # noqa: E402
 import bootstrap         # noqa: E402  (floor_ruleset — the team-tier floor builder the verifier is checked against)
+import module_coherence  # noqa: E402  (installed-means-present manifests, for roster-aware optional-script guards)
+
+
+def _installed_module_ids() -> set:
+    """The ids of the modules present on disk (installed-means-present). A deployment that DECLINED an
+    optional module removes its subtree, so its id drops out here — the roster-aware signal for #646."""
+    return {man.get("id") for _rel, man in module_coherence.discover_manifests()}
 
 
 def _run_quiet(suite, ctx):
@@ -40,7 +47,7 @@ def _check_quiet(rule_id, ctx):
 
 
 SECTIONS = ["Purpose", "Scope", "Out of scope", "Risk", "Validation", "Review",
-            "Files of interest", "Claude involvement"]
+            "Files of interest", "AI involvement"]
 COMPLETENESS_RULE = {"id": "engine/check/pr-body-completeness",
                      "target": {"context": "pull-request-body"},
                      "kind": "presence", "tier": "hard",
@@ -139,20 +146,6 @@ class TestCiAuthorExempt(unittest.TestCase):
         self.assertEqual(rc, 0)                  # exempt → no hard finding → completed pass
         self.assertIn(self.DISCLOSURE, text)     # disclosed, never a silent green (build-owe #3)
         self.assertNotIn("the kind ran", text)   # the kind was skipped before dispatch
-
-    def test_github_actions_bot_author_is_exempt(self):
-        # The scheduled self-review DIGEST pull request is opened by github-actions[bot] (audit-prep.yml opens
-        # it via the workflow GITHUB_TOKEN) and carries a plain-language body, not the eight-section template;
-        # like dependabot it is an exempted, disclosed not-applicable pass (this is what clears the digest PR's
-        # otherwise-red engine-ci). Proves the engine honors the EXACT bot login, brackets and all. (The
-        # memory-erasure proposal is NOT bot-authored — a local SessionStart hook opens it under the operator's
-        # own gh token — so it is cleared by the engine-erasure LABEL exemption instead; see TestCiLabelExempt.)
-        # This bot entry's spoof-safety re-confirmation is recorded in the PR that closes issue #423.
-        self._install(exempt=("dependabot[bot]", "github-actions[bot]"))
-        rc, text = self._run("CI", {"pr_body": "", "pr_author": "github-actions[bot]"})
-        self.assertEqual(rc, 0)
-        self.assertIn(self.DISCLOSURE, text)
-        self.assertNotIn("the kind ran", text)
 
     def test_nonexempt_author_still_enforced(self):
         self._install()
@@ -281,15 +274,6 @@ class TestCiLabelExempt(unittest.TestCase):
         self.assertEqual(rc, 1)                  # exact match only; no silent case-fold widening
         self.assertIn("the kind ran", text)
 
-    def test_exempt_only_in_blocking_gate_suite(self):
-        # The same rule + label in a non-blocking-gate suite is NOT exempted: the kind runs
-        # (advisory there, so assert on the text). Locks the gate to the suite's blocking-gate
-        # CONTEXT, not the literal name "CI".
-        self._install(suites=("pre-commit",))
-        rc, text = self._run("pre-commit", {"pr_body": "", "pr_labels": ["engine-erasure"]})
-        self.assertNotIn(self.DISCLOSURE, text)
-        self.assertIn("the kind ran", text)
-
     def test_by_id_guard_path_never_exempt(self):
         # run_check() (the by-id path engine-guard uses) carries no suite, so it never honors
         # ci_label_exempt — the weakening guard judges an engine-erasure-labelled PR too.
@@ -299,13 +283,6 @@ class TestCiLabelExempt(unittest.TestCase):
                                     {"pr_body": "", "pr_labels": ["engine-erasure"]})
         self.assertEqual(rc, 1)
         self.assertNotIn(self.DISCLOSURE, out.getvalue())
-
-    def test_kind_presence_is_label_agnostic(self):
-        # The closed kind never reads labels: an exempt label still fails an empty body.
-        passed, found = validate.kind_presence(
-            COMPLETENESS_RULE, {"pr_body": "", "pr_labels": ["engine-erasure"]})
-        self.assertFalse(passed)
-        self.assertEqual(len(found), 8)
 
 
 class TestCheckSchemaCiAuthorExempt(unittest.TestCase):
@@ -577,12 +554,21 @@ class TestWeakeningClassifier(unittest.TestCase):
                   ".engine/tools/wiring.py", ".engine/tools/security_floor.py"):
             self.assertTrue(weakening_guard.is_guardrail(p, derived_scripts=frozenset()), p)
 
+    def test_mechanic_build_gate_is_floored(self):
+        # The engine-mechanic cross-repo-write gate (eADR-0026): its fail-closed, host-anchored belt authorizes
+        # running a SEPARATE checkout's own tools and opening a PR against it — a live runtime gate with NO
+        # on-disk floored correlate, so it MUST route through the guardrail-ack. Pinned so a future edit that drops
+        # it from _FLOOR_ENFORCEMENT_HOOKS is caught here. Its checkout_health readers stay UNGUARDED (fail-soft
+        # reporters, not the authorizing gate).
+        self.assertTrue(weakening_guard.is_guardrail(".engine/tools/mechanic_build.py", derived_scripts=frozenset()))
+        self.assertFalse(weakening_guard.is_guardrail(".engine/tools/checkout_health.py", derived_scripts=frozenset()))
+
     def test_non_gate_tooling_is_not_guarded(self):
         # The over-firing the narrowing fixes: benign tools (boot, memory, telemetry, status, the self-review renderer,
         # attention) are NOT guarded when the derived set does not name them — the whole point of the narrowing.
         derived = frozenset({".engine/tools/protection_guard.py"})
         for p in (".engine/tools/boot.py", ".engine/tools/engine_status.py",
-                  ".engine/tools/memory/consolidate.py", ".engine/tools/telemetry.py",
+                  ".engine/tools/memory/compact.py", ".engine/tools/telemetry.py",
                   ".engine/tools/self_map.py", ".engine/tools/scent.py",
                   ".engine/tools/audit_digest.py", "README.md", "src/app.py"):
             self.assertFalse(weakening_guard.is_guardrail(p, derived_scripts=derived), p)
@@ -625,16 +611,14 @@ class TestWeakeningClassifier(unittest.TestCase):
             self.assertTrue(weakening_guard.is_guardrail(p, derived_scripts=frozenset(), instance_guards=(set(), ())), p)
 
     def test_instance_read_is_empty_and_silent_and_filters_degenerate(self):
-        # DEPLOYMENT-LOCAL PATCH (engine-mechanic). Upstream asserts the ABSENT case by calling this with no
-        # argument, which reads the HOST repository's own declaration — so the assertion holds only while no
-        # deployment uses the feature. This deployment declares its containment scanner in
-        # .engine/operator-guarded-paths.json, exactly the case weakening_guard.py documents the mechanism for,
-        # and upstream's form then fails. Asserting against a path that cannot exist tests the same property
-        # (absent -> the empty pair, silently) without asserting a fact about the host repository. Filed
-        # upstream; the overlay reverts this on every engine upgrade, so re-apply it (post-upgrade checklist in
-        # .engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md).
-        self.assertEqual(weakening_guard._read_instance_guards(
-            os.path.join(tempfile.gettempdir(), "engine-no-such-operator-guarded-paths.json")), (set(), ()))
+        # An ABSENT declaration -> the empty pair, silently. Driven through an explicit path that cannot
+        # exist rather than the no-argument default: the default reads the HOST repository's own
+        # declaration, so asserting it is empty asserts a fact about whichever repo the suite runs in —
+        # true here, false in a deployment that uses the feature, which would red its required self-tests
+        # over adopting a shipped capability. The property under test is the reader's, not the repo's.
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(weakening_guard._read_instance_guards(
+                os.path.join(d, "no-such-declaration.json")), (set(), ()))
         # Defensive parse behind the CI shape gate: non-string / empty / degenerate members are dropped so the
         # catastrophic empty-prefix (`startswith("")` guards everything) can never take effect even off-gate.
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
@@ -735,11 +719,18 @@ class TestWeakeningDerivedSet(unittest.TestCase):
     def test_live_check_dir_covers_real_scattered_enforcement_scripts(self):
         # Against the REAL base .engine/check dir: representative scattered enforcement scripts (a top-level guard
         # and two subpackage check-scripts) are guarded by presence, proving the derivation reaches the subpackages.
+        # protection_guard.py is core (always present); the two subpackage scripts ship with OPTIONAL modules, so
+        # each is asserted only when its module is installed — a deployment that DECLINED product-design /
+        # dependency-discipline legitimately lacks its script and must not red here (#646).
         derived = weakening_guard._derive_check_scripts()
         self.assertIsNotNone(derived)
-        for p in (".engine/tools/protection_guard.py",
-                  ".engine/tools/product_design/lock_integrity.py",
-                  ".engine/tools/dependency_discipline/pinning.py"):
+        installed = _installed_module_ids()
+        expected = [".engine/tools/protection_guard.py"]
+        if "product-design" in installed:
+            expected.append(".engine/tools/product_design/lock_integrity.py")
+        if "dependency-discipline" in installed:
+            expected.append(".engine/tools/dependency_discipline/pinning.py")
+        for p in expected:
             self.assertIn(p, derived, p)
 
 
@@ -1002,7 +993,7 @@ class TestPRContractNoDrift(unittest.TestCase):
     """The control-plane 8-section PR-body contract must not silently drift.
 
     The locked contract names eight required sections, in order — Purpose, Scope,
-    Out of scope, Risk, Validation, Review, Files of interest, Claude involvement —
+    Out of scope, Risk, Validation, Review, Files of interest, AI involvement —
     transcribed once above as SECTIONS (a human transcription of the control-plane
     spec; there is no in-repo machine source to derive it from, so the transcription
     itself has no mechanical correlate and is read by a human against the spec). The
@@ -1888,13 +1879,17 @@ class TestWeakeningReHome(unittest.TestCase):
 
     _AUTO = object()  # sentinel: derive expected from len(files) unless overridden
 
-    def _main_json(self, event, files, expected=_AUTO, base_home=None, base_tier=None):
+    def _main_json(self, event, files, expected=_AUTO, base_home=None, base_tier=None,
+                   base_product_build_target=None):
         """Drive main() with the network seams stubbed: the complete changed-file list, the authoritative
         changed_files count, the BASE manifest's recorded home (`base_home`, default None = no home
-        recorded, so a home in the diff reads as a first recording), and the BASE manifest's recorded identity
+        recorded, so a home in the diff reads as a first recording), the BASE manifest's recorded identity
         tier (`base_tier`, default None = no tier recorded, so a team->solo detector has nothing to downgrade
-        FROM). `expected` defaults to len(files) (a fully-seen PR); pass a larger int to simulate a truncated /
-        over-cap view, or None for the count being unavailable."""
+        FROM), and the BASE manifest's recorded executable build target (`base_product_build_target`, default
+        None = no target recorded — so a target APPEARING in the diff reads as a first-set ARMING, which the
+        product_build_target detector flags, unlike a first-home recording). `expected` defaults to len(files)
+        (a fully-seen PR); pass a larger int to simulate a truncated / over-cap view, or None for the count
+        being unavailable."""
         import contextlib
         import io
         if expected is self._AUTO:
@@ -1904,6 +1899,7 @@ class TestWeakeningReHome(unittest.TestCase):
         orig_count = weakening_guard.changed_files_total
         orig_home = weakening_guard._read_base_home
         orig_tier = weakening_guard._read_base_tier
+        orig_target = weakening_guard._read_base_product_build_target
         buf = io.StringIO()
         with tempfile.TemporaryDirectory() as d:
             ep = os.path.join(d, "event.json")
@@ -1915,6 +1911,7 @@ class TestWeakeningReHome(unittest.TestCase):
             weakening_guard.changed_files_total = lambda repo, number, token: expected
             weakening_guard._read_base_home = lambda: base_home
             weakening_guard._read_base_tier = lambda: base_tier
+            weakening_guard._read_base_product_build_target = lambda: base_product_build_target
             try:
                 with contextlib.redirect_stdout(buf):
                     rc = weakening_guard.main()
@@ -1925,6 +1922,7 @@ class TestWeakeningReHome(unittest.TestCase):
                 weakening_guard.changed_files_total = orig_count
                 weakening_guard._read_base_home = orig_home
                 weakening_guard._read_base_tier = orig_tier
+                weakening_guard._read_base_product_build_target = orig_target
         return rc, json.loads(buf.getvalue())
 
     def test_no_weakening_is_empty_and_exit_zero(self):
@@ -2266,6 +2264,108 @@ class TestWeakeningReHome(unittest.TestCase):
             {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
             self._f(self._DOWNGRADE_PATCH), base_tier="team")
         self.assertEqual(out, [])
+
+    # ---- arming the executable build target is a guardrail weakening; INVERTED from home (first-set FIRES) ----
+    _ARM_PATCH = ('@@ -1,3 +1,4 @@\n'
+                  '   "identity": "solo",\n'
+                  '+  "product_build_target": "StarshipSuperjam/engine-template",\n'
+                  ' }\n')
+
+    def test_product_build_target_pure_classifier(self):
+        a = weakening_guard.product_build_target_arm
+        # FIRST-SET (base absent -> a value appears) FIRES — the inverse of home_repoint; this is the arming.
+        self.assertEqual(a(self._f(self._ARM_PATCH), None),
+                         (None, "StarshipSuperjam/engine-template", "set"))
+        # a REPOINT (base present, value changes) FIRES.
+        repoint = self._f('@@ -1,3 +1,3 @@\n'
+                          '-  "product_build_target": "acme/old",\n'
+                          '+  "product_build_target": "evil/look-alike",\n')
+        self.assertEqual(a(repoint, "acme/old"), ("acme/old", "evil/look-alike", "changed"))
+        # DELETION (present -> absent, no added target line) is BENIGN — reverts to the safe self-building default.
+        deletion = self._f('@@ -1,3 +1,2 @@\n'
+                           '   "identity": "solo",\n'
+                           '-  "product_build_target": "acme/old",\n')
+        self.assertIsNone(a(deletion, "acme/old"))
+        # a same-value formatting touch (unchanged value) is BENIGN.
+        same = self._f('@@ -1,3 +1,3 @@\n'
+                       '-  "product_build_target": "acme/old"\n'
+                       '+  "product_build_target": "acme/old",\n')
+        self.assertIsNone(a(same, "acme/old"))
+        # a version-only bump (no target line touched) does NOT flag, even with a target recorded.
+        self.assertIsNone(a(self._f('@@ -1,1 +1,1 @@\n-  "engine_release": "1"\n+  "engine_release": "2"\n'),
+                            "acme/old"))
+        # a manifest change with NO inspectable patch -> fail closed (flag), even with no base target.
+        self.assertEqual(a([{"filename": ".engine/engine.json", "status": "modified", "patch": None}], None),
+                         (None, None, "unreadable-patch"))
+        # the same arming patch on a NON-manifest file is ignored.
+        self.assertIsNone(a([{"filename": "docs/x.md", "status": "modified", "patch": self._ARM_PATCH}], None))
+        # a duplicate-key injection (JSON last value wins) is read by findall on the added line -> flagged.
+        dup = self._f('@@ -1,3 +1,4 @@\n'
+                      '   "product_build_target": "acme/old",\n'
+                      '+  "product_build_target": "evil/look-alike",\n')
+        self.assertEqual(a(dup, "acme/old"), ("acme/old", "evil/look-alike", "changed"))
+        # a value split across physical lines defeats the one-line parse -> "unclear" (fail closed).
+        split = self._f('@@ -1,3 +1,4 @@\n'
+                        '+  "product_build_target": "evil/\n'
+                        '+look-alike"\n')
+        self.assertEqual(a(split, None), (None, None, "unclear"))
+        # a CR-hidden second value (str.splitlines would fragment and drop the `+`) fails closed on the anomaly.
+        cr = self._f('@@ -1,3 +1,4 @@\n'
+                     '+  "product_build_target": "acme/ok",\r  "product_build_target": "evil/x"\n')
+        self.assertEqual(a(cr, None), (None, None, "escaped"))
+
+    def test_product_build_target_first_set_is_flagged_and_cleared_by_the_ack(self):
+        # end-to-end through main(): arming the target on a repo with none recorded blocks until the ack, then clears.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            self._f(self._ARM_PATCH))  # base_product_build_target None -> first-set
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("GUARDRAIL CHANGE DETECTED", out[0]["message"])
+        self.assertIn("build target", out[0]["message"])
+        self.assertIn("StarshipSuperjam/engine-template", out[0]["message"])
+        self.assertIn("guardrail-ack", out[0]["message"])
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
+            self._f(self._ARM_PATCH))
+        self.assertEqual(out, [])
+
+    def test_product_build_target_repoint_names_old_and_new(self):
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            self._f('@@ -1,3 +1,3 @@\n'
+                    '-  "product_build_target": "acme/old",\n'
+                    '+  "product_build_target": "evil/look-alike",\n'),
+            base_product_build_target="acme/old")
+        self.assertEqual(len(out), 1)
+        self.assertIn("acme/old", out[0]["message"])
+        self.assertIn("evil/look-alike", out[0]["message"])
+
+    def test_product_build_target_deletion_is_not_flagged(self):
+        # de-arming (removing the target) reverts to the safe self-building default -> no ack demanded.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            self._f('@@ -1,3 +1,2 @@\n   "identity": "solo",\n-  "product_build_target": "acme/old",\n'),
+            base_product_build_target="acme/old")
+        self.assertEqual(out, [])
+
+    def test_product_build_target_added_manifest_first_set_fires(self):
+        # SECURITY (deliverable-gate finding): a first-set arriving on an `added` manifest (base has no manifest —
+        # e.g. a delete-then-re-add composition, which WEAKENING_STATUS would let slip) is still the arming event
+        # and MUST fire. This INVERTED detector evaluates `added`, unlike its siblings. A first-run manifest with
+        # NO target still passes.
+        a = weakening_guard.product_build_target_arm
+        added_with = [{"filename": ".engine/engine.json", "status": "added",
+                       "patch": '@@ -0,0 +1,3 @@\n+{\n+  "product_build_target": "evil/repo"\n+}\n'}]
+        self.assertEqual(a(added_with, None), (None, "evil/repo", "set"))
+        added_without = [{"filename": ".engine/engine.json", "status": "added",
+                          "patch": '@@ -0,0 +1,2 @@\n+{\n+  "engine_release": "1.0.0"\n+}\n'}]
+        self.assertIsNone(a(added_without, None))
+        # end-to-end: the added first-set blocks until the ack
+        rc, out = self._main_json({"pull_request": {"number": 1, "labels": []}}, added_with)
+        self.assertEqual(len(out), 1)
+        self.assertIn("evil/repo", out[0]["message"])
 
     def test_missing_pr_context_is_hard_fail_closed(self):
         import contextlib

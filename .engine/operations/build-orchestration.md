@@ -62,8 +62,10 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
    tightly-coupled work; *parallel workers*, each in its own isolated worktree returning mechanical work
    product (not commits), when the work is loosely-coupled and decomposable and holding the whole result
    while generating it would lose grounding; *time-distributed routine* for large decomposable bulk work
-   (Notes). Delegation buys cohesion under context pressure, not speed. **Iterate with scoped test runs,
-   not the full suite.** While implementing, run just the test module(s) covering what you touched by
+   (Notes). Delegation buys cohesion under context pressure, not speed. **Clear the deferred-work markers in
+   what you touch.** Run `engine_todo.py list` before building in an area: each marker is work owed to that
+   code, so clear what this change covers, and record a concern for any you cannot — the turn-close gate then
+   holds until each has a disposition. **Iterate with scoped test runs, not the full suite.** While implementing, run just the test module(s) covering what you touched by
    narrowing the discovery pattern — `uv run --directory .engine --frozen -- python -m unittest discover
    -s tools -p 'test_<name>.py' -b` finishes in seconds. The full suite stays the pre-submission gate
    (step 6), run once when the work is ready — serial (the proven command), and runnable in the background
@@ -82,11 +84,14 @@ everything else is a deliberate-effort nudge whose only wall is the protected-br
    conflict.
 6. **Pre-submission review — gated behind green validation.** Confirm the validation suite
    (`.engine/suites.json`) is green first — run `uv run --directory .engine --frozen -- python
-   tools/validate.py --suite CI` and the self-tests `uv run --directory .engine --frozen -- python -m unittest
-   discover -s tools -p 'test_*.py' -b` (the same commands CI runs) — cold review is not spent on code that
-   fails its checks. The `--frozen` keeps a test run from quietly rewriting the locked `uv.lock`, and the `-b`
-   keeps the `Ran N … OK` summary visible: it buffers each test's stdout so the walkthrough output the
-   `test_*.py` self-tests emit while exercising their demos does not bury the tail. **The self-test suite
+   tools/validate.py --suite CI` and the self-tests `uv run --directory .engine --frozen -- python
+   tools/selftest.py` — cold review is not spent on code that fails its checks. The `--frozen` keeps a test
+   run from quietly rewriting the locked `uv.lock`. `selftest.py` wraps the same serial `unittest discover
+   … -b` run CI uses (`.github/workflows/engine-ci.yml`) and makes one run enough to read: it buffers each
+   test's stdout so demo walkthroughs never bury the `Ran N … OK` summary, forces the child's stdin to
+   end-of-input so no demo blocks under an attached terminal, prints a heartbeat so a live run is never
+   mistaken for a hang, and writes the full output to a log whose path it prints — so **read that log, never
+   pipe the run through `tail`/`grep`**, which truncates the tracebacks and forces a re-run. **The suite
    runs about 4 minutes (4,000+ tests, varying with machine and cache)** — run it with a generous timeout
    or in the background: a tool whose command timeout defaults to ~2 minutes cuts it off mid-run, which
    reads as a hang rather than a failure. Then
@@ -144,11 +149,10 @@ Issue, where one was written, closes as its commits land.
 
 ## Notes
 
-**The skeleton is posture, named at its honest tier.** Nothing mechanically forces a session to run the
-review passes, run them at the approved depth, or halt on a finding before merge — the same honest limit
-the `operating-modes` write-gate and the `close-turn` disposition gate carry. The one mechanical hook is
-the Review presence-gate; its *truthfulness*, like every section's, stays posture. The only unbypassable
-wall is the protected-branch merge.
+**The skeleton is posture, named at its honest tier.** Nothing mechanically forces a session to run the review
+passes, run them at the approved depth, or halt on a finding before merge — the same honest limit the
+`operating-modes` write-gate and `close-turn` disposition gate carry. The one mechanical hook (the Review
+presence-gate, named in Steps) checks only that the section is *present*, never that it is truthful — like every section, that stays posture.
 
 **The Review record** states, in plain language a non-engineer reads at the merge: the depth that ran, the
 review passes that ran (as plain checks, never their internal names), that each gate completed, **whether a
@@ -280,14 +284,68 @@ core/control-plane's; the step that ensures the engine-domain label exists is pr
 *human* web issue templates are a separate control-plane artifact a person files through. This runbook
 fixes only the distributed-implement *workflow shape* and the build-Issue *format*.
 
-**A cross-repo contribution runs these same gates (#562).** A change a deployment builds for ANOTHER repo (the
-mechanic contributing to its home engine-template, or a fork escalating an engine fix) is delivered through
-`external-contribution-submit`, not a session-owned draft — a path with no built-in gate linkage. So **run the
-plan-review and pre-submission passes above before submitting it**; the submit tool records on the prepared
-pull request and in its body whether that review ran — an honest disclosure, never a substitute for it. **When
-the target gates body completeness (engine-template does), author the full body to its template (as you would
-an in-repo PR's) and pass it via `submit(authored_body=...)`** (#557) — submit won't open an unfilled template
-against the engine's home, and only advises it elsewhere.
+**A cross-repo contribution runs these same gates — by ONE OF TWO paths, split by whether the operator OWNS the
+target (eADR-0026).**
+
+**Owned product — the engine-mechanic building engine-template (a DIRECT draft pull request).** When this
+deployment records an executable `product_build_target` — a product the operator OWNS, checked out SEPARATELY
+beside the mechanic — it builds that product and opens a **plain owned draft pull request into the operator's own
+checkout**, NOT through `external-contribution-submit` (that path is for the un-owned case below):
+
+- **First-time setup (once per machine — the fork inherits everything else).** The committed `product_build_target`
+  slug travels with the engine, so a co-maintainer who forks the mechanic already carries "I build this product";
+  the ONE per-machine thing to set is where their local clone of it lives. If there is no clone yet, **clone the
+  owned product as its own folder NEXT TO the engine's folder, never inside it** — the engine's folder IS the
+  Engine, so the product is its sibling, each with its own `origin`:
+
+  ```
+  ~/code/my-engine-mechanic/     <- the Engine (this folder)
+  ~/code/engine-template/        <- the product it builds (a separate clone)
+  ```
+
+  Then record the path: write it into **`.engine/mechanic/product-checkout-path`** — one line, gitignored, so it
+  is durable AND stays on this machine. (`ENGINE_PRODUCT_CHECKOUT` also works and takes precedence, but an
+  environment variable set inside a session does not survive it, so it suits a one-off override, not setup.) A
+  `~`-relative path is fine — the reader expands it. Boot surfaces a setup offer whenever the target is recorded
+  but the path is missing or points at nothing.
+- **Preflight from the mechanic tree.** Run `mechanic_build.py preflight`. It REFUSES fail-closed — with a plain
+  reason + remedy — unless the checkout is genuinely that product on a real `github.com` origin and clean to
+  write into; on success it emits the verified `ENGINE_PRODUCT_CHECKOUT` and `GITHUB_REPOSITORY`.
+- **Build in-place.** `cd` into the emitted path and run every product step as a subprocess INSIDE the checkout —
+  `uv run --directory <checkout>/.engine …` with `GITHUB_REPOSITORY=<emitted slug>` exported — so the checkout's
+  own tools, its validator, and `gh` resolve engine-template natively. The mechanic's own hooks act on the
+  mechanic tree, so **run the product's index regeneration and validation EXPLICITLY as in-checkout subprocess
+  steps**, never assumed. Branch from the checkout's default, implement, and run the plan-review and
+  pre-submission passes above against the product diff in the checkout.
+- **Scan for this repo's OWN references before opening — run this one from the MECHANIC tree, not the
+  checkout.** Every other step above runs inside the product checkout; this one deliberately does not. Run
+  `uv run --directory .engine -- python tools/local_references.py scan --ref <the checkout's default branch>
+  --checkout <the emitted path>`. It reads the vocabulary from **here** — the repository whose shorthand
+  would dangle — and scans the diff **there**. Run it inside the checkout and it reads the product's own
+  declaration — which ships ABSENT — so it would report that nothing was checked, on the one path with
+  no merge gate behind it. If it names anything, rewrite each one to
+  say what it MEANS rather than what it refers to; the operator may wave one through, and that is their call.
+  **This is a mandated step, not a wall:** the mechanic does not own the product's CI, so no merge gate is
+  available on this path — the discipline is the instrument, and a skipped step is a real gap, not a caught one.
+- **Open pinned to the verified slug.** `gh pr create --draft --repo <emitted slug>`, later `gh pr ready`.
+  Passing the belt-verified slug as `--repo` makes the write target the verified repo — not a fresh read of the
+  cwd's origin — which is what closes the gap between verify and write; a mid-session origin repoint cannot
+  redirect it.
+
+**The merge gate on that pull request is the operator's OWN engine-template gate — the same human, not an
+independent reviewer.** What keeps that honest is NON-REFLEXIVITY: the mechanic upgrades only to human-approved
+RELEASED engine-template, never its own unmerged branch — a human-review-grade rule, not a machine proof. (The
+mechanic's product, update home, and any engine-fix target are all engine-template, so an engine fix ALSO takes
+this direct path, never `submit`; a mis-route to `submit` still opens a sound pull request into engine-template —
+safe by benign construction — but the rule is **owned → direct**.)
+
+**Un-owned upstream — a fork escalating an engine fix to a project the operator does NOT own (a cross-fork pull
+request).** This is delivered through `external-contribution-submit`, not a session-owned draft — a path with no
+built-in gate linkage. So **run the plan-review and pre-submission passes above before submitting it**; the
+submit tool records on the prepared pull request and in its body whether that review ran — an honest
+disclosure, never a substitute for it. **When the target gates body completeness (engine-template does), author
+the full body to its template (as you would an in-repo PR's) and pass it via `submit(authored_body=...)`**
+(#557) — submit won't open an unfilled template against the engine's home, and only advises it elsewhere.
 
 **A recognized automation's pull request carries a disclosed not-applicable check — relay both decisions
 plainly.** Walking the operator to merge a dependency-update pull request from a recognized automation
@@ -307,10 +365,14 @@ operator's consent at the merge — never a new gate. If none is open, say nothi
 not a section to always fill.
 
 **An engine live-helper (MCP substrate) that is off is surfaced here too** — the submit-time half of boot's same
-notice (`.engine/tools/boot.py` `MCP_AVAILABILITY_CHECK`). Check
-your own tools for `mcp__engine-memory__*` and `mcp__engine-knowledge-graph__*`; for any absent, add a **named,
-non-blocking line** — which helper is off, that the change was authored on the committed-file fallback, and the
-fix (approve the servers when the Claude app prompts, then fully restart Claude). If both are live, say nothing.
+notice (`.engine/tools/boot.py` `mcp_availability_check`). Reuse the result of that current-provider procedure
+from this session; if it did not run, run that canonical procedure now — never substitute a check of the
+initially surfaced tool list. For any helper that failed, add a **named, non-blocking line** saying that the
+change was authored on the committed-file fallback and using the procedure's diagnosis: an undiscovered helper
+gets the provider's trust/approval-and-restart fix, while a discovered helper whose health call failed is named
+as registered-but-not-answering and offered diagnosis without falsely blaming trust. If both helpers passed,
+say nothing. This paragraph deliberately owns no second detection algorithm; boot's provider-specific procedure
+is the single source.
 
 **Build each slice to its full capability.** Each pull request drives the work it touches to its full agreed
 requirement — the settled description's acceptance criteria where one resolves, the slice's own complete
@@ -319,6 +381,13 @@ explicitly recorded decision (a tracked issue or a logged carve-out), never a qu
 unwired, and a change is measured by the capability it delivers, not by effort or count. The pre-submission
 spec-conformance and divergence-hunter passes flag an under-build as a divergence; this is the intent the
 builder holds *before* that catch. This is the full statement; the conduct floor carries its terse form.
+
+**Write a deferral where the work is, not in prose.** Work genuinely owed to the code is recorded at the site
+with the engine's marker: the token `ENGINE-TODO` then a colon (or a parenthesised issue number and a colon),
+then what is not built and what the code does instead. It is read as the first thing after a comment leader or
+first on its line, so a trailing note and a docstring both work — and naming the form inline in backticks does
+not create one. No issue is required: a tracked issue is the escalation for a marker nobody clears, never the
+price of recording one. A decision *not* to build is a carve-out in the pull-request body instead (`eADR-0035`).
 
 **Ground-truth load-bearing claims first-hand.** Before resting a gate, an escalation, or a merge consent on a
 claim, verify it against the source yourself: read the locked or settled specification directly rather than a

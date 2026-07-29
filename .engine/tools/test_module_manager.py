@@ -3,7 +3,7 @@
 (fetch/overlay), and the engine `upgrade`/updater + the migrations machinery
 (select/run, the no-backup guard, the version-stamp check, and the frozen-check-name invariant).
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 Pure policy (refusals, the derivation, migration select/order, version-stamp detection, the tightened
 migrations schema) is tested directly on fixture data — no disk mutation; the live mutation glue (`remove`,
@@ -113,9 +113,19 @@ class TestUvGroupDerivation(unittest.TestCase):
         self.assertEqual(module_manager.normalize_pep735("my__group..x"), "my-group-x")
 
     def test_derive_matches_committed_default_groups_on_the_real_repo(self):
-        # The drift gate: the committed [tool.uv] default-groups equals what the present set derives.
+        # The drift gate: the committed [tool.uv] default-groups equals what the present set derives. This
+        # leg holds in any deployment — a declined module drops out of both sides together.
         self.assertEqual(module_manager.derive_uv_groups(), module_manager.committed_default_groups())
-        self.assertEqual(module_manager.committed_default_groups(), ["core"])
+        # Core always carries dependencies; the semantic-recall module (numpy) carries a group only when it is
+        # installed, so a deployment that DECLINED it legitimately has just ["core"] here (#646).
+        import module_coherence
+        installed = {m.get("id") for _p, m in module_coherence.discover_manifests()}
+        groups = module_manager.committed_default_groups()
+        self.assertIn("core", groups)
+        if "memory-semantic-recall" in installed:
+            self.assertIn("memory-semantic-recall", groups)
+        else:
+            self.assertNotIn("memory-semantic-recall", groups)
 
     def test_a_module_with_no_dependency_group_is_excluded(self):
         with tempfile.TemporaryDirectory() as d:
@@ -368,10 +378,11 @@ class TestCli(unittest.TestCase):
             self.assertEqual(module_manager.main(["add", "core"]), 1)
 
 
-def _man(mid, version="0.0.0", migrations=None, depends=None):
-    """A manifest DICT (the shape select_migrations / topological_order consume)."""
+def _man(mid, version="0.0.0", migrations=None, depends=None, retired_capabilities=None):
+    """A manifest DICT (the shape select_migrations / select_retired_capabilities / topological_order consume)."""
     return {"id": mid, "version": version, "status": "required",
-            "provides": {}, "depends": depends or {}, "migrations": migrations or {}}
+            "provides": {}, "depends": depends or {}, "migrations": migrations or {},
+            "retired_capabilities": retired_capabilities or {}}
 
 
 class TestSelectMigrations(unittest.TestCase):
@@ -406,6 +417,14 @@ class TestSelectMigrations(unittest.TestCase):
     def test_empty_migrations_select_nothing(self):
         self.assertEqual(
             module_manager.select_migrations({"a": "0.0.0"}, {"a": "1.0.0"}, [_man("a")]), [])
+
+    def test_a_two_part_boundary_key_is_selected_not_skipped(self):
+        # #689: a two-part target ('0.4') must include a three-part boundary key ('0.4.0') — they are the SAME
+        # version. Un-normalized, (0,4,0) <= (0,4) is False (a shorter tuple sorts BELOW), so the boundary step
+        # was wrongly skipped; the length-normalized comparison includes it. Fails on main, passes after the fix.
+        m = _man("a", migrations={"0.4.0": {"description": "x", "run": "migrations/a.py", "kind": "config"}})
+        sel = module_manager.select_migrations({"a": "0.3.0"}, {"a": "0.4"}, [m])
+        self.assertEqual([s["version"] for s in sel], ["0.4.0"])
 
 
 class TestRunMigrations(unittest.TestCase):
@@ -686,6 +705,153 @@ class TestMigrationsSchema(unittest.TestCase):
         v = self._validator()
         for rel, m in module_manager.module_coherence.discover_manifests():
             self.assertEqual(list(v.iter_errors(m)), [], f"{rel} must validate against module.v1.json")
+
+
+class TestSelectRetiredCapabilities(unittest.TestCase):
+    """PURE retired-capability selection + ordering — announcement-only, no run/kind, nothing executes."""
+
+    def test_only_in_range_are_selected(self):
+        m = _man("a", retired_capabilities={
+            "0.1.0": {"description": "gone at 0.1"},
+            "0.2.0": {"description": "gone at 0.2"},
+            "0.3.0": {"description": "gone at 0.3"}})
+        sel = module_manager.select_retired_capabilities({"a": "0.1.0"}, {"a": "0.2.0"}, [m])
+        self.assertEqual(sel, [{"module_id": "a", "version": "0.2.0", "description": "gone at 0.2"}])
+
+    def test_fresh_adopter_at_target_sees_nothing(self):
+        # from == target: a fresh adopter who never had the capability gets no announcement
+        m = _man("a", retired_capabilities={"0.2.0": {"description": "x"}})
+        self.assertEqual(module_manager.select_retired_capabilities({"a": "0.2.0"}, {"a": "0.2.0"}, [m]), [])
+
+    def test_versions_order_numerically_not_lexically(self):
+        # the "0.10.0" < "0.9.0" string-sort bug guard: 0.9.0 must precede 0.10.0
+        m = _man("a", retired_capabilities={
+            "0.10.0": {"description": "ten"}, "0.9.0": {"description": "nine"}})
+        sel = module_manager.select_retired_capabilities({"a": "0.0.0"}, {"a": "0.10.0"}, [m])
+        self.assertEqual([s["version"] for s in sel], ["0.9.0", "0.10.0"])
+
+    def test_modules_emit_in_dependency_order(self):
+        base = _man("base", retired_capabilities={"1.0.0": {"description": "b"}})
+        ext = _man("ext", depends={"base": ""}, retired_capabilities={"1.0.0": {"description": "e"}})
+        # input order puts ext BEFORE base; topological order must still emit base first
+        sel = module_manager.select_retired_capabilities({"base": "0.0.0", "ext": "0.0.0"},
+                                                         {"base": "1.0.0", "ext": "1.0.0"}, [ext, base])
+        self.assertEqual([s["module_id"] for s in sel], ["base", "ext"])
+
+    def test_a_long_jump_catches_up_every_notice_in_range(self):
+        m = _man("a", retired_capabilities={
+            "0.1.0": {"description": "one"}, "0.2.0": {"description": "two"}, "0.3.0": {"description": "three"}})
+        sel = module_manager.select_retired_capabilities({"a": "0.0.0"}, {"a": "0.3.0"}, [m])
+        self.assertEqual([s["version"] for s in sel], ["0.1.0", "0.2.0", "0.3.0"])
+
+    def test_absent_block_selects_nothing(self):
+        self.assertEqual(
+            module_manager.select_retired_capabilities({"a": "0.0.0"}, {"a": "1.0.0"}, [_man("a")]), [])
+
+    def test_a_two_part_boundary_key_is_shown_not_skipped(self):
+        # #689: same boundary edge as the migration selector — a two-part target ('0.4') must still show a
+        # three-part retirement notice keyed at the boundary ('0.4.0'); the notice exists to reach the very
+        # lagging upgrader, so it must never vanish at the boundary. Fails on main, passes after the fix.
+        m = _man("a", retired_capabilities={"0.4.0": {"description": "gone at 0.4"}})
+        sel = module_manager.select_retired_capabilities({"a": "0.3.0"}, {"a": "0.4"}, [m])
+        self.assertEqual(sel, [{"module_id": "a", "version": "0.4.0", "description": "gone at 0.4"}])
+
+
+class TestRetiredCapabilitiesRender(unittest.TestCase):
+    """The notice reaches BOTH operator surfaces (unlike a migration description, which reaches only the
+    preview), and stray Markdown can't reshape the durable line."""
+
+    def test_pr_body_shows_the_retirement_section(self):
+        result = {"retired_capabilities": [
+            {"module_id": "core", "version": "0.5.0",
+             "description": "The engine no longer offers to bring a set-aside note back into search."}]}
+        body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"}, result)
+        self.assertIn("Capabilities this update removed", body)
+        self.assertIn("bring a set-aside note back into search", body)
+
+    def test_pr_body_has_no_section_when_none_retired(self):
+        body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"},
+                                                     {"retired_capabilities": []})
+        self.assertNotIn("Capabilities this update removed", body)
+
+    def test_preview_prints_the_retirement_line_and_is_not_a_bare_bump(self):
+        p = {"status": "update-available", "current": "0.4.0", "target_ref": "0.5.0",
+             "files": {}, "wires": {}, "migrations": [],
+             "retired_capabilities": [{"module_id": "core", "version": "0.5.0",
+                                       "description": "the one-shot cache reset is gone; use cleanup instead"}]}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            module_manager._render_upgrade_preview(p)
+        out = buf.getvalue()
+        self.assertIn("Removes a capability: the one-shot cache reset is gone; use cleanup instead", out)
+        self.assertNotIn("version bump only", out)   # a retirement-only preview is a real change, not "nothing"
+
+    def test_terminal_text_preserves_content_and_only_collapses_whitespace(self):
+        # the decisive fidelity fix: the terminal form must NEVER strip a leading marker — that silently
+        # corrupted real notices ('>50% mode' -> '50% mode', '--force' -> 'force'). Only whitespace collapses.
+        self.assertEqual(module_manager._retired_capability_text(">50% memory mode is gone"),
+                         ">50% memory mode is gone")
+        self.assertEqual(module_manager._retired_capability_text("--force is gone; use --yes instead"),
+                         "--force is gone; use --yes instead")
+        self.assertEqual(module_manager._retired_capability_text("a\n\n  b   c"), "a b c")
+        self.assertEqual(module_manager._retired_capability_text("   "), "a capability was removed")
+
+    def test_pr_body_line_escapes_markdown_but_deletes_no_character(self):
+        line = module_manager._retired_capability_line("use [x](y), `z`, <img>, *b*, and >50%")
+        # every alphanumeric token the author wrote survives — escaped, never deleted
+        for token in ("x", "y", "z", "img", "b", "50"):
+            self.assertIn(token, line)
+        # and the reshaping constructs are neutralized, so none renders as a link / code / html / emphasis
+        self.assertNotIn("[x](y)", line)          # the raw link syntax is broken by the escape
+        self.assertIn(r"\[x\](y)", line)
+        self.assertIn(r"\`z\`", line)
+        self.assertIn(r"\<img\>", line)
+        self.assertIn(r"\*b\*", line)
+        self.assertTrue(line.startswith("- "))
+
+    def test_pr_body_flags_the_capability_loss_in_risk_and_scope(self):
+        result = {"retired_capabilities": [
+            {"module_id": "core", "version": "0.5.0", "description": "the old thing is gone; do Y instead"}]}
+        body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"}, result)
+        self.assertIn("A capability you could use before is gone", body)   # the Risk "what to weigh" bullet
+        self.assertIn("capabilities it retires", body)                     # the Scope one-line summary
+        self.assertIn("and no longer can (1):", body)                      # the header carries an item count
+
+    def test_pr_body_omits_the_capability_risk_line_when_none_retired(self):
+        body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"},
+                                                     {"retired_capabilities": []})
+        self.assertNotIn("A capability you could use before is gone", body)
+
+
+class TestRetiredCapabilitiesSchema(unittest.TestCase):
+    """module.v1.json `retired_capabilities`: a well-formed entry passes, a malformed one fails the same schema
+    the hard/CI module-manifest check enforces; and it is OPTIONAL, so present manifests stay valid."""
+
+    def _validator(self):
+        from jsonschema import Draft202012Validator
+        schema = module_manager.validate.load_json(
+            os.path.join(module_manager.validate.ROOT, ".engine", "schemas", "module.v1.json"))
+        return Draft202012Validator(schema)
+
+    def test_wellformed_entry_validates(self):
+        man = {"id": "a", "version": "1.0.0", "status": "optional", "provides": {},
+               "retired_capabilities": {"1.0.0": {"description": "the old thing is gone; do X instead"}}}
+        self.assertEqual(list(self._validator().iter_errors(man)), [])
+
+    def test_entry_missing_description_is_rejected(self):
+        man = {"id": "a", "version": "1.0.0", "status": "optional", "provides": {},
+               "retired_capabilities": {"1.0.0": {}}}
+        self.assertTrue(list(self._validator().iter_errors(man)))          # `description` is required
+
+    def test_announcement_only_extra_field_is_rejected(self):
+        man = {"id": "a", "version": "1.0.0", "status": "optional", "provides": {},
+               "retired_capabilities": {"1.0.0": {"description": "x", "run": "migrations/x.py"}}}
+        self.assertTrue(list(self._validator().iter_errors(man)))          # no run/kind — announcement only
+
+    def test_empty_description_is_rejected(self):
+        man = {"id": "a", "version": "1.0.0", "status": "optional", "provides": {},
+               "retired_capabilities": {"1.0.0": {"description": ""}}}
+        self.assertTrue(list(self._validator().iter_errors(man)))          # minLength 1
 
 
 class TestUpgradeEndToEnd(unittest.TestCase):
@@ -1020,15 +1186,18 @@ class TestMergeClaudeFloor(unittest.TestCase):
     FENCE = module_manager._FLOOR_FENCE
     STYLE = wiring.MD_FENCE
 
-    def _release(self, d, floor_text="# New floor\n\nProject status v2.\n", construction=True):
+    def _release(self, d, floor_text="# New floor\n\nProject status v2.\n"):
+        # Since #323 the release's root CLAUDE.md IS the fenced adopter floor — the source _merge_claude_floor
+        # reads (its `floor` fence body). floor_text=None models a pre-promotion release with no floor fence
+        # (its root file absent here → skipped).
         rel = os.path.join(d, "release")
         os.makedirs(rel, exist_ok=True)
         if floor_text is not None:
-            with open(os.path.join(rel, "CLAUDE.deployed.md"), "w", encoding="utf-8") as fh:
-                fh.write(floor_text)
-        if construction:
+            lines = floor_text.split("\n")
+            if lines and lines[-1] == "":
+                lines = lines[:-1]
             with open(os.path.join(rel, "CLAUDE.md"), "w", encoding="utf-8") as fh:
-                fh.write("# engine-template — construction governance\n\nbuild notes\n")
+                fh.write(wiring.fence_apply("", self.FENCE, lines, style=self.STYLE))
         return rel
 
     def _write_local(self, live, text):
@@ -1050,7 +1219,9 @@ class TestMergeClaudeFloor(unittest.TestCase):
         self.assertIn(bottom, after)
         self.assertIn("Project status v2.", after)
         self.assertNotIn("old", after)
-        self.assertNotIn("construction governance", after)     # the release construction file never overlays
+        # Only the release fence's BODY was merged, never its markers — so the local file has exactly one
+        # well-formed floor fence, not a doubled/nested one.
+        self.assertEqual(after.count("BEGIN engine-managed block: floor"), 1)
 
     def test_no_local_fence_is_skipped_not_appended(self):
         # A pre-6a raw-floor (or any fence-less) CLAUDE.md is LEFT UNTOUCHED — never a duplicate floor.
@@ -1236,8 +1407,8 @@ class TestUpgradePrBodyIsTemplateConforming(unittest.TestCase):
         self.assertTrue(passed, f"minimal update PR body failed the completeness gate: {findings}")
 
     def test_validation_section_claims_only_the_consistency_check_not_ci(self):
-        # Consent honesty: the full-CI gate is a later slice, so this body must NOT claim the CI/full suite
-        # passed — only the consistency check that actually runs before the update is opened.
+        # Consent honesty: this body is authored before the update PR opens, so the PR's CI has not run yet —
+        # it must NOT claim the CI/full suite passed, only the consistency check that runs before the update is opened.
         body = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {}).lower()
         self.assertIn("consistency check", body)
         self.assertNotIn("ci suite", body)
@@ -2065,6 +2236,9 @@ class TestUpgradePreviewImpact(unittest.TestCase):
         self.assertEqual(plan["wires"]["updated"], [])
         # STORED-DATA / CONFIG: both migrations surface with their real kinds
         self.assertEqual(sorted(m["kind"] for m in plan["migrations"]), ["config", "data"])
+        # RETIRED CAPABILITY: the fixture's 0.2.0 retirement surfaces on the preview path too (not just apply)
+        self.assertEqual([r["version"] for r in plan["retired_capabilities"]], ["0.2.0"])
+        self.assertIn("one-shot cache reset", plan["retired_capabilities"][0]["description"])
         # a data migration + no vault configured in the fixture -> backup NOT ready (reported, never refused)
         self.assertFalse(plan["backed_up"])
         # FILES: base_tool.py is replaced; the release's new migration files are added
@@ -2179,6 +2353,93 @@ def _git(root, *args):
     return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=False)
 
 
+class TestUpgradeFloorPreflight(unittest.TestCase):
+    """#599 Slice 4: the clean-upgrade floor refuses a below-floor engine cleanly (pre-overlay) and fails OPEN
+    on absent/dev/unparseable inputs so it never blocks a legitimate update. The refusal names both versions and
+    routes to the undo — it promises no unsupported recovery."""
+
+    def _release_tree(self, d, floor):
+        tree = os.path.join(d, "rel")
+        eng = {"engine_release": "9.9.9", "packages": {"base": "9.9.9"}, "identity": "solo"}
+        if floor is not None:
+            eng["min_upgradeable_from"] = floor
+        module_manager._write_json(os.path.join(tree, ".engine", "engine.json"), eng)
+        module_manager._write_json(os.path.join(tree, ".engine", "modules", "base", "manifest.json"),
+                                   {"id": "base", "version": "9.9.9", "status": "required",
+                                    "provides": {}, "depends": {}})
+        return tree
+
+    def test_below_floor_returns_a_refusal_naming_both_versions_and_routing_to_undo(self):
+        with tempfile.TemporaryDirectory() as d:
+            reason = module_manager._below_floor_refusal("0.2.0", self._release_tree(d, "0.3.2"))
+            self.assertIsNotNone(reason)
+            self.assertIn("0.2.0", reason)
+            self.assertIn("0.3.2", reason)
+            self.assertIn("engine is unchanged", reason.lower())
+            self.assertIn("undo", reason.lower())                      # routes to the real, built recovery
+            self.assertNotIn("re-instantiate", reason.lower())         # never the unsupported recovery
+            self.assertNotIn("re-create", reason.lower())
+
+    def test_at_or_above_floor_proceeds(self):
+        with tempfile.TemporaryDirectory() as d:
+            tree = self._release_tree(d, "0.3.2")
+            self.assertIsNone(module_manager._below_floor_refusal("0.3.2", tree))   # equal -> proceed
+            self.assertIsNone(module_manager._below_floor_refusal("0.4.0", tree))   # above -> proceed
+
+    def test_absent_floor_or_absent_manifest_proceeds(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertIsNone(module_manager._below_floor_refusal("0.1.0", self._release_tree(d, None)))  # no floor
+            self.assertIsNone(module_manager._below_floor_refusal("0.1.0", d))      # no .engine/engine.json at all
+
+    def test_dev_absent_or_unparseable_deployed_version_proceeds(self):
+        # validate._ver_tuple coerces junk to a low tuple; an explicit guard must stop that reading as below-floor.
+        with tempfile.TemporaryDirectory() as d:
+            tree = self._release_tree(d, "0.3.2")
+            for dep in ("0.0.0-dev", "0.0.0", "", None, "garbage", "not.a.version"):
+                self.assertIsNone(module_manager._below_floor_refusal(dep, tree), dep)
+
+    def test_non_string_version_values_do_not_crash(self):
+        # A JSON-valid but MISTYPED floor (or deployed version) — reachable via a hand-corrupted local manifest or
+        # a mis-cut remote release — must fail OPEN, never raise into a caller whose try has no except.
+        with tempfile.TemporaryDirectory() as d:
+            for floor in (5, ["0.3.2"], {"v": 1}, None):
+                self.assertIsNone(module_manager._below_floor_refusal("0.2.0", self._release_tree(d, floor)))
+            tree = self._release_tree(d, "0.3.2")
+            for dep in (5, 3.1, ["0.2.0"], {"v": 1}):
+                self.assertIsNone(module_manager._below_floor_refusal(dep, tree), dep)
+
+    def _deployed_root(self, d, version):
+        root = os.path.join(d, f"dep-{version}")
+        module_manager._write_json(os.path.join(root, ".engine", "engine.json"),
+                                   {"engine_release": version, "packages": {"base": version}, "identity": "solo",
+                                    "home_repository": "acme/engine-home"})
+        module_manager._write_json(os.path.join(root, ".engine", "modules", "base", "manifest.json"),
+                                   {"id": "base", "version": version, "status": "required",
+                                    "provides": {}, "depends": {}})
+        return root
+
+    def test_upgrade_and_preview_refuse_below_floor_before_any_overlay(self):
+        # STANDING integration coverage (plan item 4): the preflight must be WIRED into the mutating upgrade() and
+        # the read-only preview, refusing pre-overlay — not just correct as an isolated helper. A refactor that
+        # moved the check after the overlay, or dropped it from plan_upgrade, must fail here.
+        with tempfile.TemporaryDirectory() as d:
+            release = self._release_tree(d, "0.3.2")
+            deployed = self._deployed_root(d, "0.2.0")
+            with module_manager._redirect_root(deployed):
+                prev = module_manager.plan_upgrade(release_tree=release, target_ref="9.9.9", available="9.9.9")
+                self.assertTrue(prev.get("refused"))
+                self.assertEqual(prev.get("status"), "below-floor")
+                up = module_manager.upgrade(release_tree=release, opener=lambda *a, **k: None, backup=None)
+                self.assertTrue(up.get("refused"))
+                self.assertNotEqual(up.get("applied"), True)          # refused BEFORE any overlay/write
+                self.assertIn("0.3.2", up.get("reason") or "")
+                # an at/above-floor deployed engine is NOT refused by the floor
+                above = self._deployed_root(d, "0.3.2")
+            with module_manager._redirect_root(above):
+                ok = module_manager.plan_upgrade(release_tree=release, target_ref="9.9.9", available="9.9.9")
+                self.assertNotEqual(ok.get("status"), "below-floor")
+
+
 def _init_repo(root):
     """A throwaway git repo with the fixture engine committed as the pre-update baseline (branch `main`)."""
     _git(root, "init", "-b", "main")
@@ -2291,6 +2552,51 @@ class TestRollback(unittest.TestCase):
             for target in module_coherence.WIRING_TARGETS.values():
                 self.assertIn(target, fp)
 
+    def test_footprint_covers_the_reconcile_delivered_fixtures(self):
+        # #599 Defect A: the Slice-2a reconcile delivers the `.engine/_fixtures/**` namespace (untracked adds),
+        # but the pre-Slice-2a footprint knew only the overlay copy-map — so a delivered fixture read as the
+        # operator's OWN work and `rollback` refused. Sourcing the footprint from the deliver set closes that.
+        # Falsifiable: the old `overlay_replace_paths()` footprint carried no fixtures, so this would fail on it.
+        fp = module_manager._upgrade_footprint()          # against the real construction tree (has fixtures)
+        self.assertTrue(any(p.startswith(".engine/_fixtures/") for p in fp),
+                        "the reconcile deliver set (.engine/_fixtures/**) must be inside the rollback footprint")
+
+    def test_undo_does_not_false_refuse_a_reconcile_renamed_away_tracked_file(self):
+        # #599 / arch-B1: the reconcile os.removes a renamed-away OLD path (no longer in the post-overlay
+        # manifest); a rename that also rewrote the file shows as a staged 'D', not an 'R'. A staged tracked-file
+        # deletion is losslessly reversible (the discard's branch checkout restores it, the recovery point commits
+        # it first), so the undo must NOT read it as the operator's own uncommitted work and refuse.
+        # Falsifiable: without excluding tracked deletions, the renamed-away path lands in `foreign` -> refusal.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+            renamed_away = ".engine/tools/base_renamed_away.py"        # an engine file the release renames away
+            with open(os.path.join(live, renamed_away), "w") as fh:
+                fh.write("# old name, tracked in the baseline; the release renames it away\n")
+            _init_repo(live)                                          # commit the baseline WITH the old file
+            _stage_a_stalled_update(live)                             # the release's manifest no longer names it
+            # RENAME + REWRITE: the release renames it to a NEW, dissimilar successor it DOES provide. Because the
+            # content differs, git does not collapse the pair into an 'R' (which would land on the in-footprint new
+            # path and pass anyway) — it shows a bare 'D' (old) + 'A' (new): the exact shape the delete-side fix
+            # must handle. The new path is provided, so it is in the footprint; the old path is not.
+            successor = ".engine/tools/base_renamed_new.py"
+            man_path = os.path.join(live, ".engine", "modules", "base", "manifest.json")
+            man = validate.load_json(man_path)
+            man["provides"]["tool"].append(successor)
+            module_manager._write_json(man_path, man)
+            with open(os.path.join(live, successor), "w") as fh:
+                fh.write("# the rewritten successor: entirely different body, so git sees D+A, not a rename R\n")
+            os.remove(os.path.join(live, renamed_away))               # the reconcile's delete leg (the old path)
+            _git(live, "-c", "user.email=t@t", "-c", "user.name=t", "add", "-A")
+            with module_manager._redirect_root(live):
+                self.assertIn(renamed_away, module_manager._git_deleted_paths(live))       # the delete is seen
+                self.assertNotIn(renamed_away, module_manager._upgrade_footprint())        # and it's renamed away
+                res = module_manager.rollback(confirm=True, resync=lambda: True, transport=None)
+        self.assertTrue(res.get("undone"), res)                       # the undo proceeds, not a false refusal
+        self.assertNotEqual(res.get("refused"), True, res)
+
     def test_memory_leg_restores_with_consent_and_never_override_after_the_code_is_back(self):
         # The staged discard's step (f): once engine.json is reverted, put the pre-update memory back — with
         # the operator's confirm standing in for consent, and NEVER override (the resurrection guard stays on).
@@ -2377,6 +2683,160 @@ class TestRollback(unittest.TestCase):
                 self.assertEqual(module_manager.main(["rollback", "--help"]), 0)    # help -> usage, exit 0
                 # still nothing changed by any of the read-only calls
                 self.assertNotIn("engine-rescue/", _git(live, "branch").stdout)
+
+
+class TestOpenUpgradePrDiagnostics(unittest.TestCase):
+    """#672: the shared PR opener surfaces a DIAGNOSABLE failure — GitHub's real reason (the nested
+    errors[].message, not just the generic top-level 'Validation Failed'), the resolved repo/base/head, and a
+    concrete manual recovery path — and never the auth token; on success it returns the parsed pull request. This
+    real network path has no other coverage: every arrival/upgrade test injects a fake `opener`."""
+
+    def _run(self, urlopen_impl):
+        # Drive the REAL _open_upgrade_pr with only its two boundaries faked — git (subprocess.run) and the
+        # network (urllib.request.urlopen) — with scoped patches that auto-revert. repo=/token= are passed so
+        # boot is never consulted.
+        from unittest import mock
+        with mock.patch("subprocess.run", return_value=None), \
+             mock.patch("urllib.request.urlopen", side_effect=urlopen_impl):
+            return module_manager._open_upgrade_pr(branch="engine-arrival", title="Feature: add the engine",
+                                                   body="body", repo="acme/widget", token="secret-token-xyz")
+
+    def test_422_raises_a_diagnosable_error_without_leaking_the_token(self):
+        import urllib.error
+        body = json.dumps({"message": "Validation Failed",
+                           "errors": [{"resource": "PullRequest",
+                                       "message": "A pull request already exists for acme:engine-arrival."}]}).encode()
+
+        def raise_422(req, timeout=None):
+            raise urllib.error.HTTPError("https://api.github.com/repos/acme/widget/pulls", 422,
+                                         "Unprocessable Entity", {}, io.BytesIO(body))
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run(raise_422)
+        msg = str(ctx.exception)
+        self.assertIn("A pull request already exists", msg)   # GitHub's NESTED reason, not just "Validation Failed"
+        self.assertIn("422", msg)
+        self.assertIn("acme/widget", msg)                     # the resolved repo
+        self.assertIn("--head engine-arrival", msg)           # the resolved head
+        self.assertIn("--base", msg)                          # the resolved base
+        self.assertIn("gh pr create", msg)                    # a concrete manual recovery path
+        self.assertIn("was pushed", msg)                      # the POST-failure case: the branch IS pushed
+        self.assertNotIn("secret-token-xyz", msg)             # the auth token NEVER surfaces
+        self.assertNotIn("Bearer", msg)
+        self.assertNotIn("..", msg)                           # no double-period artifact after GitHub's reason
+
+    def test_unreachable_github_raises_a_diagnosable_error(self):
+        import urllib.error
+
+        def unreachable(req, timeout=None):
+            raise urllib.error.URLError("name resolution failed")
+        with self.assertRaises(RuntimeError) as ctx:
+            self._run(unreachable)
+        msg = str(ctx.exception)
+        self.assertIn("could not be reached", msg)
+        self.assertIn("was pushed", msg)                      # transport failure is post-push, like the 422 case
+        self.assertIn("--head engine-arrival", msg)
+        self.assertNotIn("secret-token-xyz", msg)
+
+    def test_success_returns_the_parsed_pull_request(self):
+        from unittest import mock
+        resp = mock.MagicMock()
+        resp.read.return_value = json.dumps({"number": 7,
+                                             "html_url": "https://github.com/acme/widget/pull/7"}).encode()
+        resp.__enter__.return_value = resp                    # the code uses `with urlopen(...) as resp:`
+        resp.__exit__.return_value = False
+
+        def ok(req, timeout=None):
+            return resp
+        out = self._run(ok)
+        self.assertEqual(out["number"], 7)
+
+    def test_a_git_step_failure_says_the_branch_is_NOT_pushed(self):
+        # The failure-before-the-POST case (e.g. `checkout -b` colliding with a leftover branch): the recovery is
+        # the OPPOSITE of the POST case — the branch is not pushed, so re-running after clearing the collision is
+        # the fix, NOT opening a PR from a branch that isn't there. git's own stderr is surfaced.
+        import subprocess
+        from unittest import mock
+
+        def boom(args, **kw):
+            raise subprocess.CalledProcessError(128, args,
+                                                stderr=b"fatal: a branch named 'engine-arrival' already exists\n")
+        with mock.patch("subprocess.run", side_effect=boom), \
+             mock.patch("urllib.request.urlopen", side_effect=AssertionError("POST must not be reached")):
+            with self.assertRaises(RuntimeError) as ctx:
+                module_manager._open_upgrade_pr(branch="engine-arrival", title="t", body="b",
+                                                repo="acme/widget", token="secret-token-xyz")
+        msg = str(ctx.exception)
+        self.assertIn("was not created", msg)                 # the CREATE step failed → no branch yet
+        self.assertIn("already exists", msg)                  # surfaces git's real stderr
+        self.assertIn("git branch -D engine-arrival", msg)    # delete is safe ONLY for the checkout collision
+        self.assertNotIn("was pushed but", msg)               # never the POST-case "branch was pushed" claim
+        self.assertNotIn("secret-token-xyz", msg)
+
+    def test_a_push_failure_does_NOT_tell_the_operator_to_delete_the_branch(self):
+        # The far more likely git failure (auth/network/branch-protection at `git push`): checkout/add/commit
+        # already succeeded, so the branch holds the arrival's committed work. The recovery must NOT say
+        # `git branch -D` (that would discard the work) — it must say the branch was created, keep it, and finish
+        # by hand.
+        import subprocess
+        from unittest import mock
+
+        def fail_on_push(args, **kw):
+            if "push" in args:
+                raise subprocess.CalledProcessError(1, args, stderr=b"fatal: Authentication failed\n")
+            return None                                        # checkout/add/commit succeed
+        with mock.patch("subprocess.run", side_effect=fail_on_push), \
+             mock.patch("urllib.request.urlopen", side_effect=AssertionError("POST must not be reached")):
+            with self.assertRaises(RuntimeError) as ctx:
+                module_manager._open_upgrade_pr(branch="engine-arrival", title="t", body="b",
+                                                repo="acme/widget", token="secret-token-xyz")
+        msg = str(ctx.exception)
+        self.assertIn("git push", msg)                        # names the failed step
+        self.assertIn("Authentication failed", msg)           # surfaces git's real stderr
+        self.assertIn("was created", msg)                     # tells the operator the branch exists
+        self.assertIn("do not", msg.lower())                  # and NOT to delete it
+        self.assertNotIn("git branch -D", msg)                # the destructive advice is absent for a push failure
+        self.assertIn("gh pr create", msg)                    # the finish-by-hand recovery
+        self.assertNotIn("secret-token-xyz", msg)
+
+    def test_github_error_detail_ignores_a_non_list_errors_field(self):
+        # The helper must NEVER raise (it explains an HTTP failure); a malformed `errors` that is not a list must
+        # not turn a TypeError loose in place of the diagnostic.
+        import urllib.error
+        for shape in (5, True, "oops", {"message": "x"}):
+            body = json.dumps({"message": "Validation Failed", "errors": shape}).encode()
+            exc = urllib.error.HTTPError("u", 422, "x", {}, io.BytesIO(body))
+            detail = module_manager._github_error_detail(exc)   # must not raise
+            self.assertIn("Validation Failed", detail)
+
+    def test_github_error_detail_on_empty_and_non_json_bodies(self):
+        import urllib.error
+        # empty-but-readable body -> nothing to add
+        self.assertEqual(
+            module_manager._github_error_detail(urllib.error.HTTPError("u", 500, "x", {}, io.BytesIO(b""))), "")
+        # non-JSON body -> a bounded slice of the raw text, still useful
+        detail = module_manager._github_error_detail(
+            urllib.error.HTTPError("u", 502, "x", {}, io.BytesIO(b"<html>Bad Gateway</html>")))
+        self.assertIn("Bad Gateway", detail)
+        self.assertLessEqual(len(detail), 300)
+        # valid JSON but not a dict -> nothing usable, no raise
+        self.assertEqual(
+            module_manager._github_error_detail(
+                urllib.error.HTTPError("u", 422, "x", {}, io.BytesIO(b"[1, 2]"))), "")
+
+    def test_github_error_detail_joins_top_level_and_nested_messages(self):
+        import urllib.error
+        body = json.dumps({"message": "Validation Failed",
+                           "errors": [{"message": "No commits between main and engine-arrival"}]}).encode()
+        exc = urllib.error.HTTPError("u", 422, "x", {}, io.BytesIO(body))
+        detail = module_manager._github_error_detail(exc)
+        self.assertIn("Validation Failed", detail)
+        self.assertIn("No commits between main and engine-arrival", detail)
+
+    def test_github_error_detail_is_empty_and_safe_on_unreadable_body(self):
+        # A diagnostic helper must never raise; an unreadable/empty body yields "" so the HTTP status stands alone.
+        import urllib.error
+        exc = urllib.error.HTTPError("u", 500, "Server Error", {}, None)   # fp=None -> a read would raise
+        self.assertEqual(module_manager._github_error_detail(exc), "")
 
 
 if __name__ == "__main__":

@@ -15,9 +15,11 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import audit_digest  # noqa: E402
+import moment        # noqa: E402  (#631: the UTC-day seam the digest must date by)
 import quiet_call    # noqa: E402  (capture a CLI walkthrough's stdout so it can't bury the suite summary)
 import validate      # noqa: E402
 
@@ -96,15 +98,18 @@ class TestSeal(unittest.TestCase):
             self.assertEqual(audit_digest.check(p)["severity"], "note")
 
     def test_seal_appends_the_recall_completeness_disclosure_once_idempotently(self):
-        # (#332): the committed digest carries the standing recall-completeness line — recall
-        # surfaces curated summaries; the raw verbatim is kept and recoverable. Appended on a fresh seal, and
+        # The committed digest carries the standing recall-completeness line. It used to disclose an EXCLUSION
+        # (recall reached only the curated summaries); it now discloses the opposite, because search reaches the
+        # recorded conversation too — the line survives, its content inverted. Appended on a fresh seal, and
         # never doubled when an existing digest is re-sealed.
         with tempfile.TemporaryDirectory() as d:
             p = self._scratch(d)
             audit_digest.seal(p, generated=JUNE, body=BODY)
             _fm, body = audit_digest.split(p)
             self.assertIn(audit_digest._RECALL_COMPLETENESS_HEADING, body)
-            self.assertIn("recoverable", body.lower())
+            low = body.lower()
+            self.assertIn("word-for-word conversation", low)
+            self.assertIn("nothing was forgotten or deleted", low)
             self.assertEqual(body.count(audit_digest._RECALL_COMPLETENESS_HEADING), 1)
             audit_digest.seal(p, generated=datetime.date(2026, 7, 1))    # re-seal, body=None
             _fm2, body2 = audit_digest.split(p)
@@ -355,14 +360,16 @@ class TestPriorDigestsRead(unittest.TestCase):
         audit_digest.render_prior_digests("you/p", "tok", transport=t)
         self.assertIn("per_page=20", seen[0])
 
-    def test_reads_from_main_so_the_in_flight_digest_is_never_fed_back(self):
-        # The prior digests come from the base branch (main); the in-flight digest this run is producing is
-        # not committed to main yet, so the run is never fed its own output as a prior.
+    def test_reads_from_the_default_branch_so_the_in_flight_digest_is_never_fed_back(self):
+        # The prior digests come from the default branch (pinned to "main" here for determinism — the base
+        # resolves via GITHUB_DEFAULT_BRANCH -> recorded -> origin/HEAD -> "main"); the in-flight digest this
+        # run is producing is not committed to it yet, so the run is never fed its own output as a prior.
         seen = []
         def t(method, path, body):
             seen.append(path)
             return (200, []) if "/commits?" in path else (404, None)
-        audit_digest.render_prior_digests("you/p", "tok", transport=t)
+        with mock.patch.dict(os.environ, {"GITHUB_DEFAULT_BRANCH": "main"}, clear=False):
+            audit_digest.render_prior_digests("you/p", "tok", transport=t)
         self.assertIn("sha=main", seen[0])
 
     def test_a_huge_digest_is_capped_not_unbounded(self):
@@ -643,11 +650,11 @@ class TestSavedMemoryRender(unittest.TestCase):
         self.assertIn("could not be read", out)
 
     def test_plain_role_map_covers_the_canonical_role_vocabulary(self):
-        # Drift guard (the erasure_proposer._ROLE_PHRASE precedent): the plain-word role map must cover EXACTLY
+        # Drift guard: the plain-word role map must cover EXACTLY
         # memory's canonical role vocabulary, so a role added or renamed upstream fails LOUD here rather than
         # silently degrading a real saved decision to the bare "a note" default in the operator's audit feed.
-        from memory import consolidate
-        self.assertEqual(set(audit_digest._ROLE_PLAIN), set(consolidate.ROLE_VOCABULARY))
+        from memory import legacy_shapes as legacy
+        self.assertEqual(set(audit_digest._ROLE_PLAIN), set(legacy.ROLE_VOCABULARY))
 
     def test_as_of_validates_a_real_date_and_rejects_a_forged_one(self):
         # The header date is VALIDATED, not just defanged: a forged manifest timestamp that isn't a clean date
@@ -733,6 +740,43 @@ class TestAuditFindingSchema(unittest.TestCase):
     def test_rejects_location_without_file(self):
         inst = {"severity": "reconcile", "message": "x", "location": {"line": 1}}
         self.assertTrue(_errors(AUDIT_FINDING_SCHEMA, inst), "a location object without a file must fail")
+
+
+class TestUtcCalendarDay(unittest.TestCase):
+    """#631: the digest must date by the UTC calendar day so a boot briefing never carries two different
+    'todays'. These bite a revert to the machine's LOCAL calendar day (datetime.date.today())."""
+
+    @staticmethod
+    def _scratch(d):
+        return os.path.join(d, "audit-digest.md")
+
+    def test_seal_defaults_generated_to_the_moment_utc_day(self):
+        # Patch the UTC seam to a sentinel; seal() with no `generated` must stamp exactly that day. A revert
+        # to datetime.date.today() would ignore the patch and stamp the real local day, failing this.
+        sentinel = datetime.date(2020, 1, 15)
+        with mock.patch.object(moment, "today_utc", return_value=sentinel):
+            with tempfile.TemporaryDirectory() as d:
+                p = self._scratch(d)
+                audit_digest.seal(p, body=BODY)  # generated=None -> the default path under test
+                fm, _ = audit_digest.split(p)
+                self.assertEqual(audit_digest._iso(fm.get("generated")), "2020-01-15")
+
+    def test_staleness_defaults_today_to_the_moment_utc_day(self):
+        # With 'today' patched to equal the run-date, age is 0 -> current -> a note. A revert to a local
+        # date.today() would compute a large real age and return soft, failing this.
+        run = datetime.date(2026, 6, 1)
+        with tempfile.TemporaryDirectory() as d:
+            p = self._scratch(d)
+            audit_digest.seal(p, generated=run, body=BODY)
+            with mock.patch.object(moment, "today_utc", return_value=run):
+                self.assertEqual(audit_digest.staleness(p)["severity"], "note")  # now=None -> default
+
+    def test_digest_day_and_contract_rate_day_are_one_utc_day(self):
+        # The two "todays" the #631 defect split apart must agree: the digest's default day
+        # (moment.today_utc) and the contract-rate window's day (telemetry.derive_contract_rate derives
+        # date.fromisoformat(now[:10]) from moment.utc_now()). Both are the UTC calendar day.
+        contract_rate_day = datetime.date.fromisoformat(moment.utc_now()[:10])
+        self.assertEqual(contract_rate_day, moment.today_utc())
 
 
 if __name__ == "__main__":

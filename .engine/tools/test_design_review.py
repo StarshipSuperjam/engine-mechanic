@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-tests for the design-review module — the plan-review lens roster.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the module's load-bearing facts, since nothing else does:
   - plan-review-finding.v1 is a well-formed schema with TEETH — it accepts a well-formed finding and
@@ -33,6 +33,10 @@ CATALOG_SCHEMA = validate.load_json(os.path.join(validate.SCHEMAS_DIR, "provisio
 AGENT_SCHEMA = validate.load_json(os.path.join(validate.SCHEMAS_DIR, "agent.v1.json"))
 
 MODULE_DIR = os.path.join(validate.ENGINE_DIR, "modules", "design-review")
+# The design-review pack is OPTIONAL. Loading its manifest at import time errors the WHOLE suite out in a
+# deployment that declined it — a supported choice — rather than skipping the cases that need it.
+if not os.path.exists(os.path.join(MODULE_DIR, "manifest.json")):
+    raise unittest.SkipTest("the design-review pack is not installed in this repository")
 MANIFEST = validate.load_json(os.path.join(MODULE_DIR, "manifest.json"))
 ENGINE_JSON = validate.load_json(os.path.join(validate.ENGINE_DIR, "engine.json"))
 CATALOG = validate.load_json(os.path.join(validate.ENGINE_DIR, "provisioning", "module-catalog.json"))

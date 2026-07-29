@@ -2,7 +2,7 @@
 """Self-tests for the state cursor: the state.v1 schema, the committed genesis
 cursor, and the schema-kind rule that refuses a malformed or shape-invalid cursor.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the load-bearing teeth: the schema bites on each malformed shape (a missing field,
 an out-of-grammar field, a wrong version stamp, a negative count, a non-UTC timestamp, an empty
@@ -118,11 +118,12 @@ class TestStateSchema(unittest.TestCase):
             s = json.loads(json.dumps(VALID_STATE))
             s["integration_debt"]["as_of"] = v
             return s
-        # accepted: null, a UTC ...Z moment, and a fractional-seconds ...Z moment
-        for ok in (None, "2026-06-02T14:30:00Z", "2026-06-02T14:30:00.123Z"):
+        # accepted: null and a fixed-width trailing-Z UTC moment
+        for ok in (None, "2026-06-02T14:30:00Z"):
             self.assertEqual(_errors(STATE_SCHEMA, with_as_of(ok)), [], f"{ok!r} should pass")
-        # rejected: a non-UTC offset, a no-Z local time, and garbage
-        for bad in ("2026-06-02T14:30:00+02:00", "2026-06-02T14:30:00", "not-a-date"):
+        # rejected: fractional seconds (#631 pins fixed-width so raw-string comparisons sort right), a
+        # non-UTC offset, a no-Z local time, and garbage
+        for bad in ("2026-06-02T14:30:00.123Z", "2026-06-02T14:30:00+02:00", "2026-06-02T14:30:00", "not-a-date"):
             self.assertTrue(_errors(STATE_SCHEMA, with_as_of(bad)), f"{bad!r} should fail")
 
     def test_empty_string_pointer_is_flagged(self):

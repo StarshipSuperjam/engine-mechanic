@@ -180,29 +180,18 @@ def test_read(*, transport=None) -> dict:
 # committed-files-only run. It reaches the memory by reading THIS backup — a pure read that changes nothing.
 # Memory OWNS this projection (the audit is a downstream consumer that may not widen the mechanism): the
 # durable-belief SELECTION is single-sourced here against memory's own record vocabulary (`records`) and its own
-# recall authority (`forget.live_records` — the ONE place that retires orphaned / superseded / archived records),
-# so a future memory change to what counts as "live" updates one place and the audit's view follows. The audit
+# recall authority (`forget.live_records` — the ONE place that retires orphaned / superseded records, and the
+# bookkeeping markers), so a future memory change to what counts as "live" updates one place and the audit's
+# view follows. The audit
 # side (audit_digest) owns only the audit-context rendering + the disclosure wording, never these semantics.
-
-def _ts_to_epoch(iso) -> "int | None":
-    """The manifest's backup `timestamp` (an ISO `%Y-%m-%dT%H:%M:%SZ` string) as an epoch int, or None. Used as
-    the `now` the live-set is scored against, so the beliefs are tiered AS OF the backup moment (a point-in-time
-    read), not the audit run time — honest for an older backup."""
-    import calendar
-    if not isinstance(iso, str):
-        return None
-    try:
-        return calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ"))
-    except (ValueError, OverflowError):
-        return None
-
 
 def read_saved_memory(*, transport=None) -> dict:
     """Fetch the backed-up memory and project it to the durable SAVED BELIEFS the self-audit reviews — a pure
     read that changes nothing. Returns {ok, error, beliefs, as_of}: on success `beliefs` is a list of plain
     projections (newest-first) `{text, kind, role, recorded_ts, last_access_ts}` covering ONLY the live durable
-    beliefs (episodic summaries + gists; markers, orphans, superseded raws, and archived records are dropped by
-    memory's own `forget.live_records`), and `as_of` is the backup timestamp (ISO, or None). On any failure
+    beliefs (episodic summaries + gists; markers, orphans and superseded raws are dropped by memory's own
+    `forget.live_records`), and `as_of` is the backup timestamp (ISO, or None). Nothing is dropped for AGE — the
+    projection is the whole live durable set, however old, which is what the audit's staleness review wants. On any failure
     `beliefs`/`as_of` are None and `error` is `fetch_snapshot`'s code ({not-configured, no-token, unreachable,
     no-backup-data, namespace-missing, corrupt}) so the caller discloses the gap honestly. Never raises."""
     snap = fetch_snapshot(transport=transport)
@@ -210,17 +199,32 @@ def read_saved_memory(*, transport=None) -> dict:
         return {"ok": False, "error": snap.get("error"), "beliefs": None, "as_of": None}
     as_of = (snap.get("manifest") or {}).get("timestamp")
     try:
-        beliefs = _project_beliefs(snap["ledger_bytes"], now=_ts_to_epoch(as_of))
+        beliefs = _project_beliefs(snap["ledger_bytes"])
     except Exception:  # noqa: BLE001 — a decode/projection fault degrades to a clean "couldn't read", never a raise
         return {"ok": False, "error": "corrupt", "beliefs": None, "as_of": None}
     return {"ok": True, "error": None, "beliefs": beliefs, "as_of": as_of if isinstance(as_of, str) else None}
 
 
-def _project_beliefs(ledger_bytes: bytes, *, now: "int | None") -> list:
+def _project_beliefs(ledger_bytes: bytes) -> list:
     """Decode the backed-up ledger bytes (a temp sibling, never the live ledger) and return the durable saved
-    beliefs newest-first. `forget.live_records` is memory's own recall authority — it drops the provenance
-    markers, the crashed-pass orphans, the gist-superseded raws, AND the archived tier — so we reimplement none
-    of that; we only keep the human-content kinds (episodic + gist) and project the few fields the audit reads."""
+    content newest-first, for the scheduled self-review to judge for staleness.
+
+    WHAT COUNTS AS DURABLE CHANGED, and leaving it alone would have made the review lie. It kept only the two
+    AI-written summary kinds, which was right while a background pass wrote them. Nothing writes either any
+    more, and a repository the engine deploys into starts empty — so this would have returned nothing forever,
+    and the digest would have told an operator whose store was full of their own conversation that it "holds no
+    saved decisions or notes yet to review". So it keeps what a store actually holds now: the operator's pins
+    first — the one kind that IS a durable standing statement and the one most worth re-reading for staleness —
+    then the older summaries, which real stores still carry.
+
+    NOT the raw conversation, deliberately. A review asks "is this belief still true?", and a turn in a
+    conversation is not a belief; it is a record of a moment, true forever by construction. Including it would
+    also push tens of thousands of records at a digest that truncates oldest-first, burying the few records the
+    review is actually for.
+
+    `forget.live_records` is memory's own recall authority — it drops the provenance markers, the crashed-pass
+    orphans and the gist-superseded raws — so we reimplement none of that. It takes no clock: membership
+    stopped depending on one when the archived-tier age-out was removed."""
     import tempfile
     from memory import forget                    # lazy: forget pulls score/index — keep it off the module-load path
     from memory import records as rec
@@ -228,21 +232,23 @@ def _project_beliefs(ledger_bytes: bytes, *, now: "int | None") -> list:
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(ledger_bytes)
-        live = list(forget.live_records(path=tmp, now=now))
+        live = list(forget.live_records(path=tmp))
     finally:
         _quiet_remove(tmp)
+    keep = (rec.PIN_KIND, rec.EPISODIC_KIND, rec.GIST_KIND)
     durable = []
     for r in live:
-        if r.get("kind") not in (rec.EPISODIC_KIND, rec.GIST_KIND):
+        if r.get("kind") not in keep:
             continue
         text = r.get("text")
         if not isinstance(text, str) or not text.strip():
             continue
         recorded = r.get("ts") if isinstance(r.get("ts"), int) else None
-        last_access = r.get(rec.LAST_ACCESS_TS_KEY) if isinstance(r.get(rec.LAST_ACCESS_TS_KEY), int) else None
         durable.append({"text": text, "kind": r.get("kind"), "role": r.get("role"),
-                        "recorded_ts": recorded, "last_access_ts": last_access})
-    durable.sort(key=lambda b: (b["last_access_ts"] or b["recorded_ts"] or 0), reverse=True)  # newest-first
+                        "recorded_ts": recorded, "last_access_ts": None})
+    # Newest first. It used to sort by last-use, falling back to when the record was written; nothing tracks
+    # use any more, so the fallback is now the whole rule and the field is carried as None rather than read.
+    durable.sort(key=lambda b: b["recorded_ts"] or 0, reverse=True)
     return durable
 
 

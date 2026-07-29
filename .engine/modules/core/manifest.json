@@ -1,6 +1,6 @@
 {
   "id": "core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "status": "required",
   "provides": {
     "check": [
@@ -25,11 +25,13 @@
       ".engine/operations/conduct-author.md",
       ".engine/operations/control-plane-bootstrap.md",
       ".engine/operations/engine-arrival.md",
+      ".engine/operations/engine-development.md",
       ".engine/operations/engine-remove.md",
       ".engine/operations/engine-team-switch.md",
       ".engine/operations/engine-upgrade.md",
       ".engine/operations/first-run.md",
       ".engine/operations/knowledge-impact-check.md",
+      ".engine/operations/memory-recall.md",
       ".engine/operations/module-add.md",
       ".engine/operations/module-remove.md",
       ".engine/operations/onboarding-read.md",
@@ -40,6 +42,7 @@
       ".claude/skills/engine-conduct/SKILL.md",
       ".claude/skills/engine-help/SKILL.md",
       ".claude/skills/engine-parts/SKILL.md",
+      ".claude/skills/engine-recall/SKILL.md",
       ".claude/skills/engine-setup/SKILL.md",
       ".claude/skills/engine-start/SKILL.md",
       ".claude/skills/engine-status/SKILL.md",
@@ -63,6 +66,8 @@
       ".engine/policies/contract-threshold.md",
       ".engine/policies/escalation.md",
       ".engine/policies/finding-disposition.md",
+      ".engine/policies/model-bindings.json",
+      ".engine/policies/model-routing.md",
       ".engine/policies/triage-threshold.md"
     ],
     "conduct": [
@@ -77,7 +82,8 @@
     ],
     "provisioning": [
       ".engine/provisioning/first-run-assets.json",
-      ".engine/provisioning/module-catalog.json"
+      ".engine/provisioning/module-catalog.json",
+      ".engine/provisioning/module-surfaces.json"
     ],
     "codex-skill": [
       ".agents/skills/engine-conduct/SKILL.md",
@@ -86,6 +92,8 @@
       ".agents/skills/engine-help/agents/openai.yaml",
       ".agents/skills/engine-parts/SKILL.md",
       ".agents/skills/engine-parts/agents/openai.yaml",
+      ".agents/skills/engine-recall/SKILL.md",
+      ".agents/skills/engine-recall/agents/openai.yaml",
       ".agents/skills/engine-setup/SKILL.md",
       ".agents/skills/engine-setup/agents/openai.yaml",
       ".agents/skills/engine-start/SKILL.md",
@@ -96,6 +104,9 @@
       ".agents/skills/engine-tune/agents/openai.yaml",
       ".agents/skills/engine-upgrade/SKILL.md",
       ".agents/skills/engine-upgrade/agents/openai.yaml"
+    ],
+    "migration": [
+      ".engine/modules/core/migrations/*.py"
     ]
   },
   "wires": [
@@ -142,24 +153,6 @@
       "hook": {
         "type": "command",
         "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-ambient"
-      }
-    },
-    {
-      "type": "hook",
-      "event": "SessionStart",
-      "matcher": "startup",
-      "hook": {
-        "type": "command",
-        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-episodic"
-      }
-    },
-    {
-      "type": "hook",
-      "event": "SessionStart",
-      "matcher": "resume",
-      "hook": {
-        "type": "command",
-        "command": "sh \"${CLAUDE_PROJECT_DIR}/.engine/tools/hook-runner.sh\" \"${CLAUDE_PROJECT_DIR}/.engine/.venv/bin/python\" \"${CLAUDE_PROJECT_DIR}/.engine/tools/telemetry.py\" run-episodic"
       }
     },
     {
@@ -290,6 +283,13 @@
       ]
     },
     {
+      "type": "gitignore",
+      "key": "mechanic-product-checkout",
+      "lines": [
+        ".engine/mechanic/"
+      ]
+    },
+    {
       "type": "codex-mcp",
       "name": "engine-knowledge-graph",
       "definition": {
@@ -349,24 +349,6 @@
       "hook": {
         "type": "command",
         "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null || echo .)\" && sh \".engine/tools/codex-hook-runner.sh\" \".engine/tools/telemetry.py\" run-ambient"
-      }
-    },
-    {
-      "type": "codex-hook",
-      "event": "SessionStart",
-      "matcher": "startup",
-      "hook": {
-        "type": "command",
-        "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null || echo .)\" && sh \".engine/tools/codex-hook-runner.sh\" \".engine/tools/telemetry.py\" run-episodic"
-      }
-    },
-    {
-      "type": "codex-hook",
-      "event": "SessionStart",
-      "matcher": "resume",
-      "hook": {
-        "type": "command",
-        "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null || echo .)\" && sh \".engine/tools/codex-hook-runner.sh\" \".engine/tools/telemetry.py\" run-episodic"
       }
     },
     {
@@ -444,5 +426,12 @@
       }
     }
   ],
-  "depends": {}
+  "depends": {},
+  "migrations": {
+    "0.3.0": {
+      "description": "Removes the per-prompt hint's strength setting from your saved settings \u2014 the reminder now appears on every message and no longer has a strength to set, so a saved value for it would be ignored.",
+      "run": "migrations/retire_scent_threshold.py",
+      "kind": "config"
+    }
+  }
 }

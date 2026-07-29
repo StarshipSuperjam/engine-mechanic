@@ -2,7 +2,7 @@
 """Self-tests for the knowledge-retrieval op-set (knowledge_query.py), the SQLite index
 (knowledge_index.py), and the graph-query MCP server (knowledge_mcp_server.py).
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the load-bearing teeth over a controlled FIXTURE graph (so assertions are exact and
 independent of the evolving real graph): get-entity returns the entity + edges (or None); find selects
@@ -27,7 +27,7 @@ import knowledge_index as ki      # noqa: E402
 import knowledge_query as kq      # noqa: E402
 import knowledge_gen as kg        # noqa: E402
 
-D116_OPS = {"get-entity", "find", "neighbors", "relate"}
+D116_OPS = {"health", "get-entity", "find", "neighbors", "relate"}
 
 
 def _entity(eid, etype, owner, src, preds):
@@ -359,6 +359,12 @@ class TestMcpServer(unittest.IsolatedAsyncioTestCase):
         names = {t.name for t in await srv.server.list_tools()}
         self.assertEqual(names, D116_OPS)
 
+    async def test_health_is_content_free_and_fixed_identity(self):
+        import knowledge_mcp_server as srv
+        with mock.patch.object(kq, "with_degrade", side_effect=AssertionError("health read graph")):
+            data = self._tool_result_json(await srv.server.call_tool("health", {}))
+        self.assertEqual(data, {"status": "ok", "server": "engine-knowledge-graph"})
+
     async def test_call_tool_get_entity_delegates(self):
         import knowledge_mcp_server as srv
         data = self._tool_result_json(await srv.server.call_tool("get-entity", {"id": "module:core"}))
@@ -448,6 +454,19 @@ class TestEnrichedEntities(unittest.TestCase):
     def test_edge_sets_are_split(self):
         self.assertNotIn("supersedes", kq.WALK_EDGE_KINDS)
         self.assertIn("supersedes", kq.EDGE_KINDS)
+        # every walk kind is a valid edge kind; the walk is EDGE_KINDS minus the pull-only supersedes.
+        self.assertTrue(set(kq.WALK_EDGE_KINDS) <= set(kq.EDGE_KINDS))
+        self.assertEqual(set(kq.EDGE_KINDS) - set(kq.WALK_EDGE_KINDS), {"supersedes"})
+
+    def test_interface_edge_filter_enum_matches_edge_kinds(self):
+        # the interface's edge_filter enum is a HAND-MAINTAINED duplicate of EDGE_KINDS. The knowledge
+        # vocabulary check guards entity TYPES, not predicate kinds, so this pin is the only thing that catches
+        # the interface enum and the code vocabulary drifting apart.
+        iface = kg.validate.load_json(os.path.join(kg.validate.ENGINE_DIR, "interfaces",
+                                                   "knowledge-retrieval.json"))
+        neighbors = next(op for op in iface["operations"] if op["name"] == "neighbors")
+        enum = neighbors["input_schema"]["properties"]["edge_filter"]["items"]["enum"]
+        self.assertEqual(set(enum), set(kq.EDGE_KINDS))
 
     def test_build_index_allowlists_edge_kinds(self):
         c = _entity("check:c1", "check", "core", ".engine/check/c1.json",

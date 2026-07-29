@@ -23,8 +23,8 @@ The five closed core kinds, plus the `custom/script` escape hatch:
                 directory; no orphan surface directory).
   - coherence — the installed module set is consistent (dependency presence, acyclicity,
                 version range). A directly-callable library entry the module manager
-                invokes after an install; no live consumer until the module system lands,
-                so it ships built + fixture-tested.
+                invokes after an install; in core it ships built + fixture-tested, with
+                the module manager as its live consumer after an install.
   - custom/script — the escape hatch: run a committed script and map its result to
                 findings (the guardrail-weakening guards re-home onto this kind).
 Module-provided kinds bind by PRESENCE and must NOT extend the hardcoded REGISTRY below (which
@@ -72,7 +72,7 @@ import re
 import subprocess
 import sys
 
-# yaml + jsonschema are the engine's ONLY third-party dependencies; they live in the
+# yaml + jsonschema are the third-party dependencies THIS module needs; they live in the
 # uv-managed tool-runtime (.engine/.venv/). They are bound LAZILY (PEP 562 module
 # __getattr__) rather than imported at module top, so `import validate` succeeds on the
 # Python standard library alone — before that runtime exists. This is load-bearing for
@@ -776,7 +776,10 @@ def _coverage_fingerprint(rule, ctx):
 
 def _coverage_links(rule, ctx):
     """Every relative Markdown link must resolve to an existing file. A link that resolves
-    OUTSIDE the repo cannot be checked in a CI checkout, so it is a soft note, never hard."""
+    OUTSIDE the repo cannot be checked in a CI checkout, so it is a soft note, never hard. A link into a
+    surface owned by a module this deployment DECLINED is likewise a note, never hard — the target is gone
+    because the operator opted the module out, not because the link is broken (#646)."""
+    import module_surfaces as _module_surfaces  # lazy: avoids a validate<->module_surfaces import cycle
     tier = rule["tier"]
     exclude = set((rule.get("params") or {}).get("exclude_dirs", []))
     findings = []
@@ -795,6 +798,12 @@ def _coverage_links(rule, ctx):
                 continue
             inside = os.path.abspath(resolved).startswith(ROOT + os.sep)
             line_no = text[:m.start()].count("\n") + 1
+            declined_owner = _module_surfaces.declined_surface_owner(resolved) if inside else None
+            if declined_owner:
+                findings.append(finding("soft", f"Markdown link to '{target}', a surface of the declined "
+                                f"module '{declined_owner}' (absent here because it was opted out, not a broken "
+                                f"link). {rule['message']}", loc(path, line_no)))
+                continue
             sev = tier if inside else "soft"
             findings.append(finding(sev, f"Broken Markdown link to '{target}'. {rule['message']}",
                             loc(path, line_no)))
@@ -1383,12 +1392,12 @@ def skill_coherence_findings(skills: list, tier: str, message: str) -> list:
     axis, the platform-flag table).
 
     Pure + fixture-testable, mirroring the other legs: the SKILL.md frontmatter is parsed by the
-    consumer and passed in, so this stays filesystem-free. No live rule wires this in core: the
-    consumer (the operator verbs, which discover the present skill set and decide the
-    engine-vs-operator scope) runs this live and proves the Build-entry verb's self-election
-    safety on the live platform — the interface_resolution_findings / agent_coherence_findings
-    precedent (built + fixture-tested, no live rule). ZERO skill instances ship with the grammar,
-    so the leg has nothing live to fire on yet."""
+    consumer and passed in, so this stays filesystem-free. Its live consumer — skill_coherence_check.py,
+    driven by the operator verbs that discover the present skill set and decide the
+    engine-vs-operator scope — runs this every CI and proves the Build-entry verb's self-election
+    safety on the live platform, the interface_resolution_findings / agent_coherence_findings
+    precedent (built + fixture-tested, then wired to a live consumer). The engine ships operator-typed
+    verbs, so the leg has live subjects to fire on."""
     invocations = {"model-auto", "operator-typed", "model-only"}
     findings = []
     for s in skills:
@@ -1514,11 +1523,12 @@ def effective_policy_values(default: dict, override: dict, *, structural_keys, t
 
     PURE + fixture-testable: the merged value is static data, so a deterministic consumer (attention's
     ranking function) stays deterministic — the merge adds another recorded input; no clock, no IO. The
-    override is taken as DATA: this function does not read a file — the consumer (or the config-authoring step)
-    loads it. Findings are ordered by key (sorted) for a reproducible result. No live rule wires this in
-    core yet: the `custom/script` stale-key rule that runs it on a committed override file needs that file's
-    path (the config-authoring step's leaf), so the leg is built + fixture-tested here and consumed live later
-    (the interface_resolution_findings / agent_coherence_findings precedent)."""
+    override is taken as DATA: this function does not read a file — the consumer loads it and passes it in.
+    Findings are ordered by key (sorted) for a reproducible result. No data rule wires this in core: the leg
+    is pure and fixture-tested, and it is consumed live by attention's `load_policy_values` (every ranking,
+    via the core merge — never re-implemented). A separate live `custom/script` stale-key rule classifies
+    saved overrides against the same inputs to surface them in plain operator language, but does not call this
+    function."""
     structural = set(structural_keys)
     effective = dict(default)
     findings = []
@@ -1556,9 +1566,9 @@ def _is_tunable_number(value) -> bool:
 
 def kind_coherence(rule, ctx):
     """The installed module set is consistent. A directly-callable library entry the
-    module manager invokes right after an install; the manifests it reads land with
-    the module system, so in core it ships built + fixture-tested with no live rule. As a
-    kind callable it reads the manifest set from ctx['manifests'] (empty until the module system lands)."""
+    module manager invokes right after an install; the manifests it reads come from installed
+    modules, so in core it ships built + fixture-tested with no live rule. As a
+    kind callable it reads the manifest set from ctx['manifests'] (empty in core when no module is installed)."""
     tier = rule["tier"]
     findings = coherence_findings(ctx.get("manifests") or [], tier, rule.get("message", ""))
     return (not any(f["severity"] == "hard" for f in findings)), findings
@@ -1752,7 +1762,7 @@ def kind_discovery_findings(tier: str = "hard", message: str = "", kind_dir: str
     check-kind file that names a closed core kind, collides with another module's kind, or cannot be
     imported is a HARD finding naming the file — never a silent drop. The dispatcher already
     EXCLUDES such a file (resolved_registry); this is the loud, CI-reaching account of why, run by
-    module_coherence.check_coherence() over the real tree (green until a real module kind lands)."""
+    module_coherence.check_coherence() over the real tree (green while the real tree carries no module kind)."""
     kind_dir = kind_dir or env_override_path("ENGINE_KIND_DIR", TOOLS_DIR)
     _valid, faults = _discover_module_kinds(kind_dir, set(REGISTRY))
     out = []
@@ -2226,7 +2236,8 @@ def _accept_handler(payload: dict) -> dict:
         return hooks.proceed()
     try:
         import telemetry  # lazy: telemetry imports validate (a back-edge safe only lazily)
-        telemetry.capture_touched_fires(paths, telemetry.utc_now())
+        import moment  # lazy: keep the module-top stdlib-only bootstrap contract (moment is itself stdlib-only)
+        telemetry.capture_touched_fires(paths, moment.utc_now())
     except Exception:  # noqa: BLE001 — ambient capture is best-effort and NEVER gates a tool call
         pass
     touched = {_abs_under_root(p) for p in paths}
