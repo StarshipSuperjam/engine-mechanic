@@ -15,7 +15,7 @@ reference material — to describe **engine-template as actually built**, pinned
 commit `cdbbc3357fbfbc192005650a8be6ce35b7942bfe` (the operator's local checkout of 2026-07-28). The
 rules:
 
-- **The denominator is the build as ruled.** Where the build and the carried spec embody different
+- **The spec answers to the build as ruled.** Where the build and the carried spec embody different
   normative choices, the operator rules per item, in a batched ruling round before each wave is edited;
   a divergence classified as merely descriptive is itemized in the pull-request body so the
   classification itself is reviewable. Where the operator keeps the spec's intent against a build
@@ -29,12 +29,12 @@ rules:
   reconciled. Settling is a separate, later effort.
 - **Numbering:** this umbrella record is 0320; a ruling that reverses a carried decision gets its own
   record, starting at 0321. The carried records 0001–0319 stay append-only and untouched.
-- **The accounting denominator is pinned.** The design workspace's conformance register survives as an
-  operator-held extract (sha256 `13180088c2dc762c1765a40ae7b204fa1a1f1c330e864da64f46890af215c703`, from
-  the final workspace archive, sha256
-  `9a366c13619f850dce7bda6d95b399743102f896de7a10a4595a8da2bc29b03b`), reading
-  **56 authored · 8 closed · 48 open**;
-  every open item receives a recorded disposition before the corpus drift caveat is retired.
+- **The drift register the accounting grades against is pinned.** The design workspace's conformance
+  register survives as an operator-held extract reading **56 authored · 8 closed · 48 open**; every open
+  item receives a recorded disposition before the corpus drift caveat is retired. Fingerprints, for the
+  record:
+  extract sha256 `13180088c2dc762c1765a40ae7b204fa1a1f1c330e864da64f46890af215c703`;
+  source archive sha256 `9a366c13619f850dce7bda6d95b399743102f896de7a10a4595a8da2bc29b03b`.
 - **The design workspace is retired.** The workspace these documents were carried from, and its
   snapshot, have been deleted by the operator; the surviving archive is a historical artifact the
   operator has chosen not to preserve beyond this effort. The fidelity note in the

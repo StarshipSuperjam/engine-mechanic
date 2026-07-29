@@ -88,10 +88,13 @@ get a readable answer, so the self-map and manifest are never AI-only (the concr
 leaf). Two similarly-named things sit above that baseline and must not be conflated
 ([decision 0089](../../../adr/0089-flesh-the-core-module-doc-to-designed-the-kernel-partition-t.md),
 [decision 0086](../../../adr/0086-cognitive-foundations-as-required-packages-reconciliation-me.md)):
-the knowledge foundation's **structural graph-query server** is a required `core` `mcp` wire — part of
-the baseline, as built — while the separately-named
-[engine-knowledge-graph](../../modules/engine-knowledge-graph.md) **module** is the one genuinely
-optional semantic-recall layer over memory, never required for the baseline and not yet described.
+the knowledge foundation's **structural graph-query server** — which as built carries the name
+`engine-knowledge-graph` — is a required `core` `mcp` wire, part of the baseline. The semantic-recall
+role that decision 0086 once sketched for an optional module of the same name is, as built, filled by
+the **default-on `memory-semantic-recall` module** named above; the carried
+[engine-knowledge-graph](../../modules/engine-knowledge-graph.md) **module** page describes the unbuilt
+remainder of that sketch (graph-representation enrichment over memory), stays not yet described, and
+nothing in the baseline depends on it.
 
 ### Dependency resolution and build order
 
@@ -248,6 +251,8 @@ per the [hooks](../infrastructure/hooks.md) fail-open-and-flag pattern) — neve
   shared root files untouched — a contributor leaving without unbuilding what shipped.
 
 ## Acceptance criteria
+
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |

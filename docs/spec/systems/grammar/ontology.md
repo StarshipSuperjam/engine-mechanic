@@ -184,6 +184,8 @@ destroy; it is reconciled by ordinary authored-content review, never regenerate-
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | The catalog is the source surface coverage is derived from, **at directory granularity**: a catalogued surface missing the home its `location` names, or an orphan surface directory, is a finding at the merge. | The `catalog-coverage` check (hard tier, `CI` suite) walks each record's `location` against the filesystem on every merge-gated run; a missing home or orphan directory fails the gate. The [knowledge graph](../cognitive/knowledge.md) has its own, separate fidelity gate (`knowledge-coverage`) and is not the coverage mechanism. | engine |
