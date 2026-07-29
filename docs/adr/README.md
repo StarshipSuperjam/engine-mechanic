@@ -2,11 +2,11 @@
 
 Every decision behind the product spec, one file per decision, carried whole from the design workspace's single decision log. Each names what was decided, why, and what was ruled out — that last part is what stops a later session re-opening ground already walked.
 
-**Numbering.** The design workspace numbered these `D-1` to `D-319`. They keep the same numbers here, written four digits: `D-24` is `0024`. Prose across the corpus still says `D-24` in places; it means the same record.
+**Numbering.** The design workspace numbered these `D-1` to `D-319`. They keep the same numbers here, written four digits: `D-24` is `0024`. Prose across the corpus still says `D-24` in places; it means the same record. Records from `0320` onward are authored in this repository, continuing the same sequence.
 
 **These records are append-only.** The design workspace's rule, carried from the log they came from: supersede an entry with a newer one; never edit or delete a past entry.
 
-**A note on fidelity.** These records were carried whole from the design workspace, with two deliberate exceptions. Three carry a marked editorial note where a present-tense claim about a live system was later corrected or fixed. A small number had passages edited before publication to remove appraisals of third-party work and internal project metrics; the decisions and their reasoning are unchanged, and the unedited originals remain in the design workspace they came from.
+**A note on fidelity.** These records were carried whole from the design workspace, with two deliberate exceptions. Three carry a marked editorial note where a present-tense claim about a live system was later corrected or fixed. A small number had passages edited before publication to remove appraisals of third-party work and internal project metrics; the decisions and their reasoning are unchanged. The design workspace those originals lived in has since been retired ([decision 0320](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md)); this note is the durable record that the edits were made.
 
 **What is not here.** These records were written alongside build-planning material (a `wbs/` directory) and a lock registry that were deliberately not carried across. Where a record refers to one of those by name, the reference is left as plain text rather than a link, because the file does not exist in this repository. Titles below are shortened where long; each record's own heading carries the full title.
 
@@ -331,3 +331,4 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0317 | [Resolve: re-lock `state` (the taxonomy kept, its attachment narrowed; "next" routed to its real surface; the…](0317-resolve-re-lock-state-the-taxonomy-kept-its-attachment-narro.md) | 2026-07-16 |
 | 0318 | [Resolve: re-lock `github-projects-sync` (the board's engine field is **`ranked work`**, not *"what's next"* —…](0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md) | 2026-07-16 |
 | 0319 | [Resolve: re-lock `boot` (relay state's `milestone` selection bound without restating it; the card's rendering…](0319-resolve-re-lock-boot-relay-state-s-milestone-selection-bound.md) | 2026-07-16 |
+| 0320 | [Reconcile the spec to engine-template as built — the sync policy](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md) | 2026-07-29 |
