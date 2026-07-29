@@ -35,4 +35,4 @@ core = ["jsonschema>=4.18", "mcp>=1.28.1", "pyyaml>=6.0"]
 memory-semantic-recall = ["numpy>=1.26"]
 
 [tool.uv]
-default-groups = ["core"]
+default-groups = ["core", "memory-semantic-recall"]

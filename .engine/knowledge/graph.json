@@ -1626,6 +1626,7 @@
           "module:design-review",
           "module:external-contribution",
           "module:github-projects-sync",
+          "module:memory-semantic-recall",
           "module:memory-substrate-sqlite-fts5",
           "module:migration-discipline",
           "module:product-design",
@@ -4242,6 +4243,25 @@
       "version": "0.2.0"
     },
     {
+      "id": "module:memory-semantic-recall",
+      "name": "memory-semantic-recall",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "depends_on": [
+          "module:core",
+          "module:memory-substrate-sqlite-fts5"
+        ]
+      },
+      "slug": "memory-semantic-recall",
+      "source": {
+        "fingerprint": "sha256:6a0620e7bd07b8ae95e028c8f7b79a25f9da2398f364b1d127139688724b64f4",
+        "path": ".engine/modules/memory-semantic-recall/manifest.json"
+      },
+      "status": "default-on",
+      "type": "module",
+      "version": "0.1.0"
+    },
+    {
       "id": "module:memory-substrate-sqlite-fts5",
       "name": "memory-substrate-sqlite-fts5",
       "owner": "memory-substrate-sqlite-fts5",
@@ -5902,6 +5922,24 @@
       "type": "skill"
     },
     {
+      "guarded": false,
+      "id": "tool:NOTICE",
+      "name": ".engine/tools/memory/semantic/NOTICE.txt",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "NOTICE",
+      "source": {
+        "fingerprint": "sha256:200c21d2d8b3c3d37a2be4c7c029ac0bd7326f3198e477dfb193e9725a0f8dac",
+        "path": ".engine/tools/memory/semantic/NOTICE.txt"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "entrypoint": "ci",
       "guarded": true,
       "id": "tool:adr_form",
@@ -6445,6 +6483,24 @@
       },
       "status": "active",
       "summary": "Operator-checkout health — detect a stranded operator checkout AND offer a lossless un-stranding fix (#80).",
+      "type": "tool"
+    },
+    {
+      "guarded": false,
+      "id": "tool:checksums",
+      "name": ".engine/tools/memory/semantic/checksums.json",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "checksums",
+      "source": {
+        "fingerprint": "sha256:6e04c5e6d09d6019795e6d12d64892b9629e391d0bb1380fef7e578cb8ed0621",
+        "path": ".engine/tools/memory/semantic/checksums.json"
+      },
+      "status": "active",
       "type": "tool"
     },
     {
@@ -7068,6 +7124,29 @@
       },
       "status": "active",
       "summary": "disposition-issue-resolution check (#292) — a `custom/script` CI-suite rule",
+      "type": "tool"
+    },
+    {
+      "entrypoint": "library",
+      "guarded": false,
+      "id": "tool:embed",
+      "name": ".engine/tools/memory/semantic/embed.py",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "imports": [
+          "tool:wordpiece"
+        ],
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "embed",
+      "source": {
+        "fingerprint": "sha256:220f58eded4fb8565118769710ef96f4e44877e1176d7f85b372d7d6c572ef04",
+        "path": ".engine/tools/memory/semantic/embed.py"
+      },
+      "status": "active",
+      "summary": "embed.py — turns text into a vector using the vendored word table.",
       "type": "tool"
     },
     {
@@ -7954,12 +8033,14 @@
       "owner": "memory-substrate-sqlite-fts5",
       "predicates": {
         "imports": [
+          "tool:embed",
           "tool:forget",
           "tool:index",
           "tool:ledger",
           "tool:pins",
           "tool:recall",
-          "tool:records"
+          "tool:records",
+          "tool:store"
         ],
         "provided_by": [
           "module:memory-substrate-sqlite-fts5"
@@ -8449,6 +8530,24 @@
       "type": "tool"
     },
     {
+      "guarded": false,
+      "id": "tool:potion-retrieval-32m-int8",
+      "name": ".engine/tools/memory/semantic/potion-retrieval-32m-int8.npz",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "potion-retrieval-32m-int8",
+      "source": {
+        "fingerprint": "sha256:a082144d84c817d574d7f9d85151fcdbab0540a1a8f4e431e1da04e1fb1cbd47",
+        "path": ".engine/tools/memory/semantic/potion-retrieval-32m-int8.npz"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "entrypoint": "cli",
       "guarded": false,
       "id": "tool:pr_reconcile",
@@ -8856,7 +8955,8 @@
           "tool:capture",
           "tool:index",
           "tool:ledger",
-          "tool:scrub"
+          "tool:scrub",
+          "tool:store"
         ],
         "provided_by": [
           "module:memory-substrate-sqlite-fts5"
@@ -9135,6 +9235,26 @@
       "type": "tool"
     },
     {
+      "entrypoint": "library",
+      "guarded": false,
+      "id": "tool:semantic.__init__",
+      "name": ".engine/tools/memory/semantic/__init__.py",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "semantic.__init__",
+      "source": {
+        "fingerprint": "sha256:1dfc805eb2d92c7970cc1a286ff8d04c4386ac146dc1a4db4558a4c225dc0045",
+        "path": ".engine/tools/memory/semantic/__init__.py"
+      },
+      "status": "active",
+      "summary": "Meaning-based recall — finding a past conversation that means the same thing in different words.",
+      "type": "tool"
+    },
+    {
       "entrypoint": "ci",
       "guarded": true,
       "id": "tool:skill_coherence_check",
@@ -9224,6 +9344,34 @@
       },
       "status": "active",
       "summary": "Derive the project's standing-situation (\"where we are\") LIVE from native GitHub sources (engine-template",
+      "type": "tool"
+    },
+    {
+      "entrypoint": "cli",
+      "guarded": false,
+      "id": "tool:store",
+      "name": ".engine/tools/memory/semantic/store.py",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "imports": [
+          "tool:embed",
+          "tool:forget",
+          "tool:index",
+          "tool:ledger",
+          "tool:recall",
+          "tool:records"
+        ],
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "store",
+      "source": {
+        "fingerprint": "sha256:3e9e4152f8094666963da06feb32e8387c02c475c351a6b1433437a12f2a76ee",
+        "path": ".engine/tools/memory/semantic/store.py"
+      },
+      "status": "active",
+      "summary": "store.py — the vector store behind meaning-based recall, and the search over it.",
       "type": "tool"
     },
     {
@@ -12390,6 +12538,34 @@
     {
       "entrypoint": "test",
       "guarded": false,
+      "id": "tool:test_semantic",
+      "name": ".engine/tools/memory/semantic/test_semantic.py",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ],
+        "tests": [
+          "tool:embed",
+          "tool:forget",
+          "tool:ledger",
+          "tool:records",
+          "tool:store",
+          "tool:wordpiece"
+        ]
+      },
+      "slug": "test_semantic",
+      "source": {
+        "fingerprint": "sha256:da21791e313ced820d3a5b0ccafffd479e3d5a88697ae5a75f97c6b7a3aa3be9",
+        "path": ".engine/tools/memory/semantic/test_semantic.py"
+      },
+      "status": "active",
+      "summary": "test_semantic.py — the guarantees meaning-based recall makes, and the ones it must never break.",
+      "type": "tool"
+    },
+    {
+      "entrypoint": "test",
+      "guarded": false,
       "id": "tool:test_skill",
       "name": ".engine/tools/test_skill.py",
       "owner": "core",
@@ -12923,6 +13099,24 @@
       "type": "tool"
     },
     {
+      "guarded": false,
+      "id": "tool:vocab",
+      "name": ".engine/tools/memory/semantic/vocab.txt",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "vocab",
+      "source": {
+        "fingerprint": "sha256:4b3452e69455f96c6cfc1cdb212d3b7b1a3e9d2505ab6f61a50022f61467a6a3",
+        "path": ".engine/tools/memory/semantic/vocab.txt"
+      },
+      "status": "active",
+      "type": "tool"
+    },
+    {
       "entrypoint": "ci",
       "guarded": true,
       "id": "tool:weakening_guard",
@@ -12966,6 +13160,26 @@
       },
       "status": "active",
       "summary": "The wiring library — applies and reverses module `wires` over a CLOSED seam vocabulary.",
+      "type": "tool"
+    },
+    {
+      "entrypoint": "library",
+      "guarded": false,
+      "id": "tool:wordpiece",
+      "name": ".engine/tools/memory/semantic/wordpiece.py",
+      "owner": "memory-semantic-recall",
+      "predicates": {
+        "provided_by": [
+          "module:memory-semantic-recall"
+        ]
+      },
+      "slug": "wordpiece",
+      "source": {
+        "fingerprint": "sha256:ee77c9660ef5ce76a4cb1516043286644528d2959e1907949d8fb18812773a7d",
+        "path": ".engine/tools/memory/semantic/wordpiece.py"
+      },
+      "status": "active",
+      "summary": "wordpiece.py — the BERT WordPiece tokenizer the vendored word table was built against.",
       "type": "tool"
     },
     {
