@@ -4,14 +4,16 @@ status: draft
 
 # Validation
 
-*Ratified in the design workspace on 2026-06-27 by [decision 0257](../../../adr/0257-resolve-re-lock-validation-the-negative-fixture-meta-check-l.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-27 by [decision 0257](../../../adr/0257-resolve-re-lock-validation-the-negative-fixture-meta-check-l.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
 Answers **"does what got written match expectations?"** — the mechanical hard floor. It enforces JSON
 Schemas on structured files, governed-shape rules on prose (allowed sections, length budgets, frontmatter
-sync), the [ontology](../grammar/ontology.md) **catalog-coverage** gate (every catalogued
-surface has its home; no orphan or uncatalogued surface), and the installed-module-set **coherence**
+sync), the [ontology](../grammar/ontology.md) **catalog-coverage** gate (at directory granularity:
+every catalogued surface has its home directory and no orphan surface directory exists, with an
+infrastructure allow-list — the finer no-uncatalogued-instance-inside-an-existing-bucket leg stays an
+authoring judgment at the pull request), and the installed-module-set **coherence**
 checks. It judges structure, never the semantic quality of prose — that is the [audits](audits.md)
 layer's job ([principles §7](../../../principles.md)).
 
@@ -89,18 +91,25 @@ member. This is a **system-local invariant**, not a numbered principle: it *inst
   Validation's only stake is the execution-model consequence: a committed negative must reach the meta-check
   **without turning the real suite red or reading as an orphan surface** — the isolation that namespace must
   deliver.
-- **The only admissible carve-out is a check with no statically-decidable failure path in the CI
-  environment** — every check that *can* be made to fail in CI carries a fixture; the carve-out is bounded
-  by that property, never an open category. Such a check resolves to a **disclosed not-applicable**, reusing
-  the `ci_author_exempt` disclosed-no-op grammar rather than a silent skip: the first-run reference-closure
-  check's *computed-path* leg (best-effort by its own definition, below) and its no-op-after-retirement
-  state, and a `ci_author_exempt` rule's exempt-author verdict, are proven at construction where their
-  failure path exists, never by a synthetic bad asset shipped into a generated repo
-  ([§4](../../../principles.md)).
-- **A module-added kind ships its negative fixture co-located with the callable**, so the meta-check **fails
-  closed** on a present in-scope kind with no fixture, and uninstall is a pure file removal — the
-  [§14](../../../principles.md) derived-by-presence reversibility, never a centralized fixture stranded as an
-  orphan when its kind leaves.
+- **Three bounded carve-out classes, each keyed to a named property — never an open category.** As
+  built the meta-check admits: (1) a check with **no statically-decidable failure path in the CI
+  environment**, resolving to a **disclosed not-applicable** in the `ci_author_exempt` disclosed-no-op
+  grammar rather than a silent skip — the first-run reference-closure check's *computed-path* leg
+  (best-effort by its own definition, below) and its no-op-after-retirement state, and a
+  `ci_author_exempt` rule's exempt-author verdict, are proven at construction where their failure path
+  exists, never by a synthetic bad asset shipped into a generated repo ([§4](../../../principles.md));
+  (2) a **construction-scoped** check with no reachable failure path outside the construction
+  repository, honored only in non-home repos and rendered as a plain `soft` finding (admitted by build
+  decision, engine-template#512); and (3) a check whose **aimed bite is witnessable only with a live
+  repository connection**, ignored in CI and rendered as a plain `soft` note locally (engine-template#531).
+  Each class is bounded by its property; the set of classes is closed and grew only by reviewed
+  decision.
+- **A module-added kind's negative fixture lives in the central reserved namespace**
+  (`.engine/_fixtures/kind-<name>/`), and the meta-check **fails closed** on a present in-scope kind
+  with no fixture there. As built this is not the co-located-with-the-callable layout whose
+  [§14](../../../principles.md) reversibility rationale the design once carried: an uninstall that
+  removes the callable would leave its fixture behind as a stranded orphan. The divergence is latent —
+  no module ships a kind at the pin — and the fail-closed guarantee itself is unaffected.
 - **The meta-check carries its own negative fixture** — a seeded hard logic-unit whose fixture is missing or
   non-biting must turn it red — so the checker-of-checkers is itself falsifiable
   ([§15](../../../principles.md)); this terminates the regress without a meta-meta-check.
@@ -169,6 +178,13 @@ A rule's `tier` is its intrinsic strength; whether a `hard` tier *blocks* depend
   required rule is a guardrail-weakening change ([§15](../../../principles.md), [D-207](../../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)),
   hard-gated at the merge like the [dependency-discipline](../../modules/dependency-discipline.md)
   accepted-exception allow-list.
+- **A label-keyed boundary also ships.** A rule may declare `ci_label_exempt` — the same disclosed
+  not-applicable grammar keyed to a pull-request **label** rather than the author; at the pin it is
+  live on the PR-body-completeness rule for the `engine-erasure` label, alongside an author set widened
+  to include `github-actions[bot]`. Whether that label-keyed waiver and the widened author set are
+  *sanctioned* into the check grammar is an open drift-register question (they landed build-side with
+  no logged decision), ruled when the check and control-plane documents are reconciled — this line
+  describes the build and sanctions nothing.
 
 ### Execution mapping
 
@@ -199,10 +215,14 @@ than assuming — because the operator must understand an issue to choose its di
 - **PR-body completeness** is a check that the [control-plane](../infrastructure/control-plane.md)
   PR contract's sections are present and non-empty; structure and presence are `hard`, truthfulness is
   posture.
-- **The contract anti-choice and the close findings-disposition summary are presence checks** — the
-  [contracts](../surfaces/contracts.md) template requires a substantive anti-choice, and the
-  [close](../lifecycle/close.md) ritual requires a disposition for every finding raised. Presence
-  is `hard-fail`; genuineness stays posture, per the [policies](../surfaces/policies.md).
+- **The contract anti-choice is a presence check; the close findings-disposition duty is a `Stop`-hook
+  block.** The [contracts](../surfaces/contracts.md) template requires a substantive anti-choice,
+  enforced by a `hard` presence rule. The [close](../lifecycle/close.md) ritual's
+  every-finding-needs-a-disposition duty is realized not as a static check but as close's `Stop` hook —
+  a hard block on any undispositioned finding — because the disposition record is ephemeral and
+  off-repo by the close design, so no committed artifact exists for a presence rule to target; the
+  realization is stronger than a presence check, not weaker. Genuineness stays posture either way, per
+  the [policies](../surfaces/policies.md).
 - **First-run reference-closure** is a `custom/script` check that no file *surviving* first-run retirement
   statically references a retired first-run asset — the
   [provisioning](../infrastructure/provisioning.md) *travel-safety* invariant, its
@@ -217,8 +237,10 @@ than assuming — because the operator must understand an issue to choose its di
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| Runs identically as a library locally and in CI — in both it executes inside the engine [tool-runtime](../infrastructure/repository-topology.md); the CI job materializes that runtime first (`astral-sh/setup-uv` pinned to a commit SHA, then group-scoped `uv sync`, per the [control-plane](../infrastructure/control-plane.md) CI harness) before invoking the dispatcher. Only the trigger context changes whether a `hard` result nudges or blocks ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| The validator owns no rule and no suite roster; both are data it reads, so the foundation stays small as the rule set grows. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| Runs identically as a library locally and in CI — in both it executes inside the engine [tool-runtime](../infrastructure/repository-topology.md); the CI job materializes that runtime first (`astral-sh/setup-uv` pinned to a commit SHA, then `uv sync --frozen`, whose group selection rides the committed default-groups list the module set derives — guarded by the `uv-group-drift` check — per the [control-plane](../infrastructure/control-plane.md) CI harness) before invoking the dispatcher. Only the trigger context changes whether a `hard` result nudges or blocks ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md)). | Observe that full and touched-file runs ride the one dispatch path, with only the suite's context deciding block-vs-nudge, and that the CI job materializes the runtime before invoking it; unit tests exercise pieces, but no named check asserts the full local/CI-parity claim. | operator |
+| A malformed structured file fails loud rather than misleading the AI, consistent with the state foundation's halt-on-malformed posture. | Observe the halt-on-malformed posture in a local run. Partial support: the schema kind's negative fixture proves it bites (on a schema violation, not an unparseable file), and unit tests cover the malformed-input fail-closed paths; no production check asserts the malformed case end to end. | operator |
+| The validator owns no rule and no suite roster; both are data it reads, so the foundation stays small as the rule set grows. | Observe that rules are data files and suites thin declarations the dispatcher loads — adding a check adds a file, the validator untouched; a structural property with no dedicated gate. | operator |
