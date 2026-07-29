@@ -29,12 +29,5 @@
 # scanner then has to defend. The lowercase entry in test_unresolved_conversation_notice.py is
 # the same benign kind: a token used as test data in a banned-word list, not a citation.
 
-.engine/contracts/eADR-0037-upgrade-overwrite-disclosure.md	D-268	1
-.engine/pyproject.toml	D-090	1
-.engine/pyproject.toml	D-156	1
-.engine/pyproject.toml	D-158	1
-.engine/tools/boot.py	D-309	3
-.engine/tools/hooks.py	D-309	1
-.engine/tools/test_boot.py	D-309	1
 .engine/tools/test_contract.py	ADR-0001	1
 .engine/tools/test_unresolved_conversation_notice.py	d-134	1
