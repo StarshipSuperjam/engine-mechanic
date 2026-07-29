@@ -54,9 +54,10 @@ catalog references templates; it never catalogues them.
 
 ### Section structure is the control; length only nudges
 
-- **Section structure** is the primary control. Where a surface is governance-critical, a missing
-  required section is a `hard` finding (a contract without its Decision section is not a contract); for
-  lighter surfaces the same rule is `soft`. Each rule declares its [enforcement tier](../grammar/ontology.md).
+- **Section structure** is the primary control. A missing required section is a finding at the rule's
+  declared [enforcement tier](../grammar/ontology.md) — a contract without its Decision section is not
+  a contract. At the pin every shipped shape rule declares `hard`; a lighter surface *may* declare
+  `soft`, a capability the tier field carries though no shipped rule currently uses it.
 - **Length is a `soft` budget, never a hard cap.** An over-budget surface emits a `soft` finding that
   nudges locally and, through the report-only audit-prep suite, is promoted to a tracked engine issue —
   the [telemetry](telemetry.md) feed. It never refuses a write. (No direct length intake into the

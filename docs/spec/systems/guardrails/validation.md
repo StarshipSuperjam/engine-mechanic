@@ -93,11 +93,10 @@ member. This is a **system-local invariant**, not a numbered principle: it *inst
   deliver.
 - **Three bounded carve-out classes, each keyed to a named property — never an open category.** As
   built the meta-check admits: (1) a check with **no statically-decidable failure path in the CI
-  environment**, resolving to a **disclosed not-applicable** in the `ci_author_exempt` disclosed-no-op
-  grammar rather than a silent skip — the first-run reference-closure check's *computed-path* leg
-  (best-effort by its own definition, below) and its no-op-after-retirement state, and a
-  `ci_author_exempt` rule's exempt-author verdict, are proven at construction where their failure path
-  exists, never by a synthetic bad asset shipped into a generated repo ([§4](../../../principles.md));
+  environment**, declared by a `not-applicable.json` disclosure file in the check's own fixture
+  directory carrying that named property, and resolving to the engine's collapsible **disclosed
+  not-applicable** result rather than a silent skip — a distinct mechanism from the CI applicability
+  boundaries below, which emit a plain finding naming why a rule does not bind;
   (2) a **construction-scoped** check with no reachable failure path outside the construction
   repository, honored only in non-home repos and rendered as a plain `soft` finding (admitted by build
   decision, engine-template#512); and (3) a check whose **aimed bite is witnessable only with a live
