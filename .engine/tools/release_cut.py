@@ -4,10 +4,11 @@
 
 The engine and every module carry a version (`.engine/engine.json` `engine_release` + the
 `packages` map; each `.engine/modules/<id>/manifest.json` `version`). The module manager
-*consumes* a published release (fetch + overlay + migrate); nothing yet *produces* one — this tool
-is that missing half: it decides the next version from what changed since the last release, and it
+*consumes* a published release (fetch + overlay + migrate); this tool *produces* one:
+it decides the next version from what changed since the last release, and it
 records the chosen versions into the manifests. It does NOT tag, open a PR, or publish a Release —
-that GitHub-facing plumbing is later slices; this is the version-decision core they drive.
+that GitHub-facing plumbing lives in the terminal cut (`release_terminal.py`, driven by
+`release-publish.yml`); this is the version-decision core it builds on.
 
 Two subcommands, split so consent attaches to a proposal the writer cannot silently drift from:
 
@@ -22,7 +23,7 @@ Two subcommands, split so consent attaches to a proposal the writer cannot silen
                * where a contract/seam/interface/wiring surface changed, an AI-authored plain-language
                  IMPACT statement, with the break/no-break behavioral demonstration marked present
                  (a correlate exists) or "no correlate — release consciously sub-bar, named" (the
-                 legible gate path; the acceptance-benchmark instrument is not built yet,
+                 legible gate path; no acceptance-benchmark instrument is available,
                  and its absence is stated, never faked).
              It writes nothing.
 
@@ -456,37 +457,55 @@ def _max_level(a: str, b: str) -> str:
     return a if order[a] >= order[b] else b
 
 
-def _migration_accumulation_violations(was: dict, present: dict) -> list:
-    """Every migration a RETAINED module shipped in the previous release but the candidate no longer declares —
-    a dropped migration version-key. Upgrades replay migrations by version RANGE (`module_manager.select_migrations`
-    runs each key where from < ver <= target), so a key silently removed from a manifest is SKIPPED on a
-    multi-version jump, never run — the #599 silent-skip class, at the migration layer. Keys are compared on
-    NORMALIZED version tuples (`validate._ver_tuple`), so a re-key ('0.4' -> '0.4.0', equal as versions) is not a
-    false drop. A whole REMOVED module is NOT checked here — it is inventoried as a removed capability, and its
-    still-unrun migrations for a lagging upgrader are a KNOWN BOUND handled with the min-upgradeable-from floor.
-    The sanctioned way to retire a transform is to KEEP its key with a no-op `run`, never to delete the key.
+def _norm_ver(v):
+    """The length-normalized version key both accumulation guards compare on. Delegates to
+    module_manager._ver_key — the single normalizer the upgrade selectors also use, so the guards and the
+    selectors can never drift on the 2-vs-3-part boundary; see _ver_key for why the normalization is load-bearing."""
+    return module_manager._ver_key(v)
+
+
+def _accumulation_violations(was: dict, present: dict, block: str, message) -> list:
+    """Every version-key a RETAINED module shipped in the previous release but the candidate no longer declares,
+    for the named version-keyed `block` (`migrations` or `retired_capabilities`). Both are replayed by version
+    RANGE at upgrade (from < ver <= target), so a key silently removed from a manifest is SKIPPED on a
+    multi-version jump — the #599 silent-skip class. Keys are compared on NORMALIZED tuples (`_norm_ver`). A
+    whole REMOVED module is NOT checked here — its still-unseen entries for a lagging upgrader are a KNOWN BOUND
+    handled with the min-upgradeable-from floor. `message(mid, ver)` builds the block-specific refusal line.
 
     Coverage assumes a POPULATED baseline: a missing baseline tree fails closed upstream (classify raises), but a
     baseline that resolves yet carries no module manifests compares against an empty set and finds no drop — loud
     in practice (every present module then reads as newly Added and forces a major floor), so the residual gap is
     low, but the hard fail-closed guarantee is only at the no-tree level."""
-    def _norm(v):
-        # Compare on a length-normalized version tuple so a re-key ('0.4' -> '0.4.0', equal as versions but a
-        # 2- vs 3-tuple) is not read as a drop. Keys are conventionally MAJOR.MINOR.PATCH but NOT schema-enforced
-        # (the migrations schema constrains only the value, not the key), so this normalization is load-bearing.
-        t = validate._ver_tuple(v)
-        return t + (0,) * (3 - len(t)) if len(t) < 3 else t
     out = []
     for mid, man in present.items():
         old = was.get(mid)
         if not old:
             continue
-        new_keys = {_norm(k) for k in (man.get("migrations") or {})}
-        for ver in sorted((old.get("migrations") or {}), key=validate._ver_tuple):
-            if _norm(ver) not in new_keys:
-                out.append(f"the '{mid}' capability dropped the upgrade step for version {ver} that the last "
-                           f"release shipped; an engine updating across this version would skip it")
+        new_keys = {_norm_ver(k) for k in (man.get(block) or {})}
+        for ver in sorted((old.get(block) or {}), key=validate._ver_tuple):
+            if _norm_ver(ver) not in new_keys:
+                out.append(message(mid, ver))
     return out
+
+
+def _migration_accumulation_violations(was: dict, present: dict) -> list:
+    """Dropped migration version-keys on retained modules. The sanctioned way to retire a transform is to KEEP
+    its key with a no-op `run`, never to delete the key — so a drop is always a defect the cut refuses."""
+    return _accumulation_violations(
+        was, present, "migrations",
+        lambda mid, ver: (f"the '{mid}' capability dropped the upgrade step for version {ver} that the last "
+                          f"release shipped; an engine updating across this version would skip it"))
+
+
+def _retired_capabilities_accumulation_violations(was: dict, present: dict) -> list:
+    """Dropped retired-capability version-keys on retained modules. Unlike a migration there is NO no-op form to
+    retire the announcement to: the key must persist for the life of the module, or a lagging upgrader crossing
+    that version silently never sees the notice. So the recovery is simply — never drop the key."""
+    return _accumulation_violations(
+        was, present, "retired_capabilities",
+        lambda mid, ver: (f"the '{mid}' capability dropped its retired-capability notice for version {ver} that "
+                          f"the last release shipped; an engine updating across this version would never see it "
+                          f"— restore the key (a retirement notice has no no-op form, so it must never be dropped)"))
 
 
 def classify(baseline: Baseline, baseline_tree: str | None) -> dict:
@@ -543,6 +562,22 @@ def classify(baseline: Baseline, baseline_tree: str | None) -> dict:
             keys = ", ".join(sorted(new_migs - old_migs))
             inventory.append(f"'{mid}' gained a data/config migration ({keys}).")
             package_floor[mid] = _bump_at_least(man.get("version", "0.0.0"), "minor")
+        # A newly-announced retired capability floors its module minor too — it is an operator-visible removal.
+        # This RAISES the floor; it never certifies severity: a breaking removal must still carry its own
+        # major/impact signal (a whole-module removal already floors major above). Combine with any migration
+        # floor by taking the higher version so a second writer never clobbers the first. TODAY both compute the
+        # SAME minor bump of this manifest's version, so the max is a formality — but structuring it as a combine
+        # (not a bare re-assign) keeps the floor correct the day one side gains a different bump level, instead of
+        # silently clobbering it (design-review).
+        new_rets = set((man.get("retired_capabilities") or {}).keys())
+        old_rets = set((old.get("retired_capabilities") or {}).keys())
+        if new_rets - old_rets:
+            keys = ", ".join(sorted(new_rets - old_rets))
+            inventory.append(f"'{mid}' announced a retired capability ({keys}).")
+            floor = _bump_at_least(man.get("version", "0.0.0"), "minor")
+            prior = package_floor.get(mid)
+            package_floor[mid] = (floor if not prior
+                                  or validate._ver_tuple(floor) >= validate._ver_tuple(prior) else prior)
 
     # contract / seam / interface / wiring changes carry an AI-authored impact statement
     impacts = _impact_statements(baseline_tree)
@@ -573,6 +608,10 @@ def classify(baseline: Baseline, baseline_tree: str | None) -> dict:
         # A dropped migration key on a retained module — the cut is refused on this, before apply writes (see
         # _cmd_propose). Empty on a clean diff; a stable field of the diff proposal so the refusal is legible.
         "migration_violations": _migration_accumulation_violations(was, present),
+        # A dropped retired-capability key — same range-skip class as a dropped migration, but the notice, not a
+        # transform, is what silently vanishes for a lagging upgrader. Its own field + its own refusal message,
+        # because the recovery differs: a retirement has no no-op form, so the only recourse is to never drop it.
+        "retired_capability_violations": _retired_capabilities_accumulation_violations(was, present),
     }
 
 
@@ -616,7 +655,7 @@ def _impact_statements(baseline_tree: str) -> list[dict]:
     live tree, an AI-authored plain-language impact statement (what changed · a note that consumers
     depend on it · why that reads breaking-or-additive), plus the behavioral-correlate marking. The
     break/no-break demonstration runs "where a behavioral correlate exists"; with
-    no acceptance-benchmark instrument built, none is available, so the marking is honest, not faked."""
+    no acceptance-benchmark instrument available, the marking is honest, not faked."""
     out: list[dict] = []
     for sub in _CONTRACT_GLOBS:
         live_dir = os.path.join(validate.ROOT, sub)
@@ -642,8 +681,8 @@ def _impact_statements(baseline_tree: str) -> list[dict]:
                 "what": what,
                 "why": why,
                 "floor_level": level,
-                "behavioral_demo": "none — no behavioral correlate is available (the acceptance-benchmark "
-                                   "instrument is not built), so this rests on the impact statement and your "
+                "behavioral_demo": "none — no behavioral correlate is available for this signal, so this rests "
+                                   "on the impact statement and your "
                                    "confirmation; the release is consciously sub-bar on this signal, named here.",
             })
     return out
@@ -703,9 +742,12 @@ def _schema_ok(instance, schema_path: str) -> list[str]:
 
 
 def apply(engine_ver: str, all_ver: str | None, packages: dict, proposal: dict | None,
-          dry_run: bool) -> dict:
+          dry_run: bool, min_upgradeable_from: str | None = None) -> dict:
     """Record the chosen versions atomically. Returns a result dict (applied/refused + the proposed-vs-
-    applied record for traceability). Writes nothing on a raise-only violation or a validation failure."""
+    applied record for traceability). Writes nothing on a raise-only violation or a validation failure.
+    `min_upgradeable_from` (optional) records the clean-upgrade floor into engine.json; a malformed value is
+    refused fail-loud at the door (below), never persisted. When None, any prior floor is carried forward
+    unchanged (engine.json is copied byte-preserved)."""
     present = _present_modules()
     engine = module_coherence.load_engine_manifest()
     if engine is None:
@@ -731,6 +773,9 @@ def apply(engine_ver: str, all_ver: str | None, packages: dict, proposal: dict |
     for mid, ver in targets.items():
         if not _valid_version(ver):
             bad_fmt.append(f"package '{mid}' version '{ver}' is not a valid version (expected like 1.2.0)")
+    if min_upgradeable_from is not None and not _valid_version(min_upgradeable_from):
+        bad_fmt.append(f"minimum-upgradeable-from '{min_upgradeable_from}' is not a valid version "
+                       f"(expected like 0.3.2) — a malformed floor would silently disable the upgrade guard")
     if bad_fmt:
         return {"applied": False, "reason": "invalid-version", "violations": bad_fmt,
                 "recovery": "use dotted-number versions, optionally with a -prerelease suffix (1.2.0, 1.0.0-rc1)."}
@@ -784,6 +829,8 @@ def apply(engine_ver: str, all_ver: str | None, packages: dict, proposal: dict |
             if mid in pkgs:
                 pkgs[mid] = ver
         new_engine["packages"] = pkgs
+        if min_upgradeable_from is not None:               # record/refresh the clean-upgrade floor when given;
+            new_engine["min_upgradeable_from"] = min_upgradeable_from   # else the dict copy carries any prior one
         errors += [f"engine.json: {m}" for m in _schema_ok(new_engine, ENGINE_SCHEMA)]
 
         # each CHANGED module manifest — mutate version only; unchanged capabilities are left untouched
@@ -1022,8 +1069,8 @@ def render_release_notes(tag: str, proposal: dict | None = None, gate_state: str
 # --------------------------------------------------------------------------- release-PR body (legibility)
 def _gate_path_line(state: str, product: bool = False) -> str:
     """The legible gate-path line: the three release-readiness states must read as VISIBLY DISTINCT, never
-    alike. Only `sub-bar` is reachable today — no acceptance-benchmark instrument is built, so nothing measures
-    a release — but `passed`/`errored` are rendered here structurally so a future benchmark reads legibly
+    alike. Only `sub-bar` is reachable — no acceptance-benchmark instrument measures a release — but
+    `passed`/`errored` are rendered here structurally so a benchmark reads legibly
     rather than as a retrofit (the standing legibility invariant, not a one-of-three accident). `product` swaps
     the subject to 'this release' for a deployed repo's product cut (the sub-bar text is already neutral)."""
     subject = "this release" if product else "the engine"
@@ -1249,7 +1296,7 @@ def render_pr_body(proposal: dict, applied: dict, gate_state: str = "sub-bar") -
         "these are the only files this pull request changes.")
 
     out += pr_section(
-        "Claude involvement",
+        "AI involvement",
         "The engine's release workflow prepared this; the version choice and the decision to publish are yours.",
         [("- It computed the version, recorded it into product-version.json, and opened this for your review."
           if product else
@@ -1305,16 +1352,24 @@ def _cmd_propose(args) -> int:
     proposal["merged_prs"] = ([] if args.baseline_tree
                               else merged_pr_titles(baseline.ref, _current_sha()))
     print(json.dumps(proposal, indent=2) if args.json else _render_proposal(proposal))
-    # A dropped migration key would be silently skipped on a multi-version upgrade (the #599 class at the
-    # migration layer) — REFUSE the cut here, before `apply` writes anything. `propose` runs under
-    # `set -euo pipefail` in release.yml, so this non-zero exit fails the release job at this step; apply and
-    # pr-body never run, so there is no PR body to carry the fact — the refusal message is the whole surface.
-    if proposal.get("migration_violations"):
-        _print_refusal({"reason": "an upgrade step was dropped", "violations": proposal["migration_violations"],
-                        "recovery": "nothing was written and no release was opened. Restore each dropped upgrade "
-                                    "step to the capability's settings file; to retire a step, keep its version "
-                                    "key and make its action do nothing — never delete the key, or engines that "
-                                    "have not yet run it will skip it forever."})
+    # A dropped migration key OR a dropped retired-capability notice would be silently skipped on a multi-version
+    # upgrade (the #599 class) — REFUSE the cut here, before `apply` writes anything. Both are reported together in
+    # ONE refusal so a maintainer fixing one isn't ambushed by the other on a re-run (design-review). `propose`
+    # runs under `set -euo pipefail` in release.yml, so this non-zero exit fails the release job at this step;
+    # apply and pr-body never run, so there is no PR body to carry the fact — the refusal message is the whole
+    # surface. The recovery differs by kind: a migration has a no-op escape hatch, a retirement notice does not.
+    mig_viol = proposal.get("migration_violations") or []
+    ret_viol = proposal.get("retired_capability_violations") or []
+    if mig_viol or ret_viol:
+        recovery = ["nothing was written and no release was opened."]
+        if mig_viol:
+            recovery.append("Restore each dropped upgrade step to the capability's settings file; to retire a "
+                            "step, keep its version key and make its action do nothing — never delete the key.")
+        if ret_viol:
+            recovery.append("Restore each dropped retired-capability notice by keeping its version key — a "
+                            "retirement notice has no no-op form, so it must never be dropped.")
+        _print_refusal({"reason": "a version-keyed upgrade record was dropped",
+                        "violations": mig_viol + ret_viol, "recovery": " ".join(recovery)})
         return 2
     return 0
 
@@ -1362,7 +1417,8 @@ def _cmd_apply(args) -> int:
                       f"proposal written by `propose --json`.", file=sys.stderr)
                 return 2
             proposal = validate.load_json(args.proposal)
-        result = apply(args.engine, getattr(args, "all"), packages, proposal, args.dry_run)
+        result = apply(args.engine, getattr(args, "all"), packages, proposal, args.dry_run,
+                       min_upgradeable_from=getattr(args, "min_upgradeable_from", None))
     ok = bool(result.get("applied")) or result.get("reason") == "dry-run"
     if args.json:
         print(json.dumps(result, indent=2))
@@ -1395,14 +1451,17 @@ def main(argv: list) -> int:
     pa.add_argument("--all", help="set every present package to this version (the first-cut / uniform case)")
     pa.add_argument("--package", action="append", help="id=version override for one package (repeatable)")
     pa.add_argument("--proposal", help="a proposal JSON from `propose` to enforce the confirmed floor against")
+    pa.add_argument("--min-upgradeable-from", dest="min_upgradeable_from",
+                    help="record the oldest engine release with a clean one-run upgrade path to this release "
+                         "(for example 0.3.2) into engine.json; omit to carry any prior floor forward unchanged")
     pa.add_argument("--dry-run", action="store_true", help="compute + validate but write nothing")
     pa.add_argument("--json", action="store_true")
     pb = sub.add_parser("pr-body", help="render the release pull-request body from a proposal + apply-result")
     pb.add_argument("--proposal", required=True, help="the proposal JSON written by `propose --json`")
     pb.add_argument("--applied", required=True, help="the result JSON written by `apply --json`")
     pb.add_argument("--gate-state", default="sub-bar", choices=["passed", "sub-bar", "errored"],
-                    help="the acceptance-benchmark outcome to render (only 'sub-bar' is reachable until the "
-                         "benchmark is built)")
+                    help="the acceptance-benchmark outcome to render (only 'sub-bar' is reachable while no "
+                         "benchmark measures a release)")
     args = ap.parse_args(argv)
     try:
         if args.cmd == "propose":

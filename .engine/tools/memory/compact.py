@@ -45,13 +45,17 @@ migration-revert is SURFACED through boot's open-findings via the generation sta
 the restore round-trip's resurrection guard (`restore_vault.surface_resurrection`), which declines an
 older-generation restore and surfaces it rather than silently resurrecting erased records.)
 
-**The live AUTO-trigger.** `maybe_compact` gates `compact` on `reclaimable_waste` — the count of
-foldable markers (reinforcement + CLOSED-batch supersessions) — reaching `_COMPACT_WASTE_THRESHOLD`, and rides
-memory's `PreCompact` hook: the "tolerable moment, never the hot path" the design names for the expensive step.
-Until the young ledger accumulates that much waste the gate SKIPS, so nothing is rewritten; when
-it fires it is still the Layer-1 no-op-shaped tidy (recall content byte-preserved, only non-recall markers folded).
-The reinforcement markers it folds come from recall; the closed-batch supersessions from the live
-roll-up sweep. `should_compact` / `reclaimable_waste` are pure lock-free reads (the gate never writes).
+**The live AUTO-trigger.** `maybe_compact` rides memory's `PreCompact` hook — the "tolerable moment, never the
+hot path" the design names for the expensive step — and fires `compact` for either of TWO reasons. The ordinary
+one is housekeeping: `reclaimable_waste` (foldable markers — reinforcement + CLOSED-batch supersessions) reaching
+`_COMPACT_WASTE_THRESHOLD`. On a ledger below that line nothing is rewritten. The other is not housekeeping at
+all: a PENDING ERASURE (`pending_erasures`) fires the pass regardless of waste, because `compact` is the sole
+executor of physical removal, so gating it behind unrelated bookkeeping would leave an erasure the operator had
+already merged waiting on a counter that has nothing to do with it. Either way the fold itself is the Layer-1
+no-op-shaped tidy (recall content byte-preserved, only non-recall markers folded) plus whatever Layer-2 removal a
+valid merge-gated marker authorises. The reinforcement markers it folds come from recall; the closed-batch
+supersessions from the live roll-up sweep. `should_compact` / `reclaimable_waste` / `pending_erasures` are pure
+lock-free reads (the gate never writes).
 
 Leaf discipline: RETURNS a small report and renders no operator-facing prose (the demo is the
 one operator surface). stdlib + the cycle-free `memory` set (ledger / records / score / forget); `capture` (the
@@ -70,15 +74,27 @@ _PARENT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
-from memory import forget, ledger, records, score  # noqa: E402
+import hooks  # noqa: E402 — the PreCompact entry point
+from memory import forget, ledger, legacy_shapes as _legacy, records  # noqa: E402
 
 _TEMP_PREFIX = ".compact-"          # the in-dir swap temp; NEVER the canonical name, so it is reapable
 _TEMP_SUFFIX = ".ndjson"
 
 
-_COMPACT_WASTE_THRESHOLD = 64   # build-spec leaf (uncalibrated, recorded): the auto-trigger compacts only once
-#                                 this many foldable markers have piled up. Failure direction is "nothing lost"
-#                                 — a too-high value just defers a tidy; calibration is a post-v1 forward-owe.
+_COMPACT_WASTE_THRESHOLD = 64   # build-spec leaf: the auto-trigger compacts only once this many foldable markers
+#                                 have piled up. Failure direction is "nothing lost" — a too-high value just
+#                                 defers a tidy.
+#
+#                                 Left at 64, now with the cadence MEASURED rather than assumed. Making the
+#                                 conversation searchable raised how often this fires, because recall reinforces
+#                                 every record it returns and the recall workflow runs several searches per
+#                                 question: one triggered recall at the capped default (6 searches x 10 records)
+#                                 leaves the waste at 60, so the trigger comes round about every other one.
+#                                 Measured against a copy of a real 28.9 MB / 26.8 K-record store, one firing
+#                                 costs 1.8 s to fold and swap plus 1.3 s to rebuild the index. That runs from
+#                                 `consolidate`'s session-close sweep, not from anything the operator is waiting
+#                                 on, and raising the threshold would only make each firing bigger for the same
+#                                 total work — so the number stays where it is.
 
 
 class _InjectedCrash(Exception):
@@ -157,33 +173,17 @@ def _reap_temps(data_dir: str) -> int:
     return reaped
 
 
-def _fold_record(record, access_index: dict, t0: int):
-    """`record` with its reinforcement history folded into carried current-state fields, or unchanged
-    when it has nothing to fold. Only a record whose id is an access-index key — necessarily a recall-content
-    record, since only recall results are reinforced — gets a snapshot; everything else (markers, un-reinforced
-    records) is returned verbatim, its content-free id preserved either way."""
-    if not isinstance(record, dict):
-        return record
-    rid = record.get(records.RECORD_ID_KEY)
-    accesses = access_index.get(rid) if isinstance(rid, str) and rid else None
-    if not accesses:
-        return record
-    snap, last = score.mint_snapshot(record, accesses, t0)
-    folded = dict(record)
-    folded[records.FRECENCY_SNAPSHOT_KEY] = snap
-    folded[records.SNAPSHOT_TS_KEY] = t0
-    folded[records.LAST_ACCESS_TS_KEY] = last
-    folded[records.TIER_KEY] = score.tier(record, accesses, t0)   # snapshot-time tier (legibility; recomputed on read)
-    return folded
-
-
 def _fold_supersession(record, superseded_by_map: dict):
     """`record` with a CLOSED-batch gist supersession folded into its carried `superseded_by` field,
     or unchanged when nothing supersedes it. `superseded_by_map` (forget._superseded_by_map) maps a raw
     episode's id -> its gist id, built ONLY from closed-batch markers — so a raw enters it (and gets the carried
     field) only when its gist's roll-up completed. After the marker is pruned, `forget.live_records` still
-    retires the raw via this field. The content-free id and every other field are preserved; layers cleanly with
-    `_fold_record` (a superseded-AND-archived raw carries both the snapshot and the supersession)."""
+    retires the raw via this field. The content-free id and every other field are preserved.
+
+    THIS FOLD IS WHY THE PRUNE IS SAFE. Pruning a closed-batch `superseded` marker without writing this field
+    would un-hide the raw episode the marker retired, surfacing a summary beside the source it replaced. The
+    sibling fold that carried a frecency snapshot had no such duty and is gone with the scoring it fed:
+    nothing reads a per-record score any more, so those markers are pruned outright."""
     if not isinstance(record, dict):
         return record
     rid = record.get(records.RECORD_ID_KEY)
@@ -195,7 +195,7 @@ def _fold_supersession(record, superseded_by_map: dict):
     return folded
 
 
-def _write_compacted_temp(data_dir: str, raw_records, access_index: dict, t0: int,
+def _write_compacted_temp(data_dir: str, raw_records,
                           closed_rollup: set, superseded_by_map: dict, erasure_targets: set,
                           torn_raw: "bytes | None" = None) -> str:
     """Write the folded, marker-pruned ledger to a fresh temp in `data_dir`, fsynced. Drops ONLY `reinforcement`
@@ -218,8 +218,7 @@ def _write_compacted_temp(data_dir: str, raw_records, access_index: dict, t0: in
                 continue  # reinforcement / closed-batch supersession: folded into carried fields, then pruned
             if _is_erased(record, erasure_targets):
                 continue  # Layer-2: a valid merge-gated erasure marker targets this record -> physically removed
-            folded = _fold_record(record, access_index, t0)
-            folded = _fold_supersession(folded, superseded_by_map)
+            folded = _fold_supersession(record, superseded_by_map)
             line = json.dumps(folded, ensure_ascii=False, separators=(",", ":")) + "\n"
             os.write(fd, line.encode("utf-8"))
         if torn_raw:
@@ -276,17 +275,14 @@ def compact(path: "str | None" = None, *, now: "int | None" = None, _crash_after
         # erasing recoverable recall with erased:0. `records` is byte-identical to the old iter_records list here.
         health = ledger.read(path=target)
         raw = health.records
-        access_index = forget._access_index(target)
         closed_rollup = forget._closed_rollup_batches(target)          # roll-up batches a marker closed
         superseded_by_map = forget._superseded_by_map(target, closed_rollup)   # raw id -> gist id (closed batches only)
         erasure_targets = _erasure_targets(raw)        # ids a VALID merge-gated marker authorises removing
         pruned = sum(1 for r in raw if _is_foldable(r, closed_rollup))
         erased = sum(1 for r in raw if _is_erased(r, erasure_targets))   # recall content physically removed (Layer-2)
         folded = sum(1 for r in raw if isinstance(r, dict)
-                     and isinstance(r.get(records.RECORD_ID_KEY), str)
-                     and (access_index.get(r.get(records.RECORD_ID_KEY))
-                          or r.get(records.RECORD_ID_KEY) in superseded_by_map))
-        tmp = _write_compacted_temp(data_dir, raw, access_index, t0, closed_rollup, superseded_by_map,
+                     and r.get(records.RECORD_ID_KEY) in superseded_by_map)
+        tmp = _write_compacted_temp(data_dir, raw, closed_rollup, superseded_by_map,
                                     erasure_targets, torn_raw=health.torn_raw)
         if _crash_after == "write":
             raise _InjectedCrash("write")              # power-cut: temp left, OLD ledger intact, gen unbumped
@@ -327,6 +323,62 @@ def reclaimable_waste(path: "str | None" = None) -> int:
     return sum(1 for r in ledger.iter_records(path=target) if _is_foldable(r, closed_rollup))
 
 
+def _gate_counts(path: "str | None" = None) -> tuple:
+    """Both gate signals from ONE traversal: `(reclaimable_waste, pending_erasures)`. `maybe_compact` needs both
+    on every PreCompact, and each answer is a full O(ledger) read — computing them separately read a 29 MB file
+    twice for numbers one pass already has in hand, on a hook whose whole justification is that it is cheap.
+    LOCK-FREE, never writes. The closed-rollup derivation stays its own pass: the fold predicate needs the whole
+    set before it can classify any record."""
+    target = path if path is not None else ledger.ledger_path()
+    closed_rollup = forget._closed_rollup_batches(target)
+    waste = 0
+    wanted: set = set()
+    present: set = set()
+    for r in ledger.iter_records(path=target):
+        if _is_foldable(r, closed_rollup):
+            waste += 1
+        if not isinstance(r, dict):
+            continue
+        if _is_erasure_marker(r):
+            tid = r.get(records.TARGET_KEY)
+            if isinstance(tid, str) and tid:
+                wanted.add(tid)
+            continue                       # a marker is never removable, so it is never "present" to erase
+        rid = r.get(records.RECORD_ID_KEY)
+        if isinstance(rid, str) and rid:
+            present.add(rid)
+    return waste, len(wanted & present)
+
+
+def pending_erasures(path: "str | None" = None) -> int:
+    """How many merge-authorised erasures are still WAITING to be carried out — valid `operator-adjudicated-erasure`
+    markers whose target record is still resident in the ledger. A LOCK-FREE read (one O(ledger) pass), never writes.
+
+    Counting "target still present" and not "marker present" is what keeps this from firing forever: `compact`
+    removes the target but RETAINS the marker as an idempotency tombstone, so an already-enacted erasure leaves a
+    marker whose target is gone, and this correctly reports nothing pending.
+
+    "Present" mirrors what `compact` can actually REMOVE, which is why erasure markers are excluded from it:
+    `_is_erased` refuses to remove a marker (that is what makes the tombstone durable), so a marker naming
+    another marker's id would otherwise read as pending forever and rewrite the whole ledger on every pass. The
+    counter's notion of resident must be the executor's notion of removable, or the gate cannot terminate."""
+    target = path if path is not None else ledger.ledger_path()
+    wanted: set = set()
+    present: set = set()
+    for r in ledger.iter_records(path=target):
+        if not isinstance(r, dict):
+            continue
+        if _is_erasure_marker(r):
+            tid = r.get(records.TARGET_KEY)
+            if isinstance(tid, str) and tid:
+                wanted.add(tid)
+            continue                       # a marker is never removable, so it is never "present" to erase
+        rid = r.get(records.RECORD_ID_KEY)
+        if isinstance(rid, str) and rid:
+            present.add(rid)
+    return len(wanted & present)
+
+
 def should_compact(path: "str | None" = None) -> bool:
     """True once the reclaimable waste reaches `_COMPACT_WASTE_THRESHOLD` — the gate that keeps the auto-trigger
     off a clean / low-waste ledger (else every `PreCompact` would rewrite a byte-identical ledger and rebuild the
@@ -337,7 +389,18 @@ def should_compact(path: "str | None" = None) -> bool:
 def maybe_compact(path: "str | None" = None) -> dict:
     """The auto-trigger memory's `PreCompact` hook rides: compact ONLY when enough waste has piled up, else a
     clean no-op. FAIL-OPEN by construction — it NEVER raises (any fault degrades to a skipped report so the host
-    action, the context squash, always proceeds) and NEVER erases (it calls only the Layer-1-only `compact`).
+    action, the context squash, always proceeds).
+
+    It DOES carry out erasure: `compact` is the sole executor of physical removal (`_erasure_targets` /
+    `_is_erased`), so every fire enacts whatever erasures already have a valid merge-gated marker. Consent is
+    untouched by that — a marker exists only because the operator merged an `engine-erasure` pull request, and
+    nothing here can mint one — but the TIMING is not this function's to choose on the operator's behalf.
+
+    So a pending erasure fires the pass on its OWN account, ahead of the waste gate. Otherwise the answer to
+    "when does the deletion actually happen?" would be "once roughly `_COMPACT_WASTE_THRESHOLD` units of
+    unrelated bookkeeping happen to pile up" — an unbounded wait after the operator merged, with nothing
+    surfacing that it had not happened yet. Consent honoured but not executed is its own defect, and it is the
+    same reason `reap_orphaned_migration` below runs ahead of the gate.
     Returns the `compact` report on a fire, or `{"status": "skipped", ...}` when the gate holds it off or a fault
     is swallowed."""
     try:
@@ -348,10 +411,21 @@ def maybe_compact(path: "str | None" = None) -> dict:
         from memory import capture
         target = path if path is not None else ledger.ledger_path()
         capture.reap_orphaned_migration(os.path.dirname(target) or ".")
-        waste = reclaimable_waste(path)
+        waste, pending = _gate_counts(path)     # both signals, one read of the ledger
+        if pending:
+            # Say WHY it fired. Physical erasure is the one act here that cannot be undone, and without this
+            # the report is indistinguishable from routine housekeeping — a caller (or a later reader of a
+            # log) could not tell a tidy from a deletion having just been carried out.
+            report = compact(path)
+            if isinstance(report, dict):
+                report["fired_for"] = "a merged erasure was waiting"
+            return report
         if waste < _COMPACT_WASTE_THRESHOLD:
             return {"status": "skipped", "reason": "below the compaction threshold", "waste": waste}
-        return compact(path)
+        report = compact(path)
+        if isinstance(report, dict):
+            report["fired_for"] = "reclaimable bookkeeping had built up"
+        return report
     except Exception as exc:   # fail-open: a maintenance fault must never strand the squash the hook rides
         return {"status": "skipped", "reason": f"compaction faulted, skipped: {exc}", "waste": -1}
 
@@ -369,7 +443,7 @@ def enact_erasure(target_id: str, merge_sha: str, *, path: "str | None" = None, 
     Returns the appended marker dict, or None on a no-op. APPENDS ONLY; never deletes or rewrites — the physical
     removal is `compact`'s, gated on this marker. A blank target OR a blank merge SHA is a no-op (the
     consent-provenance floor: no merge identity, no marker). Held under the shared single-writer `.capture.lock`
-    (like `forget.record_access`): on contention it is a clean no-op (the observer re-mints next session — the
+    on contention it is a clean no-op (the observer re-mints next session — the
     marker is idempotent), NEVER writing lock-free."""
     if not isinstance(target_id, str) or not target_id:
         return None
@@ -416,7 +490,8 @@ _DEMO_KEEP2_TEXT = "Decided the ferry timetable moves to a 20-minute cadence in 
 _DEMO_USED_TIMES = 4              # how many "used it" notes pile up behind the kept note
 _DEMO_SET_ASIDE_TEXT = "Lesson: the old gantry crane jammed below freezing — never run it under 0C."
 _DEMO_SET_ASIDE_WORD = "gantry"
-_DEMO_SET_ASIDE_AGE_DAYS = 40    # untouched this long -> set aside (hidden from search), but never deleted
+_DEMO_SET_ASIDE_SUMMARY = "Summary: cold-weather rules for the yard machinery."
+_DEMO_SET_ASIDE_AGE_DAYS = 40    # old enough to be worth folding into a summary; age alone never hides a note
 _DEMO_DUP_TEXT = "Decided the festival route skips the drawbridge this year."
 _DEMO_DUP_WORD = "festival"
 _DEMO_DAY = 86400
@@ -455,12 +530,6 @@ def _in_cabinet(record_id: str) -> int:
     return sum(1 for r in _all_records() if r.get(records.RECORD_ID_KEY) == record_id)
 
 
-def _freshness(record: dict) -> str:
-    """The plain-language freshness of `record`, scored against its real (post-tidy) state + the real clock."""
-    accesses = forget._access_index(_ledger_path()).get(record.get(records.RECORD_ID_KEY), ())
-    return forget._FRESHNESS[score.tier(record, accesses)]
-
-
 def _scratch_copies(data_dir: str) -> int:
     try:
         return sum(1 for n in os.listdir(data_dir) if n.startswith(_TEMP_PREFIX) and n.endswith(_TEMP_SUFFIX))
@@ -479,8 +548,7 @@ def _cabinet_whole() -> "tuple[bool, int]":
 def _make_episodic(text: str, age_days: int, role: str = "decision", batchless: bool = True) -> dict:
     """A real episodic through the live factory, back-dated by `age_days`. `batchless` makes it always-live (not
     a crashed-pass orphan); pass batchless=False to leave its batch unclosed (a retired duplicate)."""
-    from memory import consolidate
-    rec = consolidate._make_episodic(_DEMO_SESSION, {"role": role, "text": text}, "demo-batch")
+    rec = _legacy.episodic(_DEMO_SESSION, role, text, "demo-batch")
     if batchless:
         rec.pop(records.BATCH_KEY, None)
     rec["ts"] = int(time.time()) - age_days * _DEMO_DAY
@@ -532,31 +600,32 @@ def _demo_body(data_dir: str) -> bool:
     keep_id = keep[records.RECORD_ID_KEY]
     ledger.append(keep)
     for _ in range(_DEMO_USED_TIMES):
-        forget.record_access(keep_id)
+        ledger.append(_legacy.reinforcement(keep_id))
     _rebuild()
     book_before = _bookkeeping_count()
-    fresh_before = _freshness(keep)
     found_before = _recall_count(_DEMO_KEEP_WORD)
-    print(f'  a note you use a lot: "{_snippet(_DEMO_KEEP_TEXT)}"')
-    print(f"  private 'used it' bookkeeping piled up behind it: {book_before}")
-    print(f'  search "{_DEMO_KEEP_WORD}" -> found {found_before}    freshness: {fresh_before}')
+    print(f'  a note from an older engine, with its private bookkeeping behind it: "{_snippet(_DEMO_KEEP_TEXT)}"')
+    print(f"  spent 'used it' entries piled up behind it: {book_before}")
+    print(f'  search "{_DEMO_KEEP_WORD}" -> found {found_before}')
     report = compact()
     book_after = _bookkeeping_count()
-    fresh_after = _freshness(keep)
     found_after = _recall_count(_DEMO_KEEP_WORD)
     print(f"  ...tidied. status: {report['status']}")
-    print(f"  private 'used it' bookkeeping now: {book_after}   (folded away — no longer cluttering the cabinet)")
-    print(f'  search "{_DEMO_KEEP_WORD}" -> found {found_after}    freshness: {fresh_after}')
+    print(f"  spent 'used it' entries now: {book_after}   (reclaimed — no longer cluttering the cabinet)")
+    print(f'  search "{_DEMO_KEEP_WORD}" -> found {found_after}')
+    # The note must come out BYTE-IDENTICAL: the tidy reclaims spent bookkeeping and carries nothing onto the
+    # record itself, so this compares the whole thing rather than a summary of it.
+    kept_after = next((r for r in ledger.iter_records() if r.get(records.RECORD_ID_KEY) == keep_id), None)
     part1 = (book_before >= _DEMO_USED_TIMES and book_after == 0 and found_after == 1
-             and fresh_after == fresh_before)
-    print(f"  => {'tidied the bookkeeping; the note and its freshness are intact.' if part1 else '!!! the note or its freshness changed'}")
+             and kept_after == keep)
+    print(f"  => {'reclaimed the bookkeeping; the note itself is untouched, byte for byte.' if part1 else '!!! the note changed or the bookkeeping was not reclaimed'}")
 
     # --- PART 2 ------------------------------------------------------------------------------------------
     print("\nPART 2 — a power-cut in the MIDDLE of the tidy never loses or corrupts your memory")
     print("-" * 88)
     ledger.append(_make_episodic(_DEMO_KEEP2_TEXT, age_days=0))      # a second real note, so 'N of N' is plural
     for _ in range(_DEMO_USED_TIMES):                  # pile the bookkeeping back up so there is something to tidy
-        forget.record_access(keep_id)
+        ledger.append(_legacy.reinforcement(keep_id))
     _rebuild()
     ids_before = _content_ids()
     print(f"  before the power-cut: {len(ids_before)} real notes in the cabinet, bookkeeping piled up again")
@@ -598,9 +667,14 @@ def _demo_body(data_dir: str) -> bool:
     # --- PART 3 ------------------------------------------------------------------------------------------
     print("\nPART 3 — nothing is erased: a set-aside note and a recovered duplicate both survive the rewrite")
     print("-" * 88)
+    # A note is set aside from search when a SUMMARY is written over it — never merely by going unused, which
+    # is why this plants a real roll-up rather than an old note. That is also the harder case for the rewrite:
+    # compaction folds the supersession onto the note and prunes the marker that recorded it, so "still hidden
+    # afterwards" is a genuine property to check rather than a restatement of the note's age.
     aside = _make_episodic(_DEMO_SET_ASIDE_TEXT, age_days=_DEMO_SET_ASIDE_AGE_DAYS, role="lesson")
     aside_id = aside[records.RECORD_ID_KEY]
     ledger.append(aside)
+    _legacy.store_gist(_DEMO_SESSION, _DEMO_SET_ASIDE_SUMMARY, [aside_id])
     dup = _make_episodic(_DEMO_DUP_TEXT, age_days=0, batchless=False)   # a crashed-pass orphan (batch never closed)
     dup_id = dup[records.RECORD_ID_KEY]
     ledger.append(dup)
@@ -612,7 +686,7 @@ def _demo_body(data_dir: str) -> bool:
     dup_in = _in_cabinet(dup_id)
     aside_hidden_after = _recall_count(_DEMO_SET_ASIDE_WORD) == 0
     dup_retired_after = dup_id not in {r.get(records.RECORD_ID_KEY) for r in forget.live_records()}
-    print(f"  a note set aside from search (unused ~{_DEMO_SET_ASIDE_AGE_DAYS} days): \"{_snippet(_DEMO_SET_ASIDE_TEXT)}\"")
+    print(f"  a note a summary was written over: \"{_snippet(_DEMO_SET_ASIDE_TEXT)}\"")
     print(f"    still in the cabinet after the rewrite: {aside_in}    still hidden from search: {'yes' if aside_hidden_after else 'NO'}")
     print(f"  a recovered duplicate (a save that didn't finish): \"{_snippet(_DEMO_DUP_TEXT)}\"")
     print(f"    still in the cabinet after the rewrite: {dup_in}    still kept out of recall: {'yes' if dup_retired_after else 'NO'}")
@@ -625,7 +699,8 @@ def _demo_body(data_dir: str) -> bool:
 
 # --- demo-trigger: WHEN the tidy fires on its own (the gate + fail-open) ----------------------------------
 # A SEPARATE walkthrough from `demo` (which proves the tidy itself is crash-safe). This one proves the GATE: the
-# tidy fires ONLY once enough private bookkeeping has piled up, leaves a clean-enough cabinet untouched, and — if
+# tidy fires when enough private bookkeeping has piled up (and, separately, whenever an erasure the operator has
+# already merged is waiting), leaves an otherwise clean-enough cabinet untouched, and — if
 # the tidy ever faults — the engine carries on and loses nothing. Dial the two pile numbers below (or the
 # threshold near the top) and watch the "skipped"/"fired" flip:
 #     uv run --directory .engine --frozen -- python tools/memory/compact.py demo-trigger
@@ -655,9 +730,9 @@ def _demo_trigger() -> int:
     print("engine just carries on — it never holds anything up. This tidy is PURELY MECHANICAL filing: no AI reads,")
     print("judges, or rewrites anything here, and none of your actual notes change — it only folds away the private")
     print("bookkeeping. (The AI-written summaries are a SEPARATE background job, the roll-up sweep; it never runs at")
-    print("this moment.) Once you merge this PR this runs automatically — at the moment your conversation's context is")
-    print("compacted — on your real sessions, in the background, with no further approval each time; that is what")
-    print("merging turns on. NOTHING is ever erased; permanently erasing")
+    print("this moment.) This runs automatically on your real sessions — at the moment your conversation's context")
+    print("is compacted — in the background, with no further approval each time. Nothing is erased by the tidying")
+    print("itself; permanently erasing")
     print("a real note is a separate step you approve by merging a pull request (and applying the `guardrail-ack`")
     print("label). Practice cabinet, thrown away. Vary it: change the two pile numbers near the top (or the")
     print("threshold) and watch the tidy flip between skipped and fired.")
@@ -674,14 +749,15 @@ def _demo_trigger_body() -> bool:
     keep_id = keep[records.RECORD_ID_KEY]
     ledger.append(keep)
     for _ in range(_DEMO_TRIGGER_BELOW):
-        forget.record_access(keep_id)
+        ledger.append(_legacy.reinforcement(keep_id))
     _rebuild()
     waste_below = reclaimable_waste()
     version_before = ledger.generation()
     ids_before = _content_ids()
     report1 = maybe_compact()                          # the REAL auto-trigger
     untouched = (ledger.generation() == version_before and _content_ids() == ids_before)
-    print(f"  private bookkeeping piled up: {waste_below}   (the tidy only fires at {_COMPACT_WASTE_THRESHOLD})")
+    print(f"  private bookkeeping piled up: {waste_below}   (that alone fires the tidy at {_COMPACT_WASTE_THRESHOLD};")
+    print("   an erasure you already approved fires it whatever the pile is)")
     print(f"  the engine's own decision: {report1['status']}   (it chose NOT to tidy)")
     print(f"  the filing cabinet is left exactly as it was (nothing rewritten): {'yes' if untouched else 'NO'}")
     part1 = report1["status"] == "skipped" and untouched
@@ -692,7 +768,7 @@ def _demo_trigger_body() -> bool:
     print("-" * 88)
     ledger.append(_make_episodic("Decided the south jetty repaint waits for calmer weather.", age_days=0))
     for _ in range(_DEMO_TRIGGER_ABOVE):               # pile MORE on top of Part 1's, well over the line
-        forget.record_access(keep_id)
+        ledger.append(_legacy.reinforcement(keep_id))
     _rebuild()
     waste_above = reclaimable_waste()
     content_before = _content_ids()
@@ -714,7 +790,7 @@ def _demo_trigger_body() -> bool:
     print("\nPART 3 — if the tidy ever hits a snag, the engine carries on and loses nothing")
     print("-" * 88)
     for _ in range(_DEMO_TRIGGER_ABOVE):               # pile the bookkeeping back up so the tidy WOULD fire
-        forget.record_access(keep_id)
+        ledger.append(_legacy.reinforcement(keep_id))
     _rebuild()
     ids_pre_fault = _content_ids()
     with mock.patch.object(sys.modules[__name__], "compact",
@@ -773,9 +849,11 @@ def _demo_erase() -> int:
     print("What this just proved: the engine can PERMANENTLY erase a note — but ONLY the one you authorised, and the")
     print("note you did not authorise is left exactly as it was. The slip that authorises an erase names the note by a")
     print("private tag, never its words. And running the tidy again changes nothing — an erase happens once and only")
-    print("once. This is the ONE thing the engine can do to your memory that cannot be undone. Soon it will happen")
-    print("ONLY because you merged a single-purpose pull request authorising exactly that note; THIS change ships that")
-    print("mechanism, alone — nothing erases on its own yet (no slip is ever created automatically until a later step).")
+    print("once. This is the ONE thing the engine can do to your memory that cannot be undone, and it happens ONLY")
+    print("because you merged a single-purpose pull request asking for exactly that note. From time to time the")
+    print("engine opens such a pull request itself, proposing notes it judges you no longer need — and once you")
+    print("merge one, the engine does write the slip and carry the erase out. What it can never do is merge:")
+    print("your merge is the whole of the authorisation, and nothing in the engine can supply it for you.")
     print("That was a PRACTICE cabinet, thrown away when the demo ended. Vary it: at the top, switch which note is")
     print("authorised (by its word) and re-run — the erase follows your choice; the note you did not authorise survives.")
     return 0 if ok else 1
@@ -848,8 +926,27 @@ def _demo_erase_body() -> bool:
     return part1 and part2 and part3 and part4
 
 
+def _pre_compact_handler(payload) -> dict:
+    """The PreCompact hook: deterministic ledger housekeeping at a tolerable moment, never on the hot path.
+
+    It rode the consolidation sweep's module until that module was deleted with the curation lifecycle, and it
+    is HERE now because it was that sweep's only surviving job — and a load-bearing one. `maybe_compact` is the
+    single production trigger for physical erasure: the cross-session observer mints an
+    `operator-adjudicated-erasure` marker when the operator merges an erasure pull request, and this is what
+    then removes the bytes. Left unwired, an approved erasure would be recorded and never carried out.
+
+    Fires regardless of accumulated waste when an erasure is pending, so an approved deletion never waits on
+    unrelated housekeeping. `maybe_compact` is fail-open and never raises; this handler ALWAYS proceeds —
+    PreCompact must never block the squash."""
+    maybe_compact()               # a pending merged erasure, or the waste gate; report dropped (a leaf renders
+                                  # no prose); fail-open
+    return hooks.proceed()
+
+
 def main(argv: list) -> int:
     cmd = argv[0] if argv else "demo"
+    if cmd == "pre-compact":
+        return hooks.run_hook("PreCompact", _pre_compact_handler)
     if cmd == "run":                                   # the manual lever: a REAL gated compaction on the real ledger
         report = maybe_compact()
         print(json.dumps(report, ensure_ascii=False))
@@ -860,7 +957,8 @@ def main(argv: list) -> int:
         return _demo_trigger()
     if cmd == "demo-erase":
         return _demo_erase()
-    print(f"usage: compact.py [run|demo|demo-trigger|demo-erase]\nunknown command {cmd!r}", file=sys.stderr)
+    print(f"usage: compact.py [pre-compact|run|demo|demo-trigger|demo-erase]\nunknown command {cmd!r}",
+          file=sys.stderr)
     return 2
 
 

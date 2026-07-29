@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memory_pointer_public_safety_check as guard  # noqa: E402
@@ -35,13 +36,13 @@ class IsConfiguredTests(unittest.TestCase):
 
 class CheckTests(unittest.TestCase):
     def setUp(self):
-        self._cons, self._txt = guard._is_construction_repo, guard._committed_pointer_text
+        self._cons, self._txt = guard._in_home_repo, guard._committed_pointer_text
 
     def tearDown(self):
-        guard._is_construction_repo, guard._committed_pointer_text = self._cons, self._txt
+        guard._in_home_repo, guard._committed_pointer_text = self._cons, self._txt
 
     def _drive(self, *, construction, committed):
-        guard._is_construction_repo = lambda: construction
+        guard._in_home_repo = lambda: construction
         guard._committed_pointer_text = lambda pointer_rel=guard.POINTER_REL: committed
         return guard.check()
 
@@ -63,6 +64,25 @@ class CheckTests(unittest.TestCase):
     def test_an_unreadable_committed_state_degrades_to_a_pass(self):
         # A backstop never false-fails a build over a condition it can't read (git absent / detached HEAD).
         self.assertIsNone(self._drive(construction=True, committed=None))
+
+
+class GateDelegatesToTheHomeRepoSeam(unittest.TestCase):
+    """The re-key (#323): the scope gate reads the shared origin==home seam (repo_identity.is_home_repo) for
+    THIS checkout, not a CLAUDE.md text marker — so promoting the root file to the deployed floor (which drops
+    the marker) can never silently disable this public-template leak guard."""
+
+    def test_gate_returns_the_seams_verdict_for_this_checkout(self):
+        seen = {}
+
+        def fake_home(root=None):
+            seen["root"] = root
+            return True
+
+        with mock.patch.object(guard.repo_identity, "is_home_repo", fake_home):
+            self.assertTrue(guard._in_home_repo())
+        self.assertEqual(seen["root"], guard.validate.ROOT, "the gate must judge THIS checkout's root")
+        with mock.patch.object(guard.repo_identity, "is_home_repo", lambda root=None: False):
+            self.assertFalse(guard._in_home_repo())
 
 
 if __name__ == "__main__":

@@ -49,6 +49,8 @@ import validate  # noqa: E402  (sibling tool; reused for finding/frontmatter/eff
 import issue_author  # noqa: E402  (the shared issue-authoring helper — assembles the body to the control-plane contract)
 import standing_situation  # noqa: E402  (the read-only "where we are" derive; telemetry refreshes its offline cache on this same GitHub pass — pure leaf, imports nothing back, so no cycle)
 import github_client  # noqa: E402  (the shared authenticated GitHub API client; request-build for the issue read/write transport)
+import moment  # noqa: E402  (the time seam — the trailing-Z wire shape; pure stdlib leaf, imports nothing back)
+import repo_identity  # noqa: E402  (resolve_default_branch — the shared default-branch resolver)
 
 # ---- constants -------------------------------------------------------------
 
@@ -169,14 +171,6 @@ class DegradedReadError(Exception):
     """Raised when GitHub cannot be read (an outage, or a 401/403/404 auth/scope/permission error).
     It is NEVER swallowed as an empty result — an auth failure that read as "no open issues" would
     silently misreport the engine's health."""
-
-
-# ---- time ------------------------------------------------------------------
-
-def utc_now() -> str:
-    """The current UTC moment in the trailing-Z shape state.v1 / finding-record.v1 enforce.
-    Lives at the IO edge (run/main), never inside the pure reconcile logic, which takes `now`."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ---- thresholds (read the governed policy; never redefine) -----------------
@@ -722,7 +716,8 @@ class GitHubIssues:
             # check name, so a re-run's fresh green supersedes a stale red of the same name — the current
             # outcome, which is what a live-derived signal reconciles against.
             status, data = self._transport(
-                "GET", f"/repos/{self.repo}/commits/{ref}/check-runs?filter=latest&per_page=100&page={page}",
+                "GET", f"/repos/{self.repo}/commits/{urllib.parse.quote(ref, safe='')}/check-runs"
+                f"?filter=latest&per_page=100&page={page}",
                 None)
             if status >= 400 or not isinstance(data, dict) or "check_runs" not in data:
                 raise DegradedReadError(f"GitHub returned {status} reading check-runs for {ref}")
@@ -802,7 +797,7 @@ def refresh_standing(state_path: str, repo: str, token: str, *, now: str | None 
     gh = GitHubIssues(repo, token, transport=transport)
     derived = standing_situation.derive_standing_situation(gh)
     standing = {"milestone": derived.get("milestone"), "phase": derived.get("phase"),
-                "as_of": now or utc_now()}
+                "as_of": now or moment.utc_now()}
     refresh_state(state_path, standing=standing)
     return standing
 
@@ -819,7 +814,7 @@ def refresh_cache(state_path: str, repo: str, token: str, *, now: str | None = N
     any other error, so the workflow never crashes (the digest still commits). `transport` is injectable so
     tests/the demo run the real derive + write offline. Returns
     {debt, standing, degraded} for the caller's plain-language report."""
-    now = now or utc_now()
+    now = now or moment.utc_now()
     gh = GitHubIssues(repo, token, transport=transport)
     debt = standing = None
     try:
@@ -1020,7 +1015,7 @@ def promote_finding(github: GitHubIssues, record: dict, now: str, *, title: str 
 # path below, beside telemetry's other .cache siblings (ambient.ndjson / *-streams.json).
 INBOX_SPOOL_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "findings-inbox.ndjson")
 # The drain driver's OWN reconcile-accrual cache — separate from streams.json / ambient-streams.json /
-# episodic-streams.json, so a sibling run() (which prunes any sid not currently an open Issue) can never
+# its own cache file, so a sibling run() (which prunes any sid not currently an open Issue) can never
 # clobber the inbox drain's cross-session persistence accrual.
 DEFAULT_INBOX_STREAMS_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "inbox-streams.json")
 
@@ -1052,8 +1047,8 @@ def emit_finding(record: dict, *, gh: "GitHubIssues | None" = None, spool_path: 
         law the fail-open copy depends on).
       - anything else (benign / degraded) → APPEND to the telemetry-owned gitignored inbox spool and return
         **False** (a spool append is capture, NOT durable tracking — the caller must not claim tracked). It is
-        promoted later by drain_inbox; until the production drain lands (#412) a benign emit is captured but
-        not yet surfaced.
+        promoted later by drain_inbox, which the SessionStart drain runs in production; a benign emit is
+        captured at emit time and surfaced when that drain promotes it.
 
     `gh` is an injectable boundary so the demo/tests fake ONLY the network; by default the trust-critical path
     resolves the LOCAL GitHub context (boot.repo_slug/gh_token) itself — the credential resolution the producer
@@ -1072,7 +1067,7 @@ def emit_finding(record: dict, *, gh: "GitHubIssues | None" = None, spool_path: 
                 if not repo or not token:
                     return False
                 gh = GitHubIssues(repo, token)
-            return promote_finding(gh, record, utc_now())
+            return promote_finding(gh, record, moment.utc_now())
         return _append_inbox(record, path=spool_path)
     except Exception:  # noqa: BLE001 — emit-and-done must never break the emitting caller
         return False
@@ -1506,6 +1501,9 @@ def derive_ambient_records(path: str = DEFAULT_AMBIENT_CACHE_PATH, watermark: st
         if not isinstance(f, dict):
             continue
         rid = f.get("rule_id")
+        # observed_at is compared below as a RAW STRING (>=, >). That is a correct chronological comparison
+        # only because ambient-capture.v1 pins it to the fixed-width trailing-Z shape (moment.Z_PATTERN, no
+        # fractional-seconds group) — '...05Z' vs '...05.5Z' would sort wrong. #631 removed that group.
         ts = str(f.get("observed_at") or "")
         if not rid or f.get("outcome") not in ("pass", "fail"):
             continue
@@ -1539,85 +1537,6 @@ def derive_ambient_records(path: str = DEFAULT_AMBIENT_CACHE_PATH, watermark: st
                                 "message": _ambient_message(rid),
                                 "location": {"file": ftarget, "line": None} if ftarget else None})
     return records, frozenset(authoritative), new_wm
-
-
-# ---- the episodic (memory-ledger) signal -------------------
-# The THIRD signal of record: the memory ledger's CONSOLIDATION BACKLOG — earlier sessions whose raw notes were
-# never folded into short summaries (the abandoned-session recovery the memory durability law names). Telemetry
-# only COUNTS this content-free structural signal (a list of session-ids, never record CONTENT) and, when the
-# tidy-up stays chronically behind across sessions, tracks ONE engine issue; it never writes engine-state back
-# into the ledger (the ledger holds project narrative recall only). The ledger is local + gitignored
-# like the ambient cache, so this is a CACHE-ACCRUED (live=False) signal driven by a LOCAL SessionStart verb,
-# never the ephemeral audit runner (which has no ledger). It reuses memory's public detect leaf rather than
-# re-deriving the scan (the exclusions — live session, lease staleness, injected pseudo-turns — live there).
-EPISODIC_NAMESPACE = "episodic/"
-EPISODIC_BACKLOG_SID = EPISODIC_NAMESPACE + "consolidation-backlog"   # ONE stable id: the CONDITION, not per-session
-# A signal-DEFINITION constant (like CI_NOT_PASSING), NOT a tunable policy threshold: the point at which a
-# lagging tidy-up counts as "deep". Intentionally aligned with memory's in-session-nag `_BACKLOG_ALARM_THRESHOLD`
-# for a coherent operator story, but INDEPENDENTLY owned so a later change to memory's chat nudge can never
-# silently move telemetry's durable-issue promotion floor — the two are distinct control surfaces.
-EPISODIC_BACKLOG_THRESHOLD = 5
-# The episodic driver's OWN reconcile-accrual cache — separate from streams.json / ambient-streams.json, so no
-# other local `run` can clobber its cross-session persistence accrual.
-DEFAULT_EPISODIC_STREAMS_PATH = os.path.join(validate.ROOT, ".engine", "telemetry", ".cache",
-                                             "episodic-streams.json")
-
-
-def _episodic_message(count: int) -> str:
-    """The plain-language operator line for a chronically-lagging memory tidy-up. No backstage vocabulary
-    (no ledger/sweep/lease/turn-delta/stream/severity). It names the engine's OWN housekeeping and explicitly
-    negates the operator's project (spec :87-89 — every engine issue reads as the engine noticing something
-    about its OWN health, "not a problem with the operator's product"; "memory" would otherwise read as the
-    operator's own data). It keeps the content-floor promise (the raw notes stay safe and recoverable) and is
-    honest about the STALL — it does NOT re-promise the catch-up, because this issue exists only after the
-    in-session catch-up ran across several sessions and did not clear it."""
-    sessions = "session" if count == 1 else "sessions"
-    return (f"The engine's own memory housekeeping has fallen behind — this is about the engine's internal "
-            f"notes on our work together, not your project or its data. {count} earlier {sessions} still have "
-            "raw notes that haven't been folded into short summaries. Nothing is lost: those notes are safe and "
-            "fully recoverable, and recall still works. The routine catch-up hasn't been keeping up across the "
-            "last several sessions; the engine's next self-review will look at why. This item retires on its "
-            "own once the backlog is genuinely cleared.")
-
-
-def derive_episodic_records(live_session_id: str | None = None, cwd: str | None = None):
-    """Derive telemetry finding-records from the memory ledger's consolidation backlog — a CACHE-ACCRUED signal
-    (live=False), re-derived as a CURRENT-STATE snapshot each pass. Returns `(records, authoritative)`. NO
-    watermark, unlike ambient: this is a live count of the CURRENT backlog (like never-fired), not an append-log
-    of historical fires, so there is no stale-replay to fence — each pass is a genuine fresh observation and the
-    persistence latency lives in the reconcile cache.
-
-    Reuses memory's public leaf `consolidate.detect_unconsolidated` (a content-free sorted list of session-id
-    strings with raw notes but no consolidation marker), so the read never touches record CONTENT and that structural
-    boundary holds. Emits ONE record keyed to the stable `EPISODIC_BACKLOG_SID` when the backlog is deep.
-
-    POSITIVE-OBSERVATION GATE (safety). `detect_unconsolidated` returns an empty list for FOUR non-raising
-    states — genuinely clear, an absent/empty ledger, a corrupt lease sidecar, and all-sessions-live — so an
-    empty list ALONE is not proof the backlog cleared. Because the ledger is PER-MACHINE but the tracked issue
-    is GLOBAL, claiming authority on an unobserved (absent/empty) pass would let a fresh worktree auto-close a
-    real backlog issue raised elsewhere. So this pass is `authoritative` for the episodic source ONLY when it
-    POSITIVELY observed a usable ledger: the ledger file is present with >=1 record AND the lease sidecar is
-    readable (not corrupt). Otherwise `authoritative = frozenset()` — it closes nothing, carrying an open issue
-    forward untouched. Promotion stays monotone-safe (a deep backlog only ever promotes); only the absent-CLOSE
-    is gated on a real observation — mirroring ambient's observed-scoped authority (never a fixed claim on an
-    unobserved pass). Content-level corruption (skipped malformed lines) can only UNDER-count and self-heals on
-    the next append — an accepted, documented bound, not gated."""
-    from memory import capture, consolidate, ledger   # lazy: the canonical intra-core import (no cycle)
-    try:
-        # The WHOLE read is fail-safe: an unreadable memory environment (probe OR the backlog scan) must
-        # close nothing, never crash the pass — so `detect_unconsolidated` is inside the guard too.
-        observed = (any(True for _ in ledger.iter_records(path=ledger.ledger_path(cwd)))
-                    and capture.read_lease_state(ledger.ledger_dir(cwd)) is not None)
-        if not observed:
-            return [], frozenset()   # no trustworthy observation on this machine → resolve nothing
-        pending = consolidate.detect_unconsolidated(live_session_id, cwd=cwd)
-    except Exception:  # noqa: BLE001
-        return [], frozenset()
-    records = []
-    if len(pending) >= EPISODIC_BACKLOG_THRESHOLD:
-        records = [{"source_id": EPISODIC_BACKLOG_SID, "severity": PERSISTENT_BENIGN,
-                    "message": _episodic_message(len(pending)), "location": None}]
-    return records, frozenset({EPISODIC_BACKLOG_SID})
 
 
 # ---- the operator demo (faked GitHub, REAL reconcile logic) ----------------
@@ -1877,105 +1796,6 @@ def _demo(_argv) -> int:
           f"{nf_scoped_ok}")
     print(f"    the feed frames it escalate-or-ignore (a question, not a retire verdict): {nf_framing_ok}")
 
-    print("\n(11) The THIRD signal source — the memory ledger's consolidation backlog (cache-accrued")
-    print("    like ambient, not a live read). When the")
-    print("    engine's memory tidy-up stays behind across sessions it is tracked; once the backlog is genuinely")
-    print("    cleared its item resolves; an absent/unreadable ledger claims NO authority (a per-machine read")
-    print("    must not resolve a global issue); and it NEVER touches an unrelated item:")
-    import shutil as _shutil
-    import tempfile as _tempfile
-    from memory import capture as _cap, consolidate as _con, ledger as _led
-    epi_fake = _FakeGitHub()
-    epi_gh = GitHubIssues("you/your-project", "demo-token", transport=epi_fake.transport)
-    epi_cache = Cache(os.path.join(validate.ROOT, ".engine", "telemetry", ".cache", "_demo_episodic_streams.json"))
-    try:
-        os.remove(epi_cache.path)
-    except OSError:
-        pass
-    eclock = ["2026-06-08T0%d:00:00Z" % n for n in range(1, 9)]
-    epi_oob = _rec("hooks/fail-open/PreToolUse/modes", TRUST_CRITICAL, "A safety gate could not run this session.")
-    promote_finding(epi_gh, epi_oob, eclock[0])                      # an unrelated out-of-band item, opened directly
-    epi_oob_open = lambda: any(i["state"] == "open" and "fail-open" in i["body"] for i in epi_fake.issues.values())
-    epi_open = lambda: any(i["state"] == "open" and EPISODIC_BACKLOG_SID in i["body"] for i in epi_fake.issues.values())
-    prev_env = os.environ.get(_led.ENV_DIR)
-    tmp = _tempfile.mkdtemp(prefix="engine-demo-episodic-")
-    try:
-        os.environ[_led.ENV_DIR] = tmp
-        for i in range(EPISODIC_BACKLOG_THRESHOLD):                  # seed a DEEP backlog: 5 un-consolidated sessions
-            _led.append(_cap._make_record(f"demo-sess-{i}", 1, "user", f"a genuine turn in session {i}"))
-        promoted = []
-        for k in range(3):                                          # deep across 3 passes -> promotes only on the 3rd
-            recs, auth = derive_episodic_records()
-            run(epi_gh, recs, epi_cache, th, eclock[k], authoritative=auth, live=False)
-            promoted.append(epi_open())
-        for i in range(EPISODIC_BACKLOG_THRESHOLD):                 # the tidy catches up: every session consolidated
-            _con.store_episodic(f"demo-sess-{i}", [{"role": "observation", "text": "tidied"}])
-        for k in range(3, 5):                                       # backlog genuinely clear -> auto-resolves
-            recs, auth = derive_episodic_records()
-            run(epi_gh, recs, epi_cache, th, eclock[k], authoritative=auth, live=False)
-        cleared = not epi_open()
-        os.environ[_led.ENV_DIR] = _tempfile.mkdtemp(prefix="engine-demo-episodic-empty-")  # an ABSENT ledger
-        abs_recs, abs_auth = derive_episodic_records()
-        gate_ok = abs_recs == [] and abs_auth == frozenset()        # absent read -> no authority -> closes nothing
-        _shutil.rmtree(os.environ[_led.ENV_DIR], ignore_errors=True)
-    finally:
-        if prev_env is None:
-            os.environ.pop(_led.ENV_DIR, None)
-        else:
-            os.environ[_led.ENV_DIR] = prev_env
-        _shutil.rmtree(tmp, ignore_errors=True)
-    print(f"    a backlog deep across 3 sessions -> tracked only after it persists: {promoted}   "
-          f"(unrelated item untouched: {epi_oob_open()})")
-    print(f"    the tidy-up catches up -> the item resolves: {cleared}   "
-          f"(unrelated item STILL untouched: {epi_oob_open()})")
-    print(f"    an absent/unreadable ledger claims no authority -> closes nothing: {gate_ok}")
-    epi_ok = (promoted == [False, False, True] and cleared and epi_oob_open() and gate_ok)
-    try:
-        os.remove(epi_cache.path)
-    except OSError:
-        pass
-
-    # --- the findings-inbox emit-and-done seam: a producer EMITS and is done; telemetry owns the act.
-    ibx_dir = _tempfile.mkdtemp(prefix="engine-demo-inbox-")
-    spool = os.path.join(ibx_dir, "findings-inbox.ndjson")
-    ibx_cache = Cache(os.path.join(ibx_dir, "inbox-streams.json"))
-    ibx_fake = _FakeGitHub()
-    ibx_gh = GitHubIssues("you/your-project", "demo-token", transport=ibx_fake.transport)
-    ibx_now = utc_now()
-
-    def _ibx_open():
-        return {parse_source_id(i["body"]) for i in ibx_fake.issues.values() if i["state"] == "open"}
-    print("\n(inbox) The engine's 'report a problem and move on' channel — a part of the engine flags "
-          "something and hands it off; the engine tracks it from there. (Only the urgent path is live "
-          "today; the routine side turns on when a later step wires it.)")
-    # a could-not-run (trust-critical) signal promotes IMMEDIATELY and is NEVER spooled
-    tc_num = emit_finding({"source_id": "hooks/fail-open/PreToolUse/crash", "severity": TRUST_CRITICAL,
-                           "message": "a safety gate could not run", "location": None,
-                           "first_seen": ibx_now, "last_seen": ibx_now}, gh=ibx_gh, spool_path=spool)
-    tc_ok = bool(tc_num) and not os.path.exists(spool)
-    # a benign signal SPOOLS; only a later drain promotes it — and only once it persists across drains
-    ibx_thr = load_thresholds()
-    persistence = int(ibx_thr.get("persistence", 3))
-    benign = {"source_id": "boot/refused-cursor", "severity": PERSISTENT_BENIGN, "location": None,
-              "message": "the engine's saved place could not be trusted", "first_seen": ibx_now,
-              "last_seen": ibx_now}
-    drained_open = []
-    for _ in range(persistence):
-        emit_finding(benign, spool_path=spool)
-        drain_inbox(ibx_gh, cache=ibx_cache, thresholds=ibx_thr, now=ibx_now, spool_path=spool)
-        drained_open.append("boot/refused-cursor" in _ibx_open())
-    # a forged/marker-unsafe spool line is dropped: never promoted, and never triggers a wrongful close
-    with open(spool, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps({"source_id": "x<!-- forged -->", "severity": PERSISTENT_BENIGN,
-                             "message": "m", "location": None}) + "\n")
-    unsafe_report = drain_inbox(ibx_gh, cache=ibx_cache, thresholds=ibx_thr, now=ibx_now, spool_path=spool)
-    _shutil.rmtree(ibx_dir, ignore_errors=True)
-    print(f"    an urgent report — a safety check that could not run — is tracked at once (issue "
-          f"#{tc_num}), never set aside: {tc_ok}")
-    print(f"    a routine report is set aside and becomes a tracked item only after it keeps recurring: "
-          f"{drained_open}   (a tampered entry is discarded and never tracked: {unsafe_report is None})")
-    inbox_ok = (tc_ok and drained_open == [False] * (persistence - 1) + [True] and unsafe_report is None)
-
     print("\nDone — no real issues were created; only the network was faked. The triage LOGIC above is "
           "real; that it writes correctly to your REAL GitHub is confirmed the first time it runs live.")
     # Self-check: ONE issue opens only when the benign signal crosses the threshold (3rd fire), re-fires
@@ -1983,12 +1803,11 @@ def _demo(_argv) -> int:
     # in-band (never a silent or wrong zero), the LIVE CI source is tracked on the first failing pass and
     # clears on the first green pass EVEN WITH THE CACHE WIPED, the cache-accrued AMBIENT source promotes only
     # after it persists and clears when seen passing or its file is gone, a create/create-race duplicate pair
-    # CONVERGES to one survivor, the memory-ledger EPISODIC backlog is tracked only after it persists and clears
-    # once genuinely tidied (with an absent/unreadable ledger claiming no authority — the per-machine/global
-    # guard), none of these ever closes the unrelated out-of-band item, and the never-firing signal surfaces only
+    # CONVERGES to one survivor, none of these ever closes the unrelated out-of-band item, and the
+    # never-firing signal surfaces only
     # a zero-match file-scoped check, framed escalate-or-ignore.
     ok = (open2 == 1 and open3 == 1 and open4 == 2 and bool(r6.degraded_line)
-          and ci_ok and amb_ok and dup_ok and nf_ok and epi_ok and inbox_ok)
+          and ci_ok and amb_ok and dup_ok and nf_ok and inbox_ok)
     if not ok:
         print("\nDEMO UNEXPECTED: the triage open/dedup/critical-open counts or the offline degrade line "
               "did not behave as expected.", file=sys.stderr)
@@ -2186,8 +2005,8 @@ def _run_cli(argv: list) -> int:
     branch's CI check-runs (the first signal of record) and reconciles the engine-labelled issues for the
     `ci/` source: a failing check is tracked, and once it is green again its item auto-resolves. Reads
     GITHUB_REPOSITORY + GITHUB_TOKEN (the GitHub token, never the Claude OAuth token) and the default branch
-    from GITHUB_DEFAULT_BRANCH (the workflow passes `github.ref_name`, which on a scheduled run is the
-    default branch; falls back to 'main' when unset).
+    via the shared resolver: GITHUB_DEFAULT_BRANCH (the workflow passes `github.ref_name`, which on a
+    scheduled run is the default branch), then the recorded manifest, then `origin/HEAD`, then 'main'.
 
     SAFETY: auto-resolve is scoped to the `ci/` source-ids OBSERVED this pass, so it never touches an
     out-of-band issue (a hooks fail-open alarm, a migration/resurrection finding); and a failed OR partial CI
@@ -2202,8 +2021,10 @@ def _run_cli(argv: list) -> int:
         print("usage: telemetry.py run   (needs GITHUB_REPOSITORY and GITHUB_TOKEN in the environment; it "
               "uses the GitHub token, never the Claude token)", file=sys.stderr)
         return 2
-    branch = os.environ.get("GITHUB_DEFAULT_BRANCH") or "main"
-    now = utc_now()
+    # The workflow sets GITHUB_DEFAULT_BRANCH (github.ref_name on the scheduled run); the resolver reads it
+    # first, then the recorded manifest -> origin/HEAD -> "main" for a local/degraded run.
+    branch = repo_identity.resolve_default_branch(env_var="GITHUB_DEFAULT_BRANCH")
+    now = moment.utc_now()
     gh = GitHubIssues(repo, token)
     cache = Cache(argv[0]) if argv else Cache()
     ci_read_failed = False
@@ -2252,7 +2073,7 @@ def _run_ambient_cli(argv: list) -> int:
     repo, token = repo_slug(), gh_token()
     if not repo or not token:
         return 0   # no local GitHub context — the normal state off a logged-in machine; skip silently
-    now = utc_now()
+    now = moment.utc_now()
     gh = GitHubIssues(repo, token)
     cache = Cache(argv[0]) if argv else Cache(DEFAULT_AMBIENT_STREAMS_PATH)
     watermark = load_ambient_watermark()
@@ -2267,75 +2088,19 @@ def _run_ambient_cli(argv: list) -> int:
     return 0
 
 
-def _hook_payload_session_id() -> str | None:
-    """The live session id from a SessionStart hook's stdin PAYLOAD (mirroring memory's handler,
-    consolidate.py:361 — SessionStart hooks receive the id in the payload, not reliably in the environment).
-    Returns None on a tty / empty / unparseable stdin, so a manual CLI run falls back to the env var. Never
-    raises — a bad payload just means the reader's reused lease-heartbeat filter is the only live-session guard
-    this pass (a bounded, safe degrade)."""
-    try:
-        if sys.stdin is None or sys.stdin.isatty():
-            return None
-        raw = sys.stdin.read()
-    except Exception:  # noqa: BLE001
-        return None
-    if not raw or not raw.strip():
-        return None
-    try:
-        payload = json.loads(raw)
-    except ValueError:
-        return None
-    sid = payload.get("session_id") if isinstance(payload, dict) else None
-    return sid if isinstance(sid, str) and sid else None
-
-
-def _run_episodic_cli(argv: list) -> int:
-    """The episodic triage verb — the LOCAL SessionStart driver (a sibling of run-ambient and the memory/backup
-    SessionStart writers). Reads the memory ledger's consolidation backlog (the third signal of record) and
-    reconciles the engine-labelled issue for the `episodic/` source: when the memory tidy-up stays chronically
-    behind across sessions it is tracked, and once the backlog is genuinely cleared its item auto-resolves.
-
-    Like run-ambient (and UNLIKE the CI `run` verb on the ephemeral audit runner), this runs on the LOCAL
-    machine that OWNS the per-machine ledger — so it resolves the GitHub context the LOCAL way (boot's
-    repo_slug/gh_token) and accrues persistence in its OWN cache (episodic-streams.json). CACHE-ACCRUED
-    (live=False): it promotes only after the persistence threshold. SAFETY: `authoritative` is the single
-    `episodic/` source-id and ONLY when this machine POSITIVELY observed a usable ledger (derive_episodic_records)
-    — so it can never touch a `ci/`/`ambient/`/out-of-band issue, and an absent/corrupt ledger closes nothing.
-    Fail-open: no local repo/token (the normal state off a logged-in machine), or an unreachable GitHub, degrades
-    to exit 0 touching nothing; main()'s boundary backstops any other error. Optional argv[0] overrides the
-    stream-cache path (for tests)."""
-    from boot import repo_slug, gh_token   # lazy: boot imports telemetry, a back-edge safe only lazily
-    repo, token = repo_slug(), gh_token()
-    if not repo or not token:
-        return 0   # no local GitHub context — the normal state off a logged-in machine; skip silently
-    import providers   # lazy: the provider seam (neutral override, then the platform session vars)
-    live = _hook_payload_session_id() or providers.session_from_env()   # payload first, env-chain fallback
-    now = utc_now()
-    gh = GitHubIssues(repo, token)
-    cache = Cache(argv[0]) if argv else Cache(DEFAULT_EPISODIC_STREAMS_PATH)
-    records, authoritative = derive_episodic_records(live_session_id=live)
-    report = run(gh, records, cache, load_thresholds(), now, authoritative=authoritative, live=False)
-    if report.degraded:
-        print("Could not reach GitHub to run the engine's memory-upkeep triage; nothing was changed.")
-        return 0
-    print(f"Ran the engine's memory-upkeep triage: opened={report.opened}, "
-          f"updated={report.updated}, closed={report.closed}.")
-    return 0
-
-
 def _run_drain_cli(argv: list) -> int:
-    """The findings-inbox drain verb — the LOCAL SessionStart driver (a sibling of run-ambient/run-episodic and
+    """The findings-inbox drain verb — the LOCAL SessionStart driver (a sibling of run-ambient and
     the memory/backup SessionStart writers) that stands the emit-and-done seam's drain up in PRODUCTION (the
     cadence #412 owns). Three fail-open jobs:
       1) promote the broken-runtime marker → ONE TRUST_CRITICAL could-not-run finding, immediately (the live
          producer this step delivers; the hook launcher drops the marker when the engine's Python is absent);
       2) sweep mtime-stale `*.draining` asides (a crashed drain's stranded batch) back through the drain;
       3) drain the findings-inbox spool → promote the benign/degraded findings a producer emitted out-of-band
-         (the boot degradation emitter that FEEDS this benign path is #398 — until it lands the spool is fed
-         only by tests/fixtures, so this leg is live infrastructure, not yet a live benign producer).
+         (boot's refused-cursor emitter (#398) is a live producer that appends benign findings to this spool
+         out-of-band; tests and fixtures also feed it).
     Runs on the LOCAL machine (the spool + marker are per-machine, gitignored), resolving the GitHub context the
     LOCAL way (boot's repo_slug/gh_token). SAFETY: drain_inbox scopes auto-resolve to the drained source-ids
-    ONLY (never a ci/ambient/episodic/out-of-band issue), and the marker promote is de-duped by a fixed
+    ONLY (never a ci/ambient/out-of-band issue), and the marker promote is de-duped by a fixed
     source_id. Fail-open: no local repo/token (the normal state off a logged-in machine), or an unreachable
     GitHub, degrades to exit 0 touching nothing; main()'s boundary backstops any other error. Optional argv[0]
     overrides the drain stream-cache path (for tests)."""
@@ -2348,14 +2113,14 @@ def _run_drain_cli(argv: list) -> int:
     spool_capture_marker()   # a failing memory-capture marker joins the drain (persistence-gated)
     _sweep_stranded_asides(INBOX_SPOOL_PATH)
     cache = Cache(argv[0]) if argv else Cache(DEFAULT_INBOX_STREAMS_PATH)
-    report = drain_inbox(gh, cache=cache, thresholds=load_thresholds(), now=utc_now())
+    report = drain_inbox(gh, cache=cache, thresholds=load_thresholds(), now=moment.utc_now())
     if report is not None and report.degraded:
         print("Could not reach GitHub to check the engine's own health inbox; nothing was changed.")
         return 0
     opened = report.opened if report is not None else 0
     updated = report.updated if report is not None else 0
     closed = report.closed if report is not None else 0
-    # Plain-voice summary (matching the run-ambient/run-episodic sibling drivers) — no backstage words.
+    # Plain-voice summary (matching the run-ambient sibling driver) — no backstage words.
     alert = "a broken-tool-runtime alert was raised" if runtime_alert else "no new alerts"
     print(f"Checked the engine's own health inbox ({alert}): "
           f"opened={opened}, updated={updated}, closed={closed}.")
@@ -2395,9 +2160,6 @@ def main(argv: list) -> int:
         if argv and argv[0] == "run-ambient":
             _lock = _serialize_session_passes()
             return _run_ambient_cli(argv[1:])
-        if argv and argv[0] == "run-episodic":
-            _lock = _serialize_session_passes()
-            return _run_episodic_cli(argv[1:])
         if argv and argv[0] == "drain-inbox":
             _lock = _serialize_session_passes()
             return _run_drain_cli(argv[1:])
@@ -2409,9 +2171,9 @@ def main(argv: list) -> int:
             return _engine_issues_cli(argv[1:])
         if argv and argv[0] == "never-fired":
             return _never_fired_cli(argv[1:])
-        print("usage: telemetry.py {run|run-ambient|run-episodic|drain-inbox|demo|refresh|engine-issues|"
+        print("usage: telemetry.py {run|run-ambient|drain-inbox|demo|refresh|engine-issues|"
               "never-fired}   (`run` is the live CI-health triage the scheduled audit-prep workflow drives; "
-              "`run-ambient`, `run-episodic`, and `drain-inbox` are the local SessionStart triages — over local "
+              "`run-ambient` and `drain-inbox` are the local SessionStart triages — over local "
               "check-fires, over the memory tidy-up backlog, and over the findings inbox (promoting a broken "
               "tool-runtime alert and any out-of-band findings); `engine-issues` and `never-fired` (the engine's "
               "own checks that currently match no files) feed the scheduled self-review; demo shows the logic on "

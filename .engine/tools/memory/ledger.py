@@ -20,9 +20,8 @@ and backup is "copy this file". So this file's integrity is a law, not a leaf:
     `json.dumps` escapes any newline inside the data, so the trailing "\n" is unambiguous.
 
 This module's scope: the read/write primitives only. They are RECORD-AGNOSTIC — they store and return any
-JSON-serializable dict; the closed memory *record shape* (the role vocabulary) and the per-record
-ledger-version envelope are a later step's job (a hard forward-owe: that step fixes the record shape,
-and because the ledger ships EMPTY there are no real records to retrofit before then).
+JSON-serializable dict. The closed memory *record shape* (the role vocabulary) and the per-record
+ledger-version envelope belong to `records.py`, not here; this module never inspects what it is handed.
 
 This module is a leaf: it never logs findings or writes telemetry of its own. It RETURNS its
 read-health report to the caller; surfacing degraded recall is boot/telemetry's job.
@@ -46,9 +45,12 @@ try:
 except ImportError:  # pragma: no cover - the engine targets POSIX; degrade rather than crash.
     _HAVE_FCNTL = False
 
-# The on-disk framing version (newline-terminated NDJSON). This is the *format* version; the
-# record-SHAPE version (what a future migration routes on) is established with the record schema
-# in a later step. Exposed so the backup snapshot-manifest has a legible version source.
+# The on-disk framing version (newline-terminated NDJSON) — the FILE format, not the record shape. This is the
+# version a restore routes a migration on: `restore_vault` compares the backup manifest's recorded version
+# against this one and asks `ledger_migrations` for the chain between them. Exposed so the backup
+# snapshot-manifest has a legible version source. (Each record also carries its own `v` shape stamp, written by
+# every producer; nothing reads it while only one record shape has ever existed — it is what would let a reader
+# tell two shapes apart if a second ever landed.)
 LEDGER_FORMAT_VERSION = 1
 
 ENV_DIR = "ENGINE_MEMORY_DIR"
@@ -136,7 +138,7 @@ def append(record: dict, *, path: str | None = None) -> None:
     that was complete JSON but lost only its terminating newline is thereby recovered; a truly
     half-written fragment stays invalid JSON and is still read back as malformed, never resurrected.)
 
-    `record` may be any JSON-serializable dict (record shape is a later step's concern).
+    `record` may be any JSON-serializable dict (record shape is `records.py`'s concern, never this module's).
     """
     target = path or ledger_path()
     parent = os.path.dirname(target)
@@ -260,6 +262,62 @@ def generation(cwd: str | None = None, *, for_path: str | None = None) -> int:
     return val
 
 
+def _read_sidecar(path: str) -> dict:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _sidecar_with(path: str, **updates) -> dict:
+    """The sidecar's current contents with `updates` applied — so a writer of one counter never silently
+    discards the other. The file holds two independent numbers now, and each has exactly one writer."""
+    data = _read_sidecar(path)
+    data.update(updates)
+    return data
+
+
+def index_epoch(cwd: str | None = None, *, for_path: str | None = None) -> int:
+    """A monotonic counter meaning "what the derived index is allowed to CONTAIN has changed".
+
+    DELIBERATELY NOT `generation`, and the distinction is load-bearing. `generation` means "content was
+    rewritten or removed", and a second reader depends on exactly that meaning: `restore_vault` refuses a
+    backup whose generation is BEHIND the local store, on the reasoning that restoring it would undo
+    deliberate removals, and raises a trust-critical finding saying so. Bumping `generation` to invalidate the
+    index would therefore have told an operator who merely pinned a note that their backup could not be
+    restored because notes had been deliberately removed — false, and refused on the day they needed it.
+
+    So membership changes that remove nothing — a withhold, which hides without deleting — move this instead.
+    Missing or malformed reads as 0, the same fail-safe `generation` uses."""
+    data = _read_sidecar(meta_path(cwd, for_path=for_path))
+    val = data.get("index_epoch")
+    if isinstance(val, bool) or not isinstance(val, int) or val < 0:
+        return 0
+    return val
+
+
+def bump_index_epoch(cwd: str | None = None, *, for_path: str | None = None) -> int:
+    """Increment and durably persist the index epoch (temp + fsync + atomic os.replace). Returns the new value.
+    The CALLER must hold the single-writer lock, as with `bump_generation`."""
+    path = meta_path(cwd, for_path=for_path)
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    new_val = index_epoch(cwd, for_path=for_path) + 1
+    tmp = path + ".tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    try:
+        os.write(fd, json.dumps(_sidecar_with(path, index_epoch=new_val),
+                                separators=(",", ":")).encode("utf-8"))
+        _durable_fsync(fd)
+    finally:
+        os.close(fd)
+    os.replace(tmp, path)
+    return new_val
+
+
 def bump_generation(cwd: str | None = None, *, for_path: str | None = None) -> int:
     """Increment and durably persist the ledger generation (temp + fsync + atomic os.replace). Returns the new
     value. The CALLER must hold the single-writer lock (compaction does); this is not itself serialized. Bumped
@@ -273,7 +331,8 @@ def bump_generation(cwd: str | None = None, *, for_path: str | None = None) -> i
     tmp = path + ".tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
     try:
-        os.write(fd, json.dumps({"generation": new_val}, separators=(",", ":")).encode("utf-8"))
+        os.write(fd, json.dumps(_sidecar_with(path, generation=new_val),
+                                separators=(",", ":")).encode("utf-8"))
         _durable_fsync(fd)
     finally:
         os.close(fd)
@@ -295,7 +354,8 @@ def set_generation(value: int, cwd: str | None = None, *, for_path: str | None =
     tmp = path + ".tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
     try:
-        os.write(fd, json.dumps({"generation": new_val}, separators=(",", ":")).encode("utf-8"))
+        os.write(fd, json.dumps(_sidecar_with(path, generation=new_val),
+                                separators=(",", ":")).encode("utf-8"))
         _durable_fsync(fd)
     finally:
         os.close(fd)

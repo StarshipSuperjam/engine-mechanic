@@ -31,13 +31,13 @@ adapter ever reads the clock, marking such a run `as_of_is_wallclock` so a consu
 refreshed-debt timestamp. The pure core never reads the clock.
 """
 from __future__ import annotations
-import datetime
 import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate          # noqa: E402
+import moment            # noqa: E402  (the trailing-Z time seam; pure stdlib leaf, imports nothing back)
 import attention_rank    # noqa: E402
 from attention_rank import rank, SUBSTRATES, CATEGORIES, PRECEDENCE_KEYS, TRIM_KEYS  # noqa: E402
 
@@ -61,7 +61,7 @@ FOCUS_CAP = 5
 # How many neighbours of each (focus member, relationship) the orientation SUMMARY samples for display. The
 # rest are NOT dropped silently — `neighborhood_of` keeps the FULL count per relationship so the render can
 # disclose the truncation honestly ("core provides 147, showing 4"), never an arbitrary capped few passed off
-# as the whole (honest-truncation; relevance-ordering WHICH few is deferred).
+# as the whole (honest-truncation; the shown few are a sample, not relevance-ranked).
 NEIGHBORHOOD_SAMPLE_CAP = 4
 
 
@@ -264,9 +264,10 @@ def assemble_candidates(policy_values: dict, *, state_path: str = STATE_PATH,
     if src is not None:
         try:
             if focus:
-                # The cold-start adjacency walk is PINNED to the four structural edges (the attention policy's
-                # `## Scope` budget-neutrality invariant): a new edge kind (e.g. supersedes) is pull-only
-                # and never bulks up orientation. Pass the walk set explicitly rather than leaning on the
+                # The cold-start adjacency walk is PINNED to the walk edges (WALK_EDGE_KINDS — the containment
+                # edges plus the code-dependency and wiring edges; the attention policy's `## Scope` owns which
+                # kinds ride it): supersedes stays pull-only, and orientation stays flat via the per-relationship
+                # sample cap (not a small vocabulary). Pass the walk set explicitly rather than leaning on the
                 # neighbors() default, so the pin lives at attention's own call site. Read it from `src` (the
                 # boot slice carries the same WALK_EDGE_KINDS) so the branch never depends on the knowledge_query
                 # module when boot passes its own rung-1 source.
@@ -279,7 +280,7 @@ def assemble_candidates(policy_values: dict, *, state_path: str = STATE_PATH,
                 # query-time direction over the SAME forward edges, NOT a new edge type, so it is
                 # budget-neutral: reverse candidates compete for the same fixed structural_neighbors slice, never
                 # grow it. A genuinely bare leaf (ungoverned AND untargeted, e.g. a tool) still resolves to only
-                # its module; relevance-ordering a dense neighbourhood is deferred.
+                # its module; a dense neighbourhood is returned unranked, not relevance-ordered.
                 # The focus is the work in hand — a single entity id or a SET (the changed work usually spans
                 # several entities, #37). Walk each member, then DEDUPE neighbours and EXCLUDE any neighbour that
                 # is itself a focus member (co-changed entities are not each other's "structural neighbours").
@@ -401,7 +402,7 @@ def neighborhood_of(focus: "str | list[str] | None", *, depth: int = 1, source=N
 def _now_z() -> str:
     """The wall-clock reference moment, trailing-Z UTC. The ONLY clock read in attention, and only on the
     live path when the cursor carries no as-of; the result is marked as_of_is_wallclock."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return moment.utc_now()
 
 
 def _reference_moment(candidates: list, cursor_as_of: str | None) -> str | None:

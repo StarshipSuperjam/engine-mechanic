@@ -65,6 +65,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hooks      # noqa: E402  (run_hook + block/proceed: the fail-open harness the gate rides)
 import telemetry  # noqa: E402  (promote_finding: the out-of-band 'log it' relay; telemetry owns it)
 import validate   # noqa: E402  (collect + local_ctx: the pre-close local full-suite advisory pass)
+import moment     # noqa: E402  (the trailing-Z time seam; pure stdlib leaf)
 
 
 # ---- the block this owning system declares for the hook block budget ------------------------
@@ -362,7 +363,7 @@ def _github():
     via a LAZY import reached ONLY here (cap-exhaustion / fail-open) — so the common turn-end path imports
     neither boot's heavy stack nor the network. Returns None when
     repo/token are unavailable (offline) -> promotion degrades to surfaced-not-tracked, the merge wall the
-    backstop. (The shared GitHub-context home is a later tidy when build-orch/24 becomes a second consumer.)"""
+    backstop."""
     try:
         from boot import repo_slug, gh_token  # lazy: keep boot off the hot path; reached only when promoting
         repo, token = repo_slug(), gh_token()
@@ -438,7 +439,7 @@ def handler(payload):
         return hooks.block(_pushback(open_findings, count))  # push back; loop-line on repeats, pre-announce near cap
     # Forced continuation: degrade recorded -> logged so nothing is lost, then proceed (run_hook would
     # downgrade a block here anyway; we never re-enter the gate THIS turn, so the loop can't deadlock).
-    now = telemetry.utc_now()
+    now = moment.utc_now()
     github = _github()
     # Log each leftover; KEEP any that could NOT be durably tracked (GitHub offline/unreachable) so it
     # re-surfaces next turn rather than being silently dropped — no consent is lost, the

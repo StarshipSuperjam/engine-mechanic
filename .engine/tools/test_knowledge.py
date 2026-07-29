@@ -2,7 +2,7 @@
 """Self-tests for the knowledge graph: the knowledge.v1 schema, the generic
 catalog-driven generator, the committed graph, and the coverage/fingerprint relay gate.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 These lock the load-bearing teeth: the pure derivation is deterministic and produces well-shaped,
 schema-conforming, referentially-intact entities (every predicate target resolves to an entity, ids
@@ -15,6 +15,7 @@ the live sources (so a forgotten regen fails this suite, not only CI); and the c
 stale/missing graph, fails closed on a broken generator, and the unknown-mode tail is intact.
 """
 from __future__ import annotations
+import ast
 import contextlib
 import io
 import json
@@ -27,6 +28,13 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate          # noqa: E402
+import repo_identity      # noqa: E402  (construction-repo signal for the optional-subtree registry check)
+
+# The optional-subtree REGISTRY check below validates the source's _OPTIONAL_MODULE_SUBTREES against the
+# shipped module manifests — it needs every module present, so it is a construction-repo check. A deployment
+# that DECLINED a module legitimately lacks that subtree and its manifest, and the gate's declined projection
+# (ENGINE_NESTED_SELFTEST set) is exactly such a shape, so both skip here (#646).
+_CONSTRUCTION = repo_identity.is_home_repo(validate.ROOT) and not os.environ.get("ENGINE_NESTED_SELFTEST")
 import knowledge_gen     # noqa: E402
 import hooks             # noqa: E402  (the run_hook harness the commit-boundary regen rides)
 
@@ -198,10 +206,12 @@ class TestLiveDerivation(unittest.TestCase):
         self.assertIn("schema:interface.v1", self.by_id)
         chk = self.by_id.get("check:interface-declaration")
         self.assertIsNotNone(chk, "expected a check:interface-declaration entity")
-        # the check globs .engine/interfaces/*.json, so its derived `targets` are BOTH declarations
-        # (sorted) — adding search.json widened this edge, the graph delta the operator eyeballs.
+        # the check globs .engine/interfaces/*.json, so its derived `targets` are EVERY declaration
+        # (sorted) — each new one widens this edge, the graph delta the operator eyeballs. `memory-control`
+        # is deliberately its own declaration rather than more operations on `search`: recall's contract says
+        # it never changes what is stored, so the writes could not be declared there without falsifying it.
         self.assertEqual(chk["predicates"].get("targets"),
-                         ["interface:knowledge-retrieval", "interface:search"])
+                         ["interface:knowledge-retrieval", "interface:memory-control", "interface:search"])
         self.assertEqual(chk["predicates"].get("governed_by"), ["schema:check.v1"])
 
     def test_schema_surface_files_have_no_governed_by(self):
@@ -228,8 +238,10 @@ class TestLiveDerivation(unittest.TestCase):
 
 
 class TestAttributeHarvesters(unittest.TestCase):
-    """The declared-attribute harvesters — pure (IO-free), tested directly on parsed dicts so the
-    'declared, not interpreted / structure, not belief' gates are locked independently of any source tree."""
+    """The Pass-1 declared-attribute harvesters — pure (IO-free), tested directly on parsed dicts so the
+    'declared, not interpreted / structure, not belief' gates are locked independently of any source tree.
+    (The Pass-4 `summary` attribute copies a docstring line VERBATIM — mechanical self-description, not an
+    interpretation — a distinct carve-out within the same gate, tested in TestPass4Attributes below.)"""
 
     def test_status_is_modules_and_contracts_only_else_active(self):
         kg = knowledge_gen
@@ -287,6 +299,360 @@ class TestAttributeHarvesters(unittest.TestCase):
                          {"invocation": "operator-typed"})
         self.assertEqual(kg._discriminators_for("module", {}, {}, {"version": "1.4.0"}), {"version": "1.4.0"})
         self.assertEqual(kg._discriminators_for("policy", {"title": "x"}, {}, None), {})  # none for a policy
+
+
+class TestImportResolver(unittest.TestCase):
+    """The Pass-4 import resolver — pure over a SYNTHETIC module index, so the dangling-import loud-fail and
+    the package / module / re-export resolution are locked independently of the live tree."""
+
+    def setUp(self):
+        self.kg = knowledge_gen
+        # a synthetic tool tree: top-level module `top`; package `pkg` with submodules `sub`/`helper`, a
+        # re-exported symbol `shared`, and a nested package `pkg.deep` with a module `leaf`.
+        self.index = (
+            {("pkg",), ("pkg", "deep")},                                             # packages
+            {("top",), ("pkg", "sub"), ("pkg", "helper"), ("pkg", "deep", "leaf")},  # modules
+            {("pkg",): frozenset({"shared"}), ("pkg", "deep"): frozenset()},         # init symbols
+        )
+        self.root = ".engine/tools"
+
+    def _resolve(self, src, source_rel="t.py"):
+        return self.kg._resolve_tool_imports(source_rel, ast.parse(src), self.index, self.root)
+
+    def test_bare_module_and_package_imports(self):
+        self.assertEqual(self._resolve("import top"), [".engine/tools/top.py"])
+        self.assertEqual(self._resolve("import pkg"), [".engine/tools/pkg/__init__.py"])   # package -> __init__
+        self.assertEqual(self._resolve("import pkg.sub"), [".engine/tools/pkg/sub.py"])
+        self.assertEqual(self._resolve("import pkg.deep.leaf"), [".engine/tools/pkg/deep/leaf.py"])
+
+    def test_from_package_import_submodule_resolves_to_the_submodule(self):
+        self.assertEqual(self._resolve("from pkg import sub"), [".engine/tools/pkg/sub.py"])
+        self.assertEqual(self._resolve("from pkg.deep import leaf"), [".engine/tools/pkg/deep/leaf.py"])
+
+    def test_from_package_import_reexported_symbol_resolves_to_the_package(self):
+        # `shared` is not a submodule but IS declared in pkg/__init__ -> edge to the package init.
+        self.assertEqual(self._resolve("from pkg import shared"), [".engine/tools/pkg/__init__.py"])
+
+    def test_from_module_import_names_edges_to_the_module(self):
+        # `top` is a module file; its imported names are attributes -> one edge, no per-name probe.
+        self.assertEqual(self._resolve("from top import a, b, c"), [".engine/tools/top.py"])
+
+    def test_stdlib_and_external_are_dropped(self):
+        self.assertEqual(self._resolve("import os\nimport json\nfrom collections import Counter\nimport numpy"), [])
+
+    def test_lazy_in_function_import_is_counted(self):
+        self.assertEqual(self._resolve("def f():\n    import top\n    return top"), [".engine/tools/top.py"])
+
+    def test_relative_imports_resolve_against_the_source_package(self):
+        # a relative import is resolved against the importing file's own package (no silent in-repo miss), not
+        # skipped. Source lives in the `pkg` package.
+        pkg_mod = ".engine/tools/pkg/mod.py"
+        self.assertEqual(self._resolve("from . import sub", pkg_mod), [".engine/tools/pkg/sub.py"])
+        self.assertEqual(self._resolve("from .sub import x", pkg_mod), [".engine/tools/pkg/sub.py"])
+        self.assertEqual(self._resolve("from .deep import leaf", pkg_mod), [".engine/tools/pkg/deep/leaf.py"])
+        self.assertEqual(self._resolve("from . import shared", pkg_mod), [".engine/tools/pkg/__init__.py"])
+        # climbs above the tools root -> not an in-repo target, dropped (not raised)
+        self.assertEqual(self._resolve("from ... import x", pkg_mod), [])
+        # a relative import that resolves to nothing in-repo raises loud, like any dangling import — and the
+        # message renders the spec cleanly (one dot, not two).
+        with self.assertRaises(self.kg.DanglingImportError) as cm:
+            self._resolve("from . import ghost", pkg_mod)
+        self.assertIn(".ghost", str(cm.exception))
+        self.assertNotIn("..ghost", str(cm.exception))
+
+    def test_star_reexport_in_init_resolves_instead_of_raising(self):
+        # a package whose __init__ does `from .x import *` may expose any name; an otherwise-unresolvable
+        # `from p import anything` edges to the package rather than false-raising. (No tools package uses star
+        # imports today; this guards the future.)
+        index = ({("p",)}, {("p", "x")}, {("p",): frozenset({"*"})})
+        out = self.kg._resolve_tool_imports("t.py", ast.parse("from p import anything"), index, ".engine/tools")
+        self.assertEqual(out, [".engine/tools/p/__init__.py"])
+
+    def test_dangling_from_name_raises_loud(self):
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("from pkg import does_not_exist")
+
+    def test_dangling_from_module_raises_loud(self):
+        # head `pkg` is in-repo but `pkg.ghost` is neither a package nor a module.
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("from pkg.ghost import x")
+
+    def test_dangling_dotted_import_raises_loud(self):
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("import pkg.ghost")
+
+    def test_importing_a_submodule_of_a_plain_module_is_dangling(self):
+        # `top` is a module, not a package, so `top.deeper` cannot exist.
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("import top.deeper")
+
+    def test_dangling_error_is_a_valueerror_and_names_the_file_and_import(self):
+        # a ValueError subclass so the CLI + CI fingerprint gate catch it on their existing fail-closed paths.
+        try:
+            self._resolve("from pkg import ghost")
+            self.fail("expected DanglingImportError")
+        except self.kg.DanglingImportError as e:
+            self.assertIsInstance(e, ValueError)
+            self.assertIn("t.py", str(e))
+            self.assertIn("pkg.ghost", str(e))
+
+
+class TestOptionalModuleSubtreeCarveOut(unittest.TestCase):
+    """Issue #663: a lazy, runtime-guarded import into an OPTIONAL module's subtree that is WHOLLY absent is
+    dropped, not raised — a deployment that declined the module deleted the subtree AND its manifest, so the
+    import is a legitimately-absent referent, not rename residue. But a PARTIALLY-present subtree is residue and
+    still raises. These lock that boundary against the real `_OPTIONAL_MODULE_SUBTREES` constant, using a
+    memory-shaped synthetic index so the fixed deployment shape (`memory` present, `memory/semantic` absent) is
+    exercised directly, independent of the live tree (where the subtree is present)."""
+
+    def setUp(self):
+        self.kg = knowledge_gen
+        self.root = ".engine/tools"
+        # the constant under test really does name ("memory","semantic") — these fixtures depend on it.
+        self.assertIn(("memory", "semantic"), self.kg._OPTIONAL_MODULE_SUBTREES)
+
+    def _resolve(self, src, index, source_rel="t.py"):
+        return self.kg._resolve_tool_imports(source_rel, ast.parse(src), index, self.root)
+
+    def test_absent_optional_subtree_drops_the_import_no_edge_no_raise(self):
+        # the failing deployment shape: `memory` package present (owns mcp_server.py), `memory/semantic` GONE.
+        absent = ({("memory",)}, {("memory", "mcp_server")}, {("memory",): frozenset()})
+        # the two real importers' forms — a `from … import name(s)` and a deeper `from …store import x`.
+        self.assertEqual(self._resolve("from memory.semantic import embed, store", absent), [])
+        self.assertEqual(self._resolve("from memory.semantic.store import search", absent), [])
+        # and the bare-import form (the `import x.y` raise site) drops too.
+        self.assertEqual(self._resolve("import memory.semantic.store", absent), [])
+        # a lazy in-function guarded import — the exact shape in mcp_server.recall_by_meaning — also drops.
+        self.assertEqual(
+            self._resolve("def f():\n    from memory.semantic import store as s\n    return s", absent), [])
+
+    def test_absent_optional_subtree_imported_as_a_name_also_drops(self):
+        # the third import shape: `from memory import semantic` — `memory` resolves, then the NAME `semantic`
+        # is the absent optional subtree. Covered too, so a refactor of the importers to this form can't
+        # silently re-arm #663 on a deployment.
+        absent = ({("memory",)}, {("memory", "mcp_server")}, {("memory",): frozenset()})
+        self.assertEqual(self._resolve("from memory import semantic", absent), [])
+        self.assertEqual(self._resolve("from memory import semantic as s", absent), [])
+        # when the subtree IS present, the same form resolves to a real edge (to its package __init__).
+        present = ({("memory",), ("memory", "semantic")}, {("memory", "mcp_server")},
+                   {("memory",): frozenset(), ("memory", "semantic"): frozenset()})
+        self.assertEqual(self._resolve("from memory import semantic", present),
+                         [".engine/tools/memory/semantic/__init__.py"])
+
+    def test_present_optional_subtree_resolves_the_edge_unchanged(self):
+        # where the module IS installed, the import is a real dependency and its edge is recorded as before.
+        present = ({("memory",), ("memory", "semantic")},
+                   {("memory", "mcp_server"), ("memory", "semantic", "store"),
+                    ("memory", "semantic", "embed")},
+                   {("memory",): frozenset(), ("memory", "semantic"): frozenset()})
+        self.assertEqual(sorted(self._resolve("from memory.semantic import embed, store", present)),
+                         [".engine/tools/memory/semantic/embed.py", ".engine/tools/memory/semantic/store.py"])
+
+    def test_dangling_name_under_a_PRESENT_optional_subtree_still_raises(self):
+        # the carve-out narrows ONLY on whole-subtree absence: with the subtree present, a genuinely missing
+        # submodule is rename residue and must still fail loud — the guarantee the check exists for.
+        present = ({("memory",), ("memory", "semantic")},
+                   {("memory", "mcp_server"), ("memory", "semantic", "store")},
+                   {("memory",): frozenset(), ("memory", "semantic"): frozenset()})
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("from memory.semantic import ghost", present)
+
+    def test_partially_present_subtree_still_raises(self):
+        # the dangerous variant risk-governance flagged: the subtree package (__init__) is present but a
+        # submodule was renamed/removed. That is real residue — the package tuple resolves, so "absent" is
+        # False and the missing submodule still raises.
+        partial = ({("memory",), ("memory", "semantic")},   # __init__ present -> package tuple resolves
+                   {("memory", "mcp_server")},               # but store.py is GONE
+                   {("memory",): frozenset(), ("memory", "semantic"): frozenset()})
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("from memory.semantic import store", partial)
+        with self.assertRaises(self.kg.DanglingImportError):
+            self._resolve("import memory.semantic.store", partial)
+
+
+class TestOptionalModuleSubtrees(unittest.TestCase):
+    """Construction-time coherence for `_OPTIONAL_MODULE_SUBTREES`. The constant is a hand-maintained core-owned
+    set (it cannot be derived on the deployment that needs it — module removal deletes the ownership manifest),
+    so its one silent-rot path is a subtree RENAME that leaves the constant stale: inert here (the subtree is
+    present), it would re-arm #663 on a deployment that declined the module. This proves every entry is (a) a
+    package actually present in this home repo's tool tree, and (b) owned by a REMOVABLE (non-core) module — so
+    such a rename breaks loudly here, at construction, where a human can see it."""
+
+    def setUp(self):
+        self.tools_root = os.path.join(validate.ENGINE_DIR, "tools")
+        self.modules_dir = os.path.join(validate.ENGINE_DIR, "modules")
+
+    def _module_manifests(self):
+        for name in sorted(os.listdir(self.modules_dir)):
+            man_path = os.path.join(self.modules_dir, name, "manifest.json")
+            if os.path.isfile(man_path):
+                with open(man_path, encoding="utf-8") as fh:
+                    yield json.load(fh)
+
+    @unittest.skipUnless(_CONSTRUCTION, "construction-repo registry check — a deployment may decline the "
+                         "owning module, so its subtree and manifest are legitimately absent (#646)")
+    def test_each_subtree_is_present_here_and_owned_by_a_removable_module(self):
+        packages, _modules, _syms = knowledge_gen._tool_module_index(self.tools_root)
+        for sub in knowledge_gen._OPTIONAL_MODULE_SUBTREES:
+            # (0) at least two segments deep — never a whole top-level tool package. A top-level package that
+            # is wholly declined is already dropped as external by `_head_in_repo`, so it needs no carve-out;
+            # an entry like ("memory",) would instead broaden the carve-out to mask EVERY dangling `memory.*`
+            # import. The carve-out is only for a subtree NESTED under a package that stays present.
+            self.assertGreaterEqual(len(sub), 2,
+                                    f"_OPTIONAL_MODULE_SUBTREES entry {sub!r} is a top-level package; an optional "
+                                    f"subtree must be nested (>= 2 segments) or it masks unrelated dangling imports.")
+            # (a) present as a package in the live tool tree — a rename of the subtree breaks THIS assertion.
+            self.assertIn(sub, packages,
+                          f"_OPTIONAL_MODULE_SUBTREES names {sub!r}, but .engine/tools/{'/'.join(sub)} is not a "
+                          f"package here — did the subtree move? A stale entry silently re-arms #663 on "
+                          f"deployments that declined the module.")
+            # (b) owned by a non-core module whose provides.tool glob covers the subtree. core provides only the
+            # top-level `.engine/tools/*.py`, so a match proves the owner is an optional/removable module.
+            subtree_rel = ".engine/tools/" + "/".join(sub) + "/"
+            owners = [m.get("id") for m in self._module_manifests()
+                      if any(g.startswith(subtree_rel) for g in (m.get("provides") or {}).get("tool", []))]
+            self.assertTrue(owners,
+                            f"no module manifest provides a tool under {subtree_rel} — {sub!r} must be owned by "
+                            f"the module it is optional for.")
+            self.assertNotIn("core", owners,
+                             f"{sub!r} is provided by core — an optional subtree must belong to a removable "
+                             f"module, or its absence is not a legitimate opt-out.")
+
+
+class TestPass4Attributes(unittest.TestCase):
+    """The Pass-4 per-tool attribute + wiring harvesters (pure). `summary` copies the file's own module
+    docstring first line VERBATIM — mechanical self-description, not an interpretation of what the code means,
+    so it clears the same 'declared, not belief' gate `title` does."""
+
+    def setUp(self):
+        self.kg = knowledge_gen
+
+    def test_summary_is_the_first_docstring_line_verbatim(self):
+        t = ast.parse('"""First line of the summary.\nSecond line, ignored."""\nx = 1')
+        self.assertEqual(self.kg._summary_for(t), "First line of the summary.")
+
+    def test_summary_collapses_whitespace_and_strips_control_chars(self):
+        # a tab is collapsed as whitespace; non-line-break C0 controls (bell, escape) are stripped. (NUL and
+        # the line-break controls \x0b/\x0c can't appear inline in a docstring first line — the former is
+        # illegal in Python source, the latter start a new line, which splitlines already ends the line at.)
+        t = ast.parse('"""A\tsummary\x07 with  control\x1b chars and   spaces."""')
+        self.assertEqual(self.kg._summary_for(t), "A summary with control chars and spaces.")
+
+    def test_summary_strips_bidi_zerowidth_and_c1_controls(self):
+        # the scrub drops format/control chars beyond C0 — a bidi override (RLO), a zero-width space, DEL, and
+        # a C1 control — so none can ride invisible or direction-flipping text into the committed graph.
+        t = ast.parse('"""safe\u202etext\u200b here\x7f and\x9b more."""')
+        s = self.kg._summary_for(t)
+        for bad in ("\u202e", "\u200b", "\x7f", "\x9b"):
+            self.assertNotIn(bad, s)
+        self.assertEqual(s, "safetext here and more.")
+
+    def test_parse_tool_ast_returns_none_on_malformed_source(self):
+        # the malformed-.py skip path: a broken tool parses to None (so it still entitizes with `guarded` but
+        # harvests no imports/summary/entrypoint), a good one parses to a tree; a read error is NOT swallowed.
+        with tempfile.TemporaryDirectory() as d:
+            good, bad = os.path.join(d, "good.py"), os.path.join(d, "bad.py")
+            with open(good, "w", encoding="utf-8") as fh:
+                fh.write("x = 1\n")
+            with open(bad, "w", encoding="utf-8") as fh:
+                fh.write("def (:\n")
+            self.assertIsNotNone(self.kg._parse_tool_ast(good))
+            self.assertIsNone(self.kg._parse_tool_ast(bad))
+
+    def test_summary_truncates_to_160_chars(self):
+        t = ast.parse('"""' + ("word " * 60).strip() + '"""')
+        self.assertLessEqual(len(self.kg._summary_for(t)), 160)
+
+    def test_summary_none_without_a_docstring(self):
+        self.assertIsNone(self.kg._summary_for(ast.parse("x = 1")))
+        self.assertIsNone(self.kg._summary_for(ast.parse('"""   """')))
+
+    def test_has_main_guard(self):
+        self.assertTrue(self.kg._has_main_guard(ast.parse('if __name__ == "__main__":\n    pass')))
+        self.assertFalse(self.kg._has_main_guard(ast.parse('def main():\n    pass')))
+
+    def test_entrypoint_precedence(self):
+        kg = self.kg
+        hook, mcp, ci = {".engine/tools/boot.py"}, {".engine/tools/x_mcp.py"}, {".engine/tools/y_check.py"}
+        empty, main = ast.parse(""), ast.parse('if __name__ == "__main__":\n    pass')
+        self.assertEqual(kg._entrypoint_for(".engine/tools/test_x.py", empty, hook, mcp, ci), "test")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/demo_x.py", empty, hook, mcp, ci), "demo")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/boot.py", empty, hook, mcp, ci), "hook")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/x_mcp.py", empty, hook, mcp, ci), "mcp-server")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/y_check.py", empty, hook, mcp, ci), "ci")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/z.py", main, hook, mcp, ci), "cli")
+        self.assertEqual(kg._entrypoint_for(".engine/tools/z.py", empty, hook, mcp, ci), "library")
+        # a name convention outranks a wiring set (a test_ file wired as a hook is still 'test').
+        self.assertEqual(kg._entrypoint_for(".engine/tools/test_boot.py", empty,
+                                            {".engine/tools/test_boot.py"}, mcp, ci), "test")
+
+    def test_hook_wired_tools_extracts_py_payload_and_excludes_the_launcher(self):
+        m = {"id": "core", "wires": [
+            {"type": "hook", "hook": {"command":
+                'sh "/x/.engine/tools/hook-runner.sh" "/x/py" "/x/.engine/tools/boot.py" startup'}},
+            {"type": "mcp", "hook": {"command": "/x/.engine/tools/should_not_count.py"}},
+        ]}
+        self.assertEqual(self.kg._hook_wired_tools([("core/manifest.json", m)]),
+                         {"core": [".engine/tools/boot.py"]})
+
+    def test_mcp_handle_to_tool_from_the_real_manifest(self):
+        h2t = self.kg._mcp_handle_to_tool(os.path.join(validate.ROOT, ".mcp.json"))
+        self.assertEqual(h2t.get("engine-knowledge-graph"), ".engine/tools/knowledge_mcp_server.py")
+
+    def test_guard_canary_fails_loud_when_the_classifier_blankets(self):
+        # if the guardrail classifier collapses to its blanket fail-safe (every tool path reads guarded),
+        # derive_entities REFUSES rather than baking an all-true `guarded` into the committed graph.
+        with mock.patch.object(knowledge_gen.weakening_guard, "is_guardrail", return_value=True):
+            with self.assertRaises(ValueError):
+                _live_entities()
+
+
+class TestPass4LiveEdges(unittest.TestCase):
+    """Pass-4 edges + attributes over the REAL graph — the non-fingerprint correlate that the DERIVED edges
+    are correct (the fingerprint gate proves only that the graph matches its sources, never that its edges
+    are right)."""
+
+    def setUp(self):
+        self.by_id = {e["id"]: e for e in _live_entities()}
+
+    def test_imports_are_real_dependency_edges_no_self_edge(self):
+        boot = self.by_id["tool:boot"]
+        self.assertIn("tool:attention", boot["predicates"]["imports"])
+        self.assertIn("tool:boot_slice", boot["predicates"]["imports"])
+        self.assertNotIn("tool:boot", boot["predicates"].get("imports", []))
+
+    def test_a_test_source_routes_to_tests_never_imports(self):
+        tk = self.by_id["tool:test_knowledge"]
+        self.assertIn("tool:knowledge_gen", tk["predicates"]["tests"])
+        self.assertNotIn("imports", tk["predicates"])
+
+    def test_enforced_by_resolves_a_script_check_to_its_tool(self):
+        self.assertEqual(self.by_id["check:knowledge-vocabulary"]["predicates"]["enforced_by"],
+                         ["tool:knowledge_vocabulary_check"])
+
+    def test_wires_hook_names_payload_tools_not_the_launcher(self):
+        wired = self.by_id["module:core"]["predicates"]["wires_hook"]
+        self.assertIn("tool:boot", wired)
+        self.assertNotIn("tool:hook-runner", wired)          # the shared .sh launcher is not a payload
+
+    def test_implemented_by_joins_interface_to_its_fallback_tool(self):
+        self.assertEqual(self.by_id["interface:knowledge-retrieval"]["predicates"]["implemented_by"],
+                         ["tool:knowledge_mcp_server"])
+
+    def test_guarded_is_a_bool_on_every_tool_including_non_py(self):
+        for e in self.by_id.values():
+            if e["type"] == "tool":
+                self.assertIsInstance(e.get("guarded"), bool, e["id"])
+        self.assertTrue(self.by_id["tool:hook-runner"]["guarded"])    # a floored .sh launcher
+        self.assertFalse(self.by_id["tool:boot"]["guarded"])
+
+    def test_summary_and_entrypoint_are_py_tool_only(self):
+        boot = self.by_id["tool:boot"]
+        self.assertTrue(boot["summary"].startswith("boot:"))
+        self.assertEqual(boot["entrypoint"], "hook")
+        sh = self.by_id["tool:hook-runner"]                  # a .sh tool: guarded only
+        self.assertNotIn("summary", sh)
+        self.assertNotIn("entrypoint", sh)
 
 
 class TestSupersedesEdges(unittest.TestCase):
@@ -482,7 +848,7 @@ class TestLiveDerivationAttributes(unittest.TestCase):
         self.assertEqual(self.by_id["policy:attention"].get("title"), "Attention")
         i = self.by_id["interface:knowledge-retrieval"]
         self.assertEqual(i.get("title"), "Knowledge graph retrieval")
-        self.assertEqual(i.get("operations"), ["find", "get-entity", "neighbors", "relate"])
+        self.assertEqual(i.get("operations"), ["find", "get-entity", "health", "neighbors", "relate"])
         self.assertEqual(i.get("fallback"), "engine-knowledge-graph")
 
     def test_module_carries_status_and_version(self):
@@ -503,12 +869,16 @@ class TestLiveDerivationAttributes(unittest.TestCase):
             if "title" in e:
                 self.assertIn(e["type"], ("policy", "interface", "skill"), e["id"])  # skill.name is a title
 
-    def test_supersedes_is_idle_in_this_repo(self):
-        # The leg is LIVE-CAPABLE for the deployment stream (see TestDeploymentStreamEntitization), but idle in
-        # THIS construction repo because it carries no deployment eADRs (`.engine/contracts/instance/` holds
-        # only its README) — every contract ENTITY here is canon, and canon never emits a supersedes edge.
-        self.assertFalse(any("supersedes" in e["predicates"] for e in self.by_id.values()),
-                         "no supersedes edge in this repo's live graph (no deployment eADRs present)")
+    def test_canon_never_emits_supersedes_in_the_live_graph(self):
+        # CANON never emits a supersedes edge — the structural invariant (`knowledge.v1.json` scopes the
+        # predicate to the deployment stream; the derivation suppresses canon on both sides). Asserted over
+        # the canon SLICE, not the whole graph: a deployment whose own records supersede one another emits
+        # the edge legitimately, so asserting the graph carries none would assert a fact about whichever
+        # repo the suite runs in and red a deployment's required self-tests for using the feature.
+        canon = [e for e in self.by_id.values() if "provided_by" in e["predicates"]]
+        self.assertTrue(canon, "the live graph must carry canon entities for this assertion to mean anything")
+        self.assertFalse(any("supersedes" in e["predicates"] for e in canon),
+                         "no canon entity emits a supersedes edge in the live graph")
 
     def test_no_placeholder_is_entitized(self):
         # issue #131: a .gitkeep is a directory placeholder, not a ratified instance — it must never appear

@@ -10,6 +10,7 @@ from __future__ import annotations
 import glob as _glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402
+import repo_identity  # noqa: E402  (the shared origin==home seam the harness gates on)
 import hard_check_bite_check as hcb  # noqa: E402
 
 ROOT = validate.ROOT
@@ -25,6 +27,30 @@ LIVE_FIXTURES = os.path.join(ROOT, ".engine", "_fixtures")
 CHECK_DIR = os.path.join(ROOT, ".engine", "check")
 RULE_PATH = os.path.join(ROOT, ".engine", "check", "hard-check-bite.json")
 CLOSED_KINDS = sorted(k for k in validate.REGISTRY if k != "custom/script")
+
+# The harness reads the shared origin==home seam, so a fixture root is PLACED by its git origin + recorded
+# home. HOME_URL -> the engine's own home repo; ADOPTER_URL -> a downstream copy.
+HOME_SLUG = "StarshipSuperjam/engine-template"
+HOME_URL = f"https://github.com/{HOME_SLUG}.git"
+ADOPTER_URL = "https://github.com/adopter/their-product.git"
+
+
+def _git(root: str, *args: str) -> None:
+    subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=False)
+
+
+def _placed_root(origin: "str | None", home: str = HOME_SLUG) -> str:
+    """A throwaway git checkout with an `origin` remote (omitted when None) and a manifest recording `home`, so
+    `repo_identity.is_home_repo(root)` can place it. `origin=None` leaves the origin unreadable -> fails toward
+    home (the safe direction the checks and the harness share)."""
+    root = tempfile.mkdtemp()
+    _git(root, "init", "-q")
+    if origin:
+        _git(root, "remote", "add", "origin", origin)
+    os.makedirs(os.path.join(root, ".engine"), exist_ok=True)
+    with open(os.path.join(root, ".engine", "engine.json"), "w", encoding="utf-8") as fh:
+        json.dump({"engine_release": "0.0.0", "home_repository": home}, fh)
+    return root
 
 
 def _live_hard_script_rules() -> list:
@@ -44,9 +70,9 @@ def _write(path: str, text: str) -> None:
 
 
 class TestLiveFixturesBite(unittest.TestCase):
-    """The committed fixtures all bite — the real-repo regression. An empty check_dir keeps roster(b) out (the
-    live custom/script instances are backfilled in a later slice), so this proves roster(a) + the custom/script
-    fail-closed modes against the shipped fixtures."""
+    """The committed fixtures all bite — the real-repo regression. An empty check_dir keeps roster(b) out
+    (roster(b) is the live custom/script instances discovered from the check rules, so an empty check_dir
+    yields none), so this proves roster(a) + the custom/script fail-closed modes against the shipped fixtures."""
 
     def test_every_kind_and_failclosed_mode_bites(self):
         with tempfile.TemporaryDirectory() as empty:
@@ -221,7 +247,7 @@ class TestS4LiveRosterBackfill(unittest.TestCase):
                     # Construction-scoped (#512): required to bite here in the construction repo; in a
                     # deployed repo the ambient-verified carve-out yields the loud NOT APPLICABLE HERE note.
                     found = hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard")
-                    if hcb._is_construction_root(ROOT):
+                    if repo_identity.is_home_repo(ROOT):
                         self.assertEqual(found, [], f"{stem}: did not bite in the construction repo")
                     else:
                         self.assertTrue(found and all(f["severity"] == "soft" for f in found), found)
@@ -231,7 +257,7 @@ class TestS4LiveRosterBackfill(unittest.TestCase):
                     # Construction-scoped (#512) AND it reads its fixture via `git show HEAD:`, so in the
                     # construction repo it bites only once the fixture is committed at HEAD; in a deployed
                     # repo the ambient-verified carve-out yields the loud NOT APPLICABLE HERE note.
-                    if not hcb._is_construction_root(ROOT):
+                    if not repo_identity.is_home_repo(ROOT):
                         found = hcb._cover_script_instance(rule, LIVE_FIXTURES, ROOT, "hard")
                         self.assertTrue(found and all(f["severity"] == "soft" for f in found), found)
                         self.assertTrue(any("NOT APPLICABLE HERE" in (f.get("message") or "") for f in found),
@@ -277,11 +303,23 @@ class TestS5GoLive(unittest.TestCase):
             self.assertEqual(len(hard), 1, hard)
             self.assertIn("disposition-issue-resolution", hard[0]["message"])
         # The carve-outs are surfaced loudly so the reviewer can re-derive them at the gate (not silently
-        # skipped). The 4 static N/A disclosures are a fixed census; in a DEPLOYED repo (root CLAUDE.md no
-        # longer the construction body) the two construction-scoped checks (#512) add their ambient-derived
-        # NOT APPLICABLE HERE notes on top.
+        # skipped). Each `not-applicable.json` declaration surfaces one static N/A note; in a DEPLOYED repo
+        # (root CLAUDE.md no longer the construction body) each `construction-scoped.json` check (#512) adds its
+        # ambient-derived NOT APPLICABLE HERE note on top. Derive the expected count from the carve-out
+        # declarations PRESENT rather than a fixed number: a deployment that DECLINED an optional module removes
+        # its check and that check's declaration (dependency-review, product-lock-integrity), so it legitimately
+        # surfaces fewer notes and must not red here (#646).
         na_notes = [f for f in findings if "NOT APPLICABLE" in (f.get("message") or "")]
-        expected_na = 4 if hcb._is_construction_root(ROOT) else 6
+        # A note is surfaced only for a carve-out whose CHECK is in the live roster: declining a module removes
+        # its check.json (so no note) even though its `_fixtures/<check>/` declaration dir lingers on disk, so
+        # count declarations whose check is actually present, not every declaration file (#646).
+        present_checks = {os.path.splitext(os.path.basename(p))[0]
+                          for p in _glob.glob(os.path.join(CHECK_DIR, "*.json"))}
+        _declared = lambda kind: sum(  # noqa: E731
+            1 for p in _glob.glob(os.path.join(LIVE_FIXTURES, "*", kind))
+            if os.path.basename(os.path.dirname(p)) in present_checks)
+        expected_na = _declared("not-applicable.json") + (
+            0 if repo_identity.is_home_repo(ROOT) else _declared("construction-scoped.json"))
         self.assertEqual(len(na_notes), expected_na,
                          f"expected {expected_na} disclosed N/A notes to be surfaced, got: {na_notes}")
 
@@ -434,10 +472,9 @@ class TestFailedBiteApplicability(unittest.TestCase):
             _write(os.path.join(fdir, name), json.dumps(data))
         return fix
 
-    def _root(self, claude_md: "str | None") -> str:
-        root = tempfile.mkdtemp()
-        if claude_md is not None:
-            _write(os.path.join(root, "CLAUDE.md"), claude_md)
+    def _root(self, *, origin: "str | None") -> str:
+        root = _placed_root(origin)
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
         return root
 
     def _cover(self, fix: str, root: str, extra_env: "dict | None" = None):
@@ -450,30 +487,33 @@ class TestFailedBiteApplicability(unittest.TestCase):
 
     def test_construction_scoped_yields_loud_na_outside_the_construction_repo(self):
         fix = self._fixture({"construction-scoped.json": {"property": hcb._CS_PROPERTY, "reason": "test."}})
-        found = self._cover(fix, self._root("# my project\n\nA deployed repo's own floor.\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(found and all(f["severity"] == "soft" for f in found), found)
         self.assertTrue(any("NOT APPLICABLE HERE" in f["message"] for f in found), found)
 
     def test_construction_scoped_is_inert_in_the_construction_repo(self):
         fix = self._fixture({"construction-scoped.json": {"property": hcb._CS_PROPERTY, "reason": "test."}})
-        found = self._cover(fix, self._root("# x — construction governance body\n"))
+        found = self._cover(fix, self._root(origin=HOME_URL))
         self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
 
     def test_construction_scoped_wrong_property_is_rejected_hard(self):
         fix = self._fixture({"construction-scoped.json": {"property": "only-runs-here", "reason": "lazy"}})
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(any(f["severity"] == "hard" and "only admissible reason" in f["message"]
                             for f in found), found)
 
-    def test_missing_root_claude_md_reads_as_not_construction(self):
+    def test_unreadable_origin_reads_as_home_so_the_exemption_is_inert(self):
+        # #323 fail-direction: a root whose git origin can't be read is treated as HOME (is_home_repo fails
+        # toward home) — the SAME direction the checks' own gate takes, so harness and checks never disagree.
+        # The construction-scoped exemption is therefore inert here and the failed bite stands as a hard finding.
         fix = self._fixture({"construction-scoped.json": {"property": hcb._CS_PROPERTY, "reason": "test."}})
-        found = self._cover(fix, self._root(None))
-        self.assertTrue(any("NOT APPLICABLE HERE" in f["message"] for f in found), found)
+        found = self._cover(fix, self._root(origin=None))
+        self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
 
     def test_requires_env_missing_locally_yields_loud_soft_note(self):
         fix = self._fixture({"requires.json": {"property": hcb._REQ_PROPERTY,
                                                "env": ["GITHUB_TOKEN"], "reason": "test."}})
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(found and all(f["severity"] == "soft" for f in found), found)
         self.assertTrue(any("NOT WITNESSED HERE" in f["message"] and "GITHUB_TOKEN" in f["message"]
                             for f in found), found)
@@ -481,32 +521,32 @@ class TestFailedBiteApplicability(unittest.TestCase):
     def test_requires_is_ignored_in_ci(self):
         fix = self._fixture({"requires.json": {"property": hcb._REQ_PROPERTY,
                                                "env": ["GITHUB_TOKEN"], "reason": "test."}})
-        found = self._cover(fix, self._root("# my project\n"), extra_env={"GITHUB_ACTIONS": "true"})
+        found = self._cover(fix, self._root(origin=ADOPTER_URL), extra_env={"GITHUB_ACTIONS": "true"})
         self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
 
     def test_requires_env_present_falls_through_to_the_failed_bite(self):
         fix = self._fixture({"requires.json": {"property": hcb._REQ_PROPERTY,
                                                "env": ["GITHUB_TOKEN"], "reason": "test."}})
-        found = self._cover(fix, self._root("# my project\n"), extra_env={"GITHUB_TOKEN": "x"})
+        found = self._cover(fix, self._root(origin=ADOPTER_URL), extra_env={"GITHUB_TOKEN": "x"})
         self.assertTrue(any(f["severity"] == "hard" and "did NOT catch" in f["message"] for f in found), found)
 
     def test_requires_malformed_env_list_is_rejected_hard(self):
         fix = self._fixture({"requires.json": {"property": hcb._REQ_PROPERTY,
                                                "env": "GITHUB_TOKEN", "reason": "not a list"}})
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(any(f["severity"] == "hard" and "must name the environment variables" in f["message"]
                             for f in found), found)
 
     def test_requires_wrong_property_is_rejected_hard(self):
         fix = self._fixture({"requires.json": {"property": "needs-the-internet",
                                                "env": ["GITHUB_TOKEN"], "reason": "lazy"}})
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(any(f["severity"] == "hard" and "only admissible reason" in f["message"]
                             for f in found), found)
 
     def test_non_object_declaration_is_rejected_hard_not_a_crash(self):
         fix = self._fixture({"construction-scoped.json": ["not", "an", "object"]})
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(any(f["severity"] == "hard" and "not a JSON object" in f["message"]
                             for f in found), found)
 
@@ -516,7 +556,7 @@ class TestFailedBiteApplicability(unittest.TestCase):
         _write(os.path.join(fdir, "expect.json"),
                json.dumps({"severity": "hard", "message_contains": "token-this-unit-never-produces"}))
         _write(os.path.join(fdir, "construction-scoped.json"), "{not valid json")
-        found = self._cover(fix, self._root("# my project\n"))
+        found = self._cover(fix, self._root(origin=ADOPTER_URL))
         self.assertTrue(any(f["severity"] == "hard" and "is unreadable" in f["message"]
                             for f in found), found)
 
@@ -526,7 +566,7 @@ class TestFailedBiteApplicability(unittest.TestCase):
         fix = self._fixture({
             "construction-scoped.json": {"property": hcb._CS_PROPERTY, "reason": "test."},
             "requires.json": {"property": hcb._REQ_PROPERTY, "env": ["GITHUB_TOKEN"], "reason": "test."}})
-        found = self._cover(fix, self._root("# x — construction governance body\n"))
+        found = self._cover(fix, self._root(origin=HOME_URL))
         self.assertTrue(found and all(f["severity"] == "soft" for f in found), found)
         self.assertTrue(any("NOT WITNESSED HERE" in f["message"] for f in found), found)
 
@@ -540,9 +580,15 @@ class TestFailedBiteApplicability(unittest.TestCase):
         env = {k: v for k, v in os.environ.items()
                if k not in ("GITHUB_REPOSITORY", "GITHUB_TOKEN", "GITHUB_ACTIONS", "CI")}
         with mock.patch.dict(os.environ, env, clear=True):
-            found = hcb._cover_script_instance(rule, fix, self._root("# my project\n"), "hard")
+            found = hcb._cover_script_instance(rule, fix, self._root(origin=ADOPTER_URL), "hard")
         self.assertTrue(any(f["severity"] == "hard" for f in found), found)
-        self.assertFalse(any("NOT APPLICABLE HERE" in (f.get("message") or "") for f in found), found)
+        # The crash must never be EXCUSED as inert — collapsed to a soft "NOT APPLICABLE HERE" note. Scope the
+        # negative to SOFT findings: the stand-in script (validate.py) run against a deployed-shape root emits
+        # that root's own deployed-only N/A notes, which the kind captures verbatim into the HARD finding's
+        # message. That captured output is not the meta-check excusing anything, so matching the raw substring
+        # across every severity gave a false failure once the root reads as a deployed copy (#646).
+        self.assertFalse(any(f["severity"] == "soft" and "NOT APPLICABLE HERE" in (f.get("message") or "")
+                             for f in found), found)
 
 
 class TestDeclarationCensus(unittest.TestCase):
@@ -551,10 +597,14 @@ class TestDeclarationCensus(unittest.TestCase):
     flag (a pure addition never trips it). Binding the exact shipped set here makes any new declaration a
     visible, reviewable test edit instead of a quiet file drop."""
 
-    @unittest.skipUnless(hcb._is_construction_root(ROOT),
-                         "construction-only drift canary: binds the template's exact shipped declaration "
-                         "set; a deployed repo legitimately carries a different set (bridge guard for "
-                         "engine-template#599)")
+    @unittest.skipUnless(
+        repo_identity.is_home_repo(ROOT),
+        "construction-repo drift canary: it pins the SOURCE's exact declaration set so a newly-authored declaration "
+        "is a visible test edit. It is scoped to the construction checkout because a deployed repo does not author "
+        "these declarations, and a deployed repo's fixture surface can differ from the source's (installed modules, "
+        "a fork-native product's own checks, accumulated state), so pinning the exact source set is not meaningful "
+        "there. A fresh deployed repo carries the same committed declarations; this guard is the honest scope, not a "
+        "claim that the set changes on deploy.")
     def test_exact_shipped_declaration_set(self):
         found = sorted(
             os.path.relpath(p, ROOT)
@@ -569,6 +619,76 @@ class TestDeclarationCensus(unittest.TestCase):
             ".engine/_fixtures/product-lock-integrity/not-applicable.json",
             ".engine/_fixtures/protection/not-applicable.json",
         ])
+
+
+class TestLiveDeclarationsAreHonored(unittest.TestCase):
+    """The COMMITTED construction-scoped declarations, driven through the real applicability path.
+
+    This is the ONLY fast-suite enforcement of the two byte contracts a declaration rests on: the filename
+    `_failed_bite_applicability` opens, and the exact `property` string it demands. Neither is otherwise
+    exercised where the engine is developed — `_cover_script_instance` returns at its successful-bite branch
+    BEFORE consulting a declaration, and both home-scoped checks DO bite in the engine's own home repo, so the
+    committed files are never opened there. Every other test in this module builds a SYNTHETIC declaration out
+    of `hcb._CS_PROPERTY`, which stays self-consistent for any value of it. Without this class, a desync between
+    the constant and the shipped files reads green in the engine's home and lands as a hard red in every
+    deployed repo — the only place the contract actually runs.
+
+    Reads no environment: the construction-scoped branch consults none, so this is deterministic offline.
+    """
+
+    def _dirs(self) -> list:
+        """The committed fixture dirs carrying the declaration — DERIVED, never pinned. A deployed repo's
+        fixture surface can differ from the source's, and this must stay honest there rather than assert a
+        source-tree set (the same scoping `TestDeclarationCensus` documents)."""
+        return sorted(os.path.dirname(p)
+                      for p in _glob.glob(os.path.join(LIVE_FIXTURES, "*", "construction-scoped.json")))
+
+    def _root(self, *, origin: str) -> str:
+        root = _placed_root(origin)
+        self.addCleanup(lambda: shutil.rmtree(root, ignore_errors=True))
+        return root
+
+    @staticmethod
+    def _na(found) -> bool:
+        return bool(found) and any("NOT APPLICABLE HERE" in f["message"] for f in found)
+
+    def test_every_shipped_declaration_carries_the_exact_property(self):
+        dirs = self._dirs()
+        self.assertTrue(dirs, "no committed construction-scoped declaration found to check")
+        for fdir in dirs:
+            with self.subTest(fixture=os.path.basename(fdir)):
+                data = validate.load_json(os.path.join(fdir, "construction-scoped.json"))
+                self.assertEqual(
+                    data.get("property"), hcb._CS_PROPERTY,
+                    "a shipped declaration's property must byte-match the constant the check compares it "
+                    "against; a desync is invisible here and a hard red in every deployed repo")
+
+    def test_each_is_honored_as_a_loud_soft_note_in_a_deployed_repo(self):
+        for fdir in self._dirs():
+            stem = os.path.basename(fdir)
+            with self.subTest(fixture=stem):
+                found = hcb._failed_bite_applicability(
+                    f"engine/check/{stem}", fdir, self._root(origin=ADOPTER_URL), "hard")
+                self.assertIsNotNone(found, f"{stem}: the shipped declaration was not honored at all")
+                self.assertTrue(all(f["severity"] == "soft" for f in found), found)
+                self.assertTrue(self._na(found), found)
+
+    def test_each_is_inert_in_the_engines_own_home_repo(self):
+        # The carve-out may never excuse a check whose failure path IS reachable: in the engine's own home the
+        # declaration is inert and the failed bite stands. Asserted as "no N/A note" rather than a strict None
+        # so a fixture dir that also carries a requires.json stays correctly judged — and paired with the
+        # adopter-root assertion, so a declaration the code cannot FIND (wrong filename) can never satisfy this
+        # by returning None.
+        for fdir in self._dirs():
+            stem = os.path.basename(fdir)
+            with self.subTest(fixture=stem):
+                unit = f"engine/check/{stem}"
+                self.assertTrue(
+                    self._na(hcb._failed_bite_applicability(unit, fdir, self._root(origin=ADOPTER_URL), "hard")),
+                    f"{stem}: the declaration must be FOUND and honored in a copy, or 'inert at home' below "
+                    f"would pass merely because nothing was read")
+                found = hcb._failed_bite_applicability(unit, fdir, self._root(origin=HOME_URL), "hard")
+                self.assertFalse(self._na(found), found)
 
 
 if __name__ == "__main__":

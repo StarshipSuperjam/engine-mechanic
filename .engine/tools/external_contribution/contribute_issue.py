@@ -2,7 +2,7 @@
 """Cross-repo issue contribution — file an Issue into a target repo, following ITS own conventions.
 
 WHAT IT DOES. The issue-shaped sibling of `submit.py`. When the Engine files an Issue into a repo it contributes
-to (an open-source upstream, or the engine-mechanic building engine-template), this prepares and — on the
+to (an open-source upstream, or engine-template reached by a fork-native deployment escalating an engine fix), this prepares and — on the
 operator's explicit go-ahead — opens that Issue, carrying the TARGET repo's own issue-title convention rather
 than imposing the Engine's own. GitHub applies an issue template's `title:` prefix (e.g. `Bug: `) only on the
 web "New issue" form; every programmatic path (`gh issue create --title`, the REST `POST …/issues`) bypasses it,
@@ -12,10 +12,10 @@ READ THE TARGET REMOTELY, NOT THE RUNNING TREE (the load-bearing correctness poi
 is a REMOTE act — it needs no local checkout of X. So the target's conventions are read REMOTELY too, from the
 target repo's own committed files via `gh api repos/{target}/contents/.github/ISSUE_TEMPLATE`, NOT from the
 Engine's own working tree. This deliberately differs from `submit.py`, which reads the local tree only because
-it runs *inside* a fork checkout of its target; the engine-mechanic builds engine-template from a SEPARATE
-checkout, so a local-tree read there would read engine-mechanic's own templates and impose them on
-engine-template — the exact engine/product-wall inversion this tool exists to prevent. Reading the target
-remotely makes the tool correct regardless of where the Engine runs.
+it runs *inside* a fork checkout of its target; whenever the running tree is NOT the target itself — a fork
+carrying the Engine's own overlaid templates, or any separate-checkout topology — a local-tree read would read
+the wrong templates and impose them on the target, the exact engine/product-wall inversion this tool exists to
+prevent. Reading the target remotely makes the tool correct regardless of where the Engine runs.
 
 FOLLOW THE HOST, NEVER IMPOSE THE ENGINE'S OWN (the engine/product wall). The title prefix and the body shape
 are the TARGET repo's, read from its committed issue templates — NOT the Engine's own engine-domain body
@@ -43,13 +43,12 @@ the stall is best-effort traced via telemetry into the operator's OWN repo (neve
 zero-exit `gh` result means the Issue WAS created; even if the returned URL can't be captured, the tool reports
 it filed (never "nothing submitted"), so the operator is never nudged into filing a duplicate public Issue.
 
-UN-EXERCISED AT v1 (disclosed, matching submit.py). Every network boundary is injectable — the `gh` transport
+NETWORK BOUNDARIES ARE INJECTED (matching submit.py). Every network boundary is injectable — the `gh` transport
 (`gh_run`, used for BOTH the template fetch and the filing) and the telemetry boundary (`github`) — so the whole
 deterministic surface (template detection, kind resolution, title/body assembly, the confirm gate, degradation)
-is proven fully offline by `test_contribute_issue.py` and the falsifiable `demo`. The one step not exercised
-end-to-end at v1 is the real `gh issue create` firing against a live target — it runs behind `gh_run` for the
-first time only when an operator actually files. The honest line: the machinery is tested; the live network
-filing is not.
+is covered offline by `test_contribute_issue.py` and the falsifiable `demo`. The real `gh issue create` against
+the target is the only boundary that acts on the network; it runs behind `gh_run` the first time an operator
+actually files, the way any released feature runs its live path the first time it is used.
 
 CONTRACT. This is an operation tool, not a `custom/script` check — it is invoked by the engine/operator (and
 narrated by the `external-contribution-issue` runbook), never by the validator. `demo` runs a falsifiable
@@ -70,7 +69,8 @@ for _p in (_HERE, _PARENT):
         sys.path.insert(0, _p)
 
 import validate  # noqa: E402 — the shared body reader (_body_without_frontmatter)
-import telemetry  # noqa: E402 — promote_finding (the stalled-contribution trace), utc_now, GitHubIssues
+import telemetry  # noqa: E402 — promote_finding (the stalled-contribution trace), GitHubIssues
+import moment  # noqa: E402 — the trailing-Z time seam; pure stdlib leaf
 
 
 # ---- target issue-template detection, read REMOTELY from the target (follow the host's conventions) --------
@@ -318,7 +318,7 @@ def _draft_text(upstream_repo: str, title: str, body: str) -> str:
 def _run_gh(args: list):
     """Run a `gh` command. Returns (returncode, stdout, stderr). Never raises — a missing/failed `gh` degrades
     to a non-zero return so the caller takes the degradation path. Used for BOTH the remote template fetch and
-    the filing; the real `gh issue create` is the one boundary not exercised end-to-end at v1 (tests and the
+    the filing; the real `gh issue create` is the one boundary that acts on the network (tests and the
     demo inject a fake `gh_run`)."""
     import subprocess
     try:
@@ -353,7 +353,7 @@ def contribute_issue(*, upstream_repo: str, kind: str | None, summary: str,
     template fetch and the filing) and `github` (telemetry boundary). The real `gh issue create` is reached only
     when `confirm=True`.
     """
-    now = now or telemetry.utc_now()
+    now = now or moment.utc_now()
     gh = gh_run or _run_gh
 
     # 0. A contribution needs something to say. Refuse a blank summary before reading or filing anything, so a
@@ -384,7 +384,7 @@ def contribute_issue(*, upstream_repo: str, kind: str | None, summary: str,
         return {"status": "prepared", "issue": issue,
                 "narration": _prepared_narration(upstream_repo, title, prefixed)}
 
-    # 4. File the Issue (the one un-exercised-at-v1 boundary). A ZERO exit means it was created — report filed
+    # 4. File the Issue (the one boundary that acts on the network). A ZERO exit means it was created — report filed
     #    even if the URL couldn't be captured (never "nothing submitted", which would risk a duplicate). Only a
     #    NON-zero exit means it was not created → degrade to a drafted issue.
     try:

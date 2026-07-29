@@ -49,13 +49,16 @@ import json
 import os
 import re
 import sys
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate          # noqa: E402  ROOT/ENGINE_DIR, the env seam, the prompt-fence defang
+import moment            # noqa: E402  the trailing-Z time seam; pure stdlib leaf
 import telemetry         # noqa: E402  the GitHub boundary + promote_finding + marker-safety + the benign class
 import issue_author      # noqa: E402  the shared engine-Issue body contract
 import spec_referent     # noqa: E402  CORE lock-status reader (never the product-design parser)
 import github_client     # noqa: E402  the commits/contents API for the matrix's own recent history
+import repo_identity      # noqa: E402  resolve_default_branch — the baseline read must key off the repo's real default
 from audit_soft_promote import _neutralize  # noqa: E402  the shared author-text neutraliser
 
 # ---- constants ------------------------------------------------------------------------------
@@ -205,11 +208,15 @@ class _MatrixHistory:
     audit_digest._DigestHistory: the commits+contents APIs for one file, injectable transport so tests/the
     demo fake ONLY the network. Deliberately NOT a `fetch-depth: 0` deep clone (the cron checkout is shallow)."""
 
-    def __init__(self, repo: str, token: str, *, path: str, base: str = "main", transport=None):
+    def __init__(self, repo: str, token: str, *, path: str, base: "str | None" = None, transport=None):
         self.repo = repo
         self.token = token
         self.path = path
-        self.base = base
+        # The branch the recency baseline is read from. Resolved from GITHUB_DEFAULT_BRANCH (the conformance
+        # workflow step sets it to github.ref_name) -> recorded manifest -> origin/HEAD -> "main". A literal
+        # "main" here 404s the commits read on a `master` repo, silently emptying the baseline so every row
+        # stale-flags as a fresh lock every cron — the exact #671 wrong-branch failure.
+        self.base = base or repo_identity.resolve_default_branch(env_var="GITHUB_DEFAULT_BRANCH")
         self._transport = transport or self._http
 
     def _http(self, method: str, api_path: str, body=None):
@@ -234,7 +241,8 @@ class _MatrixHistory:
         window or the file has no commits (a fresh lock — every current row is stale-flagged for the window);
         or None when the history could not be read (a DISCLOSED gap, never a silent 'nothing moved')."""
         status, commits = self._transport(
-            "GET", f"/repos/{self.repo}/commits?path={self.path}&sha={self.base}&per_page={_HISTORY_PAGE}", None)
+            "GET", f"/repos/{self.repo}/commits?path={self.path}"
+            f"&sha={urllib.parse.quote(self.base, safe='')}&per_page={_HISTORY_PAGE}", None)
         if status in (404, 409):
             return frozenset()                         # no history yet: fresh lock, all rows stale-flagged
         if status >= 400 or commits is None:
@@ -269,13 +277,8 @@ class _MatrixHistory:
 
 
 def _parse_iso(s: str):
-    """Parse a GitHub ISO-8601 commit date to an aware datetime, or None. Tolerant of the trailing 'Z' across
-    Python versions; never raises."""
-    from datetime import datetime
-    try:
-        return datetime.fromisoformat((s or "").replace("Z", "+00:00"))
-    except (ValueError, TypeError):
-        return None
+    """Parse a GitHub ISO-8601 commit date to an aware UTC datetime, or None. Tolerant; never raises."""
+    return moment.parse_z(s)
 
 
 def _now():
@@ -591,7 +594,7 @@ def promote(body_file: str, *, repo: str | None = None, token: str | None = None
     if not repo or not token:
         return 0, True
     github = telemetry.GitHubIssues(repo, token, transport=transport)
-    now = telemetry.utc_now()
+    now = moment.utc_now()
     tracked, degraded = 0, False
     for r in records:
         result = telemetry.promote_finding(github, r, now, title=r["title"], body_core=r["body_core"])

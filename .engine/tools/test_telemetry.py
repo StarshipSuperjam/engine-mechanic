@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-tests for telemetry detect->surface machinery.
 
-Run: uv run --directory .engine --frozen -- python -m unittest discover -s tools -p 'test_*.py' -b
+Run: uv run --directory .engine --frozen -- python tools/selftest.py
 
 Each test locks one load-bearing law against the REAL reconcile logic, faking ONLY the network
 (the demo-fidelity rule): source-keyed dedup collapses repeats onto one Issue and ignores
@@ -127,12 +127,13 @@ class TestSeverityRank(unittest.TestCase):
 
     _BAR = 2   # the shipped debt_blocking_threshold these grades are calibrated against
 
-    def test_trust_critical_grades_above_the_bar(self):
-        self.assertGreaterEqual(telemetry.severity_rank(telemetry.TRUST_CRITICAL, self._BAR), self._BAR)
-
-    def test_persistent_benign_grades_below_the_bar(self):
-        # Below the bar -> assign_partition returns None -> a deferral/backlog.
-        self.assertLess(telemetry.severity_rank(telemetry.PERSISTENT_BENIGN, self._BAR), self._BAR)
+    # NOTE: the fixed-bar grade cases (trust-critical above, benign below) are covered here by the
+    # tuned-bar tests below (test_trust_critical_clears_ANY_bar... and test_benign_stays_below_a_raised_bar...),
+    # and the BEHAVIORAL boundary — that a benign finding defers rather than blocks at the shipped bar — is
+    # guarded cross-file by the real severity_rank -> assign_partition pipeline in test_attention.py
+    # (TestLiveDebtRegister.test_a_benign_finding_is_a_deferral_and_a_trust_critical_one_blocks, on
+    # FIXTURE_POLICY's debt_blocking_threshold=2). Don't prune those attention tests assuming this file
+    # covers the boundary.
 
     def test_an_unmarked_finding_has_no_severity_to_report(self):
         # A pre-severity Issue (an audit-authored finding carries no severity marker): telemetry owns the class
@@ -169,10 +170,6 @@ class TestSeverityRank(unittest.TestCase):
         # surfaces it. This is what makes debt_blocking_threshold govern instead of compare itself to itself.
         self.assertLess(telemetry.severity_rank(telemetry.PERSISTENT_BENIGN, 5), 5)
         self.assertGreaterEqual(telemetry.severity_rank(telemetry.PERSISTENT_BENIGN, 1), 1)
-
-    def test_grading_is_pure_and_deterministic(self):
-        for sev in (telemetry.TRUST_CRITICAL, telemetry.PERSISTENT_BENIGN, None):
-            self.assertEqual(telemetry.severity_rank(sev, self._BAR), telemetry.severity_rank(sev, self._BAR))
 
 
 class TestPureHelpers(unittest.TestCase):
@@ -519,13 +516,6 @@ class TestStateRefresh(unittest.TestCase):
         r = run(gh(f), [rec("check/p", "trust-critical")], cache, TH, T[0])  # state_path=None
         self.assertFalse(r.degraded)
         self.assertEqual(r.debt["open_count"], 1)            # computed and returned, not committed anywhere
-
-    def test_utc_now_matches_state_pattern(self):
-        schema = validate.load_json(os.path.join(validate.SCHEMAS_DIR, "state.v1.json"))
-        now = telemetry.utc_now()
-        probe = {"schema_version": 1, "standing_situation": {"milestone": None, "phase": None},
-                 "integration_debt": {"open_count": 0, "as_of": now, "register": None}}
-        self.assertEqual(list(validate.Draft202012Validator(schema).iter_errors(probe)), [])
 
 
 def _standing_transport(*, milestones=(200, []), pulls=(200, []), issues=None):
@@ -1737,215 +1727,6 @@ def _write_state(d, *, milestone=None, phase=None, open_count=0, as_of=None, reg
     return p
 
 
-class _EpisodicBase(unittest.TestCase):
-    """A fixture memory ledger via ENGINE_MEMORY_DIR — the ledger is gitignored/absent in this repo (like the
-    ambient cache), so the episodic reader is exercised over a seeded temp ledger, not the real one."""
-
-    def setUp(self):
-        from memory import capture, consolidate, ledger
-        self._cap, self._con, self._led = capture, consolidate, ledger
-        self._tmp = tempfile.TemporaryDirectory()
-        self._prev = os.environ.get(ledger.ENV_DIR)
-        os.environ[ledger.ENV_DIR] = self._tmp.name
-
-    def tearDown(self):
-        if self._prev is None:
-            os.environ.pop(self._led.ENV_DIR, None)
-        else:
-            os.environ[self._led.ENV_DIR] = self._prev
-        self._tmp.cleanup()
-
-    def _seed_unconsolidated(self, n):
-        for i in range(n):   # n genuine, un-marked sessions -> a backlog of size n
-            self._led.append(self._cap._make_record(f"sess-{i}", 1, "user", f"a genuine turn {i}"))
-
-    def _consolidate(self, i):
-        self._con.store_episodic(f"sess-{i}", [{"role": "observation", "text": "tidied"}])
-
-
-class TestEpisodicReader(_EpisodicBase):
-    """The memory-ledger episodic reader: a deep consolidation backlog emits ONE record; the
-    positive-observation gate makes an absent/empty ledger or a corrupt lease claim NO authority (so a
-    per-machine read can never auto-resolve a global issue), while a genuinely-clear present ledger does."""
-
-    def test_deep_backlog_emits_one_record_and_is_authoritative(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        recs, auth = telemetry.derive_episodic_records()
-        self.assertEqual(len(recs), 1)
-        self.assertEqual(recs[0]["source_id"], telemetry.EPISODIC_BACKLOG_SID)
-        self.assertEqual(recs[0]["severity"], telemetry.PERSISTENT_BENIGN)
-        self.assertIsNone(recs[0]["location"])
-        self.assertIn(str(telemetry.EPISODIC_BACKLOG_THRESHOLD), recs[0]["message"])
-        self.assertEqual(auth, frozenset({telemetry.EPISODIC_BACKLOG_SID}))
-
-    def test_below_threshold_no_record_but_authoritative_to_resolve(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD - 1)
-        recs, auth = telemetry.derive_episodic_records()
-        self.assertEqual(recs, [])
-        self.assertEqual(auth, frozenset({telemetry.EPISODIC_BACKLOG_SID}))   # observed clear -> resolves
-
-    def test_genuinely_clear_present_ledger_resolves(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        for i in range(telemetry.EPISODIC_BACKLOG_THRESHOLD):
-            self._consolidate(i)                                              # every session now marked tidied
-        recs, auth = telemetry.derive_episodic_records()
-        self.assertEqual(recs, [])
-        self.assertEqual(auth, frozenset({telemetry.EPISODIC_BACKLOG_SID}))
-
-    def test_absent_ledger_claims_no_authority_closes_nothing(self):
-        # a fresh worktree / machine with no ledger must NOT resolve a global issue raised elsewhere.
-        recs, auth = telemetry.derive_episodic_records()
-        self.assertEqual(recs, [])
-        self.assertEqual(auth, frozenset())
-
-    def test_a_partially_tidied_session_re_grows_the_backlog(self):
-        # #446: telemetry reuses detect_unconsolidated, so a session tidied and then given a LATER turn is
-        # pending again and must count — a backlog that re-grows after tidying still surfaces.
-        n = telemetry.EPISODIC_BACKLOG_THRESHOLD
-        self._seed_unconsolidated(n)
-        for i in range(n):
-            self._consolidate(i)                                       # all tidied -> backlog clears
-        self.assertEqual(telemetry.derive_episodic_records()[0], [])
-        for i in range(n):
-            self._led.append(self._cap._make_record(f"sess-{i}", 2, "user", f"a later turn {i}"))
-        recs, _auth = telemetry.derive_episodic_records()
-        self.assertEqual(len(recs), 1)                                 # the re-grown backlog surfaces again
-        self.assertIn(str(n), recs[0]["message"])
-
-    def test_corrupt_lease_claims_no_authority(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        with open(os.path.join(self._led.ledger_dir(), self._cap.LEASE_FILENAME), "w",
-                  encoding="utf-8") as fh:
-            fh.write("{ not valid json")                                      # a CORRUPT lease sidecar
-        recs, auth = telemetry.derive_episodic_records()
-        self.assertEqual(auth, frozenset(),
-                         "a corrupt lease is 'cannot determine', not 'clear' -> closes nothing")
-
-    def test_content_corrupt_line_reads_present_under_counts_gracefully(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        with open(self._led.ledger_path(), "a", encoding="utf-8") as fh:
-            fh.write("{ this is not valid json\n")                            # a malformed (skipped) line
-        recs, auth = telemetry.derive_episodic_records()                      # must not raise
-        self.assertEqual(auth, frozenset({telemetry.EPISODIC_BACKLOG_SID}))   # still present -> observed
-
-    def test_live_session_excluded_from_backlog(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)       # exactly at threshold
-        recs, _ = telemetry.derive_episodic_records(live_session_id="sess-0")  # excluding one drops below
-        self.assertEqual(recs, [], "the live session must not count toward the backlog")
-
-    def test_source_id_is_marker_safe(self):
-        self.assertTrue(telemetry.source_id_is_marker_safe(telemetry.EPISODIC_BACKLOG_SID))
-
-    def test_message_is_operator_safe_no_backstage_vocab(self):
-        msg = telemetry._episodic_message(7)
-        self.assertIn("not your project", msg)                               # the spec-required negation
-        for banned in ("ledger", "sweep", "lease", "turn-delta", "stream", "severity", "consolidat"):
-            self.assertNotIn(banned, msg.lower())
-
-
-class TestEpisodicLiveLoop(_EpisodicBase):
-    """Episodic end-to-end (the permanent regression for the demo's step 11): a chronically-deep backlog
-    promotes only after the persistence threshold and resolves once genuinely tidied; an absent-ledger pass
-    claims no authority so an open issue survives; and a scoped episodic pass NEVER closes a ci/ or
-    out-of-band Issue it did not observe."""
-
-    def _epi_open(self, f):
-        return any(i["state"] == "open" and telemetry.EPISODIC_BACKLOG_SID in i["body"]
-                   for i in f.issues.values())
-
-    def _pass(self, f, cache, now, live=None):
-        recs, auth = telemetry.derive_episodic_records(live_session_id=live)
-        telemetry.run(gh(f), recs, cache, TH, now, authoritative=auth, live=False)
-
-    def test_promotes_after_persistence_then_resolves_when_tidied(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
-        for k in range(3):
-            self._pass(f, cache, T[k])
-            self.assertEqual(self._epi_open(f), k == 2)   # opens ONLY on the 3rd deep pass (persistence)
-        for i in range(telemetry.EPISODIC_BACKLOG_THRESHOLD):
-            self._consolidate(i)                          # the tidy catches up
-        for k in range(3, 5):
-            self._pass(f, cache, T[k])
-        self.assertFalse(self._epi_open(f))               # genuinely cleared -> auto-resolves
-
-    def test_absent_ledger_pass_leaves_a_promoted_issue_open(self):
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)
-        f, cache = FakeGH(labels={"engine"}), telemetry.Cache(_tmpcache())
-        for k in range(3):
-            self._pass(f, cache, T[k])
-        self.assertTrue(self._epi_open(f))
-        empty = tempfile.TemporaryDirectory()
-        self.addCleanup(empty.cleanup)
-        os.environ[self._led.ENV_DIR] = empty.name        # simulate a fresh worktree with no ledger
-        for k in range(3, 6):
-            self._pass(f, cache, T[k])
-        self.assertTrue(self._epi_open(f),
-                        "an absent-ledger pass claims no authority -> the real issue must stay open")
-
-    def test_scoped_episodic_pass_never_closes_out_of_band(self):
-        self._seed_unconsolidated(1)
-        self._consolidate(0)                              # ledger present + genuinely clear -> observed/authoritative
-        f = FakeGH(labels={"engine"})
-        telemetry.promote_finding(gh(f), {"source_id": "hooks/fail-open/Stop/close",
-                                          "severity": "trust-critical", "message": "A gate could not run.",
-                                          "location": None, "first_seen": T[0], "last_seen": T[0]}, T[0])
-        self.assertEqual(f.open_count(), 1)
-        cache = telemetry.Cache(_tmpcache())
-        for k in range(4):
-            self._pass(f, cache, T[k])
-        self.assertTrue(any(i["state"] == "open" and "fail-open" in i["body"] for i in f.issues.values()),
-                        "an episodic pass claiming only the episodic/ sid must never close the out-of-band item")
-
-
-class TestRunEpisodicCLI(_EpisodicBase):
-    def test_no_local_repo_or_token_skips_cleanly(self):
-        # the normal state on a machine not logged in — fail-open exit 0, no crash, no stdin read.
-        with mock.patch("boot.repo_slug", return_value=None), mock.patch("boot.gh_token", return_value=None):
-            self.assertEqual(telemetry._run_episodic_cli([]), 0)
-
-    def test_happy_path_assembles_records_over_the_episodic_cache_and_reports(self):
-        # the production driver's success path: local context present -> derive over the fixture ledger ->
-        # run() with the episodic cache + live=False, reporting the counts and exiting 0.
-        self._seed_unconsolidated(telemetry.EPISODIC_BACKLOG_THRESHOLD)   # a deep backlog
-        captured = {}
-
-        def fake_run(github, records, cache, thresholds, now, state_path=None, *, authoritative, live=False):
-            captured.update(records=records, authoritative=authoritative, live=live, cache_path=cache.path)
-            return telemetry.Report(degraded=False, opened=1, updated=0, closed=0)
-
-        with mock.patch("boot.repo_slug", return_value="o/r"), \
-             mock.patch("boot.gh_token", return_value="tok"), \
-             mock.patch("sys.stdin", io.StringIO("")), \
-             mock.patch.object(telemetry, "run", side_effect=fake_run), \
-             contextlib.redirect_stdout(io.StringIO()) as out:
-            rc = telemetry._run_episodic_cli([])
-        self.assertEqual(rc, 0)
-        self.assertEqual(len(captured["records"]), 1)
-        self.assertEqual(captured["records"][0]["source_id"], telemetry.EPISODIC_BACKLOG_SID)
-        self.assertEqual(captured["authoritative"], frozenset({telemetry.EPISODIC_BACKLOG_SID}))
-        self.assertFalse(captured["live"])                                # cache-accrued, not live-derived
-        self.assertTrue(captured["cache_path"].endswith("episodic-streams.json"))   # its OWN accrual cache
-        self.assertIn("opened=1", out.getvalue())
-
-    def test_hook_payload_session_id_prefers_the_payload(self):
-        with mock.patch("sys.stdin", io.StringIO('{"session_id": "abc123"}')):
-            self.assertEqual(telemetry._hook_payload_session_id(), "abc123")
-
-    def test_hook_payload_bad_or_empty_stdin_returns_none(self):
-        for raw in ("not json at all", "", "   ", '{"other": 1}'):
-            with mock.patch("sys.stdin", io.StringIO(raw)):
-                self.assertIsNone(telemetry._hook_payload_session_id())
-
-
-def tearDownModule():
-    for p in _TMP:
-        try:
-            os.remove(p)
-        except OSError:
-            pass
-
-
 class TestFindingsInbox(unittest.TestCase):
     """The emit-and-done seam: a producer emits and is done; telemetry owns the act.
     A TRUST_CRITICAL signal promotes immediately (via the injected boundary in tests, or refused under the
@@ -2166,8 +1947,7 @@ class TestSessionPassSerialization(unittest.TestCase):
     def test_main_takes_the_lock_for_each_session_start_verb(self):
         # The WIRING, not just the primitive: a future edit dropping one `_lock = ...` assignment in
         # main() would silently un-serialize a pass while every other test stayed green.
-        for verb, target in (("run-ambient", "_run_ambient_cli"), ("run-episodic", "_run_episodic_cli"),
-                             ("drain-inbox", "_run_drain_cli")):
+        for verb, target in (("run-ambient", "_run_ambient_cli"), ("drain-inbox", "_run_drain_cli")):
             with self.subTest(verb=verb):
                 with mock.patch.object(telemetry, "_serialize_session_passes") as lock, \
                      mock.patch.object(telemetry, target, return_value=0) as run:

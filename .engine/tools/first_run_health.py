@@ -2,7 +2,7 @@
 """first_run_health — the standing "this copy hasn't finished first-run setup" detector (issue #353).
 
 Catches when a repo created from the engine template ("Use this template", or a clone-and-push of it) is
-still sitting in its un-transformed, construction-state shape — so [boot] can OFFER to walk the operator
+still sitting in its un-transformed, as-copied shape — so [boot] can OFFER to walk the operator
 through `/engine-setup` on the first session, instead of the repo silently reporting itself "already set up"
 and stranding the adopter. The detect / surface / consent split mirrors the leftover-LICENSE detector
 (`license_health`) and the stranded-checkout detector (`checkout_health`): provisioning detects, boot
@@ -25,12 +25,13 @@ OBSERVABLE installed shape instead, using two grounded signals:
      an untouched fresh copy and a setup INTERRUPTED partway (before or after the floor swap): the remedy is
      identical, since `/engine-setup` resumes idempotently (#519 §1).
 
-A construction FORK of the workshop (a contributor's fork, origin != home, construction file still present)
-is the one offline false-positive the two signals cannot separate from a fresh copy — because a pre-swap
-fresh copy carries the same construction CLAUDE.md. It is separated ONLINE by `forked_from_home`, a
-best-effort, token-gated GitHub read of the repo's fork parentage (a fork of the engine home is NOT an
-adopter to nag). Offline (no token) the offer still shows; it is read-only and low-harm, and construction
-actually happens in worktrees on `origin == home`, where the downstream-copy signal never fires.
+A FORK of the engine's own home (a contributor's fork: origin != home, and the one-time setup tool still
+present, because a fork of the engine's repo carries it) is the one offline false-positive the two signals
+cannot separate from a fresh copy — the two are identical on disk, since a fork and a fresh copy inherit the
+same committed files. It is separated ONLINE by `forked_from_home`, a best-effort, token-gated GitHub read of
+the repo's fork parentage (a fork of the engine home is NOT an adopter to nag). Offline (no token) the offer
+still shows; it is read-only and low-harm, and the engine's own development actually happens in worktrees on
+`origin == home`, where the downstream-copy signal never fires.
 
 OFFLINE + READ-ONLY at the core (`detect_first_run_pending`), the online parentage read kept OFF that
 critical path (the `checkout_health`/`license_health` offline-online seam). Fix-never-here: the offer routes
@@ -51,7 +52,13 @@ import module_coherence  # noqa: E402  (slug_eq — the ONE normalized slug comp
 # signal — `instantiator.retire` self-deletes it as the final setup step.
 _SETUP_TOOL_REL = os.path.join(".engine", "tools", "instantiator.py")
 _MANIFEST_REL = os.path.join(".engine", "engine.json")
-_GITHUB_SLUG_RE = re.compile(r"github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", re.IGNORECASE)
+# host-anchored: github.com must be the URL host, never a substring of a look-alike (notgithub.com,
+# github.com.evil.com) — consistent with mechanic_build/boot's belts (defense-in-depth; this parser only
+# decides whether to OFFER first-run setup, but a mis-parse should never treat a look-alike as the home).
+# IGNORECASE reads a mixed-case host (`GitHub.com`); ASCII keeps that fold ASCII-only so a Unicode homograph
+# (`gİthub.com`, where U+0130 folds to `i`) cannot satisfy the host literal (#625).
+_GITHUB_SLUG_RE = re.compile(
+    r"^(?:(?:https?|ssh)://)?(?:[^@/]+@)?github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", re.IGNORECASE | re.ASCII)
 
 
 def _run(cmd: list, cwd: str | None = None, timeout: int = 30) -> str | None:
@@ -141,6 +148,32 @@ def detect_first_run_pending(cwd: str | None = None) -> dict | None:
         return None
 
 
+def detect_home_workshop(cwd: str | None = None) -> dict | None:
+    """OFFLINE, READ-ONLY. Returns {"present": True, "main": <path>, "home": <slug>, "own": <slug>} when the
+    examined main checkout IS the engine's own home — its git origin equals the recorded home_repository. The
+    STRICT-POSITIVE complement of detect_first_run_pending's downstream-copy test: it fires ONLY when BOTH the
+    origin and the recorded home resolve AND match — unlike `repo_identity.is_home_repo`, which fails TOWARD
+    home for its safety-check callers. That direction is deliberate here: an unreadable-origin deployed repo
+    must NOT get the home framing, because the home overlay points a session at `engine-development.md`, which
+    is retired from a generated copy and does not exist there. None on any non-home or unresolvable case; never
+    crashes boot. Mutually exclusive with detect_first_run_pending (a placed checkout is home XOR a downstream
+    copy)."""
+    try:
+        main = _main_checkout(cwd)
+        if main is None:
+            return None
+        home = _recorded_home(main)
+        own = _origin_slug(main)
+        # Strict positive: both must resolve AND name the same repo. `not is_downstream_copy` ALONE is too weak
+        # (it is also False when origin/home are unreadable); requiring `own and home` present closes that gap,
+        # so an unreadable origin reads as "not confirmably home" and the overlay stays quiet.
+        if not (own and home and not module_coherence.is_downstream_copy(own, home)):
+            return None
+        return {"present": True, "main": main, "home": home, "own": own}
+    except Exception:  # noqa: BLE001 — any unexpected failure degrades this one signal, never the pack
+        return None
+
+
 def forked_from_home(repo: str | None, token: str | None, home: str | None, transport=None) -> bool | None:
     """ONLINE, best-effort, READ-ONLY: is `repo` a FORK of the engine's own home `home`? True (suppress the
     offer — a fork of the engine home is a contributor's fork, not an adopter to nag), False (not a fork of
@@ -179,7 +212,10 @@ def _git(root: str, *args: str) -> None:
 def _fixture(tmp: str, name: str, *, origin: str, home: str,
              tool_present: bool = True, floor_swapped: bool = False) -> str:
     """A throwaway committed git checkout with a set origin remote, an installed manifest recording `home`,
-    optionally the one-time setup tool, and either the construction or the deployed-floor root CLAUDE.md."""
+    optionally the one-time setup tool, and a placeholder root CLAUDE.md. The CLAUDE.md content is incidental —
+    detect_first_run_pending keys on the origin vs recorded home and the setup tool's presence, never the file's
+    text — so `floor_swapped` only varies a cosmetic label (a fresh copy inherits the committed floor either way
+    since #323)."""
     root = os.path.join(tmp, name)
     os.makedirs(os.path.join(root, ".engine", "tools"), exist_ok=True)
     _git(root, "init", "-q")
@@ -193,7 +229,7 @@ def _fixture(tmp: str, name: str, *, origin: str, home: str,
             fh.write("# the one-time setup tool (placeholder for the fixture)\n")
     with open(os.path.join(root, "CLAUDE.md"), "w", encoding="utf-8") as fh:
         fh.write("# Your project runs on an Engine\n" if floor_swapped
-                 else "# construction governance\n")
+                 else "# a fresh copy of the engine template\n")
     _git(root, "add", "-A")
     _git(root, "commit", "-qm", "seed")
     return root

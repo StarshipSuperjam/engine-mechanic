@@ -39,19 +39,17 @@ only, never the whole pack, and the session never halts.
    alarms to the operator in plain words, and surface a brief needs-attention headline; the operator-toned
    status dashboard follows for grounding. The present-marker line and the must-push set are a fixed relay
    over the signals the substrates already detected — boot computes nothing new.
-   - **Anti-habituation collapse.** A standing governance alarm renders on **every** session it is
-     live, but one whose underlying condition is **unchanged since last relayed in full** collapses to a
-     **terse one-line reminder that still names the consequence and still offers the fix**; a **new, changed,
-     or worsened** condition relays in **full**. New-versus-old is carried in words ("still ... (unchanged)"
-     vs the full statement / "this has grown"), never length alone. The **present-marker line and the
-     all-clear render never collapse** — only the must-push relay payload behind the marker varies. The read,
-     the terse-versus-full decision, and the write all run in the deterministic hook (`boot_alarm_ledger`),
-     never the model, and are **fail-toward-full**: a missing/unreadable/write-failed ledger, or any
-     ambiguity, renders the alarm in full (repetition is the tolerable failure; suppression is not).
-     The relay is a **once-per-session act in the grounding reply**: each alarm is named with its
-     consequence in plain words, never wrapped in an invented "boot check" / "before we start setup"
-     preamble, and the "(unchanged since last session)" framing is **not re-surfaced on later turns** of
-     the same session (if asked again, answer plainly without restapling the boot wrapper).
+   - **Anti-habituation collapse.** A standing governance alarm renders on **every** session it is live, but
+     one **unchanged since last relayed in full** collapses to a **terse one-line reminder that still names the
+     consequence and offers the fix**; a **new, changed, or worsened** condition relays in **full**.
+     New-versus-old is carried in words ("still … (unchanged)" vs "this has grown"), never length alone. The
+     **present-marker line and the all-clear never collapse** — only the payload behind the marker varies. The
+     read, the terse-versus-full decision, and the write all run in the deterministic hook (`boot_alarm_ledger`),
+     never the model, and are **fail-toward-full**: any missing/unreadable/write-failed ledger or ambiguity
+     renders the alarm in full (repetition is tolerable; suppression is not). The relay is a **once-per-session
+     act in the grounding reply** — each alarm named with its consequence, never wrapped in an invented "boot
+     check" preamble, and the "(unchanged)" framing is **not re-surfaced on later turns** (if asked again,
+     answer plainly without restapling the boot wrapper).
 
 To print the assembled briefing by hand (a debug view of what the hook injects): `python tools/boot.py pack`.
 
@@ -67,7 +65,9 @@ surfaces, its sole local write the gitignored standing-alarm presentation ledger
 
 `compact` is deliberately not a trigger: a full re-render after compaction is a deferred enhancement
 that must never be depended on, so the reliable post-compaction floor stays the re-injected `CLAUDE.md`
-plus the next per-prompt scent. The memory reversible-forgetting readout and the modes stance line
+plus the next per-prompt scent. That scent fires on every prompt, so the floor is reached reliably — but what
+it carries is a reminder to consult saved memory, not orientation content, so it restores the reflex to go
+looking rather than the picture itself. The memory set-aside readout and the modes stance line
 render only once those substrates exist, so on a fresh engine they are simply absent.
 
 **The standing-alarm presentation ledger is boot's one local write.** It is a small, local,
@@ -75,10 +75,8 @@ gitignored, non-canonical marker at `.engine/boot/.cache/standing-alarms.json` (
 recording each surfaced standing alarm's structured condition and that it was shown in full, so the next
 session can collapse an unchanged one. It is read and written by boot's own `SessionStart` hook, lives at
 a stable per-instance path under the shared clone root (never an ephemeral worktree, so it spans separate
-sessions on the one machine), shares **no code path** with memory's consolidation sweep, is never
-committed, and is **fail-toward-full** (any loss or ambiguity renders the alarm in full). This refines
-boot's read-only law to *read-only of canonical state* — it never regenerates derived or committed state;
-its sole write is this presentation ledger.
+sessions on the one machine), shares **no code path** with memory's own session-start work, is never
+committed, and is **fail-toward-full** (any loss or ambiguity renders the alarm in full).
 
 **Beyond what this pack pushes, a session can reach the wiring map deliberately.** When a change needs an
 impact check — what depends on a part, what checks or governs it — or when a part is unfamiliar, the
@@ -91,35 +89,55 @@ anything at risk first, or refuses/blocks rather than guess, and the assistant r
 and never forces. What differs is *what* each protects and *how* it declines:
 
 - **A fresh copy still needing setup — walk `/engine-setup` (`instantiator`, #353).** The operator's main
-  checkout is still a construction-state copy of the template whose one-time setup hasn't finished — its origin
+  checkout is a copy of the template whose one-time setup hasn't finished — its origin
   differs from the recorded update home and the one-time setup tool is still present — so it would otherwise
   silently report itself "already set up." Provisioning's `first_run_health` detects it OFFLINE and boot pins
   the onboarding offer at the **top** of the dashboard (the root action that frames every other signal; it also
   suppresses the redundant "your safety gate is off" offer, which setup turns on). Unlike the repairs below the
   fix is not a write boot makes: on the operator's "set up my project" the assistant walks the `/engine-setup`
   verb (the instantiator's confirm → apply → verify → retire), which is idempotent and **resumes** a setup
-  interrupted partway; boot never runs setup itself. A best-effort ONLINE parentage read
-  (`first_run_health.forked_from_home`) suppresses the offer for a contributor's fork of the engine home (not an
-  adopter); offline the offer still shows — read-only and low-harm.
+  interrupted partway. A best-effort ONLINE parentage read (`first_run_health.forked_from_home`) suppresses the
+  offer for a contributor's fork of the engine home (not an adopter); offline the offer still shows — read-only
+  and low-harm.
+- **An engine-mechanic with no usable product checkout — setup (`checkout_health.mechanic_orientation`,
+  eADR-0026).** This engine records an executable `product_build_target`, so it builds a SEPARATE owned checkout,
+  but this machine's path to that checkout is missing or points at nothing. The reader classifies it OFFLINE
+  (`path-unset` / `path-unreachable`); boot pins the setup offer and **suppresses it while first-run setup is
+  pending**, so onboarding asks once, not twice. Like the fresh-copy offer above and unlike the repairs below,
+  the fix is not a write boot makes: on the operator's "point me at my product checkout" the assistant records
+  the folder in the gitignored `.engine/mechanic/product-checkout-path` (durable and per-machine — an
+  environment variable would not outlive the session), and on "clone my product for me" it clones the recorded
+  product as a SIBLING folder beside the engine's own, never inside it. The unreachable case echoes the
+  recorded folder home-contracted (`~/…`) so a typo can be corrected without putting the account name on a card
+  the operator may paste; the healthy case shows no path at all. The path is never verified here — the
+  fail-closed preflight in `mechanic_build` decides whether the checkout is really that product and safe to write in.
 - **A stranded checkout — un-stranding (`checkout_health.unstrand`).** The deployed-floor never-strand-main
   rule's one sanctioned write to the operator checkout: it rescues at-risk work — commits drifted off the branch,
   or unsaved changes — to a safe point first, then re-attaches the folder and restores the missing engine files.
   If it cannot safely tell where to re-attach the folder, it refuses rather than guess.
-- **A folder merely fallen behind — catch-up (`checkout_health.catch_up`, #335).** On its default branch but
-  missing merged work, brought current only along a safe fast-forward, keeping unsaved changes — the result is
-  brought current, already up to date, or (if unsaved work is in the way) `blocked`, changing nothing. This signal
-  never alarms on bare distance — only *missing merged work* past the velocity bar.
+- **A folder with newer shared work — catch-up (`checkout_health.catch_up`, #335).** One fresh remote snapshot
+  reports any upstream commit the default branch lacks, including direct or squash/rebase-shaped work. Ordinary
+  drift gets a calm, count-free notice; missing merges beyond the project-relative velocity bar get the existing
+  firm warning. If refresh, remote identity, or the remote default cannot be confirmed, boot says the check is
+  unavailable and never calls a cached view current. On consent, catch-up revalidates the pinned repository,
+  branch, HEAD, and exact target, then advances only along a safe fast-forward. Movement visible at revalidation,
+  divergence, or clashing work blocks before mutation; a final postcondition check prevents a racing external
+  Git operation from ever being reported as a successful repair.
+  After the operator says "bring it up to date," the assistant runs the machine-readable `snapshot` command,
+  takes its exact `target_oid`, and supplies that value to `catchup --apply --target <OID>` (or the return arm
+  below). Apply refuses without that consent-time target and also refuses if a newly refreshed target differs.
 - **A folder parked off its main line — return (`checkout_health.return_to_default`, #342).** The behind
   signal is two-stage: **Stage 1 (off-main)** surfaces gently — caught offline, every session, on day one — that
   the folder points at a side line rather than the main project; **Stage 2 (behind)** escalates to a firm offer
-  once it is also missing merged work. One consent handle — "bring it up to date" — runs whichever fits: `catch_up`
+  once its missing work crosses the firm velocity bar; below it, the ordinary drift notice remains calm. One
+  consent handle — "bring it up to date" — runs whichever fits: `catch_up`
   on the default branch, `return_to_default` when parked off it. Returning to a *named* side line never orphans its
   commits (the side line keeps them — no rescue needed, unlike the detached un-stranding arm); it switches only
-  when nothing is uncommitted, stashed, or mid-operation, then fast-forwards best-effort. The honest result is
-  pointed back and brought current, pointed back but the main line couldn't be brought current (the local copy had
-  diverged), already on the main line, or blocked-with-unsaved-work — being back on the main line is already the
-  win. Spotting an off-main park is a newer check — a folder healthy before it existed isn't freshly broken, and
-  the assistant says so the first time it surfaces.
+  when nothing is uncommitted, stashed, or mid-operation, then uses the same freshly pinned and revalidated target.
+  The honest result is pointed back and brought current, already on the main line, or blocked without mutation
+  because the consent target changed, local/shared main lines diverged, or work is unsaved/paused. Spotting an
+  off-main park is a newer check — a folder healthy before it existed isn't freshly broken, and the assistant
+  says so the first time it surfaces.
 - **A stranded pull request — reconcile (`pr_reconcile.reconcile`, #136).** A pull request that can't be merged:
   the reconcile acts only when the clash is confined to the engine's two internal index files — the knowledge
   graph and the self-map, the one clash that is *spurious* (both sides regenerate from one source tree) —
@@ -136,14 +154,18 @@ and never forces. What differs is *what* each protects and *how* it declines:
   **before** reverting the tree, **refuses** if the operator has unsaved work of their own in files the update
   doesn't touch, resets the update's own files and the shared setup files it changes (keeping the operator's
   version of those on the recovery point, disclosed in the result), and puts back any saved memory the update
-  changed (keeping the guard that an older copy never overwrites newer memory). boot only imports the fix path
-  through the lazy read-only detector and never runs it un-asked; the assistant relays the plain result.
-- **A safety gate that's off — re-enable branch protection (`bootstrap.ControlPlane.apply`, #392).** On the
-  operator's "turn my safety gate back on," the assistant runs the already-built `ControlPlane.apply` instead of a
-  manual settings walk-through: it re-enables the protection floor on the default branch — idempotent and additive,
-  repairing or augmenting the ruleset in place, preserving any protection already there, and reporting "already
-  protected" with no change when it is already in force. It runs the operator's OWN `gh` behind a one-time GitHub
-  administration approval (never a typed command); if the token can't carry that admin it discloses why and changes nothing.
+  changed (keeping the guard that an older copy never overwrites newer memory).
+- **A safety gate that's off — re-enable branch protection (`bootstrap.py finalize`, #392/#673).** On the
+  operator's "turn my safety gate back on," the assistant runs the already-built `ControlPlane.finalize` (the
+  `bootstrap.py finalize` verb) instead of a manual settings walk-through: it re-enables the protection floor on
+  the default branch — idempotent and additive, repairing or augmenting the ruleset in place, preserving any
+  protection already there, and reporting "already protected" with no change when it is already in force.
+  **finalize, NOT the raw `apply`, is the deployed remediation:** it is `apply` plus a check that the engine's
+  own workflows are on the branch, so on a freshly-arrived repo whose engine checks aren't bound yet (the #673
+  checkless window) it binds them safely — and refuses, rather than deadlock, if those workflows are not on the
+  branch yet (usually a sign the arrival pull request has not merged). It runs the operator's OWN `gh` behind a
+  one-time GitHub administration approval (never a typed command); if the token can't carry that admin it
+  discloses why and changes nothing.
 - **A leftover template license — clear it (a reviewed pull request) or keep it (`boot_alarm_ledger.retire`, #471).**
   The operator's checkout still carries the engine's own template `LICENSE` at its committed root (a repo generated
   before the first-run clear shipped, or drifted back to it); provisioning's `license_health` detects it and boot
@@ -160,7 +182,8 @@ and never forces. What differs is *what* each protects and *how* it declines:
   the greenfield state and boot **offers** the intake at first engagement so a non-engineer discovers it — a pure
   offer, never an action (the operator starts the intake themselves). It fires only when the intake is actually
   installed (never offering a command that isn't there) and self-resolves the moment the intake runs and writes
-  `docs/spec/index.md`; it no-ops in the engine's own construction repo. On the operator's "I'd rather work without a
+  `docs/spec/index.md`; it stays silent in the engine's own home repository, where the thing being built IS the
+  engine and a separate product description would be out of place. On the operator's "I'd rather work without a
   written description" the assistant runs `boot_alarm_ledger.retire` (class `greenfield_intake`) so the offer stops
   surfacing — run it as `python tools/boot_alarm_ledger.py retire-greenfield` (an Explore-permitted tool call),
 which DERIVES the fingerprint from the live detector so the marker can never silently mismatch and keep the

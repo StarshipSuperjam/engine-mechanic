@@ -65,6 +65,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402
+import repo_identity  # noqa: E402  (the dependency-light home-repo identity seam; slug/home primitives re-exported below)
 import wiring     # noqa: E402  (the wiring library: is_applied per directive for the forward wiring leg)
 import hooks      # noqa: E402  (the block-eligible invariant registry the block-budget leg checks)
 import modes      # noqa: E402  (modes declares its explore write-gate block; the consumer assembles it)
@@ -130,7 +131,10 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 # per-deployment operator policy-override of tunable policy values (.engine/operator-overrides.json, written
 # by /engine-tune) and the per-deployment instance guarded-paths declaration (.engine/operator-guarded-paths.json,
 # #532 — the deployment's own extra product-side paths for the weakening guard to watch, unioned in by
-# weakening_guard.is_guardrail and shape-gated by engine/check/operator-guarded-paths). It is operator-owned config preserved across an engine update — in NO module's
+# weakening_guard.is_guardrail and shape-gated by engine/check/operator-guarded-paths) and the per-deployment
+# local-reference vocabulary (.engine/operator-local-references.json — the references that mean something only
+# inside this deployment, read by local_references.py so an outbound contribution can be checked against them
+# and shape-gated by engine/check/operator-local-references). It is operator-owned config preserved across an engine update — in NO module's
 # `provides` and NOT a FOUNDATION_INFRA artifact (that set is overlay-REPLACED on upgrade, which would clobber
 # the operator's tuning). This is the LOCKED carve-out of module coherence: "Operator- and
 # deployment-authored committed content is outside this leg ... coherence does not read them as orphans, the
@@ -144,6 +148,7 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 # live outside .engine/, so the ownership walk never reaches them; they are product territory preserved by the
 # overlay's "never touch product".)
 OPERATOR_CONFIG = {".engine/operator-overrides.json", ".engine/operator-guarded-paths.json",
+                   ".engine/operator-local-references.json",
                    ".engine/conduct/operator.md",
                    ".engine/provisioning/conduct-seed.md", ".engine/provisioning/security-seed.md",
                    ".engine/provisioning/readme-seed.md"}
@@ -250,77 +255,30 @@ def load_engine_manifest():
     return validate.load_json(path) if os.path.isfile(path) else None
 
 
-def home_repository() -> str | None:
-    """The engine's HOME repository slug (`owner/repo`) recorded in the manifest — the single coordinate for
-    where the engine fetches its own updates from AND where a fork-native deployment escalates a contribution
-    to (schema: engine.v1.json `home_repository`). `None` when the manifest is absent or records no/blank home.
-    A present-but-MALFORMED manifest RAISES (loud), via `load_engine_manifest` -> `validate.load_json` — this
-    preserves the fail-loud commitment that `module_manager._home_repository` (which delegates here) and its
-    callers `overlay_disclosure.is_deployed` / `release_cut` rely on: a corrupt manifest must not be silently
-    read as "no home". A caller that must not crash on a corrupt manifest degrades LOCALLY (the
-    external-contribution submit flow wraps this call so a malformed home falls to its strict full check)."""
-    engine = load_engine_manifest() or {}
-    home = engine.get("home_repository")
-    return home if isinstance(home, str) and home.strip() else None
-
-
-def normalize_slug(slug: str | None) -> str | None:
-    """A GitHub `owner/repo` slug normalized for equality — strip surrounding whitespace and a trailing slash,
-    case-fold (GitHub slugs are case-insensitive), and drop a trailing `.git`. `None`/blank -> `None`. This is
-    the ONE slug-normalizer the contribution-home comparison uses; it mirrors `instantiator._norm`'s
-    strip/casefold/.git discipline and adds the trailing-slash strip. Kept here so the home/own comparison is
-    single-homed rather than re-implemented per call site."""
-    if not isinstance(slug, str):
-        return None
-    s = slug.strip().rstrip("/").casefold()
-    if s.endswith(".git"):
-        s = s[:-4]
-    return s or None
-
-
-def slug_eq(a: str | None, b: str | None) -> bool:
-    """True iff two `owner/repo` slugs are the SAME repository, compared as EXACT normalized full slugs (never
-    a repo-name-only match). Safety-load-bearing: it is the switch that lets the engine's own source travel to
-    the engine's home, so a loose match (name-only, substring) would let engine code ride into a look-alike
-    third-party repo. `None` on either side is never equal (an unconfirmed home never satisfies it)."""
-    na, nb = normalize_slug(a), normalize_slug(b)
-    return na is not None and na == nb
-
-
-_READ_HOME = object()  # sentinel: "no home passed -> read THIS repo's home", distinct from a passed home of None
-
-
-def is_downstream_copy(own_slug: str | None, home_slug: str | None = _READ_HOME) -> bool:
-    """True iff a repo is a DOWNSTREAM copy of the engine — its recorded update home is a DIFFERENT
-    repository than its own origin `own_slug`. This is the READ-ONLY, injectable, normalized sibling of
-    `overlay_disclosure.is_deployed()`, purpose-built for first-run detection (#353), and the ONE place the
-    downstream-copy rule lives so its two callers (the instantiator `show` branch and the boot detector)
-    cannot drift:
-      - both slugs are PARAMETERS. `own_slug` is always the caller's (never resolved here). `home_slug` is
-        the caller's too: OMIT it to have THIS repo's recorded `home_repository()` read fail-soft (the `show`
-        branch), or PASS the EXAMINED checkout's home — INCLUDING an explicit `None` for an absent home (the
-        boot detector) — and it is used verbatim. The `_READ_HOME` sentinel distinguishes "not passed" from a
-        passed `None`, so a caller that read an absent home never silently falls back to this repo's home.
-      - the compare is `slug_eq`-normalized (casefold / `.git` / trailing-slash), so an SSH-vs-HTTPS or
-        case-skewed origin never reads as "different".
-      - SAFE, fail-toward-quiet: returns False (NOT a copy) whenever the home is absent/blank/unreadable OR
-        `own_slug` is None, so the workshop (home == own) and any repo whose origin cannot be read stay quiet —
-        a consumer never nags a repo it cannot positively place. A MALFORMED manifest read here degrades to
-        False (this predicate must never crash its read-only caller), unlike the fail-LOUD `home_repository()`
-        the update path deliberately relies on — the reason this is a distinct predicate from `is_deployed`."""
-    if home_slug is _READ_HOME:
-        try:
-            home_slug = home_repository()
-        except Exception:  # noqa: BLE001 — a corrupt manifest degrades to "not a copy"; never crash the caller
-            return False
-    return bool(home_slug and own_slug and not slug_eq(home_slug, own_slug))
+# ---- home-repo identity primitives: single-homed in `repo_identity`, re-exported here ----------------
+# These moved to the dependency-light `repo_identity` module so the lean HARD CI safety checks
+# (memory-pointer-public-safety, census-completeness, hard-check-bite) can gate on the home-repo signal
+# WITHOUT importing this module's modes/close/hooks lifecycle machinery into a `pull_request_target`-adjacent
+# path. Re-exported under their long-standing `module_coherence.<name>` names so every existing caller
+# (module_manager, first_run_health, release_cut, external_contribution/submit, instantiator) is unaffected,
+# and this module keeps no copy of its own to drift from. (Other modules — first_run_health, boot,
+# instantiator, weakening_guard — still carry their own origin/home readers with their own fail-directions;
+# `repo_identity` is the single home for the primitives it defines, though not the tree's only reader of that
+# state.) `load_engine_manifest` (above) stays
+# here: it is this module's general engine-manifest reader, distinct from the identity seam. `home_repository`
+# preserves its fail-LOUD-on-malformed contract (via `validate.load_json` in `repo_identity`).
+home_repository = repo_identity.home_repository
+normalize_slug = repo_identity.normalize_slug
+slug_eq = repo_identity.slug_eq
+is_downstream_copy = repo_identity.is_downstream_copy
+_READ_HOME = repo_identity._READ_HOME
 
 
 # ---- what may travel in a contribution back to the ENGINE'S OWN HOME (issue #556) -----------------
 #
-# When a deployment contributes back to the engine's home (the mechanic building engine-template, or a
-# fork-native deployment escalating an engine fix), the engine's own SOURCE legitimately rides upstream — it
-# IS the contribution. What must NEVER ride upstream, even to the home, is this deployment's ACCRETED STATE
+# When a deployment contributes back to the engine's home (a fork-native deployment escalating an engine fix to
+# engine-template — the OWNED engine-mechanic takes the direct-PR path, not this), the engine's own SOURCE
+# legitimately rides upstream — it IS the contribution. What must NEVER ride upstream, even to the home, is this deployment's ACCRETED STATE
 # and the operator's private tuning. The leak check narrows to that never-travels set for the home case.
 #
 # SAFE DIRECTION (default-flag). `travels_to_engine_home` returns True ONLY for content proven safe to travel
@@ -335,11 +293,12 @@ def is_downstream_copy(own_slug: str | None, home_slug: str | None = _READ_HOME)
 _CI_REQUIRED_INDEXES = frozenset({".engine/knowledge/graph.json", ".engine/self-map.md"})
 
 # Committed, identical-across-instances engine build/runtime config (not under a surface namespace) that is
-# product and travels: the tool-runtime pin/lock, the suite manifest, the repo ignore rules, the Codex root
-# pointer, and the governance floor(s).
+# product and travels: the tool-runtime pin/lock, the suite manifest, the repo ignore rules, and the governance
+# floors (the root CLAUDE.md/AGENTS.md, which since #323 ARE the fenced adopter floor — the separate
+# .deployed.md files retired with the greenfield swap).
 _HOME_TRAVEL_FILES = frozenset({
     ".engine/pyproject.toml", ".engine/uv.lock", ".engine/suites.json",
-    ".gitignore", "AGENTS.md", "CLAUDE.md", "CLAUDE.deployed.md",
+    ".gitignore", "AGENTS.md", "CLAUDE.md",
 })
 
 # The engine's SOURCE namespaces — surface-catalogued kinds plus the module/template/provisioning trees and
@@ -351,7 +310,7 @@ _HOME_TRAVEL_FILES = frozenset({
 # it would travel unflagged, and neither the runtime default-flag nor `test_no_owned_path_is_left_ambiguous`
 # (which recognises data by the instance-DIR prefixes below) would catch it. A new per-instance store must be
 # kept OUT of these namespaces (or its module's `provides` + the instance-dir list extended). Hardening to an
-# explicit source-file allowlist is a deferred option, not needed while the sweep holds.
+# explicit source-file allowlist would be a stronger option, but is not needed while the sweep holds.
 _HOME_TRAVEL_PREFIXES = (
     ".engine/tools/", ".engine/check/", ".engine/schemas/", ".engine/operations/",
     ".engine/policies/", ".engine/interfaces/", ".engine/docs/", ".engine/conduct/",

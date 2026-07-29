@@ -16,7 +16,7 @@ Operator-facing FLOORS that live here (Floor 3's restore-offer lives in restore_
 "Privacy is posture": the destination is created PRIVATE and verified; if it is ever flipped public out of band, the
 engine re-verifies on every push, DECLINES to send new memory to a public repo, and surfaces the flip in plain words.
 
-Posture: **pure GitHub API, hook-safe** (the erasure_proposer precedent). The automatic push runs on a throttled
+Posture: **pure GitHub API, hook-safe** (the erasure-request precedent). The automatic push runs on a throttled
 SessionStart hook, so it must NEVER touch local git (no branch switch, no `git push` hang) and must be
 timeout-bounded. The transport is a tightened 10s-per-call boundary (telemetry's shared `_http` is fixed at 30s),
 and the push is **cheap-probe-first** (a single repo GET — the privacy re-verify — gates the expensive blob work),
@@ -34,7 +34,6 @@ CLI: setup | now | status | session-start | demo [--live]. Run the demo (fully o
 from __future__ import annotations
 
 import base64
-import datetime
 import hashlib
 import json
 import os
@@ -51,15 +50,16 @@ if _PARENT not in sys.path:
     sys.path.insert(0, _PARENT)
 
 from memory import ledger, records  # noqa: E402 — the canonical store + the shared record-kind vocabulary
+import moment  # noqa: E402 — the trailing-Z time seam; pure stdlib leaf (epoch -> wire shape)
 
 # Build-spec leaf (recorded; the operator chose ~24h this session). How often the throttled SessionStart push may
 # run, after the one-time consented setup. A politeness/cost guard only: failure-direction is benign both ways — too
 # short merely pushes more often (each push is an idempotent snapshot); too long leaves a staler backup, but the
-# local ledger stays canonical and intact. Mirrors the erasure_proposer's recorded-interval leaf convention.
+# local ledger stays canonical and intact. Mirrors the erasure observer's recorded-interval leaf convention.
 BACKUP_INTERVAL_HOURS = 24
 _HOUR = 3600
 
-# A gitignored runtime sidecar under .engine/memory/ (sibling of ledger-meta.json / erasure-proposer-state.json),
+# A gitignored runtime sidecar under .engine/memory/ (sibling of ledger-meta.json / the erasure observer's state sidecar),
 # holding the throttle + privacy-report state. Never committed; resolved via ledger.ledger_dir() so it lands in the
 # throwaway cabinet under tests/demo and the real store in production. Already fenced by the `.engine/memory/` gitignore.
 _STATE_FILENAME = "backup-vault-state.json"
@@ -212,7 +212,7 @@ def _get(gh, path: str):
 # ============================================================================================================
 
 def _iso_utc(epoch: int) -> str:
-    return datetime.datetime.fromtimestamp(int(epoch), datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return moment.to_z(int(epoch))
 
 
 def _engine_version() -> str:
@@ -557,7 +557,7 @@ def _prune_snapshots(gh, owner: str, repo: str, namespace: str, keep_name: str) 
 
 def _migration_manifest(*, ledger_path, now, engine_version, migration_id) -> dict:
     """The migration-snapshot manifest: the rolling four-key manifest PLUS `migration-id` and a `kind` marker, so the
-    restore + the code-older-than-data detector (later work) reads the snapshot's identity from a STABLE format in
+    restore + the code-older-than-data detector (`restore_vault.surface_resurrection`) read the snapshot's identity from a STABLE format in
     the manifest, never by parsing the operator-deletable tag name. The rolling four-key manifest stays frozen."""
     m = build_manifest(ledger_path=ledger_path, now=now, engine_version=engine_version)
     m["migration-id"] = migration_id
@@ -729,8 +729,10 @@ def _consent_prompt(vault_name: str, scope: str) -> str:
             f"I'll keep this project's AI memory in your shared backup — the PRIVATE repository \"{vault_name}\" on\n"
             "your own GitHub. I'll create it if it doesn't exist yet, or add this project's own folder to it if it\n"
             "does. Here is exactly what that means:\n\n"
-            "  - WHAT is copied: a private copy of the notes the engine has saved about this project — the\n"
-            "    decisions, lessons, and plans it remembers. (Your code and your work are not involved.)\n"
+            "  - WHAT is copied: a private copy of everything the engine has saved about this project — the\n"
+            "    decisions, lessons and plans it remembers, AND the saved conversations themselves. Anything\n"
+            "    you pasted or quoted in a session goes with them: code, file contents, and anything sensitive\n"
+            "    that was in them, such as a key, token, or password.\n"
             "  - ONE SHARED PLACE: this repository holds the memory for ALL your engine projects, each in its own\n"
             "    folder — so anyone who can see this one repository can see every project's notes, and one accidental\n"
             "    flip to public would expose every project at once. (A separate backup just for this project would\n"
@@ -743,8 +745,10 @@ def _consent_prompt(vault_name: str, scope: str) -> str:
     return (
         "The engine can keep a safe copy of this project's AI memory somewhere other than this computer, so a copy\n"
         "is always there if you ever need it. Here is exactly what that means:\n\n"
-        "  - WHAT is copied: a private copy of the notes the engine has saved about this project — the decisions,\n"
-        "    lessons, and plans it remembers. (Your code and your work are not involved.)\n"
+        "  - WHAT is copied: a private copy of everything the engine has saved about this project — the decisions,\n"
+        "    lessons and plans it remembers, AND the saved conversations themselves. Anything you pasted or quoted\n"
+        "    in a session goes with them: code, file contents, and anything sensitive that was in them, such as a\n"
+        "    key, token, or password.\n"
         f"  - WHERE it goes: a brand-new, PRIVATE repository on your own GitHub account, named \"{vault_name}\",\n"
         "    just for this project, that only you can see.\n"
         "  - PRIVATE, WATCHED HONESTLY: the engine creates it private, verifies it, and keeps checking — but it\n"
@@ -1393,8 +1397,8 @@ class _FakeVault:
 
 def _demo_plant(text: str) -> None:
     """Append one real note to the throwaway ledger so the backup has content to copy. A curated `episodic`
-    record (recall-eligible): ambient turn-deltas are not recall content (#332), so planting an
-    episodic keeps a demo/test that shows the restored note is searchable truthful."""
+    record: a restore preview lists the curated kinds only, so planting an episodic keeps a demo/test that
+    shows the restored note is searchable aligned with what that preview actually returns."""
     ledger.append({"kind": records.EPISODIC_KIND, "role": "observation", "text": text, "ts": int(time.time())})
 
 

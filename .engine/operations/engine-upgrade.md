@@ -21,8 +21,10 @@ changing nothing, whenever it cannot proceed — so it is safe to try.
    for the whole flow), or run `module_manager.py upgrade` directly. Either way it **only checks — it changes
    nothing**: it tells you the version you're on, whether a newer one is available, whether a previous update
    looks unfinished, and — when an update is available — **what that update would change**: the engine files
-   it replaces or adds, the settings it turns on or off or updates, and any stored-data change (and whether a
-   backup is set up for it). To see this it fetches the new version's files read-only; nothing is applied.
+   it replaces or adds, the settings it turns on or off or updates, any stored-data change (and whether a
+   backup is set up for it), and **any capability the update retires** — something you could ask the engine for
+   before and no longer can, named in plain language. To see this it fetches the new version's files read-only;
+   nothing is applied.
    (`module_manager.py status` also lists the installed modules and the current version.)
 2. **Apply the update — deliberately.** `module_manager.py upgrade --confirm` (optionally name a specific
    version) fetches the newer released version, replaces the engine's own files with it while **keeping your
@@ -63,8 +65,8 @@ spoken in conversation. If you simply mention wanting to update, the engine **po
   can simply reject.
 
 **What the check covers.** The check answers four things before you commit to an update: whether an update is
-**available** and to which version; the **impact** it would have (the files, settings, and stored-data changes
-above); the **progress** of applying it, which the apply step reports as it goes — what it applied, the data
+**available** and to which version; the **impact** it would have (the files, settings, stored-data changes, and
+retired capabilities above); the **progress** of applying it, which the apply step reports as it goes — what it applied, the data
 it migrated, and the pull request it opened; and the **validation** — the engine's own consistency check runs
 at the end, and, with the pull request's own checks, is visible on the pull request you review.
 
@@ -75,14 +77,10 @@ that step rather than risk data it can't restore — ask the engine to set up a 
 undone *after* it already changed saved data, the engine notices on its next start and tells you, in plain
 language, the exact command to restore the backup so your data and the engine match again.
 
-**What an update replaces, and what it keeps.** An update refreshes the engine's **own** files to the new
-version — its tools, its checks, and the templates that guide your pull request and issue descriptions — while
-keeping **your** settings and your saved data untouched. So if you have edited one of the engine's own
-templates, an update replaces it with the new version's wording; you can see and undo that in the update's
-pull request, like any other change.
-
-**Reviewed and reversible.** The update is never applied in place — it always arrives as a pull request behind
-the same review gate as any other change, so you approve it and can undo it.
+**What an update replaces, and what it keeps.** An update refreshes the engine's **own** files — its tools,
+checks, and the templates that guide your pull request and issue descriptions — while keeping **your**
+settings and saved data untouched. So if you've edited one of the engine's own templates, an update replaces
+it with the new version's wording; you can see and undo that in the update's pull request, like any other change.
 
 **Where updates come from — your engine's update home.** Your engine is detached from the repository it was
 created from, so updates don't arrive by an ordinary pull — they are fetched from the engine's **update home**,
@@ -102,14 +100,19 @@ check it, rather than quietly waiting, because the home itself may be wrong.
 first, then applies its settings and re-checks consistency. If it stops partway, the working copy is changed
 but **nothing was opened for review or merged** — safe either way. `/engine-upgrade` shows both choices:
 - **Finish it** — `module_manager.py upgrade --confirm` **again**; the second run uses the just-installed
-  version's own logic to complete the stalled step. (If it keeps stopping, the version you're updating *to*
-  predates this finish-the-update fix; wait for a newer release and update to that.)
+  version's own logic to complete the stalled step.
 - **Undo it** — `module_manager.py rollback --confirm` puts the engine back the way it was. It **saves a
   recovery point** of your current state first (nothing is lost), **refuses** if you have unrelated unsaved
   work of your own (asking you to set it aside first), and puts back any saved memory the update changed.
 
 Bare `upgrade` reports a half-finished tree as *unfinished*, not "up to date", and bare `rollback` shows the
 same choice — so you can always tell where you stand.
+
+**Too old to update cleanly.** Before it changes anything (and in the preview), an update checks whether your engine
+is below the release's **clean-upgrade floor** — the oldest version proven to update to it in one clean pass. Below
+it the update **refuses and changes nothing**, names both versions, and says plainly to stay put for now (undoing
+any earlier half-applied update first): an engine that old carries earlier update code that predates the
+file-tidying machinery, so an automatic clean path from it isn't available. An honest stop, not a failure.
 
 **Undoing an update you've already merged.** This can't be undone locally — the engine never rewrites your main
 line. Instead its pull request is reverted (a normal reviewed change you merge — "reverting the pull request

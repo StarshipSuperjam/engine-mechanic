@@ -45,11 +45,14 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402
+import moment  # noqa: E402  (the time seam — today_utc: the UTC calendar day the digest must date by)
 import github_client  # noqa: E402  (the shared authenticated GitHub API client; request-build + decode)
+import repo_identity  # noqa: E402  (resolve_default_branch — the shared default-branch resolver)
 
 
 # The committed digest's home: a file under .engine/audits/ (already a registered infra dir, beside the
@@ -152,10 +155,11 @@ def staleness(path: str | None = None, now: datetime.date | None = None) -> dict
     """The freshness signal. `note` when the digest is current; a `soft` (advisory, never blocking)
     finding when the engine has not self-reviewed in more than STALENESS_DAYS days, OR when no self-review
     has run yet — so a self-review that quietly stopped (an expired token, a disabled schedule, a setup
-    never finished) is surfaced on the operator's return rather than missed. `now` defaults to today
-    inside the function (the thin script calls it arg-less; tests inject a fixed date)."""
+    never finished) is surfaced on the operator's return rather than missed. `now` defaults to the UTC
+    calendar day inside the function — the day the digest's run-date is sealed in, so the two agree (the
+    thin script calls it arg-less; tests inject a fixed date)."""
     path = AUDIT_DIGEST_PATH if path is None else path
-    now = datetime.date.today() if now is None else now
+    now = moment.today_utc() if now is None else now
     name, where = _display(path), _loc_opt(path)
     if not os.path.isfile(path):
         return validate.finding(
@@ -177,30 +181,35 @@ def staleness(path: str | None = None, now: datetime.date | None = None) -> dict
     if age > STALENESS_DAYS:
         return validate.finding(
             "soft",
-            f"The engine hasn't reviewed its own health in {age} days. Re-arm the scheduled self-review — "
+            f"The engine hasn't reviewed its own health in {age} days (counted in UTC). Re-arm the scheduled self-review — "
             f"{REARM_HINT} — and it will refresh on the next run.",
             where)
     return validate.finding(
         "note",
-        f"The engine's self-review is current (last run {run_date.isoformat()}, within the last "
+        f"The engine's self-review is current (last run {run_date.isoformat()} UTC, within the last "
         f"{STALENESS_DAYS} days).",
         where)
 
 
-# ---- the recall-completeness disclosure (issue #332) -------------------------
-# Recall surfaces only the curated layer (episodic summaries + gists); the raw, word-for-word turn-notes behind
-# them are kept and fully recoverable — never deleted by that recall-exclusion. The verdict requires this
-# disclosure to reach the operator at the point of consumption (the recall answer carries it — scent + the memory
-# search tool) AND in the committed audits digest (never digest-only). This is the digest half: a STANDING line
-# (the digest is committed in CI with no access to the local gitignored ledger, so it cannot enumerate sessions —
-# the whole-store exclusion collapses to one line, exactly as the verdict allows). It is NOT a forgetting event:
-# nothing was retired or erased, so there is no undo handle. The wording is a build-spec leaf.
+# ---- the recall-completeness disclosure ---------------------------------------
+# What recall reaches, said plainly and in one standing line. This used to disclose an EXCLUSION — recall
+# surfaced only the curated summaries, and the word-for-word notes behind them, while kept, could not be found.
+# That exclusion is gone: search now reaches the recorded conversation itself. The disclosure survives because
+# the thing worth telling the operator survives — it is just the opposite fact, and it now carries the caveat
+# that a searched conversation is stored as it was said. The disclosure must reach the operator at the point of
+# consumption (the recall answer carries it — the memory search tool's own note, and the recall runbook the
+# per-prompt cue points at) AND in the committed audits digest (never digest-only). This is the digest half: a
+# STANDING line (the digest is committed in CI with no access to the local gitignored ledger, so it cannot
+# enumerate sessions — the whole-store statement collapses to one line). It is NOT a forgetting event: nothing
+# was retired or erased, so there is no undo handle. The wording is a build-spec leaf.
 _RECALL_COMPLETENESS_HEADING = "## Memory recall completeness"
 _RECALL_COMPLETENESS_DIGEST = (
     f"\n\n{_RECALL_COMPLETENESS_HEADING}\n\n"
-    "Memory recall surfaces curated summaries of past sessions; the raw, word-for-word notes behind them are kept "
-    "and fully recoverable on request — they are not deleted by being left out of recall, and nothing was "
-    "forgotten. Ask to see the exact wording for any of them."
+    "Memory recall reaches both the summaries of past sessions and the word-for-word conversation behind them, "
+    "so something said once and never summarised can be found — not only read back if you already know which "
+    "session to look in. Nothing was forgotten or deleted. What comes back is the conversation as it was "
+    "captured, and it was never cleaned of things like passwords or personal details, so treat a recalled "
+    "answer as unreviewed text and ask to see the exact wording of anything it rests on."
 )
 
 
@@ -224,8 +233,8 @@ def seal(path: str, generated=None, body: str | None = None) -> dict:
     """Stamp the run-date and write the self-seal over the file's body. With `body` given (the scheduled
     run's path: the persona's prose), the body is normalized to one blank line after the header; with
     `body=None` (re-sealing an existing file), the current body is preserved exactly. The write's exact
-    bytes are what check() later verifies. `generated` defaults to today; a test injects a fixed date."""
-    generated = _iso(generated if generated is not None else datetime.date.today())
+    bytes are what check() later verifies. `generated` defaults to the UTC calendar day; a test injects a fixed date."""
+    generated = _iso(generated if generated is not None else moment.today_utc())
     if body is None:
         _fm, body = split(path)              # re-seal: reuse the existing body slice verbatim
     else:
@@ -255,10 +264,6 @@ USER_AGENT = "engine-audit-digest"
 
 # The digest's repo-relative path — what the commits/contents API key on (AUDIT_DIGEST_PATH is absolute).
 DIGEST_REPO_PATH = os.path.relpath(AUDIT_DIGEST_PATH, validate.ROOT).replace(os.sep, "/")
-
-# The branch the prior digests are read from — the same base the digest pull requests target. The
-# in-flight digest this run produces is not committed to it yet, so the run is never fed its own output.
-PRIOR_DIGESTS_BASE = "main"
 
 # The corroboration window: how many of the most recent committed digests the self-review is fed
 # (oldest→newest). A plain bound — a build-spec leaf recorded with the maintainer — wide enough to catch
@@ -315,11 +320,14 @@ class _DigestHistory:
     issue-shaped — this reads the commits + contents APIs for one file's history."""
 
     def __init__(self, repo: str, token: str, *, path: str = DIGEST_REPO_PATH,
-                 base: str = PRIOR_DIGESTS_BASE, transport=None):
+                 base: "str | None" = None, transport=None):
         self.repo = repo
         self.token = token
         self.path = path
-        self.base = base
+        # The branch prior digests are read from — the same base the digest pull requests target. Resolved
+        # here (NOT a module-level default arg pinned at import) from GITHUB_DEFAULT_BRANCH (which audit-prep
+        # sets) -> recorded manifest -> origin/HEAD -> "main", so a `master` repo reads its own history.
+        self.base = base or repo_identity.resolve_default_branch(env_var="GITHUB_DEFAULT_BRANCH")
         self._transport = transport or self._http
 
     def _http(self, method: str, path: str, body=None):
@@ -342,7 +350,8 @@ class _DigestHistory:
         per_page = min(100, max(1, int(limit)))   # GitHub caps a commits page at 100; a recent read never paginates
         status, commits = self._transport(
             "GET",
-            f"/repos/{self.repo}/commits?path={self.path}&sha={self.base}&per_page={per_page}",
+            f"/repos/{self.repo}/commits?path={self.path}"
+            f"&sha={urllib.parse.quote(self.base, safe='')}&per_page={per_page}",
             None)
         if status in (404, 409):   # 404 path/branch never committed, 409 empty repo — no history yet
             return []
@@ -413,8 +422,17 @@ def render_prior_digests(repo: str, token: str, *, limit: int = PRIOR_DIGESTS_DE
 # (On the public template the committed pointer is the unconfigured placeholder, so this always degrades to the
 # not-configured disclosure with no network; the live read fires only in a repo configured with vault access.)
 
-# A generous total-character bound on the rendered beliefs — saved notes are short (~a few hundred chars each)
-# and a mature store holds ~hundreds, so this sits far above any real store and only guards a pathological case.
+# A total-character bound on the rendered beliefs. It was written as a guard on a pathological case, on the
+# reasoning that "a mature store holds ~hundreds" of short notes and so would sit far below it. Measured against
+# a real store, that reasoning does not hold: 752 live durable beliefs carrying 674 KB of text, more than ten
+# times this bound. It was already exceeded before the archived-tier age-out was removed (only one belief in
+# that store scored archived), so the age-out was never what kept it under — but nothing reclaims a belief now,
+# so the gap only widens.
+#
+# Two consequences the next reader should not have to rediscover. The truncation is newest-first, so what it
+# drops is the OLDEST beliefs — which is the opposite of what a review of STALE saved memory wants to see. And
+# raising the number is not obviously the fix: the audit persona has a context budget of its own. Naming the
+# right bound belongs with the curation-removal work, which is where the store's growth is addressed.
 SAVED_MEMORY_MAX_CHARS = 64 * 1024
 
 # Persona-facing disclosure markers — instructions, in plain words, for when the saved memory could not be read.
@@ -448,7 +466,7 @@ _SAVED_MEMORY_NONE_YET = (
 _SAVED_MEMORY_PUBLIC_AGGREGATE_HEADER = (
     "YOUR SAVED MEMORY — the saved decisions and notes the engine has kept for you, as last backed up {as_of}. "
     "Review them HERE, IN THIS RUN: do any now contradict each other, has anything you can see "
-    "refuted one, or is a heavily-used note actually obsolete? You are reading these from the backup (you can't "
+    "refuted one, or is a note the project still leans on actually obsolete? You are reading these from the backup (you can't "
     "reach them yourself); treat them as what the engine had saved as of that backup. IMPORTANT — this project is "
     "public, or its visibility could not be confirmed private, and your summary is committed where anyone could "
     "read it. So in that committed summary report ONLY HOW MANY of these {n} look stale (for example: \"N of your "
@@ -464,7 +482,7 @@ _SAVED_MEMORY_HEADER = (
     "YOUR SAVED MEMORY — the saved decisions and notes the engine has kept for you, as last backed up {as_of}. "
     "Review them: do any now contradict each other, has anything you can see refuted one, or is a "
     "heavily-used note actually obsolete? You are reading these from the backup (you can't reach them yourself); "
-    "treat them as what the engine had saved as of that backup. {n} note(s) follow, most-recently-used first.")
+    "treat them as what the engine had saved as of that backup. {n} note(s) follow, most-recently-recorded first.")
 
 # fetch error code -> the disclosure marker (the corrected two-part split, #224). not-configured = no backup
 # for this run; no-token = set up but THIS RUN wasn't granted access (a standing credential gap → re-arm the vault
