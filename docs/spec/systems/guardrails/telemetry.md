@@ -4,7 +4,7 @@ status: draft
 
 # Telemetry
 
-*Ratified in the design workspace on 2026-05-29 by [decision 0118](../../../adr/0118-q27-4-5-re-litigation-the-telemetry-finding-record-ambient-c.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-05-29 by [decision 0118](../../../adr/0118-q27-4-5-re-litigation-the-telemetry-finding-record-ambient-c.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -39,10 +39,13 @@ still earning its place?", "is this drift meaningful?" — is an audit's job.
 
 Telemetry derives its streams from the durable, native record, not from a hand-rolled log:
 
-- **Merged-PR CI outcomes**, read via `gh` (the protected-branch checks are the authoritative pass/fail).
+- **Default-branch CI outcomes**, read through the engine's shared authenticated GitHub client (direct
+  REST calls — the one `gh` use in telemetry's own path is a token fallback at boot): the latest check-runs on the
+  default branch's head, whose protected-branch checks are the authoritative pass/fail. Only a check
+  with a definitive conclusion counts; a check that did not run is neither promoted nor resolved.
 - **Best-effort ambient capture** of local check fires: the local [hooks](../infrastructure/hooks.md)
-  that run checks append the fire and its pass/fail (read from the hook event, not the hook's own exit)
-  to a gitignored cache. Telemetry **owns the ambient-capture record shape and path** — a check-fire record
+  that run checks append the fire and its pass/fail — the check's own verdict, re-derived by re-running
+  the touched-file check unit inside the handler, never the hook's exit code — to a gitignored cache. Telemetry **owns the ambient-capture record shape and path** — a check-fire record
   `{rule-id, pass/fail, event-derived markers (the touched target, a timestamp)}`, distinct from the
   `finding.v1` base — and the `PostToolUse` writer conforms to it (the [§16](../../../principles.md) deferral
   seam: telemetry owns the channel's record, the hook relays; hooks registers no record shape of its own).
@@ -50,7 +53,9 @@ Telemetry derives its streams from the durable, native record, not from a hand-r
   `Stop` hook takes no matcher — so no telemetry law treats the ambient log as a guarantee. A signal that
   must be reliable is read from the native CI record or promoted to a tracked issue, never assumed from
   the ambient cache.
-- **The [memory](../cognitive/memory.md) ledger** for episodic signal.
+- **Memory-subsystem health**, as the one memory-fed signal built: a degraded memory-capture state
+  arrives as a persistent-benign finding. No stream derives from the ledger's episodic content as
+  built — that stays an unbuilt leaf of the additive streams set below.
 
 There is **no committed check-fire ledger** (it would rebuild the dissolved session archive,
 [D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)) and **no requirement that the validator emit a structured PR outcome**
@@ -61,15 +66,21 @@ are left exactly as locked).
 ### Streams
 
 A **stream** is a derived signal series computed over the native record, carrying a **severity class**.
-The set of named streams (persistent warnings, never-fired rules, threshold crossings, the
-contract-creation rate, gate-evaluation failures, open findings awaiting remediation, and the
-**triage-pressure** stream below) is leaves, not law, and grows additively. The **stream cache is
+The set of derived streams as built — CI outcomes, persistent ambient warnings, never-fired rules, the
+contract-creation rate, and the **triage-pressure** stream below — is leaves, not law, and grows
+additively. (A gate-evaluation failure is not a stream: it arrives as an immediate finding through the
+hooks fail-open path. Open findings awaiting remediation are the issue register itself, surfaced by
+[state](../cognitive/state.md)'s count and [attention](../cognitive/attention.md), not re-derived as a
+series.) The **stream cache is
 gitignored** — it is a derivative regenerable from the native record and the ambient cache
 ([principle §2](../../../principles.md)), so it never bloats the committed tree and an engine upgrade
 cannot collide with it.
 
 Telemetry emits the *never-fired signal* for a rule; whether a never-fired rule should be **retired** is a
-judgment that belongs to [audits](audits.md), not here.
+judgment that belongs to [audits](audits.md), not here. As built the signal is the literal reading —
+a file-scoped rule that **currently selects zero files** — not a fire-history reading, which the build
+records as out of v1's reach without a committed ledger; the feed frames each item as a question for
+the audit, never a verdict.
 
 #### The triage-pressure stream — standing volume made visible, render-only
 
@@ -123,7 +134,9 @@ distinct from the agent and check enums.
 
 Triage is the only thing telemetry does autonomously, and it does exactly one write: **open or update an
 engine-labeled issue** when a signal warrants tracking, deduplicated by a **stable key** so a recurring
-signal updates the one issue rather than spawning duplicates. The key is derived from the signal's
+signal updates the one issue rather than spawning duplicates — and when a create/create race has already
+spawned duplicates, triage consolidates them, keeping the lowest-numbered survivor and closing the rest
+with a note. The key is derived from the signal's
 **source identity** — the rule-id, surface-id, or stream-id that emitted it — **never** from per-occurrence
 material (the file, run, or parameter the signal was observed on).
 
@@ -135,17 +148,23 @@ size or recurrence. A hard cap that *drops* or *coalesces* low-severity signal o
 deliberately rejected: it would force telemetry to decide *which* signals matter (a judgment that is
 [audits](audits.md)' job) or to alter standing state autonomously (toward self-healing), against
 its mechanical-only and report-never-heal commitments. A persistent benign signal keeping one issue open is
-*correct* — the signal is still true — and auto-resolve closes it when the signal goes absent; retiring a
+*correct* — the signal is still true — and auto-resolve closes it when the signal is observed clear; retiring a
 now-irrelevant signal *source* is ordinary audits/Build work, not a telemetry mechanism.
 
-- **Severity class sets promotion latency.** A **trust-critical** signal — a gate or check-kind that
-  *could not run* — promotes **immediately**; a **persistent-but-benign** signal promotes only after it
-  crosses a **persistence threshold**.
+- **Severity class and signal substrate together set promotion latency.** A **trust-critical** signal —
+  a gate or check-kind that *could not run* — promotes **immediately**. A **persistent-but-benign**
+  signal's latency depends on its substrate: one derived **live** from the native record (a CI failure
+  on the default branch's head) is tracked on its first observation — the record is authoritative, so
+  waiting adds nothing — while one accrued from the **best-effort caches** (ambient fires, the findings
+  inbox) promotes only after it crosses a **persistence threshold**.
 - **Thresholds live in a governed [policy](../surfaces/policies.md)**, not buried in code
   (Risk [R4](../../../reference/risks.md)) — legible and tunable.
-- **Resolution closes the issue.** **Auto-resolve clears the flag** — it closes the issue when the
-  originating signal has been absent for a set number of observations. It **does not repair anything**;
-  the fix was a remediation PR, and auto-resolve only retires the now-clear signal.
+- **Resolution closes the issue — on positive clearance, never mere absence.** **Auto-resolve clears
+  the flag** when the originating signal is *observed clear*: a pass on the same source, or the target
+  it fired on gone. A signal that merely stops appearing — a skipped local run, an unreadable cache, a
+  check that did not execute — is carried forward untouched, so absence never manufactures a false
+  all-clear. It **does not repair anything**; the fix was a remediation PR, and auto-resolve only
+  retires the now-clear signal.
 
 ### Output home
 
@@ -181,8 +200,10 @@ telemetry reads ([D-114](../../../adr/0114-q25-re-litigation-a-fourth-v1-core-po
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Self-surfacing, not self-healing** — triage (open/update an issue) is the only autonomous step; the AI remediates next session, under guardrails, and the operator merges. Never claim it heals unattended. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Mechanical only** — telemetry trends and counts; it makes no judgment call. Judgment is the audits rung. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Native and degradable** — signal of record is the native GitHub/CI record plus a best-effort ambient cache; on a GitHub outage boot still reads State's committed count, so the operator is never stranded. In that degraded state the boot line says so in plain language — it names the open-debt count *and* states that the per-issue detail is temporarily unreachable until GitHub returns — so the operator sees a calm, explained gap rather than a silent or alarming one. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Self-surfacing, not self-healing** — triage (open/update an issue) is the only autonomous step; the AI remediates next session, under guardrails, and the operator merges. Never claim it heals unattended. | Observe, in your deployed engine, the tool's runnable demo walkthrough: triage's only writes are issue open/update/close, and the degraded path makes none. The unit test asserting zero issue writes on a degraded read is partial support; the demo's aggregate self-check is inert at the reconciliation pin (a defect swallowed by its fail-open handler — it cannot fail the run), so it supports nothing. No check asserts the whole never-heals claim. | operator |
+| **Mechanical only** — telemetry trends and counts; it makes no judgment call. Judgment is the audits rung. | Observe that every judgment is deferred: retirement questions route to the audit, and the never-firing feed frames each item as a question, not a verdict — read in the demo's printed walkthrough (its aggregate self-check being inert at the pin, per the row above); no check asserts the general no-judgment property. | operator |
+| **Native and degradable** — signal of record is the native GitHub/CI record plus a best-effort ambient cache; on a GitHub outage boot still reads State's committed count, so the operator is never stranded. In that degraded state the boot line says so in plain language — it names the open-debt count *and* states that the per-issue detail is temporarily unreachable until GitHub returns — so the operator sees a calm, explained gap rather than a silent or alarming one. | Partial support from named unit tests: the degraded line names the open-debt count, says to re-ground, ends "until GitHub returns", and makes no issue writes. The per-issue-detail sentence itself and the end-to-end boot render rest on your observation of the degraded boot line. | operator |
