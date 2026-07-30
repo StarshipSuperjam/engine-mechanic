@@ -99,8 +99,10 @@ member. This is a **system-local invariant**, not a numbered principle: it *inst
   boundaries below, which emit a plain finding naming why a rule does not bind;
   (2) a **construction-scoped** check with no reachable failure path outside the construction
   repository, honored only in non-home repos and rendered as a plain `soft` finding (admitted by build
-  decision, engine-template#512); and (3) a check whose **aimed bite is witnessable only with a live
-  repository connection**, ignored in CI and rendered as a plain `soft` note locally (engine-template#531).
+  decision, [engine-template#512](https://github.com/StarshipSuperjam/engine-template/issues/512)); and
+  (3) a check whose **aimed bite is witnessable only with a live repository connection**, ignored in CI
+  and rendered as a plain `soft` note locally
+  ([engine-template#531](https://github.com/StarshipSuperjam/engine-template/issues/531)).
   Each class is bounded by its property; the set of classes is closed and grew only by reviewed
   decision.
 - **A module-added kind's negative fixture lives in the central reserved namespace**
@@ -108,7 +110,8 @@ member. This is a **system-local invariant**, not a numbered principle: it *inst
   with no fixture there. As built this is not the co-located-with-the-callable layout whose
   [§14](../../../principles.md) reversibility rationale the design once carried: an uninstall that
   removes the callable would leave its fixture behind as a stranded orphan. The divergence is latent —
-  no module ships a kind at the pin — and the fail-closed guarantee itself is unaffected.
+  no module ships a kind at the reconciliation pin — and the fail-closed guarantee itself is
+  unaffected.
 - **The meta-check carries its own negative fixture** — a seeded hard logic-unit whose fixture is missing or
   non-biting must turn it red — so the checker-of-checkers is itself falsifiable
   ([§15](../../../principles.md)); this terminates the regress without a meta-meta-check.
@@ -141,9 +144,9 @@ local Claude Code [hooks](../infrastructure/hooks.md) and
   call (no separate pre-commit framework).
 - **`pre-close`** — the [close](../lifecycle/close.md) ritual's `Stop` hook.
 - **`CI`** — the pull-request workflow the control-plane binds as a required check.
-- **`audit-prep`** — a scheduled (cron) workflow that reports into [telemetry](telemetry.md); its
-  concrete runner lands with the [audits](audits.md) system, so the trigger is named now and
-  populated when audits is designed.
+- **`audit-prep`** — a scheduled (cron) workflow that reports into [telemetry](telemetry.md); as
+  built its runner is the [audits](audits.md) system's, which fulfilled the forward-reference this
+  trigger once deferred — no validation re-lock was needed.
 
 Multiple named suites may share a trigger; a genuinely new trigger means a new execution context, added by
 review rather than frozen here.
@@ -178,9 +181,10 @@ A rule's `tier` is its intrinsic strength; whether a `hard` tier *blocks* depend
   hard-gated at the merge like the [dependency-discipline](../../modules/dependency-discipline.md)
   accepted-exception allow-list.
 - **A label-keyed boundary also ships.** A rule may declare `ci_label_exempt` — the same disclosed
-  not-applicable grammar keyed to a pull-request **label** rather than the author; at the pin it is
-  live on the PR-body-completeness rule for the `engine-erasure` label, alongside an author set widened
-  to include `github-actions[bot]`. Whether that label-keyed waiver and the widened author set are
+  not-applicable grammar keyed to a pull-request **label** rather than the author; at the
+  reconciliation pin it rides two rules — PR-body-completeness (hard) and its soft
+  pr-behaviors-declared companion — each carrying the `engine-erasure` label waiver alongside an
+  author set widened to include `github-actions[bot]`. Whether that label-keyed waiver and the widened author set are
   *sanctioned* into the check grammar is an open drift-register question (they landed build-side with
   no logged decision), ruled when the check and control-plane documents are reconciled — this line
   describes the build and sanctions nothing.
@@ -220,7 +224,8 @@ than assuming — because the operator must understand an issue to choose its di
   every-finding-needs-a-disposition duty is realized not as a static check but as close's `Stop` hook —
   a hard block on any undispositioned finding — because the disposition record is ephemeral and
   off-repo by the close design, so no committed artifact exists for a presence rule to target; the
-  realization is stronger than a presence check, not weaker. Genuineness stays posture either way, per
+  realization enforces the real duty rather than a committed proxy — though as a local control, not a
+  merge gate. Genuineness stays posture either way, per
   the [policies](../surfaces/policies.md).
 - **First-run reference-closure** is a `custom/script` check that no file *surviving* first-run retirement
   statically references a retired first-run asset — the

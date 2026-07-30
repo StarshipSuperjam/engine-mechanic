@@ -56,7 +56,7 @@ catalog references templates; it never catalogues them.
 
 - **Section structure** is the primary control. A missing required section is a finding at the rule's
   declared [enforcement tier](../grammar/ontology.md) — a contract without its Decision section is not
-  a contract. At the pin every shipped shape rule declares `hard`; a lighter surface *may* declare
+  a contract. At the reconciliation pin every shipped shape rule declares `hard`; a lighter surface *may* declare
   `soft`, a capability the tier field carries though no shipped rule currently uses it.
 - **Length is a `soft` budget, never a hard cap.** An over-budget surface emits a `soft` finding that
   nudges locally and, through the report-only audit-prep suite, is promoted to a tracked engine issue —

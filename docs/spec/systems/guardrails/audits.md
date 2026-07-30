@@ -242,7 +242,7 @@ source-key — while the persona's **general judgment findings (retire / reconci
 audit digest pull request as prose, adjudicated at its merge**: they gain no tracked Issue and no
 cross-cycle dedup, and the persona's own text currently overclaims otherwise — tracked upstream as
 [engine-template#768](https://github.com/StarshipSuperjam/engine-template/issues/768), together with
-the unwired escalate coordinates below. The two lanes:
+the escalate lane's unwired upstream address (the coordinates note below). The two lanes:
 
 - **Local retire/reconcile** — for accumulated local state, and for a **product divergence from the `locked`
   spec** (the conformance sweep's finding: reconcile the code to the frozen criterion). Remediation is ordinary
@@ -308,7 +308,7 @@ What an audit examines is **hybrid**:
   *uninstalled* module → suggest installing it), and **local-surface hygiene** (abandoned
   `proposed` contracts/policies, a single-referrer local [operation](../surfaces/operations.md) that
   is really one skill's private depth, orphaned local skills/agents) — and **grows additively**: at the
-  pin the shipped list carries six rows, those four plus **outside-blocked stop-gaps** (temporary
+  reconciliation pin the shipped list carries six rows, those four plus **outside-blocked stop-gaps** (temporary
   measures awaiting an upstream fix) and the **currently-firing soft validator findings** (the feed
   above).
 
@@ -364,7 +364,7 @@ is schema-gated, not drift-gated; [state](../cognitive/state.md) names that boun
 **persona stays read-only** — the *workflow* commits, never the persona — and this carries **no detection of
 the cache's content**: the values are [telemetry](telemetry.md)'s and
 [boot](../lifecycle/boot.md)'s, relayed as freight ([principles §16](../../../principles.md)). The
-concrete refresh-and-commit wiring lands with this module's build. Because the operator cannot meaningfully
+concrete refresh-and-commit wiring is the audit-prep workflow's, as built. Because the operator cannot meaningfully
 review a mechanical derivation, the digest pull request presents the cache file as **auto-derived freight the
 operator does not vouch for** — the merge attests to the self-attestation it rides, not to the cursor's
 contents (the plain-language wording is a build-spec leaf under the operator-communication law).
@@ -433,4 +433,4 @@ These are foreclosed by design:
 | --- | --- | --- |
 | **Judgment, not mechanism** — audits exist to make the calls a check cannot. The mechanical floor stays with [validation](validation.md) and [telemetry](telemetry.md). | Observe that the mechanical floor lives in validation and telemetry while the audit is AI judgment on a cadence. Partial support: the concern-list schema check (hard, CI) requires each concern's justification field — presence only, never that a concern genuinely cannot be a check. | operator |
 | **Report, never heal** — the persona is read-only; remediation is a reviewed Build PR or an operator-filed upstream report. CoALA frames this human-gated, reversible, propose-not-apply posture as the necessary discipline for any change to an agent's own state; the lineage is maintainer-layer vocabulary ([§12](../../../principles.md)) and never surfaces to the operator. The posture binds the audit's *own action* — it only ever recommends, never writes engine or product state; a recommended **memory erasure** is the one case whose *enacted* consequence is irreversible, which is exactly why it is gated on the operator's single-purpose-PR merge and never enacted by the audit. | The read-only half is asserted by named checks: agent coherence (hard, CI) requires a read-only persona to block the authoritative write tools, and the agent frontmatter check holds the declared permissions to the schema — the audit persona declares read-only and blocks the write tools. The remediation-lane and erasure-gating halves rest on your observation (the persona reads; only the workflow commits). | operator |
-| **Deployed-repo hygiene, plus conformance to the operator's locked spec** — the audit acts on accumulated *local* cruft (retire/reconcile) and escalates machinery upstream, and — **only where a `docs/spec/` is locked** — checks the product's conformance to that frozen spec (report-only divergence, reconcile lane). It never retires or locally patches template-owned machinery, never judges product *quality*, and ships no systemic-review or self-tuning scaffolding. | Observe the frame in the persona's own mandate and the workflow. Partial support: the conformance tool's tests and demo exercise the conditional conformance leg (silent without a locked spec, degraded, active); the machinery-immunity and no-self-tuning bounds are unasserted posture. | operator |
+| **Deployed-repo hygiene, plus conformance to the operator's locked spec** — the audit acts on accumulated *local* cruft (retire/reconcile) and escalates machinery upstream, and — **only where a `docs/spec/` is locked** — checks the product's conformance to that frozen spec (report-only divergence, reconcile lane). It never retires or locally patches template-owned machinery, never judges product *quality*, and ships no systemic-review or self-tuning scaffolding. | Observe the frame in the persona's own mandate and the workflow. Partial support: the conformance tool's tests and demo (run in your deployed engine) exercise the conditional conformance leg (silent without a locked spec, degraded, active); the machinery-immunity and no-self-tuning bounds are unasserted posture. | operator |
