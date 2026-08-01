@@ -1,4 +1,8 @@
 {
   "schema_version": 1,
-  "configured": false
+  "owner": "StarshipSuperjam",
+  "repo": "engine-memory-vault",
+  "branch": "main",
+  "namespace": "a0f24d478ec04b51b7dcab56a4ea5be9",
+  "created_at": "2026-08-01T20:24:46Z"
 }
