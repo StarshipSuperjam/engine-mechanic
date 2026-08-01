@@ -293,13 +293,13 @@ What an audit examines is **hybrid**:
   **data rows**, not prose prompts: each **concern-entry** names a `target`, an `adversarial-question`, its
   `finding-types`, and a `justification` (the affirmative case for why it earns a row). The list is seeded
   with the deployed-repo hygiene targets — **stale memory beliefs** (contradictions, beliefs that observed
-  behavior now refutes, high-frecency-but-obsolete records — the judgment layer *above*
-  [memory](../cognitive/memory.md)'s mechanical consolidation/decay, never duplicating it; this
-  is also where a function-probe over memory's **already-logically-retired** records recommends their
-  **physical erasure** when they genuinely earn it — the one audit recommendation whose *enacted*
-  consequence is irreversible, so it is gated on the operator merging a **single-purpose erasure pull
-  request** under the operator-communication law, never a bare Issue close, with the audit recommending
-  only and never re-detecting retirement, which stays memory's mechanical call),
+  behavior now refutes, obsolete records — the judgment layer *above*
+  [memory](../cognitive/memory.md)'s mechanical, transcript-first substrate, never duplicating it; as
+  built the audit **recommends only, and physical erasure is not an audit recommendation at all**: the
+  operator names erasure targets themselves through memory's erasure verb, gated on their merge of a
+  **single-purpose erasure pull request** under the operator-communication law, with audits playing no
+  part in adjudication — operator-ruled in the cognitive-wave reconciliation, closing this document's
+  end of that seam),
   **stale debt** (engine-labeled issues that no longer reproduce; triage-pressure backlog health),
   **module fit** (an optional module for which a fresh probe finds **no evidence of exercise** and **no
   affirmative case** — *what does this do that nothing else does?* — → retire-candidate, with the
@@ -372,7 +372,7 @@ contents (the plain-language wording is a build-spec leaf under the operator-com
 Its **operator contract is plain language**: it names what was probed, what was found, and what is
 recommended, in terms the operator can act on — never engineer shorthand (a digest entry reads *"I reviewed
 your saved decisions and three now contradict newer ones — here's which, and what I'd drop"*, not
-*"3 episodic records failed the function-probe"*; a conformance entry reads *"I checked your product against
+*"3 saved records failed the function-probe"*; a conformance entry reads *"I checked your product against
 the spec you froze — two things you asked for don't match it anymore, here's which and what a fix would
 change"*, not *"2 locked rows diverged on the divergence-hunt"*). This plain register is a **requirement on the
 digest/issue author, anchored by those pinned exemplars**, not an aspiration; the backstage vocabulary of this
@@ -432,5 +432,5 @@ These are foreclosed by design:
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | **Judgment, not mechanism** — audits exist to make the calls a check cannot. The mechanical floor stays with [validation](validation.md) and [telemetry](telemetry.md). | Observe that the mechanical floor lives in validation and telemetry while the audit is AI judgment on a cadence. Partial support: the concern-list schema check (hard, CI) requires each concern's justification field — presence only, never that a concern genuinely cannot be a check. | operator |
-| **Report, never heal** — the persona is read-only; remediation is a reviewed Build PR or an operator-filed upstream report. CoALA frames this human-gated, reversible, propose-not-apply posture as the necessary discipline for any change to an agent's own state; the lineage is maintainer-layer vocabulary ([§12](../../../principles.md)) and never surfaces to the operator. The posture binds the audit's *own action* — it only ever recommends, never writes engine or product state; a recommended **memory erasure** is the one case whose *enacted* consequence is irreversible, which is exactly why it is gated on the operator's single-purpose-PR merge and never enacted by the audit. | The read-only half is asserted by named checks: agent coherence (hard, CI) requires a read-only persona to block the authoritative write tools, and the agent frontmatter check holds the declared permissions to the schema — the audit persona declares read-only and blocks the write tools. The remediation-lane and erasure-gating halves rest on your observation (the persona reads; only the workflow commits). | operator |
+| **Report, never heal** — the persona is read-only; remediation is a reviewed Build PR or an operator-filed upstream report. CoALA frames this human-gated, reversible, propose-not-apply posture as the necessary discipline for any change to an agent's own state; the lineage is maintainer-layer vocabulary ([§12](../../../principles.md)) and never surfaces to the operator. The posture binds the audit's *own action* — it only ever recommends, never writes engine or product state; **memory erasure**, the one irreversible act in this neighborhood, is as built not an audit recommendation at all — the operator names it themselves through memory's erasure verb, gated on their own single-purpose-PR merge (see [memory](../cognitive/memory.md)). | The read-only half is asserted by named checks: agent coherence (hard, CI) requires a read-only persona to block the authoritative write tools, and the agent frontmatter check holds the declared permissions to the schema — the audit persona declares read-only and blocks the write tools. The remediation-lane half rests on your observation (the persona reads; only the workflow commits). | operator |
 | **Deployed-repo hygiene, plus conformance to the operator's locked spec** — the audit acts on accumulated *local* cruft (retire/reconcile) and escalates machinery upstream, and — **only where a `docs/spec/` is locked** — checks the product's conformance to that frozen spec (report-only divergence, reconcile lane). It never retires or locally patches template-owned machinery, never judges product *quality*, and ships no systemic-review or self-tuning scaffolding. | Observe the frame in the persona's own mandate and the workflow. Partial support: the conformance tool's tests and demo (run in your deployed engine) exercise the conditional conformance leg (silent without a locked spec, degraded, active); the machinery-immunity and no-self-tuning bounds are unasserted posture. | operator |
