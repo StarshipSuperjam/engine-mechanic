@@ -45,8 +45,9 @@ the Engine binds is an end-state decision, not the platform's full list.
 
 The platform exposes a large and growing event set; among those the Engine does **not** bind in v1 are
 `SubagentStart`, `SubagentStop`, `PostCompact`, `PermissionRequest`, `StopFailure`, and `Notification`:
-a subagent's findings are swept by the parent's `Stop` ritual, post-compact and permission events
-duplicate capture the Engine already performs at `PreCompact`/`PreToolUse`, and `Notification` is
+a subagent's findings are swept by the parent's `Stop` ritual, a post-compact pass would duplicate
+work the Engine already schedules around the squash (the `PreCompact` fold, with narrative capture at
+`Stop`), permission events duplicate the `PreToolUse` gate, and `Notification` is
 operator-UX rather than governance. Any event is bindable later by a system that names a need — the
 inventory grows additively, like the surface catalog.
 

@@ -130,7 +130,7 @@ commit point — the **engine manifest** ([module system](../grammar/module-syst
    disclosure file from the template seed (*The security floor* below), **seed the root `README.md`**
    product-starter — replacing the engine's marketing landing front on greenfield (*The root README*
    below), **clear the traveled root `LICENSE`** — the template's own, on greenfield (*The root
-   LICENSE* below), reset the engine's state record to a clean genesis, and **seed the product's own
+   LICENSE: clearing the traveled template license* below), reset the engine's state record to a clean genesis, and **seed the product's own
    version file** (a top-level `product-version.json` at `0.0.0`, so the deployed repo's release
    workflow cuts the *product's* releases, never the engine's); apply the module **wires** — hook and
    MCP registrations ride the same wiring pass, not a separate step; attempt the control-plane
@@ -175,7 +175,12 @@ the mechanism. The construction repo's own sessions are **excluded by the same s
 origin *equals* the recorded home, so the detector never fires; no separate construction sentinel
 exists as built, the origin-versus-home comparison having replaced the earlier marker-file idea
 ([D-277](../../../adr/0277-litigate-engine-template-353-first-run-dead-on-arrival-in-a.md)), and the
-exclusion needs no residue cleanup because the committed manifest legitimately travels.
+exclusion needs no residue cleanup because the committed manifest legitimately travels. One shape the
+two offline signals cannot tell from a fresh copy is a **contributor's fork of the engine's own home**
+(origin differs, setup tool present — on disk the two are identical); the build separates that case
+**online**, by a best-effort token-gated read of the repo's fork parentage, so a fork is not nagged as
+an adopter — and where no token is available the offer still shows, a read-only, low-harm residual the
+detector's own header names.
 
 **Provisioning runs before the engine's own local guardrails exist.** The exploration
 write-gate is a `PreToolUse` [hook](hooks.md) that [modes](../lifecycle/modes.md)

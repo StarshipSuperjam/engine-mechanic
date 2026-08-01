@@ -58,6 +58,9 @@ weight (disclosure, author-agnostic kinds, §15-gated widening, spoof-safety re-
 survive intact. The remaining gap is upstream bookkeeping, not design — the sanctioning record
 and the explicit re-confirmation are owed to engine-template's own decision log, tracked as
 [engine-template issue 782](https://github.com/StarshipSuperjam/engine-template/issues/782).
+Sanctioning now, with that record still owed, is a **deliberate sequencing**: the operator blesses the
+widening before the upstream re-confirmation lands, with the §15 guard (which exempts no author) and
+the merge gate carrying the interim — a conscious choice, not an oversight.
 
 ## What we ruled out
 

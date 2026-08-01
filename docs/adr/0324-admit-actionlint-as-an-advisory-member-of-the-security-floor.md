@@ -13,7 +13,8 @@ register item **infrastructure-U13**.*
 
 The built **actionlint workflow** — a committed advisory workflow-grammar lint that travels to
 every generated repo, runs on every pull request against a pinned binary, and warns without ever
-blocking — is admitted as an **advisory member of the security floor** beside the four ratified
+blocking a merge (its run can go red; the red never gates) — is admitted as an **advisory member of
+the security floor** beside the four ratified
 pillars (secrets, dependencies, code, disclosure). The
 [control-plane](../spec/systems/infrastructure/control-plane.md) spec's security-floor section now
 names it. Its job name stays deliberately **outside the required-check list**, so a finding it
