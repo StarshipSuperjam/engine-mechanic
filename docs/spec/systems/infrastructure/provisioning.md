@@ -4,7 +4,7 @@ status: draft
 
 # Provisioning
 
-*Ratified in the design workspace on 2026-07-12 by [decision 0305](../../../adr/0305-resolve-re-lock-provisioning-build-owe-5-the-designed-standi.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0305](../../../adr/0305-resolve-re-lock-provisioning-build-owe-5-the-designed-standi.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -47,9 +47,12 @@ discipline that makes the engine safe to drop in is the same for both.
   of product code, so no pre-existing artifact can collide.
 - **Brownfield** — the operator adds the engine to a populated product repo. "Use this template"
   cannot target an existing repo, so brownfield reuses the **engine updater's**
-  fetch-tagged-release-and-overlay machinery (see *Upgrading the engine*): it places the engine's
-  namespaced files — instantiator included — onto the existing tree, then runs the **same
-  instantiator**. Identical logic; only the arrival differs.
+  fetch-tagged-release-and-overlay machinery (see *Upgrading the engine*) through the instantiator's
+  own **arrival verb**: it places the engine's
+  namespaced files — instantiator included — onto the existing tree (collision-checked, below), then
+  runs the **same
+  instantiator**. Identical logic; only the arrival differs — plus one brownfield-specific
+  control-plane sequencing, the two-phase binding under *Control-plane bootstrap* below.
 
 Coexistence is carried by the engine's confinement to namespaced corners
 ([topology](repository-topology.md) law 1) and by the wiring library's keyed,
@@ -71,21 +74,29 @@ operator-facing story.
 
 ### The instantiator: gather → confirm → apply → verify → retire
 
-The instantiator's own **presence** is the signal that the repo is **unprovisioned** — it ships in
-the template tree, so a "Use this template" copy and an interrupted first run alike carry it and
-re-enter setup by the next session. The **provisioned verdict keys on that presence, never on the
-committed engine manifest**: the manifest travels with a template copy, so reading its mere presence
-as "already set up" leaves every generated repo dead-on-arrival ([D-277](../../../adr/0277-litigate-engine-template-353-first-run-dead-on-arrival-in-a.md)).
+The verdict that a repo is **unprovisioned** derives from **observable installed shape**, never from
+the committed engine manifest's mere presence: the manifest travels with a template copy, so reading
+its presence alone as "already set up" leaves every generated repo dead-on-arrival
+([D-277](../../../adr/0277-litigate-engine-template-353-first-run-dead-on-arrival-in-a.md)). As built
+(operator-ruled in the wave-5 reconciliation) the derivation conjoins **two grounded signals**: the
+checkout is a **downstream copy** — the manifest's recorded update home is a *different* repository
+than the checkout's own git origin, since the workshop where the engine is built has origin equal to
+home while every downstream copy inherits the upstream home (compared slug-normalized, and
+safe-quiet whenever either side cannot be read) — **and** the one-time setup tool is **still
+present** (it self-deletes at retire, so its presence is the design's own "not done yet" signal,
+covering a fresh copy and an interrupted run alike).
 Across the instantiator's whole life the verdict is three-state:
 
-- **instantiator present → unprovisioned** — offer setup (a fresh copy, or an interrupted run);
-- **instantiator absent _and_ the engine manifest present → provisioned** — the clean post-retire repo;
-- **instantiator absent _and_ no manifest → a broken/partial checkout** (botched copy, manual
+- **setup tool present (on a downstream copy) → unprovisioned** — offer setup (a fresh copy, or an
+  interrupted run);
+- **setup tool absent _and_ the engine manifest present → provisioned** — the clean post-retire repo;
+- **setup tool absent _and_ no manifest → a broken/partial checkout** (botched copy, manual
   deletion) — routed to the operator-checkout strand detector's missing-engine-files arm
   (*Operator-checkout strand* below), never silently read as done.
 
-The manifest stays the apply-resume **checkpoint** and the upgrade source-of-truth — a conjunct that
-disambiguates the done-vs-broken read, **not** the provisioned verdict on its own. To make first run
+The manifest stays the apply-resume **checkpoint** and the upgrade source-of-truth — and one conjunct
+of the done-vs-broken read and the downstream-copy signal — **not** the provisioned verdict on its
+own. To make first run
 resumable without losing the operator's choices to a destructive step, the run is split at that single
 commit point — the **engine manifest** ([module system](../grammar/module-system.md);
 [D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md)) is the checkpoint, so no new state is introduced:
@@ -105,13 +116,25 @@ commit point — the **engine manifest** ([module system](../grammar/module-syst
    modules are **not installed** (their code is removed) and that adding one back later is a
    **separate action the engine performs on request**, not a toggle — so a selection list's
    "reversible checkbox" intuition does not mislead.
-3. **Apply** (idempotent, driven entirely by the manifest) — delete unselected modules, render
-   identity tokens and the CODEOWNERS block, **set the native permission-mode default** when adopted
-   (*The native permission-mode default* below), **seed the [conduct](../surfaces/conduct.md) operator-override** from the template-carried seed (*The conduct operator-override seed* below), **seed the root `SECURITY.md`** disclosure file from the template seed (*The security floor: native-scanning toggles and the SECURITY.md seed* below), **seed the root `README.md`** product-starter — replacing the engine's marketing landing front on greenfield (*The root README: the landing front and the product-starter seed* below), **clear the traveled root `LICENSE`** — the template's own, on greenfield (*The root LICENSE: clearing the traveled template license* below), **materialize the tool-runtime** (bootstrap uv behind
-   consent, then group-scoped `uv sync` — *Tool-runtime bootstrap* below), initialize substrates,
-   register MCP servers, and attempt the control-plane bootstrap. The tool-runtime is materialized
-   **before substrate init** because that init is itself Python, and before the verify-phase coherence
-   run for the same reason. Each step is safe to re-run, so an interrupted apply resumes from the
+3. **Apply** (idempotent, driven entirely by the manifest) — in the built order: delete unselected
+   modules and lay the foundation ignores; render the CODEOWNERS block; **set the native
+   permission-mode default** when adopted (*The native permission-mode default* below);
+   **materialize the tool-runtime** (bootstrap uv behind consent, then group-scoped `uv sync` —
+   *Tool-runtime bootstrap* below) — a failure here **halts the phase**, and the resume lands every
+   later step, so the seeds below arrive only once a working runtime exists (they are themselves
+   Python, as is the verify-phase coherence run); then the substrate-and-seed step — initialize the
+   substrates, **seed the [conduct](../surfaces/conduct.md) operator-override** from the
+   template-carried seed (*The conduct operator-override seed* below), **seed the root `SECURITY.md`**
+   disclosure file from the template seed (*The security floor* below), **seed the root `README.md`**
+   product-starter — replacing the engine's marketing landing front on greenfield (*The root README*
+   below), **clear the traveled root `LICENSE`** — the template's own, on greenfield (*The root
+   LICENSE* below), reset the engine's state record to a clean genesis, and **seed the product's own
+   version file** (a top-level `product-version.json` at `0.0.0`, so the deployed repo's release
+   workflow cuts the *product's* releases, never the engine's); apply the module **wires** — hook and
+   MCP registrations ride the same wiring pass, not a separate step; attempt the control-plane
+   bootstrap; and finish with the GitHub-side settings steps (*Control-plane bootstrap* below:
+   Actions enablement, the native security toggles, and the repository-behavior settings). Each step
+   is safe to re-run, so an interrupted apply resumes from the
    manifest rather than re-prompting.
 4. **Verify** — run the [coherence](../guardrails/validation.md) kind and confirm wiring; surface
    bootstrap status (protected, or deferred-and-nagging). A **hard coherence finding pauses the apply phase**
@@ -139,18 +162,18 @@ Abandon before confirm → no manifest → the next session re-offers everything
 the manifest exists → the next session resumes applying idempotently.
 
 **A brand-new copy is surfaced, not left silent.** A fresh generated copy is unprovisioned by the
-verdict above, but nothing yet tells its first session so — onboarding would depend on the operator
-already knowing to run setup. The same detect-relay split as the strand detector closes this:
-provisioning owns a standing first-run detector — instantiator present, **and not** the
-construction/self-hosting repo (recognized by the construction sentinel, stage-0 §6)
-— and [boot](../lifecycle/boot.md) surfaces it as a **standing, ledger-collapsed** offer to
+verdict above, but nothing would otherwise tell its first session so — onboarding would depend on the
+operator already knowing to run setup. The same detect-relay split as the strand detector closes
+this: provisioning owns the **standing first-run detector** — the two-signal conjunction above, a
+downstream copy whose setup tool is still present — and [boot](../lifecycle/boot.md) surfaces it as
+a **standing, ledger-collapsed** offer to
 walk first-run setup, persisting every session until setup actually runs so a deferred "later" never
 silently strands a half-set-up repo. Boot owns the operator wording and the offer; provisioning owns
-the mechanism. The construction repo's own sessions are **excluded** by the sentinel — a maintainer-layer
-self-hosting concern that retires at v1 (stage-0 §6). That exclusion
-is clean only once the traveling construction residue is cleared (the committed manifest and the
-construction `CLAUDE.md` no longer ride a template copy), which **gates the surfacing's deployment**
-behind that cleanup ([D-277](../../../adr/0277-litigate-engine-template-353-first-run-dead-on-arrival-in-a.md)).
+the mechanism. The construction repo's own sessions are **excluded by the same seam** — there the
+origin *equals* the recorded home, so the detector never fires; no separate construction sentinel
+exists as built, the origin-versus-home comparison having replaced the earlier marker-file idea
+([D-277](../../../adr/0277-litigate-engine-template-353-first-run-dead-on-arrival-in-a.md)), and the
+exclusion needs no residue cleanup because the committed manifest legitimately travels.
 
 **Provisioning runs before the engine's own local guardrails exist.** The exploration
 write-gate is a `PreToolUse` [hook](hooks.md) that [modes](../lifecycle/modes.md)
@@ -168,10 +191,13 @@ the protected-branch human gate.)
 
 ### Identity and tokens
 
-Token substitution is **derive-first**. A repo's coordinates (owner, name, default branch) and the
+Identity is **derive-first, with no template token substitution** — the tree carries no placeholder
+tokens to fill. A repo's coordinates (owner, name, default branch) and the
 operator's handle are read from `gh`/git at first run — true for a template-generated repo and a
-brownfield repo alike — so the **only prompted input is the identity tier**. Substituted tokens
-become **operator config**: preserved across upgrades, never re-substituted by an overlay.
+brownfield repo alike — so the **only prompted input is the identity tier**. What first run derives
+and keeps becomes **operator config**: the handle (captured in the apply phase for the one identity
+render, the CODEOWNERS block) and the derived default-branch name (persisted for the
+checkout-health reads) are preserved across upgrades, never re-derived destructively by an overlay.
 
 The operator handle is preserved config; the CODEOWNERS ownership block is **derived** from
 *(engine-owned path set × handle)* ([principles §3](../../../principles.md)), so an upgrade
@@ -294,7 +320,14 @@ provisioning *mechanism*; the [control-plane](control-plane.md) locks no part of
   deselected module ships no live dependency surface (*installed means present*). A deselected module's
   dependencies remain *resolved and named* in the committed `uv.lock` (one resolution, universal across
   platforms and all groups) but are **never installed** into `.engine/.venv/`, so the residual is a static
-  lockfile listing, never a live or importable surface.
+  lockfile listing, never a live or importable surface. A standing **hard CI check** (`uv-group-drift`)
+  regenerates the derived group selection from the installed module set and reds on drift, so the
+  mapping cannot silently rot. **One seam is designed but not yet settled** (kept as intent,
+  operator-ruled in the wave-5 reconciliation): no grammar yet exists for a dependency **shared by
+  two modules** — as built, the memory substrate's `mcp` dependency rides `core`'s group, undeclared
+  by the module that imports it, a coupling the drift check structurally cannot see. The grammar
+  ruling is tracked upstream as
+  [engine-template issue 783](https://github.com/StarshipSuperjam/engine-template/issues/783).
 - **The `.engine/.venv/` ignore is a foundation `.gitignore` block**, applied by the wiring library's
   comment-fenced-block **helper** — the CODEOWNERS precedent (a library helper, **not** a module
   `gitignore` seam directive): it carries no manifest `wires` entry and is outside coherence's wiring
@@ -368,6 +401,38 @@ paraphrase of it. (The exact current label is a
   the scope, the structural escape is the **team identity** (a bot that holds enforcement-admin — see
   *Identity and tokens*), failing which the banner stands honestly and protection remains off by the
   operator's informed acceptance. The disclosure is never only a line in boot output.
+- **The label, and the two-phase brownfield binding.** The bootstrap's verify step also **ensures the
+  engine-domain label exists** (inheriting the first producer's minimal ensure — the engine never makes
+  the operator hand-create a label; the [control-plane](control-plane.md) owns the scheme). And a
+  **brownfield arrival binds protection in two phases**: the engine's own workflows arrive *inside* the
+  arrival pull request, so binding their required checks at arrival would make that pull request
+  unmergeable. The arrival therefore applies a **checkless** floor — pull request required, no
+  force-push, no deletion; tier-aware, augmenting and never weakening a product's existing rules — and
+  after the merge a one-time **finalize** verb (a permanent primitive that survives the instantiator's
+  retirement) confirms both engine workflows are on the branch — refusing fail-closed rather than
+  re-create the deadlock — then binds the required checks and re-emits the Actions-enablement reminder.
+  The standing CI guard keeps reporting honestly during the window: it always evaluates the full
+  required-check floor, so the not-yet-bound checks stay visible rather than green-lit.
+
+### Actions enablement and repository behavior
+
+Two further GitHub-side apply steps ride beside the bootstrap:
+
+- **Actions enablement is told, never automated.** A repo created via "Use this template" has workflow
+  runs gated behind the owner's explicit click on the Actions tab; until then the required checks the
+  bootstrap just bound never start, and no pull request — including the setup one — can merge. The API
+  cannot perform that click, and no detection signal is honest in exactly the deadlock state
+  (GitHub-managed scan runs appear in the runs listing while real workflows stay gated, and past run
+  history proves Actions worked once, never that it can run now) — so the step **tells the operator,
+  unconditionally**, with the message carrying its own already-on branch ("if the tab shows no enable
+  button, you're done") so telling is never misleading.
+- **Repository-behavior settings.** The apply turns on delete-branch-on-merge, the pull-request update
+  button, and Dependabot alerts with automatic security-fix pull requests; on a fresh repo only, it
+  turns off the project wiki — and project boards when the projects-sync module is not installed
+  (retained when it is). Same posture as the security floor beside it: the same operator-privileged
+  transport (no new capability), verify-after-write, degrade-never-fake with a plain-language
+  disclosure, augment-never-override — on brownfield the turn-offs are skipped, since hiding an active
+  project's wiki would be an override — and never a required merge check.
 
 ### The security floor: native-scanning toggles and the SECURITY.md seed
 
@@ -503,9 +568,10 @@ body ∧ distinctive-template-author-anchor conjunction, per-era, and — for th
 the historically-shipped seed set) and the **factual disclosure copy** are build-spec leaves. The
 **sequencing gate** — the clear ships with or before any committed template LICENSE, so no window leaves a generated
 repo carrying the foreign copyright — remains a build-owe ([R29](../../../reference/risks.md), [D-221](../../../adr/0221-authorize-the-first-run-license-clear-re-litigation-reconcil.md));
-the **standing remedy for a repo generated before the clear shipped, or drifted back to the seed** is **designed
-below** (the foreign-`LICENSE`-seed detector), realized as a build-owe ([R29](../../../reference/risks.md),
-[D-302](../../../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md)).
+the **standing remedy for a repo generated before the clear shipped, or drifted back to the seed** is the
+foreign-`LICENSE`-seed detector below — designed under
+[D-302](../../../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md) and **built**
+(the upstream tracker that demanded it is closed).
 
 ### The root LICENSE: the standing foreign-seed detector
 
@@ -842,7 +908,10 @@ draws the wall around the existing product with collision detection, then hands 
 ### Build-spec leaves
 
 The design laws above are fixed at the lock; the operator-facing **copy** and the one reactive behavior they
-govern are authored in the build session (laws-not-leaves, [D-052](../../../adr/0052-foundational-law-layer-closed-the-implementation-lock-order.md)). What is fixed
+govern are authored in the build session (laws-not-leaves, [D-052](../../../adr/0052-foundational-law-layer-closed-the-implementation-lock-order.md)). As built,
+several of the consent-copy leaves are **externalized as committed template files** read by stable headings
+with code fallbacks (and a parity test between the two), so the operator-facing words are reviewable as
+files rather than buried in code. What is fixed
 here is the law each leaf must satisfy:
 
 - **The pre-bootstrap explanation copy** — the plain-language account shown *before* the authorization
@@ -955,19 +1024,21 @@ manifest, idempotent) never reaches these surfaces.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Modules declare files + wiring; provisioning applies and reverses both**, so install is mechanical, not surgery ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), Risk [R5](../../../reference/risks.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The shared wiring library** uses the [module system](../grammar/module-system.md)'s closed seam vocabulary and engine-namespaced-identity keying; reversal removes only the engine-identified entry, and no directive edits product source. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Installed means present.** First-run deselection deletes the module's code; re-adding runs the updater path, not a flip-on. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Provisioning is brownfield-capable by grammar.** A live product can adopt the engine via the overlay path; coexistence is the keyed, additive discipline applied to every platform-shared path (`.mcp.json`, `.gitignore`, CODEOWNERS, root `CLAUDE.md`, `.claude/` contents). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The instantiator is thin and resumable**; the engine manifest is its checkpoint, and the permanent primitives (wiring library, bootstrap operation, coherence) outlive its retirement. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Clean removal** reverses all wiring, deletes the engine-namespaced files, and **de-bootstraps the control-plane** (drops the engine's required-check binding — an operator-privileged step, since a stale binding to a deleted engine check would deadlock the product's own pull requests), leaving an operable, engine-free product. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **An unapproved or unavailable substrate is loudly surfaced** in plain language and degrades to committed files, never silently inert ([hooks](hooks.md) fail-open-and-flag). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **First-run instructions are non-engineer-proof** and include the control-plane step the prototype omitted. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The tool-runtime is engine-managed and isolated.** uv is auto-bootstrapped behind a consent gate, installed PATH-independently, and the runtime uses a pinned interpreter that never draws on or mutates the operator's system Python; if it cannot materialize, the engine degrades loud — the interpreter-independent [boot](../lifecycle/boot.md) floor keeps orienting and a retry is offered wherever the engine can still run it — never falling back to system Python ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md), Risk [R18](../../../reference/risks.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The native permission-mode default is operator config, detected-then-yielded.** The instantiator reads the operator's existing `defaultMode` read-only and writes the recommended plan default into the project settings only on adoption (offering adopt-or-keep on conflict, honoring a decline), disclosed as non-weakening ergonomics and preserved across an overlay like the operator handle ([D-185](../../../adr/0185-authorize-a-two-foundation-re-litigation-ship-a-native-plan.md), [modes](../lifecycle/modes.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The conduct operator-override is operator config, seeded-then-owned.** Apply seeds `.engine/conduct/operator.md` from the template-carried seed (so the operator's standing stance travels to every generated repo), then it is operator-owned and preserved across an overlay like the operator handle; the universal-default codes of conduct ride `core` (overlaid), and the override is authored by the [core](../../modules/core.md) conduct-authoring verb ([D-192](../../../adr/0192-authorize-the-conduct-surface-codes-of-conduct-a-tier-3-pros.md), [conduct](../surfaces/conduct.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The security floor's native scanning is enabled where supported, disclosed where not.** The bootstrap enables native CodeQL code scanning (and, on public repos, private vulnerability reporting) by an operator-privileged `gh` call that **branches on the call's status** — applied, or unavailable → skip-and-disclose — never fire-and-forget and never auto-switching visibility; a root `SECURITY.md` is seeded as operator-owned config (preserved as a product path) so every repo carries a disclosure channel even where native PVR cannot exist. No bespoke scanner, and code-scanning alerts are advisory — no merge gate ([control-plane](control-plane.md), [D-212](../../../adr/0212-resolve-the-d-211-security-floor-re-litigation-landed-text-c.md), Risk [R25](../../../reference/risks.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The root `README.md` is a product file, seeded-then-ceded.** At rest in the template the root README is the engine's marketing landing front; Apply seeds a product-owned starter over it **only where the slot still holds the engine's recognizable marketing seed**, so greenfield replaces the traveled front while brownfield and every later overlay preserve operator-owned content and the engine never re-touches the root README after instantiation. The starter carries the [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) required-spine disclosure; it is operator-owned, in no `provides`, preserved as a product path; the seed/replace is disclosed at first run ([topology](repository-topology.md) law 2, [D-214](../../../adr/0214-resolve-the-d-213-front-door-re-litigation-landed-text-cold.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **A stranded or off-main operator checkout is detected and offered a fix.** A standing, boot-invoked detector reads the main checkout's state — two binary *broken* states (detached `HEAD`, missing engine files) offline every boot; a gentle offline **off-main** signal when it is parked on a non-default branch; and a branch-agnostic, network- and consequence-gated **behind-the-merged-main-line** escalation — and, on consent, performs the **un-stranding** correction (re-materialize / re-attach / return-to-default-and-bring-current) — **lossless-or-it-does-not-run**, with a rescue-then-update path for unsaved work; merged-vs-unmerged (`git cherry`, best-effort and advisory) shapes only the offer wording, never its safety; the deepest double-fault case is named, backstopped by the boot present-marker and native worktree isolation ([build-orchestration](../lifecycle/build-orchestration.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Modules declare files + wiring; provisioning applies and reverses both**, so install is mechanical, not surgery ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), Risk [R5](../../../reference/risks.md)). | The `module-manifest` schema check (hard, CI suite) asserts the declared shape and the `block-coherence` check the declared-versus-applied wiring — partial support; the apply/reverse round trip itself is exercised by the module-manager tests, not one named check. | operator |
+| **The shared wiring library** uses the [module system](../grammar/module-system.md)'s closed seam vocabulary and engine-namespaced-identity keying; reversal removes only the engine-identified entry, and no directive edits product source. | The wiring-coherence legs of the validator and the `operator-guarded-paths` check (hard, CI suite) carry the keyed-edit and never-product-source halves in part; the remove-only-its-own-entry property is test-pinned, so the row stays with you. | operator |
+| **Installed means present.** First-run deselection deletes the module's code; re-adding runs the updater path, not a flip-on. | The `uv-group-drift` check (hard, CI suite) asserts the dependency half — a deselected module ships no live dependency group — as partial support; the delete-on-deselect and re-add paths are exercised by the instantiator and module-manager tests. | operator |
+| **Provisioning is brownfield-capable by grammar.** A live product can adopt the engine via the overlay path; coexistence is the keyed, additive discipline applied to every platform-shared path (`.mcp.json`, `.gitignore`, CODEOWNERS, root `CLAUDE.md`, `.claude/` contents). | The arrival verb's collision-check and the keyed-edit round trip are exercised by the instantiator's arrival and collision tests — test-pinned rather than a named check; end-to-end adoption of a live product is your observation at a real brownfield arrival. | operator |
+| **The instantiator is thin and resumable**; the engine manifest is its checkpoint, and the permanent primitives (wiring library, bootstrap operation, coherence) outlive its retirement. | The `first-run-reference-closure` check (hard, CI suite) fully asserts the retirement's travel-safety half — no surviving file references a retired first-run asset; resumability from the manifest checkpoint is exercised by the instantiator's resume tests, so the row stays with you. | operator |
+| **Clean removal** reverses all wiring, deletes the engine-namespaced files, and **de-bootstraps the control-plane** (drops the engine's required-check binding — an operator-privileged step, since a stale binding to a deleted engine check would deadlock the product's own pull requests), leaving an operable, engine-free product. | The module-manager removal tests and the de-bootstrap primitive's tests exercise each leg — test-pinned; that the remaining product is operable engine-free is your observation. | operator |
+| **An unapproved or unavailable substrate is loudly surfaced** in plain language and degrades to committed files, never silently inert ([hooks](hooks.md) fail-open-and-flag). | Boot's substrate-availability probe and its surfacing are pinned by the boot tests — partial support; that the degraded session still works from committed files is your observation. | operator |
+| **First-run instructions are non-engineer-proof** and include the control-plane step the prototype omitted. | The first-run walkthrough names the control-plane step (its committed copy is reviewable as a file); the leak-guard and vocabulary-confinement checks carry the non-engineer-proof half in part — language quality is finally yours to judge. | operator |
+| **The tool-runtime is engine-managed and isolated.** uv is auto-bootstrapped behind a consent gate, installed PATH-independently, and the runtime uses a pinned interpreter that never draws on or mutates the operator's system Python; if it cannot materialize, the engine degrades loud — the interpreter-independent [boot](../lifecycle/boot.md) floor keeps orienting and a retry is offered wherever the engine can still run it — never falling back to system Python ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md), Risk [R18](../../../reference/risks.md)). | The instantiator's tool-runtime tests pin the consent gate, the PATH-independent install flags, and the pinned interpreter; the halt-and-resume on a failed materialization is test-pinned too — test-pinned throughout rather than one named check. | operator |
+| **The native permission-mode default is operator config, detected-then-yielded.** The instantiator reads the operator's existing `defaultMode` read-only and writes the recommended plan default into the project settings only on adoption (offering adopt-or-keep on conflict, honoring a decline), disclosed as non-weakening ergonomics and preserved across an overlay like the operator handle ([D-185](../../../adr/0185-authorize-a-two-foundation-re-litigation-ship-a-native-plan.md), [modes](../lifecycle/modes.md)). | The instantiator's plan-mode tests pin the read-only detect, the write-on-adopt, and the keep-writes-nothing branches — test-pinned; the disclosure copy's quality is yours. | operator |
+| **The conduct operator-override is operator config, seeded-then-owned.** Apply seeds `.engine/conduct/operator.md` from the template-carried seed (so the operator's standing stance travels to every generated repo), then it is operator-owned and preserved across an overlay like the operator handle; the universal-default codes of conduct ride `core` (overlaid), and the override is authored by the [core](../../modules/core.md) conduct-authoring verb ([D-192](../../../adr/0192-authorize-the-conduct-surface-codes-of-conduct-a-tier-3-pros.md), [conduct](../surfaces/conduct.md)). | The conduct-shape and conduct-frontmatter checks (CI suite) assert the surface's form as partial support; the copy-if-absent seed step is test-pinned, and overlay preservation is your observation at an upgrade. | operator |
+| **The security floor's native scanning is enabled where supported, disclosed where not.** The bootstrap enables native CodeQL code scanning (and, on public repos, private vulnerability reporting) by an operator-privileged `gh` call that **branches on the call's status** — applied, or unavailable → skip-and-disclose — never fire-and-forget and never auto-switching visibility; a root `SECURITY.md` is seeded as operator-owned config (preserved as a product path) so every repo carries a disclosure channel even where native PVR cannot exist. No bespoke scanner, and code-scanning alerts are advisory — no merge gate ([control-plane](control-plane.md), [D-212](../../../adr/0212-resolve-the-d-211-security-floor-re-litigation-landed-text-c.md), Risk [R25](../../../reference/risks.md)). | The security-floor tests pin the per-toggle status branching (the 403 and 422 unsupported paths among them) and the seed's copy-if-absent step — test-pinned; the disclosure's delivery and the never-auto-switch stance are your observation. | operator |
+| **The root `README.md` is a product file, seeded-then-ceded.** At rest in the template the root README is the engine's marketing landing front; Apply seeds a product-owned starter over it **only where the slot still holds the engine's recognizable marketing seed**, so greenfield replaces the traveled front while brownfield and every later overlay preserve operator-owned content and the engine never re-touches the root README after instantiation. The starter carries the [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) required-spine disclosure; it is operator-owned, in no `provides`, preserved as a product path; the seed/replace is disclosed at first run ([topology](repository-topology.md) law 2, [D-214](../../../adr/0214-resolve-the-d-213-front-door-re-litigation-landed-text-cold.md)). | The replace-iff-marketing-seed recognizer and the preserve branches are test-pinned; overlay preservation across an upgrade is your observation. | operator |
+| **A stranded or off-main operator checkout is detected and offered a fix.** A standing, boot-invoked detector reads the main checkout's state — two binary *broken* states (detached `HEAD`, missing engine files) offline every boot; a gentle offline **off-main** signal when it is parked on a non-default branch; and a branch-agnostic, network- and consequence-gated **behind-the-merged-main-line** escalation — and, on consent, performs the **un-stranding** correction (re-materialize / re-attach / return-to-default-and-bring-current) — **lossless-or-it-does-not-run**, with a rescue-then-update path for unsaved work; merged-vs-unmerged (`git cherry`, best-effort and advisory) shapes only the offer wording, never its safety; the deepest double-fault case is named, backstopped by the boot present-marker and native worktree isolation ([build-orchestration](../lifecycle/build-orchestration.md)). | The checkout-health tests pin the broken/off-main/behind classification and the lossless-or-it-does-not-run preconditions, and the boot tests pin the relay — test-pinned across two surfaces; the offer's plain language and the fix's outcome on a real strand are your observation. | operator |
