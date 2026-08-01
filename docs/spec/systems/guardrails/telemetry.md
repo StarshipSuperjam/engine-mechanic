@@ -54,7 +54,7 @@ Telemetry derives its streams from the durable, native record, not from a hand-r
   must be reliable is read from the native CI record or promoted to a tracked issue, never assumed from
   the ambient cache.
 - **Memory-subsystem health**, as the one memory-fed signal built: a degraded memory-capture state
-  arrives as a persistent-benign finding. No stream derives from the ledger's episodic content as
+  arrives as a persistent-benign finding. No stream derives from the ledger's transcript content as
   built — that stays an unbuilt leaf of the additive streams set below.
 
 There is **no committed check-fire ledger** (it would rebuild the dissolved session archive,

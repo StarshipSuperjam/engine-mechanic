@@ -45,7 +45,7 @@ runs where its cost is tolerable:
   changed without a matching entity regen, forcing the regeneration to be captured before merge. As built
   it is one of **two** hard CI gates over the graph: a companion vocabulary-drift check asserts that the
   entity-type enum copies in the knowledge schema and the retrieval interface equal the catalogued
-  surface names — closing a drift hole the fingerprint gate structurally cannot see, because the gate
+  surface names plus the `module` type — closing a drift hole the fingerprint gate structurally cannot see, because the gate
   re-derives entity types from the same catalog both sides read, so a retired type moves both sides
   together (operator-ruled: the build's extra guard is adopted).
 - **Boot only reads** the already-committed entities; it never regenerates. ("Latency while building is

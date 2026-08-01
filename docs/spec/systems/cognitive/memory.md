@@ -58,7 +58,11 @@ generous, and verbatim** — never a high-stakes keep/discard gate, and never a 
 
 - **Raw transcript, not curation.** Capture appends the exact user and assistant messages of each
   session as session-id-tagged turn deltas — chunked, lossless, normalized per session, and scrubbed of
-  secret-shaped content at capture. There is no AI-judged pass folding sessions into typed summaries:
+  secret-shaped content at capture. The scrub's honest bound is stated, not implied away
+  ([§7](../../../principles.md)): it is precision-biased defense-in-depth, **not a wall** — it masks
+  anchored credential shapes (keys, tokens) and deliberately never masks names, email addresses, or
+  phone numbers; content captured before the masking existed rides unmasked; and on any fault it fails
+  soft, storing the text unchanged. There is no AI-judged pass folding sessions into typed summaries:
   the transcript itself is the record, so exact wording is always recoverable and nothing load-bearing
   rests on a later model's summary of an earlier one. This keeps memory distinct from
   [knowledge](knowledge.md) ([D-008](../../../adr/0008-memory-and-knowledge-are-distinct-substrates.md))
@@ -67,8 +71,8 @@ generous, and verbatim** — never a high-stakes keep/discard gate, and never a 
   standing preference — is held as a small set of explicit pins, created the moment the operator asks,
   carrying their own wording and source session; a pin is a record-type within the one substrate, never
   a second store.
-- **Importance is not scored.** There is no frecency, no retrieval-driven reinforcement, no per-record
-  score of any kind — no background model work maintains the store. A record's guarantee is
+- **Importance is not scored.** There is no frecency (a frequency-plus-recency usage score), no
+  retrieval-driven reinforcement, no per-record score of any kind — no background model work maintains the store. A record's guarantee is
   **recoverability**: nothing is dropped for being old, physical erasure moves only through the
   operator-consented path below, and closing the paraphrase cue-gap is read-time meaning — the session's
   model expanding the question, plus the optional meaning-based recall operation — never a ranking the
@@ -138,6 +142,10 @@ Engine ships the structural *kinds*, the project fills the content.
 - **What recall returns is disclosed for what it is ([§7](../../../principles.md)).** A recall answer
   carries a standing completeness note naming what kind of record each hit is — a record of **what was
   said**, never a vetted fact — so a non-engineer never mistakes an old conversation for settled truth.
+  The same standing note carries the capture-scrub bound (*Capture*): secret-shaped text is masked only
+  for what was captured after the masking was built, and names, email addresses, and phone numbers are
+  never masked — and because retrieval is keyword-over-transcript, such unmasked content is reachable
+  from any prompt, not only by naming its session.
   The original curated-stands-in-for-raw disclosure floor is moot as built: nothing stands in for the
   verbatim, because the verbatim is what recall surfaces.
 - **FTS5/BM25 lexical recall is the foundation floor** — offline, zero added dependency, fully
@@ -183,12 +191,12 @@ Claude Code ships its own auto-memory (`~/.claude/`), which [constraints](../../
 records as off-repo, bounded, and *not the citable system of record*. The contributor metaphor
 ([D-026](../../../adr/0026-the-engine-is-an-embedded-team-member-contributor-not-compon.md)) separates them: built-in auto-memory is the contributor's
 **personal notebook carried between jobs**; this substrate is the **project's institutional record**.
-The standing rule (a memory-authority policy, see [policies](../surfaces/policies.md)): the
-Engine substrate is **authoritative for project recall**; the Engine never writes project content into
-built-in auto-memory and never cites it as fact. **Designed, not yet built:** as built the deployed
-floor (the engine-managed fence in the root `CLAUDE.md`) carries the never-cite half only, no
-memory-authority policy artifact ships, and the never-writes half survives only as assistant posture —
-the full rule is kept as designed intent, tracked upstream as
+The standing rule, **as designed** (a memory-authority policy, see [policies](../surfaces/policies.md)):
+the Engine substrate is **authoritative for project recall**; the Engine never writes project content
+into built-in auto-memory and never cites it as fact. **Built today:** the deployed floor (the
+engine-managed fence in the root `CLAUDE.md`) carries the never-cite half. The never-writes half and
+the policy artifact are **designed, not yet built** — that half survives only as assistant posture —
+kept as designed intent and tracked upstream as
 [engine-template#772](https://github.com/StarshipSuperjam/engine-template/issues/772).
 The routing lever is the committed root `CLAUDE.md` —
 the hook-independent grounding floor designed in [boot](../lifecycle/boot.md) — which instructs
@@ -200,7 +208,8 @@ citable path.
 
 A perpetual project cannot only accumulate — but as built, tidying is deterministic and structural,
 never judged ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
-the scored lifecycle this design once carried — gist consolidation of low-frecency episodes, hot→cold
+the scored lifecycle this design once carried — gist consolidation of low-frecency episodes (a *gist*
+being a summarized roll-up of related records), hot→cold
 tier demotion by frecency × role-weight × recency, and an autonomous evidence-flagging pass — was
 deleted with the curation model it served. What survives is the sharper two-layer split:
 

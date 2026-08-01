@@ -41,9 +41,10 @@ All committed, all diffable, all readable without any out-of-repo service.
 
 What State deliberately does **not** hold:
 
-- **a work inventory** — where the work lives is the native git/GitHub record (open branches and pull
-  requests are in-flight work; open Issues are deferrals and backlog; Milestones are the plan), not a
-  committed list. [attention](attention.md) *orders* the in-flight half and the engine-labeled
+- **a work inventory** — where the work lives is the native git/GitHub record (open pull requests and
+  the current working branch are in-flight work — the same deliberately-narrow set
+  [attention](attention.md) orders; open Issues are deferrals and backlog; Milestones are the plan), not
+  a committed list. [attention](attention.md) *orders* the in-flight half and the engine-labeled
   debt register; the backlog and the plan carry the **plan's** ordering — decomposed by the engine from
   the spec the operator accepted and `locked`, and living as work lands — which attention never re-ranks
   ([D-314](../../../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md));
