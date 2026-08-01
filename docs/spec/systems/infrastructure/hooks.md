@@ -35,7 +35,7 @@ the Engine binds is an end-state decision, not the platform's full list.
 
 | Event | Engine role | Owner |
 |---|---|---|
-| `SessionStart` | inject the boot pack before the first prompt; beside it ride memory's session-start scripts (erasure enactment, the throttled backup push), the projects-sync refresh, and telemetry's ambient run and inbox drain | [boot](../lifecycle/boot.md) · [memory](../cognitive/memory.md) · [telemetry](../guardrails/telemetry.md) · [github-projects-sync](../../modules/github-projects-sync.md) |
+| `SessionStart` | inject the boot pack before the first prompt; beside it ride memory's session-start scripts (erasure enactment, the throttled backup push), the projects-sync refresh, and telemetry's ambient run and inbox drain (a fresh-context `clear` start rides only the boot and memory scripts) | [boot](../lifecycle/boot.md) · [memory](../cognitive/memory.md) · [telemetry](../guardrails/telemetry.md) · [github-projects-sync](../../modules/github-projects-sync.md) |
 | `PreToolUse` | the local pre-action gate (block-eligible), plus best-effort derived-artifact refreshers at the commit boundary — the knowledge graph, the self-map, the spec-obligation matrix, and the pre-commit suite nudge — each of which always proceeds | the invariant's owning system · each refresher's owner |
 | `PostToolUse` | local nudge (relevant-subset run) + capture; set the Build stance + inject the assistant-internal stance directive on plan-exit completion | [validation](../guardrails/validation.md) · [telemetry](../guardrails/telemetry.md) · [modes](../lifecycle/modes.md) |
 | `PreCompact` | trigger the deterministic memory-compaction fold before the context squash (narrative capture is the `Stop` ritual's — [memory](../cognitive/memory.md)) | [memory](../cognitive/memory.md) |
@@ -54,7 +54,8 @@ inventory grows additively, like the surface catalog.
 
 This is a **design restriction the Engine imposes**, not a platform limit. Only `PreToolUse` and `Stop`
 may **hard-block**, and only for a small, enumerated set of governance-critical invariants (plus one **minimal-work-loss redirect**, below); every other
-event **nudges** (`PostToolUse`) or **injects** (`SessionStart`, `PreCompact`). The platform would let
+event **nudges** (`PostToolUse`), **injects** (`SessionStart`), or **fires a side-effect trigger**
+(`PreCompact`, which neither blocks nor injects). The platform would let
 `PreCompact`, `UserPromptSubmit`, and `SubagentStop` block too — the Engine declines, because a local
 hard-block buys friction without proportional trust ([principles §6](../../../principles.md)); the one
 unbypassable gate is the protected-branch review. The one admitted exception to that friction test is a
