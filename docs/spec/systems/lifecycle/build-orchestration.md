@@ -4,7 +4,7 @@ status: draft
 
 # Build orchestration
 
-*Ratified in the design workspace on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -39,7 +39,8 @@ committed *build-plan*** — the doc that groups the `locked` spec's capabilitie
 ([D-244](../../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — as the **grouping input** that names and orders those Milestones, so a
 large build reads as legible phases with native progress rather than an issue dump; absent a build-plan it
 plans the Milestone itself. Those emitted Milestones are what [state](../cognitive/state.md) reads
-as its standing-situation projection (state owns none of it). So the PR is **not** the only durable state:
+for the **milestone half** of its standing-situation projection (the phase half derives from the merge
+record — "what merged last" — and state owns none of it). So the PR is **not** the only durable state:
 the forward plan lives in the build Issue, which is what lets an unattended session resume a build whose
 authoring session is gone. The **build Issue is the engine-labeled build Issue the Plan step opens** —
 engine-labeled, so the [engine/product wall](../infrastructure/repository-topology.md) holds; when
@@ -74,8 +75,7 @@ already disclosed.
 5. **Pre-submission review** — gated behind a **green mechanical-validation baseline** (below); the
    installed pre-submission lenses then run cold-context and findings are dispositioned. The v1
    roster ([qa-review](../../modules/qa-review.md)) is `spec-conformance` · `usability` ·
-   `technical-integrity` · `security-governance` · `divergence-hunter`, with `retroactive` as a separate
-   optional lens.
+   `technical-integrity` · `security-governance` · `divergence-hunter`.
    Empty ⇒ no-op pass.
 6. **Submit** — the [validation](../guardrails/validation.md) suite is confirmed green, the
    [control-plane](../infrastructure/control-plane.md) PR contract is filled (including the
@@ -89,7 +89,13 @@ that local enforcement is a [§6](../../../principles.md) nudge and the only unb
 protected-branch merge ([control-plane](../infrastructure/control-plane.md)). What *is*
 mechanical is one narrow hook: the PR contract's **Review** section (below) is presence-gated by the
 locked control-plane completeness check, so a build cannot submit without stating what review ran —
-its *truthfulness* stays posture, like every other contract section. The orchestration workflow
+its *truthfulness* stays posture, like every other contract section. As built, that check carries two
+exemptions: an author exemption for `dependabot[bot]` and `github-actions[bot]`, and a **label
+exemption** — a pull request labelled `engine-erasure` skips the whole eight-section gate. The label
+exemption is one leg of a cross-document question this reconciliation has **deferred, not settled**:
+whether a self-appliable label is a sanctionable key for skipping the gate (or should give way to an
+author-keyed mechanism) is ruled with the erasure cluster when the infrastructure and surfaces
+documents reconcile; until then this sentence describes the build without sanctioning it. The orchestration workflow
 itself is a **required core package**; the lenses are **optional modules**
 ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)). Everything bracketed — which lenses, whether to parallelize — is
 depth-scaled; the shape is not.
@@ -106,8 +112,11 @@ distinct:
   [templates](../guardrails/templates.md) instance). It states, uniformly: *what this
   touches → the coverage that implies → what is installed/enabled → what is missing → the current
   degraded-capability state ([boot](boot.md) §degradation) → the **suggested depth** →
-  consent (install / proceed / trim)*, plus a **cost-and-time estimate**, so the operator approves the
-  spend **before** it happens and never meets a surprise burn. It **leads with a short, plain-language
+  consent (install / proceed / trim)* — and **never a time or cost figure**, which the engine cannot
+  know; a made-up number is the false confidence the trust model refuses
+  ([decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md)
+  adopted the build's refusal, reversing the earlier estimate mandate). The operator approves the
+  spend **before** it happens by judging what will run. It **leads with a short, plain-language
   headline that varies with the actual change** ("*this touches your sign-in flow and the database —
   I'll run security and design checks*"); the headline is what gets read, the detail is what gets
   cited. The operator iterates the plan to solid, then approves. This surface is also the operator's
@@ -189,7 +198,10 @@ knowledge-graph way — a stale row re-opens when its criterion changes), so cov
 scheduled — the derived source-pinned rows are the criterion-ID scheme, no hand-authored structure) with a
 continuous reverse sweep of the not-yet-built remainder; a product-design-provided,
 [migration-discipline](../../modules/migration-discipline.md)-shaped CI check, self-removing on
-engine removal; the **paired judgment lenses** — **`spec-conformance`**, the systematic reviewer whose
+engine removal (as built, the derived matrix and its own CI check are criterion-granular, while the
+per-merge coverage *floor* still traces at capability granularity — the build-owe recorded in
+[D-287](../../../adr/0287-litigate-engine-template-427-make-the-sdd-spec-drive-the-bui.md), an
+engine-template debt rather than a spec question); the **paired judgment lenses** — **`spec-conformance`**, the systematic reviewer whose
 built-vs-spec verdict (each obligation met, diverged, or untested) is surfaced with every gap
 dispositioned at the operator's merge, and its adversarial counterpart **`divergence-hunter`**
 (default-to-divergent — build-conformance §8), a second decorrelated
@@ -277,7 +289,7 @@ mechanical check as if it were the operator seeing the change work**. These are 
 under the plain-language law.
 
 Review also carries the result of a **close-linkage consistency pre-flight** the orchestrator runs at
-submit, before it opens the PR. GitHub auto-closes an issue from any `close`/`fixes`/`resolves #N`
+submit, before it marks the draft pull request ready (the PR itself has been open since Plan). GitHub auto-closes an issue from any `close`/`fixes`/`resolves #N`
 keyword — including one buried in prose — in the PR body **or an integrated commit message**, so an
 accidental keyword silently sets the PR to close an issue the change only partly addresses, and the
 engine then reports a wrong backlog. The pre-flight reads only machine-decidable facts: the set the PR
@@ -482,9 +494,14 @@ It is **not a separate workflow** — it is the implement phase distributed acro
   6 of 14 — I need a decision on X; I opened Issue #N. Answer there, then re-run the routine and I'll
   continue.*"). A run with no remaining eligible scope exits gracefully. Because the operator is away, a
   **misfire is made operator-visible**: a run that finds **no valid target where one was expected** — a
-  missing or mis-aimed build Issue — leaves a durable Issue rather than a silent exit, and a routine
+  missing or mis-aimed build Issue — leaves a durable Issue rather than a silent exit (dedup-guarded, so
+  a repeating misfire surfaces once), and a routine
   **echoes the build Issue it has locked onto on its first fire** ("*starting the routine on #N — <title>*")
-  so a mis-aim surfaces on the first cycle rather than after a wasted batch.
+  so a mis-aim surfaces on the first cycle rather than after a wasted batch. As built the first-fire echo
+  carries **no mechanical first-fire test and no dedup guard** — unlike the misfire path — so a run
+  blocked before its first commit can echo again on the re-fire; "first fire" names the intent, not an
+  enforced predicate — operator-ruled in this reconciliation as the build's accepted shape, a cosmetic
+  asymmetry rather than a defect.
 - An interactive **Finalize** session confirms the green baseline, runs pre-submission review,
   integrates and reviews the accumulated commits for cohesion, validates, and submits for review.
 
@@ -552,32 +569,36 @@ the design:
   `gh api graphql` fallback beneath it, the `issues: read` sub-scope a private-repo read needs so a
   missing scope degrades to the could-not-read line rather than a false "nothing will close," and the
   integrated-commit closing-keyword scan;
-- the **risk-assessment template wording** — the varying headline, the cost/time estimate format, and
-  the weakening-change headline copy;
+- the **risk-assessment template wording** — the varying headline and
+  the weakening-change headline copy (never a time or cost figure,
+  [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md));
 - worker-worktree mechanics note for the build-spec: a subagent worktree branches from the default
   branch by default, so the orchestrator reconciles that base when authoring onto the PR branch (in
   [external-contribution](external-contribution.md) that base is the *upstream's* default, which carries no engine files, so the
   product branch is engine-clean by origin);
 - the **worker execution realization** — the concrete `model` + `effort` each persona declares to
   realize its `model-tier` demand tier, a config/authoring choice that churns with the model landscape
-  and never touches this design ([D-100](../../../adr/0100-decouple-the-locked-agent-grammar-from-the-model-landscape-m.md)). A `mechanical` worker's realization
-  is carried in its own **agent-definition frontmatter** (`model` + `effort`, the per-persona
-  platform-passthrough keys; `effort` has no per-spawn override the way `model` does, so it is pinned in
-  the persona file). Because a realization change can move the cost floor, it carries an obligation: the
-  operator-facing cost-and-time estimate is **re-calibrated to the current floor before a changed
-  realization ships**, so the consent surface stays truthful — a **posture-tier** guarantee, like the
-  Review record's truthfulness, not a mechanical one.
+  and never touches this design ([D-100](../../../adr/0100-decouple-the-locked-agent-grammar-from-the-model-landscape-m.md)). As built, **no worker or `mechanical`-tier
+  persona ships**: the agent roster carries the review personas only, and a worker spawned for an
+  implement strategy is ad hoc, inheriting the session's realization rather than carrying frontmatter of
+  its own — the frontmatter mechanism (`model` + `effort`, the per-persona
+  platform-passthrough keys; `effort` has no per-spawn override the way `model` does) applies today to
+  the shipped review personas. (The estimate-recalibration obligation this leaf once carried fell with
+  the estimate itself —
+  [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md).)
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Two surfaces, two jobs** — the PR is the change/accountability surface; the build Issue (a Milestone's decomposition) is the forward-plan surface that lets an unattended session resume cold, bounded by GitHub availability. **build-orchestration produces the Milestones**, consuming product-design's build-plan as the grouping input when one drives the build. The PR is not the only durable state. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Fixed shape, derived lenses, posture tier with one mechanical hook** — the gate skeleton is the orchestrator's workflow, honestly named as a nudge; the one mechanical hook is the PR contract's presence-gated (not truthfulness-gated) Review section; the only wall is the merge. Coverage is module-supplied and risk-scaled. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Consent before the spend, synthesis after, with a floor** — the risk assessment is the pre-audit consent and coverage surface with a consequence-named depth choice and a cost estimate; lens findings are synthesized into one call afterward, re-engaging the operator on material findings and *always* on an unresolved blocking finding, with every disposition surfaced. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Cold-context review is the quality spine** — independent lenses, dispositioned between gates; more valuable, not less, when work is unattended. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The orchestrator is the single writer** — workers generate mechanical work product in isolation; the orchestrator reviews, revises, and authors the cohesive set. Delegation buys cohesion under context pressure, not speed; reconciling semantic overlap is real, bounded work; partial failure is a missing planned commit, not a phantom slot. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Validate before the expensive review; rerun validation, not the audit** — a green baseline gates pre-submission; fixes re-validate but do not re-audit unless the operator asks, and the Review record says so. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Proportionate to a real floor** — the fast path is one entry, one glance, one merge; "fixed gates" is a shape, never a fixed depth. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Routine is the same workflow, constrained** — for decomposable bulk work only (a Plan-time judgment), Local-Desktop-stood-up, non-interactive, scheduler-serialized single-flight, never auto-merging; its weaker cohesion guarantee is stated, not hidden. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The operator checkout is a protected surface, not a build workspace** — build/Routine work runs in the platform's per-session worktree (native isolation), never in the operator's top-level checkout; the never-strand-main posture floor and #80's stranded-checkout detect-and-offer-to-fix cover the residual; native isolation is a default not a wall, and the merge stays the only unbypassable wall for shipped history. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Two surfaces, two jobs** — the PR is the change/accountability surface; the build Issue (a Milestone's decomposition) is the forward-plan surface that lets an unattended session resume cold, bounded by GitHub availability. **build-orchestration produces the Milestones**, consuming product-design's build-plan as the grouping input when one drives the build. The PR is not the only durable state. | No merge-gated check asserts the two-surface division; your observation of a build's draft PR and its build-Issue checklist carries it. Partial support: the built operation authors both surfaces at Plan, and the Milestone emitter derives Milestones from the build-plan idempotently via `gh api`. | operator |
+| **Fixed shape, derived lenses, posture tier with one mechanical hook** — the gate skeleton is the orchestrator's workflow, honestly named as a nudge; the one mechanical hook is the PR contract's presence-gated (not truthfulness-gated) Review section; the only wall is the merge. Coverage is module-supplied and risk-scaled. | The one hook is merge-gated: the `pr-body-completeness` check (hard, CI) asserts the Review section's presence — subject to the as-built author and label exemptions disclosed above. The shape and posture halves are yours, with the `lens-consumption` check (CI) flagging a dangling installed lens as partial support. | operator |
+| **Consent before the spend, synthesis after, with a floor** — the risk assessment is the pre-audit consent and coverage surface with a consequence-named depth choice (never a time or cost figure, [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md)); lens findings are synthesized into one call afterward, re-engaging the operator on material findings and *always* on an unresolved blocking finding, with every disposition surfaced. | Your observation carries it — the risk-assessment relay is in-chat posture whose template instances are ephemeral, reachable by no validator; the fixed template copy itself bans the fabricated figure. | operator |
+| **Cold-context review is the quality spine** — independent lenses, dispositioned between gates; more valuable, not less, when work is unattended. | Your observation carries it. Partial support: the finding-disposition Stop gate ([close](close.md)) holds raised findings to a disposition, the `disposition-issue-resolution` check (hard, CI) asserts cited follow-up issues are real, and the `lens-consumption` check flags an installed lens nothing consumed. | operator |
+| **The orchestrator is the single writer** — workers generate mechanical work product in isolation; the orchestrator reviews, revises, and authors the cohesive set. Delegation buys cohesion under context pressure, not speed; reconciling semantic overlap is real, bounded work; partial failure is a missing planned commit, not a phantom slot. | No check asserts single-writer authorship; your read of a build's commit history carries it. | operator |
+| **Validate before the expensive review; rerun validation, not the audit** — a green baseline gates pre-submission; fixes re-validate but do not re-audit unless the operator asks, and the Review record says so. | Your read of the Review record carries the ordering claim. Partial support: the CI validation suite is the mechanical green baseline every merge re-runs; the don't-re-audit rule is posture the Review record discloses. | operator |
+| **Proportionate to a real floor** — the fast path is one entry, one glance, one merge; "fixed gates" is a shape, never a fixed depth. | Your observation of a trivial change's fast path carries it — no check measures proportionality. | operator |
+| **Routine is the same workflow, constrained** — for decomposable bulk work only (a Plan-time judgment), Local-Desktop-stood-up, non-interactive, scheduler-serialized single-flight, never auto-merging; its weaker cohesion guarantee is stated, not hidden. | Your observation carries it. Partial support: `set-routine` mechanically refuses the write stance without proven worktree isolation ([modes](modes.md)); single-flight is the Desktop scheduler's behavior, not engine-asserted. | operator |
+| **The operator checkout is a protected surface, not a build workspace** — build/Routine work runs in the platform's per-session worktree (native isolation), never in the operator's top-level checkout; the never-strand-main posture floor and #80's stranded-checkout detect-and-offer-to-fix cover the residual; native isolation is a default not a wall, and the merge stays the only unbypassable wall for shipped history. | Your observation carries it. Partial support: `set-routine`'s isolation proof for unattended runs; the never-strand posture floor in the deployed grounding copy; the stranded-checkout detect-and-offer owned by [boot](boot.md)/provisioning. No check fully asserts the criterion. | operator |

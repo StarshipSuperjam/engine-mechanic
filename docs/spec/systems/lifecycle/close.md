@@ -4,7 +4,7 @@ status: draft
 
 # Close
 
-*Ratified in the design workspace on 2026-06-09 by [decision 0188](../../../adr/0188-resolve-the-d-187-operator-presentation-relay-re-litigation.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-09 by [decision 0188](../../../adr/0188-resolve-the-d-187-operator-presentation-relay-re-litigation.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -14,26 +14,36 @@ status: draft
   [build orchestration](build-orchestration.md). Close does not define it; there is no archive,
   changelog, or shutdown sequence, and merge-and-walk leaves nothing dangling.
 - **Turn close = the `Stop` hook**, which this system owns. It fires at the end of every turn and does
-  exactly two things: ambient [memory](../cognitive/memory.md) capture, and the
-  **finding-disposition gate**.
+  two gating things — ambient [memory](../cognitive/memory.md) capture, and the
+  **finding-disposition gate** — plus, on a turn that closes cleanly, a **non-blocking pre-close
+  advisory pass** (validation's `pre-close` suite run locally as advice, never a gate).
 
-Collapsing close to these two removes the prototype's close-friction spiral at the root — no
+Collapsing close to this short list removes the prototype's close-friction spiral at the root — no
 reserved-subject commits, no `CLOSE_ALLOWED_GLOBS`, no partial-close recovery, because there is no bespoke
 close commit to shape-police ([D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)).
 
 ## Behavior
 
-### Ambient capture — content survives, reflection defers
+### Ambient capture — content survives, nothing deferred
 
 Every `Stop` appends the turn's session-id-tagged delta to the [memory](../cognitive/memory.md)
 ledger. This is **memory's mechanism**; close only triggers it and never gates it. Because the append is
-ambient, an ungraceful exit (the operator says "I'm done" and walks) loses **no content** — only the
-deferred consolidation, which memory recovers by its **boot-time, session-id-keyed sweep** of a session
-that ended without consolidating. "Your work is saved even if you just close the window" is therefore true
-of the *content*; only the expensive reflection waits for a tolerable moment. Close does not depend on a
+ambient, an ungraceful exit (the operator says "I'm done" and walks) loses **no content** — and under
+memory's transcript-first design the appended delta *is* the durable record, so there is nothing left to
+recover: no deferred reflection, no summarization pass, and no boot-time sweep (the sweep was deleted
+whole with the curation model — [memory](../cognitive/memory.md)). "Your work is saved even if you just
+close the window" is therefore true outright. Close does not depend on a
 graceful shutdown, and in particular does not depend on `SessionEnd`, which the locked
 [hooks](../infrastructure/hooks.md) law treats as best-effort — it cannot block and is not
 guaranteed to fire.
+
+### The pre-close advisory
+
+On a turn that closes cleanly — the disposition gate has nothing left to hold — the same `Stop` handler
+also runs validation's `pre-close` suite locally and surfaces any hard findings to the session as
+**advice**. The pass is guarded in its own error boundary so it can never reach the disposition gate's
+fail-open path, it never blocks the turn, and a local run reaches no GitHub event. It is early counsel
+on the working tree, not a gate — the merge-time run of the same checks is where they can stop anything.
 
 ### The finding-disposition gate
 
@@ -119,7 +129,10 @@ output contract — not deferred to the parent `Stop`.
 
 The vocabulary here — `Stop`, the block budget, fail-open, the session-scoped record — is maintainer
 framing and never reaches an operator-facing surface; the operator sees only the plain-language disposition
-summary and notices ([principles §12](../../../principles.md) leak guard).
+summary and notices ([principles §12](../../../principles.md) leak guard). An **AI-read operations
+runbook counts as a maintainer-layer surface, not an operator-facing one** — its job is to instruct the
+assistant, so backstage vocabulary there is permissible; what the leak guard fences is the copy the
+operator actually meets at runtime — operator-ruled in the lifecycle-wave reconciliation.
 
 ### Build-spec leaves
 
@@ -133,8 +146,10 @@ The laws above are fixed; these concrete forms are settled in the build-spec pas
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **No heavy ritual** — session close is the PR submitted (build-orchestration's); turn close is ambient capture plus the disposition gate. The archive, changelog, and shutdown sequence are dissolved ([D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Capture is ambient, not close-gated** — content survives an ungraceful exit; only reflection defers, recovered by memory's boot sweep, never by the best-effort `SessionEnd`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The disposition gate is the trust spine, named honestly** — posture plus a strong local block over an ephemeral recorded set: mechanical on what is recorded, posture for recording, the merge as the wall; satisfiable non-interactively for routine; degrading to *logged* at the cap and failing open with a same-turn notice. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **No heavy ritual** — session close is the PR submitted (build-orchestration's); turn close is ambient capture plus the disposition gate (plus the non-blocking advisory). The archive, changelog, and shutdown sequence are dissolved ([D-038](../../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)). | No merge-gated check asserts the dissolution; your observation that a session ends at the pull request with no archive, changelog, or shutdown step carries it. Partial support: the `block-coherence` check (hard, CI) confirms the disposition gate is close's declared `Stop` block — turn close is the gate, not a ritual — and the `in-tool-demo-failure-path` check (hard, CI) keeps the close demo falsifiable. | operator |
+| **Capture is ambient, not close-gated** — content survives an ungraceful exit because the appended transcript delta is itself the durable record (no deferred reflection, no boot sweep), never depending on the best-effort `SessionEnd`. | Your observation carries it — end a session ungracefully and find the turn's delta in memory's ledger; structurally, no `SessionEnd` hook is bound in the deployed hook wiring. Partial support: the `in-tool-demo-failure-path` check (hard, CI) forces the close demo's capture relay to be falsifiable, and memory's capture tests exercise the append (CI test suite, not a merge-gated check). | operator |
+| **The disposition gate is the trust spine, named honestly** — posture plus a strong local block over an ephemeral recorded set: mechanical on what is recorded, posture for recording, the merge as the wall; satisfiable non-interactively for routine; degrading to *logged* at the cap and failing open with a same-turn notice. | Your observation across a blocked turn, a cap-stop, and a fail-open notice carries it. Partial support: the `block-coherence` check (hard, CI) asserts close's `Stop` block sits on a block-eligible event and declares a non-empty, valid modes set (the declared set — which includes `routine` — is itself pinned by a CI unit test, not by that check); the `disposition-issue-resolution` check (hard, CI) asserts every follow-up issue a Review section cites is real; the `hard-check-bite` check (hard, CI) proves those checks bite; the gate's block, cap-degrade, and fail-open logic is pinned by the close and hooks test suites (CI tests). The unbypassable wall is the protected-branch merge, not a check. | operator |
