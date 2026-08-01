@@ -4,7 +4,7 @@ status: draft
 
 # Repository topology
 
-*Ratified in the design workspace on 2026-07-12 by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -24,16 +24,19 @@ top-level allocation — not the full tree.
 ```
 repo-root/
 ├── CLAUDE.md            # thin root orientation + imports (slot reserved; its shape is the engine's own concern)
+├── AGENTS.md            # the same instruction floor for the Codex runtime — a tool-dictated root slot like CLAUDE.md
 ├── .mcp.json            # tool-dictated root slot: project-scope MCP server definitions (engine-owned keyed entries)
 ├── .claude/             # Claude-Code-native surfaces, located where the tool dictates
+├── .codex/              # Codex-native configuration, hooks and agent renders, located where that tool dictates
+├── .agents/             # Codex-native skills home, located where that tool dictates
 ├── .engine/             # engine governance + code, confined
 │   ├── tools/           # the code-home: validators, the shared wiring library, the bootstrap script
 │   ├── pyproject.toml   # the tool-runtime's Python dependency spec (foundation infrastructure artifact)
 │   ├── uv.lock          # its pinned, resolved lockfile (foundation infrastructure artifact)
 │   ├── .venv/           # the materialized tool-runtime — gitignored, rebuilt by `uv sync` (never committed)
-│   ├── boot/            # machine-consumed orientation artifacts, owned by the boot lifecycle system
+│   ├── boot/            # the boot system's runtime workspace — holds only a gitignored cache; nothing committed rides here
 │   └── <surface>/       # one directory per engine-governance surface, per the placement law below
-├── .github/             # control-plane artifacts: workflows, CODEOWNERS, PR/issue templates, dependabot.yml
+├── .github/             # control-plane artifacts: workflows, PR/issue templates, dependabot.yml (CODEOWNERS is rendered into this corner at first run)
 └── <product>            # the adopter scaffolds any ecosystem at the root (src/, go.mod, package.json, docs/, …)
 ```
 
@@ -42,8 +45,9 @@ repo-root/
 These laws — not a fixed list of directories — are what guarantee room for everything downstream.
 
 1. **The engine is confined to namespaced corners.** It **exclusively occupies `.engine/`**, and
-   otherwise contributes only **engine-owned, keyed and reversible entries** to the Claude-native and
-   platform-shared paths the tool dictates — `.claude/` contents, the root `CLAUDE.md`, engine-owned
+   otherwise contributes only **engine-owned, keyed and reversible entries** to the tool-native and
+   platform-shared paths its supported runtimes dictate — `.claude/` contents, the root `CLAUDE.md`,
+   the Codex-native corners (`.codex/`, `.agents/`, and the root `AGENTS.md` floor), engine-owned
    files under `.github/`, and the tool-dictated root slots the platform fixes (`.mcp.json`,
    `.gitignore`, per law 4) — **without *claiming* the shared container**. It claims no other root path.
    Dot- and tool-namespaced directories do not collide with product ecosystems, so the engine never
@@ -91,11 +95,18 @@ These laws — not a fixed list of directories — are what guarantee room for e
    gets exactly one home at `.engine/<surface>/`. The surface set itself is the ontology's concern;
    topology fixes only the location convention. A new surface later is a new `.engine/<surface>/` per
    this law — an additive change, not a topology refactor.
-4. **Claude-native surfaces live where the tool dictates.** Agents, skills, and hook
+4. **Tool-native surfaces live where each tool dictates.** Agents, skills, and hook
    configuration sit under `.claude/`, and project-scope MCP server definitions sit in the root
-   `.mcp.json`, because Claude Code fixes those locations. Topology records the constraint; it does not
-   invent it. A tool-dictated root file the platform fixes is a reserved engine slot under law 1, not a
-   breach of the product-owns-root rule — the engine does not get to choose its location.
+   `.mcp.json`, because Claude Code fixes those locations; the Codex runtime's renders of the same
+   capabilities sit under `.codex/` and `.agents/`, with the root `AGENTS.md` its instruction floor,
+   because that tool fixes *those*. Topology records the constraints; it does not
+   invent them. A tool-dictated root file a platform fixes is a reserved engine slot under law 1, not a
+   breach of the product-owns-root rule — the engine does not get to choose its location. What keeps the
+   two runtimes' corners honest is a merge-gated **provider-parity check**: everything the engine gives
+   one runtime — session hooks, helper servers, typed commands, review personas, instruction floors —
+   must exist for the other, compared in both directions, with the only sanctioned differences the
+   committed entries of a provider-exception ledger, each carrying a reason and its governing decision
+   record.
 5. **Canonical data is never a committed path.** Experiential [memory](../cognitive/memory.md)
    is stored off-repo and gitignored; the derived [knowledge](../cognitive/knowledge.md)
    index regenerates from committed sources. The law forbids committing the *data*; it does not forbid
@@ -120,8 +131,11 @@ These laws — not a fixed list of directories — are what guarantee room for e
 
 The wall is enforced by ownership, not by separation: CODEOWNERS assigns engine ownership to the
 **engine-owned file set — the module manifests' `provides` union together with the foundation's own
-infrastructure-artifact set** (the engine manifest, the root `CLAUDE.md`, the tool-runtime's `pyproject.toml` + `uv.lock`, and the engine-owned
-`.github/` files, including CODEOWNERS itself) — and the product owns everything else by default. The
+infrastructure-artifact set** (the engine manifest, the root `CLAUDE.md` and its Codex sibling
+`AGENTS.md`, the tool-runtime's `pyproject.toml` + `uv.lock`, and the engine-owned
+`.github/` files, including CODEOWNERS itself; the `.codex/` configuration files are engine-keyed
+*entries* governed by the wiring library, like `.mcp.json`'s, rather than foundation artifacts) — and
+the product owns everything else by default. The
 ownership is **file-precise rather than whole-directory**, so where a product co-occupies a Claude-native
 path the engine owns only its own files there; the union with the infrastructure set ensures the
 foundational artifacts no module `provides` are never left unowned. Engine assumptions do not leak into
@@ -134,11 +148,13 @@ reuses to keep engine files out of a cross-fork contribution to a repo the opera
 
 Per the distribution model ("Use this template" copies the file tree as one commit; see
 [engine-architecture.md](../../../architecture.md) and [principles §1](../../../principles.md)),
-every committed engine file ships automatically: all of `.engine/`, `.claude/`, the `.github/`
+every committed engine file ships automatically: all of `.engine/`, `.claude/`, the Codex corners
+(`.codex/`, `.agents/`, the root `AGENTS.md`), the `.github/`
 artifacts, and the substrate code with empty data stores. Gitignored data does not travel — a
 generated repo starts with empty experiential memory and a freshly derivable knowledge index. Only
 true repository settings (branch protection / rulesets) do not travel and require the one-time
-bootstrap the [control plane](control-plane.md) defines. A committed file that ships must also be
+bootstrap the [control plane](control-plane.md) defines; `CODEOWNERS` is the one file that arrives by
+per-repo rendering rather than copying, its content being deployment-derived. A committed file that ships must also be
 **safe in the generated repo**, where the template's first-run setup machinery no longer exists: no
 surviving file may depend on a first-run-retired module — the reference-closure *travel-safety* invariant
 the [provisioning](provisioning.md) retire phase owns and defines.
@@ -160,14 +176,16 @@ not reopen this doc. Topology owns the room; each system furnishes its own.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| The engine is confined to namespaced corners — it exclusively occupies `.engine/`, with its Claude-native surfaces under `.claude/` and its own files under `.github/`. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The product owns the root — the adopter scaffolds their project at the repository root exactly as they would without the engine. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| One directory per engine-governance surface, each named by the ontology. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| Claude-native surfaces live where the tool dictates — agents, skills and hook scripts sit where Claude Code expects them, not where the engine would prefer. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| Canonical data is never a committed path — experiential memory lives outside the committed tree. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The engine-owned file set is the module manifests' `provides` union together with the foundation's own file set; membership is decided by that set, never by a name. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| Platform-defined infrastructure artifacts are governed by this document and the control plane, and are not treated as engine surfaces. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The partition fixes the laws now and defers the leaves — this document settles the placement laws, not every concrete path. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| The engine is confined to namespaced corners — it exclusively occupies `.engine/`, with its tool-native surfaces in the corners each supported runtime dictates (`.claude/`, `.codex/`, `.agents/`) and its own files under `.github/`. | The `catalog-coverage` and `operator-guarded-paths` checks (hard, CI suite) pin surface homes and guard engine paths — partial support; that the engine claims no *other* root path is a tree observation no check asserts. | operator |
+| The product owns the root — the adopter scaffolds their project at the repository root exactly as they would without the engine. | A structural absence: no check can assert the engine's non-claims, so your view of the root is the verification. | operator |
+| One directory per engine-governance surface, each named by the ontology. | The `catalog-coverage` check (hard, CI suite) asserts every surface directory on disk is catalogued, and `self-map-drift` keeps the map honest — strong partial support; "exactly one home named by the ontology" is the ontology's own grammar, judged with it. | operator |
+| Tool-native surfaces live where each tool dictates — agents, skills and hook configuration sit where Claude Code and Codex expect them, not where the engine would prefer. | The per-surface shape checks assert conformance in place, and the `codex-provider-parity` check (hard, CI suite) holds the two runtimes' corners in step — partial support; the dictated locations themselves are platform facts you observe. | operator |
+| Canonical data is never a committed path — experiential memory lives outside the committed tree. | The committed ignore rules keep the memory store out of the tree, and the `memory-pointer-public-safety` check (hard, CI suite) asserts the committed *pointer* is public-safe — adjacent partial support; no check asserts the data's non-committal itself. | operator |
+| The engine-owned file set is the module manifests' `provides` union together with the foundation's own file set; membership is decided by that set, never by a name. | The `engine-manifest` and `module-manifest` schema checks (hard, CI suite) assert the declared shapes the union derives from — partial support; that the rendered CODEOWNERS block equals the provides-union plus the foundation set is unasserted by any named check. | operator |
+| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | The `first-run-reference-closure` check (hard, CI suite) fully asserts this: no file that stays behind may point at a removed first-run asset — by importing it, or by reading or running it by name. | engine |
+| Platform-defined infrastructure artifacts are governed by this document and the control plane, and are not treated as engine surfaces. | The surface catalog's bijection (`catalog-coverage`) implicitly excludes the platform files — partial support; the governed-not-surface classification is this document's own law, judged by you. | operator |
+| The partition fixes the laws now and defers the leaves — this document settles the placement laws, not every concrete path. | A meta-criterion about this document's own form — inherently your judgment. | operator |
