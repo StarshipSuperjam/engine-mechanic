@@ -91,11 +91,12 @@ mechanical is one narrow hook: the PR contract's **Review** section (below) is p
 locked control-plane completeness check, so a build cannot submit without stating what review ran —
 its *truthfulness* stays posture, like every other contract section. As built, that check carries two
 exemptions: an author exemption for `dependabot[bot]` and `github-actions[bot]`, and a **label
-exemption** — a pull request labelled `engine-erasure` skips the whole eight-section gate. The label
-exemption is one leg of a cross-document question this reconciliation has **deferred, not settled**:
-whether a self-appliable label is a sanctionable key for skipping the gate (or should give way to an
-author-keyed mechanism) is ruled with the erasure cluster when the infrastructure and surfaces
-documents reconcile; until then this sentence describes the build without sanctioning it. The orchestration workflow
+exemption** — a pull request labelled `engine-erasure` skips the whole eight-section gate. Both are
+**sanctioned**: the erasure-cluster question this reconciliation had deferred was ruled in the wave-5
+round — [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md)
+sanctions the label-keyed erasure class and the widened author set, with the
+[control-plane](../infrastructure/control-plane.md) document now carrying the boundary's full
+disclosure. The orchestration workflow
 itself is a **required core package**; the lenses are **optional modules**
 ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)). Everything bracketed — which lenses, whether to parallelize — is
 depth-scaled; the shape is not.

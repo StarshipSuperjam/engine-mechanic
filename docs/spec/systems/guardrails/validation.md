@@ -184,10 +184,12 @@ A rule's `tier` is its intrinsic strength; whether a `hard` tier *blocks* depend
   not-applicable grammar keyed to a pull-request **label** rather than the author; at the
   reconciliation pin it rides two rules — PR-body-completeness (hard) and its soft
   pr-behaviors-declared companion — each carrying the `engine-erasure` label waiver alongside an
-  author set widened to include `github-actions[bot]`. Whether that label-keyed waiver and the widened author set are
-  *sanctioned* into the check grammar is an open drift-register question (they landed build-side with
-  no logged decision), ruled when the check and control-plane documents are reconciled — this line
-  describes the build and sanctions nothing.
+  author set widened to include `github-actions[bot]`. Both classes are **sanctioned**
+  ([decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md),
+  the wave-5 erasure-cluster ruling): the
+  [control-plane](../infrastructure/control-plane.md) document carries the boundary's full disclosure,
+  and widening either set remains a guardrail-weakening change demanding a fresh spoof-safety
+  re-confirmation — the upstream decision-log record is tracked in that ruling.
 
 ### Execution mapping
 
