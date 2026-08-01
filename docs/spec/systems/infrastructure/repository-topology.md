@@ -132,10 +132,14 @@ These laws — not a fixed list of directories — are what guarantee room for e
 The wall is enforced by ownership, not by separation: CODEOWNERS assigns engine ownership to the
 **engine-owned file set — the module manifests' `provides` union together with the foundation's own
 infrastructure-artifact set** (the engine manifest, the root `CLAUDE.md` and its Codex sibling
-`AGENTS.md`, the tool-runtime's `pyproject.toml` + `uv.lock`, and the engine-owned
-`.github/` files, including CODEOWNERS itself; the `.codex/` configuration files are engine-keyed
-*entries* governed by the wiring library, like `.mcp.json`'s, rather than foundation artifacts) — and
-the product owns everything else by default. The
+`AGENTS.md`, the root `.gitignore`, the tool-runtime's `pyproject.toml` + `uv.lock`, and the
+engine-owned
+`.github/` files, including CODEOWNERS itself; the `.codex/` configuration files and `.mcp.json` are
+engine-keyed
+*entries* governed by the wiring library rather than foundation artifacts). `.gitignore`'s foundation
+membership routes its review to the engine's owner set without evicting the product's own ignore
+lines — ownership routes review; it does not seize the shared file's contents. The
+product owns everything else by default. The
 ownership is **file-precise rather than whole-directory**, so where a product co-occupies a Claude-native
 path the engine owns only its own files there; the union with the infrastructure set ensures the
 foundational artifacts no module `provides` are never left unowned. Engine assumptions do not leak into
@@ -186,6 +190,6 @@ not reopen this doc. Topology owns the room; each system furnishes its own.
 | Tool-native surfaces live where each tool dictates — agents, skills and hook configuration sit where Claude Code and Codex expect them, not where the engine would prefer. | The per-surface shape checks assert conformance in place, and the `codex-provider-parity` check (hard, CI suite) holds the two runtimes' corners in step — partial support; the dictated locations themselves are platform facts you observe. | operator |
 | Canonical data is never a committed path — experiential memory lives outside the committed tree. | The committed ignore rules keep the memory store out of the tree, and the `memory-pointer-public-safety` check (hard, CI suite) asserts the committed *pointer* is public-safe — adjacent partial support; no check asserts the data's non-committal itself. | operator |
 | The engine-owned file set is the module manifests' `provides` union together with the foundation's own file set; membership is decided by that set, never by a name. | The `engine-manifest` and `module-manifest` schema checks (hard, CI suite) assert the declared shapes the union derives from — partial support; that the rendered CODEOWNERS block equals the provides-union plus the foundation set is unasserted by any named check. | operator |
-| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | The `first-run-reference-closure` check (hard, CI suite) fully asserts this: no file that stays behind may point at a removed first-run asset — by importing it, or by reading or running it by name. | engine |
+| What travels is safe in the generated repo, where the template's first-run setup machinery no longer exists. | The `first-run-reference-closure` check (hard, CI suite) carries nearly all of this: no file that stays behind may import a removed first-run asset (asserted completely) or name its path literally — but the check's own definition discloses that an indirectly-built name can slip past, a known limit, so the last stretch is your observation. | operator |
 | Platform-defined infrastructure artifacts are governed by this document and the control plane, and are not treated as engine surfaces. | The surface catalog's bijection (`catalog-coverage`) implicitly excludes the platform files — partial support; the governed-not-surface classification is this document's own law, judged by you. | operator |
 | The partition fixes the laws now and defers the leaves — this document settles the placement laws, not every concrete path. | A meta-criterion about this document's own form — inherently your judgment. | operator |
