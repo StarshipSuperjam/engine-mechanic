@@ -4,12 +4,16 @@ status: draft
 
 # Memory
 
-*Ratified in the design workspace on 2026-07-12 by [decision 0308](../../../adr/0308-resolve-re-lock-memory-incremental-consolidation-the-waterma.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0308](../../../adr/0308-resolve-re-lock-memory-incremental-consolidation-the-waterma.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
-Answers **"how did I get here?"** — the narrative, experiential layer: decisions, pushback, lessons,
-why things were tried and rejected. Memory is the project's institutional recall, distinct from the
+Answers **"how did I get here?"** — the experiential layer: what was said, decided, pushed back on,
+tried and rejected. As built, memory is a **transcript-first archive** ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
+its canonical record is the exact conversation of each session plus the operator's explicit pins, with
+meaning supplied at read time by the session's own model — not a curated pyramid of AI summaries. That
+refoundation supersedes this document's original curation lifecycle throughout (operator-ruled under the
+reconciliation above). Memory is the project's institutional recall, distinct from the
 contributor's personal cross-project cache (see *Built-in auto-memory*, below).
 
 ## Behavior
@@ -34,7 +38,7 @@ swappable.
 **Ledger integrity is a law, not a leaf.** Because the local ledger is the one source of truth, its write
 and read paths are fault-bounded. **Writes are serialized** — a single-writer discipline or an exclusive
 advisory lock (`flock`/region lock) — because a bare `O_APPEND` is atomic only for writes within the
-platform's `PIPE_BUF` bound (~4 KB) and an episodic record routinely exceeds it, so two live sessions
+platform's `PIPE_BUF` bound (~4 KB) and a memory record can exceed it, so two live sessions
 appending at once could otherwise tear a line; the concrete locking is a build-spec leaf, the serialization
 requirement is the law. **Reads are line-resilient** — the FTS5 rebuild and the plain-scan floor skip and
 report a malformed line rather than halting (so one bad line never costs the recall after it), tolerate a
@@ -46,149 +50,132 @@ around it** — its fold-read skips-and-reports a malformed line and preserves a
 a normal read (it never silently drops recall), and its whole-ledger swap is serialized under the same
 single-writer lock; the crash-safe-swap sequence is fixed under *Active forgetting*.
 
-### Capture — observe importance, don't predict it
+### Capture — keep the conversation, don't judge it
 
 Importance is a function of the future the capturing session cannot see, so capture is **cheap,
-generous, and episodic** — never a high-stakes keep/discard gate.
+generous, and verbatim** — never a high-stakes keep/discard gate, and never a summarization pass
+([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)).
 
-- **Episodic curation, not atomic fact-extraction and not raw verbatim.** At boundaries the in-context
-  AI writes a compact episodic record ("explored X; rejected Y because Z; the user wants W") — the
-  narrative mandate that keeps memory distinct from [knowledge](knowledge.md) ([D-008](../../../adr/0008-memory-and-knowledge-are-distinct-substrates.md)).
-- **AI judgment drives *structure*, not gatekeeping** — it *types* and *tags* the record (below); it
-  does not decide what is worth keeping.
-- **Importance is *derived from usage*** — frecency plus retrieval-driven reinforcement raise a record's
-  ranking. This tracks utility **for cued, recurring recall** only; it is not a claim that frequency equals
-  importance. A rare-but-critical record (a one-time "never use X" decision, cued twice then never again)
-  is **not kept ranked** by frecency — and because the lexical floor can fail to *cue* a relevant record on
-  paraphrase or synonymy (see *Retrieval*, below), such a record can decay in ranking though never in
-  existence. Its guarantee is therefore **recoverability, not ranking**: active forgetting
-  demotes-but-does-not-delete and **erases only on audit-adjudicated, merge-consented evidence** — never on
-  low usage; reversible tidying stays recoverable and physical erasure is operator-consented (below); and
-  closing the cue-gap is the **semantic-recall module's** job, not frecency's. Observe importance
-  from usage; never guess it at birth, and never let low usage *delete* what evidence has not retired.
-  (No known model predicts future importance well; the honest practice is LLM judgment for structure plus
-  statistical reinforcement for cued-recall ranking, with recoverability — not frecency — as the backstop.)
+- **Raw transcript, not curation.** Capture appends the exact user and assistant messages of each
+  session as session-id-tagged turn deltas — chunked, lossless, normalized per session, and scrubbed of
+  secret-shaped content at capture. There is no AI-judged pass folding sessions into typed summaries:
+  the transcript itself is the record, so exact wording is always recoverable and nothing load-bearing
+  rests on a later model's summary of an earlier one. This keeps memory distinct from
+  [knowledge](knowledge.md) ([D-008](../../../adr/0008-memory-and-knowledge-are-distinct-substrates.md))
+  by *what it holds* — the conversation, not derived structure.
+- **Pins carry durable operator intent.** What has no better canonical home — "remember this", a
+  standing preference — is held as a small set of explicit pins, created the moment the operator asks,
+  carrying their own wording and source session; a pin is a record-type within the one substrate, never
+  a second store.
+- **Importance is not scored.** There is no frecency, no retrieval-driven reinforcement, no per-record
+  score of any kind — no background model work maintains the store. A record's guarantee is
+  **recoverability**: nothing is dropped for being old, physical erasure moves only through the
+  operator-consented path below, and closing the paraphrase cue-gap is read-time meaning — the session's
+  model expanding the question, plus the optional meaning-based recall operation — never a ranking the
+  store accumulates.
 
-**Durability — ambient append, deferred consolidation:**
+**Durability — ambient append, nothing deferred:**
 
 - **Every `Stop`** (end of each completed turn) appends the **session-id-tagged** turn delta to the
-  ledger — an append, not a summarization, so it never taxes mid-session use. A **genuine-conversation
-  delta** is **capture fuel and sweep input, not recall content** (*Retrieval*): recall surfaces the
-  curated episodic record the next bullet writes, never the raw verbatim.
-- **`PreCompact` / graceful close** consolidates deltas into episodic, tagged records (the expensive
-  step, at a tolerable moment).
-- **An interrupted session defers its reflection; it never loses its content** — raw deltas are already
-  in the ledger; a later session recovers the un-consolidated conversation via a boot-time consolidation
-  **sweep** over a session-id that is **no longer live** (its lease no longer heartbeats — the lease is
-  the liveness signal, not the correctness guarantee) and **carries genuine, un-consolidated conversation
-  beyond its last consolidation marker's watermark** (a never-consolidated session is the
-  watermark-at-zero case). The **consolidation marker is a per-session high-water-mark** — the message the
-  session was **swept through** (examined), not a binary done-flag — so a session tidied mid-run and then
-  left idle is re-swept for its later half instead of being treated as finished; a session may carry more
-  than one marker over its life, and the **effective watermark is the maximum across them** (monotonic, so
-  a slow sweep that finishes after the session revived and self-consolidated can never regress it). A pass
-  **advances the watermark to the high-water message it examined** — a genuine-but-unsummarizable turn is
-  still examined and advances it even though it yields no record — so **no genuine later-half is left
-  un-swept once a later session boots** (nothing is lost — raw stays resident) and the sweep is
-  **terminating** (nothing genuine beyond the watermark ⇒ no re-fire). A store **recomputes its span as
-  the residual beyond the current effective watermark under the single-writer ledger lock** and appends
-  its record and marker in the same held section, so a concurrent boot — or a revived session's own
-  consolidation — cannot double-consolidate an already-swept prefix. Capture never depends on a graceful
-  close, and the guarantee is honest at its bound: **reflection is deferred to a later session, never
-  lost; content is immediately safe and recoverable** — a still-live idle session, or one just abandoned,
-  carries an un-reflected tail until a later boot sweeps it, and in that window the consolidated-through
-  record stands in only for the portion it covers. **Recall-exclusion and abandoned-session recovery are
-  orthogonal:** recall-exclusion **never removes a delta from the sweep** — a delta excluded from recall
-  stays sweep-visible on that account — so the safety net is independent of the recall layer and
-  recall-exclusion can never suppress recovery.
-- **The sweep's fuel is genuine conversation, not harness machinery.** Claude Code injects
-  non-conversational blocks as `user`-role turns; these land as deltas but are **neither consolidation
-  fuel nor a pending-detection trigger** — consolidating machinery as if the operator authored it
-  pollutes the episodic record. This is a **capture-side axis independent of recall-exclusion**: each
-  such delta stays **physically resident and fully recoverable**, is never demoted or recall-excluded
-  *by this*, and is **never a step toward erasure** (physical erasure stays reachable only through
-  *[Active forgetting](#active-forgetting)*'s audit-adjudicated, merge-gated path). The boundary is
-  **mechanical, never a salience judgment** — the only content withheld is a **whole, distinctive,
-  standalone injected block that never fuses with a human turn** (a fused block stays full fuel, so no
-  operator content is lost); it may **never** extend to skipping "noisy" or "low-signal" genuine turns.
-  Because a genuine completed turn always yields a genuine-conversation delta, a session whose genuine
-  deltas are **all already consolidated** — including one whose only deltas beyond its watermark are
-  harness-injected — has **no reflection to recover**: harness-injected deltas are **neither fuel nor a
-  pending-detection trigger**, so such a session is never pending, its records stay resident, and the
-  sweep does not loop on it. The recognition predicate (which sentinels,
-  and whether injectedness is a persisted tag or recomputed from text) is a
-  [build-spec leaf](#build-spec-leaves).
+  ledger — an append, not a summarization, so it never taxes mid-session use — and the delta **is
+  recall content** (*Retrieval*): the transcript is the layer recall surfaces, not fuel for a later
+  pass.
+- **`PreCompact` triggers only deterministic compaction** (*Active forgetting*) — no AI consolidation
+  runs there or anywhere else. The consolidation lifecycle this design once deferred to session
+  boundaries — episodic roll-ups, a boot-time abandoned-session sweep, per-session high-water-mark
+  markers and their monotonic-maximum recompute — was deleted whole with the curation model
+  ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md));
+  the watermark field survives only as a legacy shape older stores may carry, defined but consumed by
+  nothing live.
+- **An interrupted session loses nothing** — its turns were already in the ledger the moment each turn
+  completed. There is no deferred reflection to recover, so there is no sweep to run: capture never
+  depended on a graceful close, and under transcript-first the content *is* the record.
+- **Harness machinery is withheld from recall, mechanically.** Claude Code injects non-conversational
+  blocks as `user`-role turns; capture stamps a **whole, distinctive, standalone injected block** with
+  an injected tag at capture time (a fused block — machinery gathered into a human prompt — stays a
+  genuine turn, so no operator content is withheld; the boundary is **mechanical, never a salience
+  judgment**, and may never extend to skipping "noisy" genuine turns). The tag's live consumers are
+  recall-exclusion and the transcript-window read. Each such delta stays **physically resident and
+  fully recoverable**, and is **never a step toward erasure** (physical erasure stays reachable only
+  through *[Active forgetting](#active-forgetting)*'s operator-consented, merge-gated path). The
+  recognition predicate (which sentinels, and whether injectedness is a persisted tag or recomputed
+  from text) is a [build-spec leaf](#build-spec-leaves).
 
-### Typing — two layers (faceted)
+### Typing — structural kinds and open tags
 
-- **Closed, universal *role* vocabulary** — Engine-shipped and governed, *amendable* via the grammar
-  but never invented per-session: decision, rationale/pushback, lesson, dead-end, preference, intent,
-  observation. Reliable for structured queries.
-- **Open, project-emergent tags** — entity references (`eADR-####`, policies, files; "controlled" by
-  the project's own reality) plus free topic tags. Unbounded and harmless: tags are a **secondary
-  structured filter, not indexed into the FTS body**, so BM25 ranks the record's narrative text and tag
+- **Record kinds are structural, Engine-shipped** — turn-delta, pin, the compaction and erasure
+  markers, and the like: what a record *is* in the substrate's own lifecycle, never a judgment about
+  its content. The once-designed closed *role* vocabulary (decision, rationale/pushback, lesson,
+  dead-end, preference, intent, observation) was retired with the curation pass that stamped it
+  ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
+  a `role` an older engine wrote survives as an inert label on legacy records, and nothing writes or
+  filters on one any more.
+- **Open, project-emergent tags** — capture stamps transcript/session tags, and free topic tags remain
+  admissible on pins. Unbounded and harmless: tags are a **secondary
+  structured filter, not indexed into the FTS body**, so BM25 ranks the record's text and tag
   drift (rename or abandonment) never dilutes term statistics or breaks retrieval — a drifted tag merely
   stops being a useful filter, it never poisons recall.
 
 This is [ship-the-substrate-not-the-data](../../../principles.md) applied to classification — the
-Engine ships the *dimensions* (roles), the project fills the *values* (topics).
+Engine ships the structural *kinds*, the project fills the content.
 
 ### Retrieval — lexical floor, semantic as a module
 
-- **Recall surfaces the curated layer, not the raw.** Every recall path — the FTS5 floor, the semantic
-  module, **and the degraded plain-scan fallback** (below) — admits only the **curated records**:
-  role-bearing episodic records and the gists that consolidate them. The **ambient turn-deltas** appended
-  every `Stop` (*Capture*, *Durability*) are the uncurated kind — **capture fuel and the abandoned-session
-  sweep's input** (bar the harness-injected pseudo-turns *Capture* withholds), **not recall content** — and
-  every recall path excludes them. This realizes *Capture*'s
-  **"episodic curation, not raw verbatim"**: without it, verbatim deltas lexically out-match paraphrased
-  records on BM25 and crowd the curated layer out of recall. The discriminator is the **record's kind**
-  (ambient capture vs. curated record), so the rule is a property of the **recall read**, applied
-  **identically on every path** — a missing FTS5 module degrades recall's *latency*, never its membership,
-  so the crowding cannot return on the floor. It needs **no per-record retirement marker** (nothing to
-  carry across a [compaction](#compaction--bounded-growth-without-seek-and-edit) rebuild, no ledger line
-  edited in place — append-only live writes hold); the concrete kind representation is a build-spec leaf.
-  The exclusion is **recall-only**: a delta stays physically resident and fully recoverable in the ledger,
-  and **recall-exclusion never narrows the consolidation sweep** (*Durability*) — a delta dropped from recall
-  stays full fuel for the sweep, and the exclusion is never a step toward erasure (*Active forgetting*).
-- **The exclusion is disclosed, never silent ([§7](../../../principles.md)) — a content floor.** Because a
-  consolidated session's raw turn-by-turn notes drop out of `search` while the episodic record stands in
-  for them, the engine tells the operator, in plain language, that **the verbatim is still kept and
-  recoverable on request** — the deltas stay resident, so the engine can pull the exact original wording
-  back from the ledger. The disclosure **content is a floor**, not a deferrable nicety: it reaches the
-  operator **at the point of consumption** (a recall answer that returns a curated record standing in for
-  raw notes carries it) **and** in the browsable [audits](../guardrails/audits.md) digest —
-  never only in a digest the operator may never open. The **exact wording** is an
-  [audits](../guardrails/audits.md) / [boot](../lifecycle/boot.md) build-spec leaf; the
-  content floor is canon — the same "names what it preserves and does not" discipline the FTS-absent
-  fallback carries below ("availability, not latency"). A non-engineer is never left believing `search`
-  lost what it merely stopped surfacing.
+- **Recall surfaces the transcript itself.** Every recall path — the FTS5 floor, the meaning-based
+  module's own operation, **and the degraded plain-scan fallback** (below) — admits the **genuine
+  conversation**: the turn-deltas appended every `Stop` **are recall content**, grouped into transcript
+  windows at read time, alongside the operator's pins. The design's original inversion — curated records
+  in, raw verbatim out — was itself inverted by the transcript-first refoundation
+  ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
+  the summaries were the layer being retired, not the conversation. The one recall-excluded kind is the
+  harness-injected pseudo-turn (*Durability*) — machinery, not conversation. That exclusion is a
+  property of the **recall read**, applied **identically on every path** — a missing FTS5 module
+  degrades recall's *latency*, never its membership — and it needs **no per-record retirement marker**
+  (nothing to carry across a [compaction](#compaction--bounded-growth-without-seek-and-edit) rebuild; it
+  is re-derived on every index rebuild from the capture-time tag). The exclusion is **recall-only**: an
+  excluded delta stays physically resident and fully recoverable in the ledger, and it is never a step
+  toward erasure (*Active forgetting*).
+- **What recall returns is disclosed for what it is ([§7](../../../principles.md)).** A recall answer
+  carries a standing completeness note naming what kind of record each hit is — a record of **what was
+  said**, never a vetted fact — so a non-engineer never mistakes an old conversation for settled truth.
+  The original curated-stands-in-for-raw disclosure floor is moot as built: nothing stands in for the
+  verbatim, because the verbatim is what recall surfaces.
 - **FTS5/BM25 lexical recall is the foundation floor** — offline, zero added dependency, fully
-  degradable. It powers both the MCP `search` interface and the per-prompt
-  [orientation scent](../lifecycle/boot.md). If a local SQLite lacks the FTS5 module, the floor
-  degrades again to a plain scan over the NDJSON ledger, so recall always has a working answer. That
-  fallback preserves recall **availability, not latency**: the scent's single-digit-ms budget
-  ([boot](../lifecycle/boot.md)) holds only while FTS5 is present, so on the scan fallback recall
-  still answers but slower — memory **detects** the FTS5-absent condition and [boot](../lifecycle/boot.md)
-  **renders** the scent's degraded-latency disclosure ([principle §16](../../../principles.md)). Whether the
+  degradable. It powers the MCP `search` interface (the per-prompt
+  [orientation scent](../lifecycle/boot.md) no longer queries it — as built the scent is a constant
+  cue that reads no store; see [attention](attention.md)). If a local SQLite lacks the FTS5 module, the
+  floor degrades again to a plain scan over the NDJSON ledger, so recall always has a working answer.
+  That fallback preserves recall **availability, not latency**: on the scan fallback recall still
+  answers but slower — memory **detects** the FTS5-absent condition and [boot](../lifecycle/boot.md)
+  **renders** the degraded-latency disclosure at cold start
+  ([principle §16](../../../principles.md)). Whether the
   substrate should ship its own FTS5-enabled SQLite so the latency floor does not depend on the ambient
   build is a **build-spec feasibility decision** (a prebuilt per-platform binary avoids a compiler, but a
   runtime without a prebuild falls back to a source build — the non-engineer failure mode), weighed against
   [§12](../../../principles.md) foundation-contagion and the [§5](../../../principles.md) degrade-to-git-native
   floor; this document keeps the scan fallback as the honest floor and does **not** mandate bundling.
-- **Semantic recall (embeddings + rerank) is an optional [module](../grammar/module-system.md)**
-  built from the same ledger, behind the same `search` interface — a swappable index, not a store
-  migration. The foundation/module split is by **dependency weight**: the foundation adds nothing; a
-  lightweight local embedder is a fine module; heavyweight engines (daemons, HNSW persistence,
+- **Semantic (meaning-based) recall is an optional [module](../grammar/module-system.md)** built from
+  the same ledger — and as built it is its **own operation beside `search`**, never fused into the
+  keyword operation's ranking and never a silent fallback
+  ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
+  keyword recall matches words and so can honestly answer that a thing is *absent*; meaning-based
+  recall always has a nearest record, so the caller chooses which question it is asking. Retrieval in
+  the module is single-stage similarity over local embeddings — the reranking-by-meaning is done by the
+  session's own model in its context, not by a second model stage inside the module. The
+  foundation/module split is by **dependency weight**: the required core must import, build, and answer
+  with no embedding code present at all; heavyweight engines (daemons, HNSW persistence,
   LLM-extraction services) are what would strand a non-engineer. At one-project scale, brute-force
-  exact similarity needs no approximate index. The engine pick is deferred to the module's own session.
+  exact similarity needs no approximate index.
 
 ### The memory↔knowledge link
 
-A **read-time join**, keyed on the entity-id tags that *curated* records carry: a query for an entity
-surfaces the drawers that reference it. Reverse edges are never persisted into the graph, and ambient
-(untagged) deltas simply do not participate — the prototype's write-time bidirectional columns failed
-for exactly that reason.
+Composed by the consumer at read time, or not at all: [knowledge](knowledge.md) persists no reverse
+edges, and memory holds no join machinery. A consumer that wants "what was said about this entity"
+takes the entity's id from knowledge and queries recall with it as a plain search term over the
+transcript. The once-designed read-time join keyed on curated records' entity-id tags went with the
+curation layer that stamped those tags ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md);
+operator-ruled, this reconciliation) — captured turns carry transcript tags, not entity references. The
+prototype's write-time bidirectional columns remain the rejected shape.
 
 ### Built-in auto-memory — the boundary
 
@@ -198,7 +185,12 @@ records as off-repo, bounded, and *not the citable system of record*. The contri
 **personal notebook carried between jobs**; this substrate is the **project's institutional record**.
 The standing rule (a memory-authority policy, see [policies](../surfaces/policies.md)): the
 Engine substrate is **authoritative for project recall**; the Engine never writes project content into
-built-in auto-memory and never cites it as fact. The routing lever is the committed root `CLAUDE.md` —
+built-in auto-memory and never cites it as fact. **Designed, not yet built:** as built the deployed
+floor (the engine-managed fence in the root `CLAUDE.md`) carries the never-cite half only, no
+memory-authority policy artifact ships, and the never-writes half survives only as assistant posture —
+the full rule is kept as designed intent, tracked upstream as
+[engine-template#772](https://github.com/StarshipSuperjam/engine-template/issues/772).
+The routing lever is the committed root `CLAUDE.md` —
 the hook-independent grounding floor designed in [boot](../lifecycle/boot.md) — which instructs
 the session to consult the substrate. This is
 posture (unenforceable, like `CLAUDE.md`); the real lever is making the substrate the lower-friction,
@@ -206,29 +198,24 @@ citable path.
 
 ### Active forgetting
 
-A perpetual project cannot only accumulate. A deferred maintenance pass: (1) **consolidates** old,
-related, low-frecency episodes into a compact gist and logically retires the raw; (2) **demotes** in tiers
-(hot → warm → cold → **archived**, where *archived* is an **index-exclusion state, not a separate store** —
-the record stays resident in the one canonical ledger) by frecency × role-weight × recency — demotion
-excludes from the hot index, it **does not delete**; (3) **flags erasure candidates on evidence only**
-(superseded/contradicted by a later memory, duplicate, operator-directed, or a consolidated record's raw
-once its gist is stable), never on predicted future un-importance and never on low frecency — and even then
-the evidence only **logically retires** the record (reversible, recoverable); **physical erasure is never
-enacted by evidence alone**, only through the audit-adjudicated, merge-gated path of *Compaction* (Layer 2). The
-**evidence-erasure lifecycle and the frecency-demotion lifecycle never merge** — demotion can never reach
-erasure — which keeps "low usage never deletes what evidence has not retired" true and preserves the
-longitudinal-recoverability guarantee.
+A perpetual project cannot only accumulate — but as built, tidying is deterministic and structural,
+never judged ([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)):
+the scored lifecycle this design once carried — gist consolidation of low-frecency episodes, hot→cold
+tier demotion by frecency × role-weight × recency, and an autonomous evidence-flagging pass — was
+deleted with the curation model it served. What survives is the sharper two-layer split:
 
-Forgetting is **two-layered**. Steps (1) and (2) — and the *logical retirement* of an evidence-retired
-record (excluded from recall but **fully recoverable in the ledger**) — are **reversible, mechanical, and
-memory-autonomous**: nothing is lost, so they need no human gate, and what was tidied is legible in the
-[audits](../guardrails/audits.md) digest (the committed, browsable self-attestation) rather than
-pushed through a boot channel that cannot reliably reach the operator —
-[boot](../lifecycle/boot.md) renders only the reversible readout and never offers an undo handle
-on an erased record. **Physical erasure — the one irreversible act — is never memory-autonomous**: it is
-adjudicated by the audit loop and gated on the operator's merge (see *Compaction*). This is the
-[§17](../../../principles.md) informed-consent gate, placed on the operator's merge — the one channel that
-reliably reaches a non-engineer, since a boot readout cannot guarantee the operator ever saw it.
+- **Reversible, mechanical, memory-autonomous:** compaction's Layer-1 folding (below) bounds growth
+  without judging content — **nothing is dropped for being old**, and a record retired read-side (the
+  legacy gist-batch case older stores carry) stays fully recoverable in the ledger. Nothing is lost, so
+  this needs no human gate; [boot](../lifecycle/boot.md) renders only reversible readouts and never
+  offers an undo handle on an erased record.
+- **Physical erasure — the one irreversible act — is never memory-autonomous:** the **operator names
+  what to erase**, and enactment is gated on the operator's **merge of a single-purpose erasure pull
+  request** (*Compaction*, Layer 2). The once-designed automatic proposer — a probe that scored the
+  store's retired notes and opened pull requests unasked — was removed; evidence never erases on its
+  own. This is the [§17](../../../principles.md) informed-consent gate, placed on the operator's
+  merge — the one channel that reliably reaches a non-engineer, since a boot readout cannot guarantee
+  the operator ever saw it.
 
 #### Compaction — bounded growth without seek-and-edit
 
@@ -237,22 +224,19 @@ whole-ledger rebuild-and-swap** — memory invoking its own restore primitive (*
 replace the ledger and rebuild the index*, below), gated on retirement evidence — so it bounds growth and
 realizes hard-delete **without a second store and without widening any contract**. It does two things:
 
-- **Layer 1 — reversible, mechanical, autonomous.** It folds redundant state-transition records (access /
-  reinforcement markers, tier transitions, supersession links) into current-state fields, carrying the
-  current **frecency snapshot** and **tier** forward as fields (frecency stays durable because its function
-  **must be a recurrence on the carried snapshot** — a windowed or population-relative score is out of
-  bounds, as it could not survive the folded-away event history), and
-  prunes the hot FTS5 index. Any forgetting state that must survive the rebuild — tier, retirement-pending
-  status, the gist↔raw consolidation link, and **each session's consolidation watermark** (the high-water
-  message it was summarized through, folded from its per-session markers as their maximum) — is **carried
-  in the ledger (or derivable from it), never only in the throwaway index** (a reset watermark would
-  re-consolidate an already-summarized session wholesale). Compaction **never autonomously erases recall content** — physical removal is
+- **Layer 1 — reversible, mechanical, autonomous.** It folds closed supersession chains into
+  current-state fields, prunes markers nothing reads any more — the frecency-snapshot and tier fields
+  the deleted scoring once fed are pruned outright rather than carried forward — and prunes the hot
+  FTS5 index. Any state that must survive the rebuild — the gist↔raw links legacy stores carry, and the
+  erasure markers — is **carried in the ledger (or derivable from it), never only in the throwaway
+  index**. Compaction **never autonomously erases recall content** — physical removal is
   reachable **only** through Layer 2's merge-gated path (a build-conformance invariant: no Layer-1 routine
   may reach erasure).
-- **Layer 2 — irreversible, audit-gated.** Compaction physically removes a record — one or an
-  **enumerated batch of records** — **only** once the [audits](../guardrails/audits.md) loop has
-  adjudicated **each** and the operator has **merged a single-purpose erasure pull request** — the consent
-  gate. **`operator-adjudicated erasure`** is its own evidence class, *not* a stretch of `operator-directed`
+- **Layer 2 — irreversible, operator-gated.** Compaction physically removes a record — one or an
+  **enumerated batch of records** — **only** after the **operator has named each target** (the erasure
+  verb, run from a controlling terminal, prepares the request) and **merged the single-purpose erasure
+  pull request** it opens — the consent gate; the [audits](../guardrails/audits.md) system plays no
+  part in adjudication (operator-ruled, adopting the build). **`operator-adjudicated erasure`** is its own evidence class, *not* a stretch of `operator-directed`
   (the operator pointing at a record), and the trigger is the **merge event only**: an Issue merely *closed* —
   by [telemetry](../guardrails/telemetry.md) auto-resolve, dedup, or the operator's keep-it decline —
   **never** erases. `single-purpose` binds the request's **purpose** (erasure), never the count: a batch is
@@ -291,13 +275,12 @@ snapshot manifest** (below) so a restore or migration-revert that would resurrec
 **surfaced** through boot's open-findings path (the same channel a [D-048](../../../adr/0048-provisioning-delivery-designed-end-state-brownfield-capable.md)
 code-older-than-data mismatch uses), never silent.
 
-**Trigger.** Compaction is a deferred maintenance pass riding active forgetting's tolerable moment, never
-the hot path; it is abandon-safe under the lock (a crash before the swap leaves the old ledger intact). A
-disabled audit cron strands **permanent erasure only** — Layer-1 folding and index-pruning continue
-autonomously, so the hot path stays bounded and the failure direction is "nothing lost"; likewise,
-declining an erasure proposal (or never adjudicating one) loses nothing — the record stays logically
-retired and recoverable, only disk reclamation is deferred. The trigger threshold and cadence are
-build-spec leaves.
+**Trigger.** Compaction is a deferred maintenance pass riding a tolerable moment (the `PreCompact`
+seam), never the hot path; it is abandon-safe under the lock (a crash before the swap leaves the old
+ledger intact). Erasure enactment rides session start — a later session's observer notices the merged
+erasure pull request and the next compaction removes each named target — so declining a request, or
+never opening one, loses nothing: the ledger simply keeps everything, and only disk reclamation is
+deferred. The trigger threshold (as built, a waste threshold) is a build-spec leaf.
 
 ### Backup and portability — automatic, namespaced, off-repo
 
@@ -359,8 +342,9 @@ unwidened.
   ledger (the migration refuses to proceed if it cannot). The tag is a **`refs/tags/…`** ref — so it
   travels on a default clone/fetch (the bare-machine floor) and can carry optional platform hardening —
   **never** a custom `refs/snapshots/*` ref. It is **named collision-free by construction** from the
-  manifest plus a per-snapshot discriminator (the migration id — a timestamp only as a secondary
-  discriminator), because one engine upgrade
+  manifest plus a per-snapshot discriminator (the migration id — as built, the engine-version plus
+  ledger-generation stands in when no migration id exists, equally collision-free by construction),
+  because one engine upgrade
   runs **multiple** migrations at the same engine-version: a name collision is **refused and surfaced,
   never silently overwritten** (the rigor the namespace id already carries). **Distinctness — not
   platform immutability — is the guarantee:** the tag survives the routine backup because it is a
@@ -374,9 +358,9 @@ unwidened.
   path** (the retention cap is a build-spec leaf). **The restore contract gains a migration-revert mode:**
   restore-from-snapshot replaces the local ledger from the **named tag's** namespace folder read from the
   **vault clone** (never a checkout into the [operator checkout](../../../reference/glossary.md) — the
-  [D-007](../../../adr/0007-memory-data-is-local-and-gitignored-substrate-ships-empty.md) leak guard; a large pre-migration ledger reads via `git fetch <tag>` +
-  `git show <tag>:<ns>/…` or a sparse fetch, the GitHub Contents API's 100 MB / `.raw`-above-1 MB limits a
-  build-spec floor). The snapshot carries its **pre-migration ledger-generation**, so the revert restores
+  [D-007](../../../adr/0007-memory-data-is-local-and-gitignored-substrate-ships-empty.md) leak guard; as built a large
+  pre-migration ledger reads blob-by-blob through the GitHub Git-Data API rather than any checkout — the
+  same no-checkout intent, with the Contents API's size limits as the floor that routing avoids). The snapshot carries its **pre-migration ledger-generation**, so the revert restores
   to *that* generation and the resurrection guard above still fires only if an erasure-compaction ran in
   the revert window — the retained tag **participates in the generation check**, never a backdoor that
   resurrects an operator-adjudicated erasure. The tag is governed by the same off-repo carve-out and
@@ -431,25 +415,27 @@ built.)
 
 ### Build-spec leaves
 
-The concrete role-vocabulary schema, retrieval ranking, forgetting scores, MCP tool roster, the
-**ledger-generation-stamp and stable-record-id representations**, the **consolidation-watermark
-representation** (the per-session high-water-mark — e.g. the existing per-message `seq` reused as the
-`through_seq` high-water mark — its concrete field and encoding, derived mechanically from the genuine
-deltas a pass examined), the
+The concrete MCP tool roster, the **ledger-generation-stamp and stable-record-id representations**, the
 **harness-injected-pseudo-turn recognition predicate** (the sentinel set, and whether injectedness is a
-persisted capture-time tag or recomputed from text), the **concrete crash-safe-swap calls**
-(fsync/rename/rebuild), and the **compaction trigger threshold, cadence, and erasure-enactment observer
-cadence** are fixed in this component's build-spec pass. The [D-030](../../../adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md) role
-vocabulary itself (decision, rationale/pushback, lesson, dead-end, preference, intent, observation) is
-already closed; this document fixes the laws, not these leaves.
+persisted capture-time tag or recomputed from text — as built, a persisted capture-time tag plus a small
+standalone sentinel set), the **concrete crash-safe-swap calls** (fsync/rename/rebuild), and the
+**compaction trigger threshold and backup cadence** are fixed in this component's build-spec pass. The
+retrieval-ranking and forgetting-score leaves this list once carried were not deferred but **retired** —
+the scoring they would have tuned was deleted with the curation lifecycle
+([eADR-0038](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0038-memory-transcript-first-recall.md)),
+and with it the [D-030](../../../adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md)
+role vocabulary and the consolidation-watermark representation (now a defined-but-unconsumed legacy
+field). This document fixes the laws, not these leaves.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Data is local and gitignored; the substrate ships empty.** ([D-007](../../../adr/0007-memory-data-is-local-and-gitignored-substrate-ships-empty.md).) | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Distinct from [knowledge](knowledge.md).** Narrative recall, not structural fact; they never synthesize each other ([D-008](../../../adr/0008-memory-and-knowledge-are-distinct-substrates.md)). Distilled project beliefs (the `decision`/`lesson` roles) live here, never in knowledge's derived graph — memory is the belief-home the knowledge wall points to. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Institutional-recall scope; no per-record world tag.** The ledger holds the *project's* narrative recall — the work the Engine-contributor does on the product. Engine self-monitoring (health, debt) lives in a **separate** store — engine-labeled Issues unwound by a domain label ([D-039](../../../adr/0039-reports-self-improvement-scope-engine-only-self-monitoring-o.md)) — never the ledger. So the ledger is homogeneous project-recall and carries no engine-vs-product per-record world tag; capture honors this (an Engine self-monitoring episode is never written here). This is why the engine/product split needs no [module-grammar](../grammar/module-system.md) expression — it is carried by *which substrate holds what*, not by a tag ([D-058](../../../adr/0058-discharge-the-wave-0-gate-q10-substrate-content-world-taggin.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Heritage:** CoALA *episodic memory*; mempalace-class (episodic, lexical, local), rejecting mem0-style write-time extraction (see the glossary *Lineage* cluster — maintainer vocabulary only, never operator-facing). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Active forgetting, not mere accumulation** — reversible tidying is memory-autonomous and recoverable; physical erasure is audit-adjudicated and gated on the operator's merge (below). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Degrades cleanly:** if the server is down, boot proceeds without recall, and the scent goes silent behind a plain-language "running degraded (memory offline)" notice. ([principle §5](../../../principles.md).) | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Data is local and gitignored; the substrate ships empty.** ([D-007](../../../adr/0007-memory-data-is-local-and-gitignored-substrate-ships-empty.md).) | Partial support: the memory module's gitignore wiring covers the store directory; the committed backup pointer ships as an unconfigured placeholder (empty by construction); and the pointer public-safety check guards the one committed memory-adjacent file. No single check asserts the whole gitignored-plus-ships-empty claim — your read of a fresh clone carries it. | operator |
+| **Distinct from [knowledge](knowledge.md).** Narrative recall, not structural fact; they never synthesize each other ([D-008](../../../adr/0008-memory-and-knowledge-are-distinct-substrates.md)). Distilled project beliefs live here — under the transcript-first model, in the transcript itself and the operator's pins — never in knowledge's derived graph; memory is the belief-home the knowledge wall points to. | Partial support: the distinct-substrates decision record and the two separate tool packages realize the wall structurally. "They never synthesize each other" is a universal negative no check asserts — your read. | operator |
+| **Institutional-recall scope; no per-record world tag.** The ledger holds the *project's* narrative recall — the work the Engine-contributor does on the product. Engine self-monitoring (health, debt) lives in a **separate** store — engine-labeled Issues unwound by a domain label ([D-039](../../../adr/0039-reports-self-improvement-scope-engine-only-self-monitoring-o.md)) — never the ledger. So the ledger is homogeneous project-recall and carries no engine-vs-product per-record world tag; capture honors this (an Engine self-monitoring episode is never written here). This is why the engine/product split needs no [module-grammar](../grammar/module-system.md) expression — it is carried by *which substrate holds what*, not by a tag ([D-058](../../../adr/0058-discharge-the-wave-0-gate-q10-substrate-content-world-taggin.md)). | Partial support: the record shape carries no engine-vs-product world field, which your read of the capture schema confirms. That capture *honors* the homogeneity — never writing a self-monitoring episode here — is behavioural and unasserted by any check. | operator |
+| **Heritage:** CoALA *episodic memory*; mempalace-class (episodic, lexical, local), rejecting mem0-style write-time extraction (see the glossary *Lineage* cluster — maintainer vocabulary only, never operator-facing). | No mechanical check can assert a lineage claim — an editorial attestation, your read. (The transcript-first refoundation strengthens the no-write-time-extraction half: nothing extracts at write time at all.) | operator |
+| **Active forgetting, not mere accumulation** — reversible tidying is memory-autonomous and recoverable; physical erasure is operator-named and gated on the operator's merge (below; the audits system plays no part in adjudication, operator-ruled). | Partial support from named unit tests: the forgetting, erasure, observer, and compaction test files exercise the whole path — read-side retirement stays recoverable, an ill-formed batch is rejected whole, enactment is keyed to the merge identity and idempotent, and no Layer-1 routine reaches erasure. No merge gate asserts the invariant; the tests are its warrant. | operator |
+| **Degrades cleanly:** if the substrate is unavailable, boot proceeds without recall behind a plain-language "memory offline" notice; the per-prompt cue never blocks a prompt (it reads no store — [attention](attention.md)). ([principle §5](../../../principles.md).) | Partial support: boot's offline-notice rendering and its detection helper are unit-tested. The honest bound: boot reads committed files only, so it detects a present-but-unreadable ledger — a live recall server that is down is surfaced by the session's own live-helper check, not by boot. The notice is verified for the ledger-offline case. | operator |
