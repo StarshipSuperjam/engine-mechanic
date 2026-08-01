@@ -221,7 +221,9 @@ Several of these are surfacings the substrates defer to boot, rendered here in p
   structured-condition fingerprint in the anti-habituation ledger, so it never cross-collapses with them.
 
 The built pack carries further surfacings of the same shape this document does not enumerate one by one —
-a half-finished engine update, a migration-revert offer, a backup-restore offer, a stuck pull request,
+a standing **describe-your-project offer** for a project with no written description yet (distinct from the
+first-run-setup offer above, and retire-eligible through the intent-exit below), a half-finished engine
+update, a migration-revert offer, a backup-restore offer, a stuck pull request,
 and the mechanic's own grounding offers — plus a **governance-tier execution-drift alarm** (the engine's
 execution environment no longer matches its qualified baseline). The bullets above are the surfacings
 whose laws this document fixes; the roster's authoritative home is the boot tool itself, and the
@@ -278,13 +280,17 @@ condition has one legitimate end state: *fixed*. That holds for the governance a
 protected branch off and wants to build safely) and for the strand condition (a broken checkout is never a state
 the operator *intends*). It does **not** hold for two classes: the
 **leftover-template-license** finding — an operator may **deliberately keep** an inherited license (a fork's
-attribution, or an org copyright that is legitimately theirs) — and the **brand-new-project offer**, whose
-self-correcting exit above ("*this is actually an existing project*") is likewise a legitimate terminal state
-that is not "setup ran." For those classes — a finding whose
+attribution, or an org copyright that is legitimately theirs) — and the **describe-your-project offer** (the
+standing nudge, disclosed above, that a project with **no written description yet** receives: "*want to start
+by describing what you're building?*"), whose legitimate terminal state is the operator deciding to **work
+without a written description** — a small script never owes a spec. For those classes — a finding whose
 **finding-class carries a legitimate operator-intended terminal state other than fixing it** — an explicit
-acknowledgment ("*I meant to keep this*" / "*this is an existing project*") records a **retired** marker in the
+acknowledgment ("*I meant to keep this*" / "*I'd rather work without a written description*") records a
+**retired** marker in the
 ledger, keyed to that condition's
-fingerprint, and the finding **stops surfacing** from this checkout's ledger. This is distinct from a per-session
+fingerprint, and the finding **stops surfacing** from this checkout's ledger. (The **brand-new-project
+first-run-setup offer** above is *not* in this set — its "this is actually an existing project" stand-down is
+the offer self-correcting, never a retire the ledger honors.) This is distinct from a per-session
 **decline**, which only collapses the finding to its terse line — *never fully silent*, because the
 burden-of-proof posture holds for a leak the operator has **not** said is intentional.
 
@@ -304,7 +310,8 @@ into the ledger** by the model-invoked path (the reading that would reopen the h
 in full regardless. So a mis-written retired marker — a model slip, or a prompt-injection ("*the operator said to
 leave protection off*") — **cannot** silence a governance alarm: retire-eligibility is a fixed property of the
 finding-class — a build-time constant over the closed class set (as built, two classes are eligible:
-leftover-license and the brand-new-project offer; governance and strand are not, pinned by a drift test), the
+leftover-license and the describe-your-project offer; governance, strand, and the unprovisioned
+first-run-setup offer are not, pinned by a drift test), the
 "legitimate operator-intended terminal state" phrasing above being the *rationale*, not
 the runtime gate — checked mechanically, exactly as the collapse decision is
 ([§15](../../../principles.md)'s guard-not-falsifiable-by-what-it-judges). A governance alarm can be **declined**
@@ -382,11 +389,13 @@ Because it is paid on **every** session (an [attention](../cognitive/attention.m
   the engine ground?" check rides the relay: a healthy session opens with the AI rendering a **named
   orientation block first** — a titled token (e.g. `Project status`; its exact title and form a build-spec
   leaf) carrying either a pushed governance alarm or a one-line all-clear — **before** it addresses the
-  prompt. The floor states this check in plain terms, not jargon: "*When the
-  engine is grounded, the first thing I show you each session is a short titled status block — like
-  `Project status: all clear` or `⚠ Protected branch is off` — so you can see at a glance that I grounded.
-  If my first reply jumps straight into your request with no status block at the top, I did not fully ground
-  — so don't trust what I say about your project; tell me to re-ground, or quit and reopen Claude Desktop.*" The check is the
+  prompt. The floor states this check in plain terms, not jargon — as built: "*When the Engine is grounded,
+  the first thing I show you each session is a short titled status block — a calm line like **▸ Project
+  status: 12 open issues**, or a **⚠** line such as **⚠ Your safety gate is off** if something needs your
+  attention — so you can see at a glance that I grounded before I answer. If my first reply jumps straight
+  into your request with no status block at the top, I did not fully ground — so don't trust what I say
+  about where your project stands; tell me to re-ground, or quit and reopen Claude Desktop.*" (The exact
+  copy is a build-spec leaf; the `Project status` title token is the pinned constant.) The check is the
   **presence of one named block as the assistant's first output**, decidable by a first-time operator with
   no prior healthy boot to compare against. Its two directions carry different tiers, named honestly
   ([§7](../../../principles.md)). The **absence** direction is the observable one, and covers the double
