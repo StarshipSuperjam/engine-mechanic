@@ -4,7 +4,7 @@ status: draft
 
 # Operating modes
 
-*Ratified in the design workspace on 2026-06-28 by [decision 0271](../../../adr/0271-resolve-the-d-270-plan-acceptance-legibility-augment-landed.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-06-28 by [decision 0271](../../../adr/0271-resolve-the-d-270-plan-acceptance-legibility-augment-landed.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -66,15 +66,25 @@ before anything is built*), leaving the non-engineer worse off at a native capab
 Code ([principles §5](../../../principles.md)). This carve-out is **the plan artifact specifically**, not
 a blanket pass for writes outside the repo: other writes to the operator's `~/.claude/` (settings, hooks)
 stay denied in Explore — being outside the repo, they have no protected-branch merge to backstop them.
+**Designed, not yet built:** as built, the carve-out is keyed on the session's plan permission mode, so
+*any* file-mutating call made while the session reports plan mode — a `~/.claude/` settings write
+included — passes the engine's gate, with the platform's own plan-mode write-block the current backstop;
+narrowing the exemption to the artifact itself is tracked upstream as
+[engine-template#775](https://github.com/StarshipSuperjam/engine-template/issues/775).
 There is **no default-deny on an action it cannot classify** — an
 ambiguous command resolves to *allow*. Erring toward allowing is correct here because the gate is a local
 nudge, not the wall (below), and because a default-deny would tax the very stance meant to be the
 comfortable place to work, pushing the operator to leave Explore just to run a test.
 
-**The gate also reroutes a non-conforming engine-Issue creation.** Beyond the build set, the gate **denies**
+**The gate's sibling reroutes a non-conforming engine-Issue creation — in every stance.** Beyond the
+build set, a companion check in the same `PreToolUse` handler — registered as its **own block-eligible
+member**, declared for Explore, Build, and Routine alike, and evaluated **before** the stance
+short-circuit, because the body contract is unconditional — **denies**
 a `gh issue create` (or issue-creating `gh api`) bound for the **engine-labeled channel**
 ([control-plane](../infrastructure/control-plane.md)) whose body lacks the body-contract's
-structural markers, **redirecting** the session to author it through the issue-authoring helper. This is a
+structural markers, **redirecting** the session to author it through the issue-authoring helper. It is
+housed in this section because it shares the handler, not because it is Explore-scoped — operator-ruled
+in this reconciliation, adopting the build's stance-independent firing. This is a
 **minimal-work-loss redirect**, not a build-block — it loses no work (the Issue still gets filed, via the
 helper) — so it sits in the [hooks](../infrastructure/hooks.md) block budget as the one admitted
 redirect, not a governance-critical invariant. It is **scoped to the engine-labeled channel**: every
@@ -100,8 +110,18 @@ best-effort parsing limit, but it is the one gate with **no merge wall to bound 
 the control-plane `on:issues` CI check (which flags, never silently rewrites), and the engine never pretends
 that reroute is a wall either.
 
-**The stance is always operator-legible.** Boot and each turn name the current stance in plain language
-("*exploring — I won't change files or open a pull request until you tell me to build*"); a denied action
+**An open seam, recorded rather than resolved here:** the product-intake operation and the operator-typed
+engine-design skill author product-spec documents without flipping the stance, so as built those writes
+meet this gate's deny wall in Explore. Which side gives — an authoring carve-out in the gate, or intake
+routing through Build — is deferred to the product-design wave of this reconciliation; the gate's behavior
+described above is the build's.
+
+**The stance is always operator-legible.** Boot names the current stance in plain language
+("*exploring — I won't change files or open a pull request until you tell me to build*"), and the stance
+resurfaces at each point it matters — on a denial, at the Build entry, and on demand through the
+[status verb](../../../reference/glossary.md) — rather than on a per-turn cadence, the anti-habituation
+direction ([D-269](../../../adr/0269-litigate-q18-engine-template-313-resolve-cross-session-anti.md));
+a denied action
 is surfaced as a clear sentence that names what was blocked and the concrete way forward ("*I didn't make
 that change — we're exploring; tell me to build it and I'll open a pull request, the change I submit for
 your approval*"), never a silent refusal; and the entry into Build is announced ("*opening a draft pull
@@ -240,7 +260,13 @@ never by the model electing it on a description match. The entry **authority** i
 schedule plus the **frozen, scope-locked build Issue** the command reads — so entering Routine is a
 *pre-authored* operator act, not the silent or by-default self-election the stance model forbids
 ([principles §6](../../../principles.md)); the merge wall still holds (Routine never merges the protected
-branch). The thin command enters a routine-entry procedure and adds no step list of its own. The name is
+branch). The thin command enters a routine-entry procedure and adds no step list of its own; the
+procedure sets the stance signal through the engine's **`set-routine`** verb — ratified as the
+routine-entry actor by [decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md),
+which reverses the earlier letter that the entry must not set the signal while keeping its substance —
+and the verb grants the write stance **only on positive proof of worktree isolation**, declining (the
+session stays Explore, and says why) whenever it cannot confirm a dedicated worktree, so a scheduled run
+can never mutate the operator's own checkout. The name is
 pinned (`/engine-routine`); its operator-facing wording is a [build-spec leaf](#build-spec-leaves).
 
 Routine is **the same workflow, constrained** — not a separate lifecycle. The unattended execution
@@ -266,7 +292,10 @@ design:
   permission already uses to write it), **not** a literal `.claude/plans/` path. Matching the marker rather
   than a path is load-bearing: that path is operator-configurable and can resolve *inside* the repo, where a
   path match would wrongly re-trip the gate; the marker tracks the artifact wherever it lands, while every
-  non-plan `~/.claude/` write (settings, hooks) carries no such marker and stays denied. The exact field is
+  non-plan `~/.claude/` write (settings, hooks) carries no such marker and stays denied. (As built the
+  recognition also admits **any** mutating call while the session's permission mode is `plan` — the
+  broader-than-designed leg tracked as
+  [engine-template#775](https://github.com/StarshipSuperjam/engine-template/issues/775), above.) The exact field is
   verified against current Claude Code at the build-spec ([D-178](../../../adr/0178-resolve-the-d-177-plan-file-carve-out-landed-text-cold-audit.md));
 - the **plan-acceptance Build-entry trigger's mechanism** — the `PostToolUse` hook on the plan-exit
   completion (`ExitPlanMode`) that **sets the Build stance signal *and* injects the assistant-internal
@@ -294,7 +323,9 @@ design:
 - the **native permission-mode default's realization** — how the instantiator **detects** the operator's
   existing interactive `defaultMode` (which files, read order, malformed-file handling); the plain-language
   **disclosure** copy (adopt-by-default) and **conflict-offer** copy (adopt-or-keep), both in behavioral
-  language that states the outcome in this-repo terms and names the `/config` change path; the **Routine
+  language that states the outcome in this-repo terms and names the `/config` change path (**designed, not
+  yet built** for the conflict copies — as built only the adopted copy names `/config`; tracked upstream as
+  [engine-template#776](https://github.com/StarshipSuperjam/engine-template/issues/776)); the **Routine
   non-interactive launch posture** that overrides the project default (its concrete mode is
   [build orchestration](build-orchestration.md)'s leaf, per [D-140](../../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md) —
   modes owns only the law that it overrides); and the **re-verification against current Claude Code that
@@ -308,12 +339,14 @@ design:
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Three stances on two axes** — permission posture (read vs write) × attendance (interactive vs unattended); the fourth cell (unattended-read) is intentionally empty (Actions cron, not a stance). No slot numbering, no transition matrix; the prototype's per-session slot machinery is gone. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Stance is session-scoped and never persists** — an ephemeral, session-keyed, non-committed signal that resolves to Explore in every ambiguous case, so every session boots Explore and no stance survives a session. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Explore is grounded and gated, the gate honest** — boot grounds every session; the `PreToolUse` write-gate denies the enumerated building set and allows everything else, a fallible §6 nudge backstopped by the merge wall, never dressed as reliable. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Entry is a deliberate operator act for both write stances** — Build via an operator-typed verb the model cannot self-invoke **or by accepting a plan** (the model cannot accept its own plan), both interactive; Routine via the operator-authored scheduled fire that invokes `/engine-routine`, whose authority is the schedule + the frozen scope-locked build Issue. None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Stance is operator-legible** — current stance, denials, and the entry into Build are all surfaced in plain language; informed consent requires the operator know which stance is in force. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Build and Routine are stances; their workflows are build-orchestration's** — modes fixes the entry principle and the unattended posture, and defers the build/routine *mechanism* so the two never describe it twice. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The native permission-mode default is recommended, not imposed** — plan mode is the recommended interactive default (posture/ergonomics over the Explore gate, never the guarantee), a separate axis from the stance and **not** a Build-entry trigger; it is written at provisioning as operator config that **yields** to an existing operator preference, changed later via native `/config`, and **overridden by Routine's non-interactive launch posture** so an unattended run never stalls. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Three stances on two axes** — permission posture (read vs write) × attendance (interactive vs unattended); the fourth cell (unattended-read) is intentionally empty (Actions cron, not a stance). No slot numbering, no transition matrix; the prototype's per-session slot machinery is gone. | No merge-gated check asserts the stance set; your read carries it. Partial support: the modes tests (CI) pin the stance enum, the Explore default, and the per-stance write permissions; the locked set is recorded in the build's own eADR-0024 contract. | operator |
+| **Stance is session-scoped and never persists** — an ephemeral, session-keyed, non-committed signal that resolves to Explore in every ambiguous case, so every session boots Explore and no stance survives a session. | Your observation carries it. Partial support: the modes tests (CI) pin default-Explore-with-no-signal, the session-start clear and its idempotence, unrecognized-value→Explore, and absent-session-degrades-safe; the `in-tool-demo-failure-path` check (hard, CI) keeps the modes demo's resume-inertness block falsifiable. | operator |
+| **Explore is grounded and gated, the gate honest** — boot grounds every session; the `PreToolUse` write-gate denies the enumerated building set and allows everything else, a fallible §6 nudge backstopped by the merge wall, never dressed as reliable. | The block-eligibility legs are merge-gated: the `block-coherence` check (hard, CI) asserts the write-gate sits on `PreToolUse` and declares a valid non-empty modes set. The gate's deny/allow *decisions* are pinned by the modes tests (CI — mutating calls denied, building verbs denied, PR-creation denied, reads and subagent spawns allowed) and exercised by the modes demo; no merge gate asserts the decisions themselves, and the merge wall is the backstop — so the row stays yours. | operator |
+| **Entry is a deliberate operator act for both write stances** — Build via an operator-typed verb the model cannot self-invoke **or by accepting a plan** (the model cannot accept its own plan), both interactive; Routine via the operator-authored scheduled fire that invokes `/engine-routine`, whose authority is the schedule + the frozen scope-locked build Issue and whose `set-routine` write is isolation-gated ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible. | No check asserts non-self-election; your observation carries it. Partial support: the modes tests (CI) pin accepting-a-plan-enters-Build; the entry skills carry the operator-only invocation flags; `set-routine` declines without positive proof of worktree isolation. | operator |
+| **Stance is operator-legible** — current stance, denials, and the entry into Build are all surfaced in plain language; informed consent requires the operator know which stance is in force. | Your observation carries it. Partial support: the modes tests (CI) pin the denial sentence naming the way forward, the plain describe-stance line, and the self-labelled Explore scope description; boot renders the stance line each session. | operator |
+| **Build and Routine are stances; their workflows are build-orchestration's** — modes fixes the entry principle and the unattended posture, and defers the build/routine *mechanism* so the two never describe it twice. | An architectural deferral your read carries; no check or test asserts the seam — the boundary lives in this document's prose and [build orchestration](build-orchestration.md)'s. | operator |
+| **The native permission-mode default is recommended, not imposed** — plan mode is the recommended interactive default (posture/ergonomics over the Explore gate, never the guarantee), a separate axis from the stance and **not** a Build-entry trigger; it is written at provisioning as operator config that **yields** to an existing operator preference, changed later via native `/config`, and **overridden by Routine's non-interactive launch posture** so an unattended run never stalls. | Your observation carries it. Partial support: the instantiator tests (CI) pin adopt-by-default, keep-on-conflict, the project-conflict variant, and the yield behavior; no check binds the copy's content, and the conflict copies' missing `/config` pointer is tracked as [engine-template#776](https://github.com/StarshipSuperjam/engine-template/issues/776). | operator |
