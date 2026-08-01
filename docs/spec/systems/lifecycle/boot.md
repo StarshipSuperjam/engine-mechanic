@@ -4,7 +4,7 @@ status: draft
 
 # Boot / orientation
 
-*Ratified in the design workspace on 2026-07-16 by [decision 0319](../../../adr/0319-resolve-re-lock-boot-relay-state-s-milestone-selection-bound.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-16 by [decision 0319](../../../adr/0319-resolve-re-lock-boot-relay-state-s-milestone-selection-bound.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -13,14 +13,21 @@ bounded, prioritized view from committed [state](../cognitive/state.md) and (whe
 the substrates. "Boot" is the heaviest member — the cold-start assembly — but the same machinery, and
 the same [attention](../cognitive/attention.md) ranking function, drives the lighter members.
 All orientation is **read-only of canonical state** — it never regenerates derived or committed state.
-Orientation's sole local write is a gitignored, non-canonical presentation marker (the *standing-alarm
-presentation ledger*, [below](#anti-habituation-collapsing-an-unchanged-standing-alarm)): presentation
-bookkeeping that records what was already shown, never state regeneration. Other substrates' writes ride
-boot's `SessionStart` **moment** without being boot's: each belongs to the substrate that owns it — as
-[memory](../cognitive/memory.md)'s consolidation sweep does ([below](#the-cold-start-boot-pack)),
-so does [modes](modes.md)' stance clear, and so does the regenerable, gitignored slice cache
-[knowledge](../cognitive/knowledge.md) rebuilds when stale. None is canonical state, and none is
-orientation.
+Orientation's local writes are two, both non-canonical: the gitignored *standing-alarm
+presentation ledger* ([below](#anti-habituation-collapsing-an-unchanged-standing-alarm)) — presentation
+bookkeeping that records what was already shown, never state regeneration — and the per-user
+**live-session heartbeat marker** boot's handler stamps (a small marker recording which session is
+live, so the engine's tools can find the current session — doubling as evidence the hooks ran). Other
+substrates' writes ride
+boot's `SessionStart` **moment** without being boot's: each belongs to the substrate that owns it —
+[modes](modes.md)' stance clear is modes', the regenerable, gitignored slice cache
+[knowledge](../cognitive/knowledge.md) rebuilds when stale is knowledge's, and
+[memory](../cognitive/memory.md)'s riders are its **erasure-enactment observer** (which enacts an
+operator-merged erasure pull request found pending) and its **throttled backup push** — non-capture
+work both. None is canonical state, and
+none is orientation. (What memory *no longer* rides there is any capture or consolidation sweep — the
+transcript-first design deleted the boot-time sweep whole, so **capture** lives entirely at the `Stop`
+boundary.)
 
 **Boot is unconditional at the floor; the rich pack rides on top.** The `SessionStart`
 [hook](../infrastructure/hooks.md) runs on every session start regardless of what the operator
@@ -40,11 +47,11 @@ using is not*:
 
 | Event ([hook](../infrastructure/hooks.md)) | Behavior | Budget |
 |---|---|---|
-| Session start / resume (`SessionStart`, `source: startup` or `resume`) | full boot pack (heavy assembly); also fires [memory](../cognitive/memory.md)'s abandoned-delta consolidation sweep (memory's operation, not orientation) | once per start/resume |
-| Every prompt (`UserPromptSubmit`) | the cheap lexical **scent** (below) | every turn → ~zero |
+| Session start / resume (`SessionStart`, `source: startup` or `resume`) | full boot pack (heavy assembly) | once per start/resume |
+| Every prompt (`UserPromptSubmit`) | the constant **scent** cue (below) | every turn → ~zero |
 | Post-compaction | the next `UserPromptSubmit` scent re-orients, over the re-injected root `CLAUDE.md` floor; a full boot-pack re-render on `SessionStart`'s `compact` source is a deferred enhancement (see *Post-compaction grounding*, below) | rare |
 | Commit boundary (`PreToolUse` git intercept) | [knowledge](../cognitive/knowledge.md) regen — a mutation, not orientation | per commit |
-| Turn end (`Stop`) | ambient [memory](../cognitive/memory.md) capture + the finding-disposition gate ([close](close.md)) — not a heavy ritual | every turn |
+| Turn end (`Stop`) | ambient [memory](../cognitive/memory.md) capture + the finding-disposition gate + close's non-blocking pre-close advisory ([close](close.md)) — not a heavy ritual | every turn |
 
 **Boot owns the event model; [attention](../cognitive/attention.md) owns the budget within it.**
 Which moments fire, the [hook](../infrastructure/hooks.md) driving each, and each event's cadence
@@ -54,13 +61,12 @@ flexes (a clean session gets more orientation; a high-debt one compresses it) �
 
 **Post-compaction grounding.** Compaction does not strand a session. The platform re-reads and re-injects
 the root `CLAUDE.md` floor after a `/compact` (a disk reload, hook-independent — substantially reliable
-though not airtight), and the next `UserPromptSubmit` scent re-surfaces topical pointers; together these
-are the reliable floor. A documented re-injection hook also exists — `SessionStart` fires with a `compact`
+though not airtight), and the next `UserPromptSubmit` scent cue re-fires the consult-the-substrate
+reflex; together these are the reliable floor. A documented re-injection hook also exists — `SessionStart` fires with a `compact`
 source and can inject `additionalContext` — so a full boot-pack re-render after compaction is *possible*;
 but that injection is **field-unreliable** (tracked upstream) and **must never be depended on as a
 grounding guarantee**, so the engine does not use it. A full re-render on the `compact` source is a
-**deferred enhancement**, gated on upstream reliability, on its own budget tier, and on a guarantee that it
-does **not** re-fire memory's `SessionStart`-borne consolidation sweep (which a naïve re-run would). The
+**deferred enhancement**, gated on upstream reliability and on its own budget tier. The
 reliable post-compaction floor stays the re-injected `CLAUDE.md` plus the next scent.
 
 A **resume** is not compaction. Re-opening a paused session (`--resume`/`--continue`/`/resume`) fires
@@ -106,17 +112,18 @@ re-relayed in full, so repetition does not bury the signal — the anti-habituat
 ([below](#anti-habituation-collapsing-an-unchanged-standing-alarm)), which suppresses the *repetition*,
 never the *signal*.
 
-Six of these are surfacings the substrates defer to boot, rendered here in plain language:
+Several of these are surfacings the substrates defer to boot, rendered here in plain language:
 
 - **A refused state file.** If the committed [state](../cognitive/state.md) cursor is malformed,
   state refuses it (it is never fed to the model as a misleading cursor); boot surfaces the refusal as
   injected context and emits a [telemetry](../guardrails/telemetry.md) finding — **never a
   `SessionStart` exit-code halt** — and falls through to the floor below. The session does not crash; it
   says, plainly, "*I couldn't read where the project stands, so I'm treating project status as unknown.*"
-- **Reversible forgetting.** When [memory](../cognitive/memory.md) has consolidated, demoted, or
-  logically retired recall — all **reversible and recoverable** — boot shows a plain-language readout of
-  what changed with an undo handle per item, so a silent loss of the operator's brainstorming never
-  happens. **Permanent erasure is not a boot event and carries no undo handle:** memory never erases recall
+- **Reversible forgetting.** When [memory](../cognitive/memory.md) recall has been **set aside**
+  (withheld) — reversible and recoverable — boot shows a plain-language readout of
+  what is set aside with a restore handle per item, so a silent loss of the operator's brainstorming never
+  happens. (The consolidated/demoted vocabulary this readout once covered retired with the curation
+  model — withhold-and-restore is the one reversible-forgetting surface the build carries.) **Permanent erasure is not a boot event and carries no undo handle:** memory never erases recall
   on its own; an erasure is *proposed* as an engine-labeled finding the operator adjudicates by merging a
   single-purpose erasure pull request (surfaced like any other open finding, above; what was erased is
   recorded in the [audits](../guardrails/audits.md) digest among the informational digests).
@@ -140,6 +147,9 @@ Six of these are surfacings the substrates defer to boot, rendered here in plain
   hook itself cannot run, this line cannot render — that **double fault** is caught instead by the root
   `CLAUDE.md` floor's present-marker check below (no project-status card ⇒ the engine did not ground). It
   ranks below the governance-critical alarms ([D-156](../../../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md), Risk [R18](../../../reference/risks.md)).
+  **Designed, not yet built:** as built, boot emits no tool-runtime-absent open finding — the nearest
+  surface reports hooks that did not run or are unapproved, a different condition — tracked upstream as
+  [engine-template#778](https://github.com/StarshipSuperjam/engine-template/issues/778).
 - **A stranded or off-main operator checkout.** When the [operator checkout](../../../reference/glossary.md) has **drifted
   into a broken state** — a detached `HEAD`, or missing/critically-stale engine files —
   [provisioning](../infrastructure/provisioning.md)'s standing detector (which boot invokes) catches it,
@@ -191,7 +201,8 @@ Six of these are surfacings the substrates defer to boot, rendered here in plain
   or drifted back to it) — [provisioning](../infrastructure/provisioning.md)'s standing foreign-seed
   detector (which boot invokes) catches it, and boot surfaces it read-only in plain language and **offers to tidy
   it for you**. It is framed as **provenance, not a problem with your project**, and **leads with the
-  private-by-default reassurance**: "*your project is private and yours by default — your code is yours until you
+  ownership reassurance** — worded to stay accurate for a public repository, since the engine does not read
+  visibility and claims nothing about it: "*your code is yours by default — yours until you
   choose to share it. One tidy-up: a license file copied in from the template you started from is still sitting in your project under its
   author's name, not yours — leftover from how your project was created, not anything you did. With your OK I'll
   clean it up as a small change you approve, so you start from a clean slate and can add the license you choose. If
@@ -212,6 +223,15 @@ Six of these are surfacings the substrates defer to boot, rendered here in plain
   **double fault** where the boot hook cannot run, the root `CLAUDE.md` floor's present-marker is the backstop
   ([R29](../../../reference/risks.md)). It is a **distinct finding** from the strand and unprovisioned conditions — its own
   structured-condition fingerprint in the anti-habituation ledger, so it never cross-collapses with them.
+
+The built pack carries further surfacings of the same shape this document does not enumerate one by one —
+a standing **describe-your-project offer** for a project with no written description yet (distinct from the
+first-run-setup offer above, and retire-eligible through the intent-exit below), a half-finished engine
+update, a migration-revert offer, a backup-restore offer, a stuck pull request,
+and the mechanic's own grounding offers — plus a **governance-tier execution-drift alarm** (the engine's
+execution environment no longer matches its qualified baseline). The bullets above are the surfacings
+whose laws this document fixes; the roster's authoritative home is the boot tool itself, and the
+alarms-pinned priority law binds all of them alike.
 
 #### Anti-habituation: collapsing an unchanged standing alarm
 
@@ -240,8 +260,8 @@ relays what the hook handed it.
 The ledger is **fail-toward-full**: a missing, unreadable, or write-failed ledger, or any fingerprint
 ambiguity, renders the alarm **in full** (the safe direction — repetition is the tolerable failure,
 suppression is not), and a ledger write that fails never blocks the turn
-([hooks](../infrastructure/hooks.md) fail-open). It is **isolated from memory's `SessionStart`
-consolidation sweep** — it shares no code path and never triggers it — and lives at a **stable per-instance
+([hooks](../infrastructure/hooks.md) fail-open). It is **isolated from the other work that rides the
+`SessionStart` moment** — it shares no code path with any substrate's own writes — and lives at a **stable per-instance
 path** under the engine working tree (`${CLAUDE_PROJECT_DIR}/.engine/…`, the
 [repository topology](../infrastructure/repository-topology.md) placement law), never inside an
 ephemeral worktree, so it spans separate sessions on the one operator's machine. It is never committed, never
@@ -252,20 +272,29 @@ discipline (which must preserve fail-toward-full under a race) are build-spec le
 The operator-facing promise boot's relay makes, so the behavior is verifiable without reading code: a problem
 still here from last time shows as a short reminder that **still names the risk and still offers the fix**; a
 new or worsened problem **always** shows in full; and a problem **vanishing** from the status block means the
-engine **verified it is fixed**, never that it stopped checking. This also reaches the residual the
+engine **verified it is fixed — or that you retired it on the record** (the kept-on-purpose exit below),
+never that it silently stopped checking. (As built there is no separate readout of retired findings; the
+retired marker in the ledger is the record, readable on this checkout only.) This also reaches the residual the
 actionable-alarm mitigation could not: an alarm that **cannot** be made actionable — one with no one-click
 fix — still collapses to a terse line that **keeps its consequence sentence**, so it neither becomes
 wallpaper nor loses its meaning.
 
 **The kept-on-purpose intent-exit — a bounded third disposition.** The collapse above assumes every standing
 condition has one legitimate end state: *fixed*. That holds for the governance alarms (no operator both wants the
-protected branch off and wants to build safely) and for the strand/unprovisioned conditions (a broken or
-never-set-up checkout is never a state the operator *intends*). It does **not** hold for the
-**leftover-template-license** finding: an operator may **deliberately keep** an inherited license — a fork's
-attribution, or an org copyright that is legitimately theirs. For that class alone — a finding whose
+protected branch off and wants to build safely) and for the strand condition (a broken checkout is never a state
+the operator *intends*). It does **not** hold for two classes: the
+**leftover-template-license** finding — an operator may **deliberately keep** an inherited license (a fork's
+attribution, or an org copyright that is legitimately theirs) — and the **describe-your-project offer** (the
+standing nudge, disclosed above, that a project with **no written description yet** receives: "*want to start
+by describing what you're building?*"), whose legitimate terminal state is the operator deciding to **work
+without a written description** — a small script never owes a spec. For those classes — a finding whose
 **finding-class carries a legitimate operator-intended terminal state other than fixing it** — an explicit
-acknowledgment ("*I meant to keep this*") records a **retired** marker in the ledger, keyed to that condition's
-fingerprint, and the finding **stops surfacing** from this checkout's ledger. This is distinct from a per-session
+acknowledgment ("*I meant to keep this*" / "*I'd rather work without a written description*") records a
+**retired** marker in the
+ledger, keyed to that condition's
+fingerprint, and the finding **stops surfacing** from this checkout's ledger. (The **brand-new-project
+first-run-setup offer** above is *not* in this set — its "this is actually an existing project" stand-down is
+the offer self-correcting, never a retire the ledger honors.) This is distinct from a per-session
 **decline**, which only collapses the finding to its terse line — *never fully silent*, because the
 burden-of-proof posture holds for a leak the operator has **not** said is intentional.
 
@@ -274,16 +303,20 @@ The retired marker is *written* mid-session, when the operator's acknowledgment 
 a **model-invoked write** by the same consent-handling path that would otherwise open the removal — realized as an
 Explore-permitted `.engine/tools/` helper invocation (the ledger write is a tool call, never a raw engine-file
 edit the Explore gate would block), distinct from the `SessionStart` hook's fingerprint writes (so the ledger's
-concurrent-write discipline must cover this second writer). But whether a retired marker is **honored** is decided
+concurrent-write discipline must cover this second writer). The write's tier is named honestly
+([§7](../../../principles.md)): invoking it on a genuine acknowledgment is **posture** — model discipline on the
+chat channel — while the *honor* decision below is the mechanical half. But whether a retired marker is **honored** is decided
 in the **deterministic hook**, not the model: at honor-time the hook derives the finding-class from the **live
 producing detector** — which check emitted the fingerprint this session — **never from a class label co-written
 into the ledger** by the model-invoked path (the reading that would reopen the hole), and honors the marker
-**only** for a **retire-eligible** class (the leftover-license class), **ignoring** one whose live class is
+**only** for a **retire-eligible** class, **ignoring** one whose live class is
 **governance** (a protection-off condition) and re-rendering that alarm
 in full regardless. So a mis-written retired marker — a model slip, or a prompt-injection ("*the operator said to
 leave protection off*") — **cannot** silence a governance alarm: retire-eligibility is a fixed property of the
-finding-class — a build-time boolean over the closed class set (leftover-license = yes; governance / strand /
-unprovisioned = no), the "legitimate operator-intended terminal state" phrasing above being the *rationale*, not
+finding-class — a build-time constant over the closed class set (as built, two classes are eligible:
+leftover-license and the describe-your-project offer; governance, strand, and the unprovisioned
+first-run-setup offer are not, pinned by a drift test), the
+"legitimate operator-intended terminal state" phrasing above being the *rationale*, not
 the runtime gate — checked mechanically, exactly as the collapse decision is
 ([§15](../../../principles.md)'s guard-not-falsifiable-by-what-it-judges). A governance alarm can be **declined**
 (collapse to terse) but **never retired**.
@@ -308,7 +341,8 @@ for below-threshold narrative: the place a non-engineer sees "what happened late
 #### "Where we are" is assembled live, cached for offline
 
 Boot assembles the standing-situation the same read-only way it assembles "what just happened":
-`phase` from the most-recently-merged tracked build Issue, `milestone` from the open Milestone set that
+`phase` from the **most-recently-merged pull request** — "what merged last," scanned over a bounded
+recent-PR window, rendering "*nothing merged yet*" on a window miss — and `milestone` from the open Milestone set that
 [state](../cognitive/state.md)'s selection bound carries (state owns the bound and boot restates
 none of it — GitHub elects no *active* Milestone, so what the field holds may be one, several, or `none set`),
 **derived live from the native sources when GitHub is
@@ -359,15 +393,22 @@ Because it is paid on **every** session (an [attention](../cognitive/attention.m
   the engine ground?" check rides the relay: a healthy session opens with the AI rendering a **named
   orientation block first** — a titled token (e.g. `Project status`; its exact title and form a build-spec
   leaf) carrying either a pushed governance alarm or a one-line all-clear — **before** it addresses the
-  prompt. The floor states this as an unconditional, observable check, in plain terms not jargon: "*When the
-  engine is grounded, the first thing I show you each session is a short titled status block — like
-  `Project status: all clear` or `⚠ Protected branch is off` — so you can see at a glance that I grounded.
-  If my first reply jumps straight into your request with no status block at the top, I did not fully ground
-  — so don't trust what I say about your project; tell me to re-ground, or quit and reopen Claude Desktop.*" The check is the
+  prompt. The floor states this check in plain terms, not jargon — as built: "*When the Engine is grounded,
+  the first thing I show you each session is a short titled status block — a calm line like **▸ Project
+  status: 12 open issues**, or a **⚠** line such as **⚠ Your safety gate is off** if something needs your
+  attention — so you can see at a glance that I grounded before I answer. If my first reply jumps straight
+  into your request with no status block at the top, I did not fully ground — so don't trust what I say
+  about where your project stands; tell me to re-ground, or quit and reopen Claude Desktop.*" (The exact
+  copy is a build-spec leaf; the `Project status` title token is the pinned constant.) The check is the
   **presence of one named block as the assistant's first output**, decidable by a first-time operator with
-  no prior healthy boot to compare against, and it covers the double fault (committed
-  [state](../cognitive/state.md) unreadable *and* the boot hook did not run): with no injected pack
-  the AI has nothing to render, the block is absent, and the instruction fires. A skipped *governance* relay
+  no prior healthy boot to compare against. Its two directions carry different tiers, named honestly
+  ([§7](../../../principles.md)). The **absence** direction is the observable one, and covers the double
+  fault (committed [state](../cognitive/state.md) unreadable *and* the boot hook did not run): with no
+  injected pack the AI has nothing to render, the block is absent, and the instruction fires. The
+  **presence** direction is posture — the floor copy hands the AI both the instruction and an example
+  all-clear, and no floor instruction directs an ungrounded session to say "no pack arrived," so a
+  plausibly-rendered block above an ungrounded answer is a residual the floor does not catch; there the
+  merge wall, not the marker, is the backstop. A skipped *governance* relay
   surfaces the same way — a missing block — the operator-side detection the posture-tier relay relies on,
   with the merge wall the unbypassable backstop.
 
@@ -380,30 +421,26 @@ control-plane files), not a catalogued surface.
 ### The per-prompt scent — metacognition as a push
 
 The substrate's worst failure is being **pull-only**: a tool the model must remember to invoke is a
-tool it skips, defaulting to grepping files. The scent inverts this. On every prompt a *fast lexical*
-lookup (FTS5/BM25 over the local index — single-digit ms; no embeddings, no LLM, no graph walk) injects
-**attributed pointers, not content** — "*memory has older notes on X (3 drawers); X relates to Y, Z —
-query and verify before asserting*" — so the looking has already happened and the result sits in front
-of the model. Properties:
+tool it skips, defaulting to grepping files. The scent inverts this. On every prompt the
+`UserPromptSubmit` seam injects **one short, constant, content-free cue** — an AI-facing reminder to
+consult the substrate before asserting — firing unconditionally, reading no index and writing nothing.
+This is the retired earlier design's replacement, adopted in the cognitive-wave reconciliation: the seam
+*used to* run a fast keyword lookup (FTS5/BM25 over the local index) and inject attributed pointers to
+whichever stored records matched the prompt's words, silent below a strong-match threshold; the lookup,
+the threshold, and the per-session dedup all retired with it. What is locked upstream is the **reflex,
+not its payload**
+([eADR-0018](https://github.com/StarshipSuperjam/engine-template/blob/cdbbc3357fbfbc192005650a8be6ce35b7942bfe/.engine/contracts/eADR-0018-cognitive-substrate-one-workflow.md)),
+which permits a provoking cue over injected pointers. Properties:
 
-- **Push the cheap pointers; pull the expensive content.** Deep retrieval stays model-initiated.
-- **Attributed and unverified — the core trust seam.** A lexical match is words, not meaning; a strong
-  match can be stale. The scent must read as a pointer the AI **verifies before asserting**, never as
-  its own recall woven into prose.
-- **Selective, minimal, de-duplicated — within a session's lifetime.** It is silent on no strong match;
-  because Claude Code's `additionalContext` persists in history, each scent is kept minimal and a pointer
-  already surfaced is not re-injected. **The dedup's honest bound:** its already-surfaced record is keyed
-  on the platform's session identifier, so the dedup reaches exactly as far as that identifier's lifetime —
-  which is **reportedly** shorter than a conversation's, since `session_id` is re-issued on resume
-  ([constraints](../../../reference/constraints.md), held at a weak tier: evidenced, not established). If that report
-  holds, a resumed conversation starts a fresh record and a pointer may surface again. The design does not
-  turn on which way it resolves — a scent is minimal by construction, so a repeat is cheap either way. The
-  bound is stated rather than left implicit because a dedup silently scoped narrower than its reader
-  assumes is the same defect class this doc's amendment came to close.
-- **Fail-open, rate-limited.** A crash or a hard timeout injects nothing (never stalls the turn); the
-  failure-finding is de-duplicated so a persistent fault does not spam the [telemetry](../guardrails/telemetry.md) inbox.
-- **Pivots for free.** A conversation that turns produces the scent for the new topic on that prompt.
-- **Heritage.** The scent is an *active / forward-looking retrieval* push (cf. FLARE, which retrieves on low-confidence tokens within an anticipated future sentence; the scent instead triggers on a lexical match against the user prompt). Lineage only — it does not soften the attributed / verify-before-asserting rule above. (Maintainer vocabulary; see the glossary *Lineage* cluster.)
+- **Push the cheap cue; pull the content.** Deep retrieval stays model-initiated — the cue provokes the
+  consult, it carries no recall of its own.
+- **Content-free by law.** No record pointers ride the cue, so there is nothing in it to mistake for
+  verified recall; the attribute-and-verify discipline lives at retrieval, where
+  [memory](../cognitive/memory.md) and [knowledge](../cognitive/knowledge.md) fix it.
+- **Unconditional and constant.** No strong-match threshold, no silence path, and no dedup — a constant
+  one-line cue is too cheap to bother deduping, and its repetition is the point: the reflex fires every
+  prompt, including after a pivot or a compaction.
+- **Fail-open.** A crash injects nothing and never stalls the turn.
 - **Honest bound** ([principle §6](../../../principles.md)): a strong ambient *nudge*, not a guarantee; the lever is making the substrate the lower-friction, citable path.
 
 ### Degradation is loud and consented — never a silent default
@@ -474,13 +511,15 @@ unchanged and relays in full when new or worsened, fail-toward-full.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Always grounds at the floor** — the hook-independent root `CLAUDE.md` grounds every session unconditionally; the `SessionStart` boot pack rides on top whenever the hook runs (it is fail-open), degradable-up. The floor is cheap (committed state plus the thin `CLAUDE.md`); substrate depth is attention-budgeted on top. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Read-only of canonical state** — orientation never regenerates derived or committed state (regeneration is the commit-boundary's job); the operations that ride the `SessionStart` moment belong to the substrates that own them, not to orientation — memory's consolidation sweep, modes' stance clear, knowledge's regenerable slice cache. Orientation's **one** local write is the gitignored, non-canonical standing-alarm presentation ledger (anti-habituation, above) — a record of what was already shown, never a regeneration of state. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Anti-habituation by collapse, not suppression** — a standing governance alarm whose structured condition is unchanged since last shown in full collapses to a terse reminder (consequence + fix offer retained); a new, changed, or worsened condition relays in full; the ledger is fail-toward-full on any loss or ambiguity. The present-marker block and the all-clear render never collapse. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **"Where we are" is assembled, not stored-and-advanced** — boot derives the standing-situation (`phase` from the latest merged tracked build Issue, `milestone` from the open Milestone set under [state](../cognitive/state.md)'s selection bound — one, several, or `none set`) live from native sources, read-only, falling back to [state](../cognitive/state.md)'s offline cache (staleness-labelled) when GitHub is down; no session advances a stored marker, so the online card cannot silently rot. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Degrade loud and consented** — substrate outages produce a plain-language degraded notice at boot and a consent point at the plan gate, never a silent run on the floor. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **A hook-independent floor beneath the pack** — the thin root `CLAUDE.md` is platform-loaded regardless of hooks, carrying the irreducible grounding (orientation pointer, memory-authority routing, the wall, the [operator-presentation relay](../../../reference/glossary.md) + the present-marker) so a hook failure never leaves a session ungrounded. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Alarms pinned and legible** — governance-critical alarms surface first and visually distinct from informational notices, so a degraded boot is never a wall of warnings that buries the one that matters. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Operator delivery is the relay** — the pack reaches the model, not the operator ([constraints](../../../reference/constraints.md)); the operator meets it through the AI relaying the pushed safety-critical subset and rendering the present-marker block first, with routine detail pulled via the [status verb](../../../reference/glossary.md) — the [operator-presentation relay](../../../reference/glossary.md), honest posture with the merge wall the governance backstop. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Always grounds at the floor** — the hook-independent root `CLAUDE.md` grounds every session unconditionally; the `SessionStart` boot pack rides on top whenever the hook runs (it is fail-open), degradable-up. The floor is cheap (committed state plus the thin `CLAUDE.md`); substrate depth is attention-budgeted on top. | No declarative merge-gated check targets boot; the floor's presence is structural (the platform loads the committed `CLAUDE.md`) and your observation of a grounded first reply carries the rest. Partial support: the boot test suite (CI) pins home-repo versus deployed-copy grounding and the refused-state degrade path. | operator |
+| **Read-only of canonical state** — orientation never regenerates derived or committed state (regeneration is the commit-boundary's job); the operations that ride the `SessionStart` moment belong to the substrates that own them, not to orientation — modes' stance clear, knowledge's regenerable slice cache, memory's erasure-enactment observer and throttled backup push. Orientation's local writes are the gitignored, non-canonical standing-alarm presentation ledger (anti-habituation, above) and the per-user live-session heartbeat marker — bookkeeping, never a regeneration of state. | No check asserts the global no-canonical-write property; your read and code review carry it. Partial support: the boot-alarm-ledger tests (CI) pin the ledger's write path as presentation bookkeeping, and each rider write is pinned by its owner's own tests. | operator |
+| **Anti-habituation by collapse, not suppression** — a standing governance alarm whose structured condition is unchanged since last shown in full collapses to a terse reminder (consequence + fix offer retained); a new, changed, or worsened condition relays in full; the ledger is fail-toward-full on any loss or ambiguity. The present-marker block and the all-clear render never collapse. | Your observation across sessions carries it. Partial support: the boot-alarm-ledger tests (CI) pin fail-toward-full, drop-on-vanish, and the retire namespace; the boot tests pin the one-message collapse render, the unchanged-set-aside collapse, and the present marker byte-identical to the floor's. | operator |
+| **"Where we are" is assembled, not stored-and-advanced** — boot derives the standing-situation (`phase` as "what merged last" — the most-recently-merged pull request over a bounded window, "nothing merged yet" on a miss — and `milestone` from the open Milestone set under [state](../cognitive/state.md)'s selection bound — one, several, or `none set`) live from native sources, read-only, falling back to [state](../cognitive/state.md)'s offline cache (staleness-labelled) when GitHub is down; no session advances a stored marker, so the online card cannot silently rot. | Your observation of the card carries it. Partial support: the standing-situation tests (CI) pin the live derive as write-free, and the boot tests pin the live-lines render, the absent-Milestone normal state, and several-open-Milestones-all-named. | operator |
+| **Degrade loud and consented** — substrate outages produce a plain-language degraded notice at boot and a consent point at the plan gate, never a silent run on the floor. | Your observation of a degraded boot carries it. Partial support: the boot tests (CI) pin no-notice-on-healthy-boot, figures-suppressed-on-a-degraded-read, and the quiet-degrade relay paths; the consent point itself is [build orchestration](build-orchestration.md)'s plan gate, a seam boot only feeds. | operator |
+| **A hook-independent floor beneath the pack** — the thin root `CLAUDE.md` is platform-loaded regardless of hooks, carrying the irreducible grounding (orientation pointer, memory-authority routing, the wall, the [operator-presentation relay](../../../reference/glossary.md) + the present-marker) so a hook failure never leaves a session ungrounded. | Structural: the committed root `CLAUDE.md` loads independent of hooks; your read of the floor copy carries the irreducible elements. Partial support: a boot test (CI) pins the present marker byte-identical between the pack and the floor. | operator |
+| **Alarms pinned and legible** — governance-critical alarms surface first and visually distinct from informational notices, so a degraded boot is never a wall of warnings that buries the one that matters. | Your observation of an alarmed boot carries it. Partial support: the boot tests (CI) pin the ranking — the gate-off alarm pinned loud and first, offers pinned in their tier, the strand below governance, and the present marker reflecting a strand while governance outranks. | operator |
+| **Operator delivery is the relay** — the pack reaches the model, not the operator ([constraints](../../../reference/constraints.md)); the operator meets it through the AI relaying the pushed safety-critical subset and rendering the present-marker block first, with routine detail pulled via the [status verb](../../../reference/glossary.md) — the [operator-presentation relay](../../../reference/glossary.md), honest posture with the merge wall the governance backstop. | Your observation that the AI's relay is where you meet the pack carries it — explicitly posture ([§7](../../../principles.md)). Partial support: the boot tests (CI) pin the pack as AI-facing (the grounding never rendered in the operator-relay zone; notices placed in the relay portion, not the orientation zone). | operator |

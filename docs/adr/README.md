@@ -332,3 +332,5 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0318 | [Resolve: re-lock `github-projects-sync` (the board's engine field is **`ranked work`**, not *"what's next"* —…](0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md) | 2026-07-16 |
 | 0319 | [Resolve: re-lock `boot` (relay state's `milestone` selection bound without restating it; the card's rendering…](0319-resolve-re-lock-boot-relay-state-s-milestone-selection-bound.md) | 2026-07-16 |
 | 0320 | [Reconcile the spec to engine-template as built — the sync policy](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md) | 2026-07-29 |
+| 0321 | [Adopt the build's refusal of fabricated cost-and-time estimates at the plan gate](0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) | 2026-08-01 |
+| 0322 | [Ratify `set-routine` as the routine-entry actor](0322-ratify-set-routine-as-the-routine-entry-actor.md) | 2026-08-01 |

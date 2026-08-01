@@ -4,7 +4,7 @@ status: draft
 
 # External contribution
 
-*Ratified in the design workspace on 2026-06-06 by [decision 0184](../../../adr/0184-resolve-the-d-183-issue-authoring-grammar-correction-landed.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-06 by [decision 0184](../../../adr/0184-resolve-the-d-183-issue-authoring-grammar-correction-landed.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -65,8 +65,14 @@ contribution clean:
   Cleanliness is therefore **posture, not a mechanical guarantee**: the branch is engine-clean by origin, the
   nudge catches an accidental engine path (a stray add, or a back-merge of the fork's engine branch) before
   submit, and the **backstop is the upstream's own review** — a maintainer would reject a pull request that
-  adds `.engine/`. The nudge self-declares its suite ([§14](../../../principles.md)) and emits a
-  [telemetry](../guardrails/telemetry.md) finding when it fires.
+  adds `.engine/`. The nudge self-declares its suite ([§14](../../../principles.md)). As built, that suite is
+  `pre-close` — collected on **every clean turn-close**, with no contribution-context gate — so the nudge can
+  fire over ordinary work in the operator's own repository, where its cross-fork wording overstates the
+  situation; the meaning stays fixed to an outgoing cross-fork contribution, and the context-blind message is
+  tracked upstream as [engine-template#777](https://github.com/StarshipSuperjam/engine-template/issues/777).
+  The [telemetry](../guardrails/telemetry.md) finding fires at **submission**, over a real outgoing diff —
+  the submit tooling's duty, whichever way the operator decides — while the pre-close validator run
+  deliberately emits none, keeping close's a-local-run-reaches-no-GitHub-event invariant.
 
 ### Following the host's conventions
 
@@ -76,10 +82,11 @@ pull-request template** (honoring its `CONTRIBUTING` and any DCO/CLA, already ow
 Engine's own PR shape **only when the upstream has none**. The upstream's templates are committed files
 readable in the checkout, so this needs no new machinery. The Engine's *own* PR-body and engine-authored-issue
 body contracts ([control-plane](../infrastructure/control-plane.md)) govern the **owner's own** repo,
-never a contribution to someone else's. The upstream's **issue** templates matter only in the rare case the
-Engine files an *issue* upstream — the contribution itself is a pull request, so the upstream PR template is
-what governs. Like the upstream-clean nudge, this is **posture, adding no wiring or check**, backstopped by the
-upstream's own review.
+never a contribution to someone else's. The upstream's **issue** templates govern when the Engine files an
+*issue* upstream — a first-class second flow the module ships, with its own runbook and tooling that detect
+and fill the target project's issue templates — though the contribution itself is a pull request, so the
+upstream PR template is what governs a submission. Like the upstream-clean nudge, this is **posture, adding
+no wiring or check**, backstopped by the upstream's own review.
 
 ### Trust — two gates, named honestly
 
@@ -87,8 +94,10 @@ The unbypassable human gate of every owned-repo deployment is the operator's own
 ([§6](../../../principles.md)). Here the operator does not own the upstream, so the gates split:
 
 - **Contributor-side (the operator's own, configurable).** The fork's branch protection plus the Engine's
-  pre-submission checks — PR-body completeness, the validation suite, the upstream-clean nudge — run *before*
-  the operator submits. This is the side the operator controls.
+  pre-submission checks — the validation suite and the upstream-clean nudge — run *before*
+  the operator submits. This is the side the operator controls. (The Engine's own PR-body completeness gate
+  binds the submission only when the upstream is the engine's own home; for any other upstream, the
+  upstream's template governs, as above.)
 - **Acceptance (the upstream's, not configurable).** For a **governed** upstream the real mechanical wall is
   the upstream project's **own required checks** (which run in the upstream's context for a fork pull request
   regardless of the fork's settings) **plus its maintainers' review** — a genuine [§6](../../../principles.md)
@@ -155,7 +164,11 @@ arrow runs mechanic → template ([§13](../../../principles.md)), and the templ
 standalone, unaware of the mechanic. Its trust base is engine-template's **own** merge gate plus maintainer
 review (the well-governed end of the trust spectrum).
 
-The mechanic uses the **same** cross-repo machinery as any external contribution; it is not a bespoke path.
+As built, the mechanic does **not** run this module's cross-fork runbook: because it *owns* its
+engine-template product as a separate checkout, both external-contribution runbooks carve it out
+explicitly, and it opens a **direct pull request into its own checkout** through
+[build-orchestration](build-orchestration.md)'s owned-product arm. What it shares with an external
+contribution is the trust base, not the submission path.
 What keeps self-improvement honest is **not** a machine proof but an **independently-trusted human gate on the
 product repo**: every change the mechanic proposes is reviewed and merged by the engine-template maintainer
 *before* it is released, so the version any instance later upgrades to was human-ratified on engine-template,
@@ -188,7 +201,8 @@ External contribution is an **optional module**
 capability: a deployment building the operator's *own* product never contributes to a repo it does not own, so
 the cross-repo machinery is a genuine extension and the contagious core stays minimal
 ([§12](../../../principles.md)). The module provides the upstream-clean nudge, the cross-fork submission
-tooling, and the operator-narration; the cross-fork pull request *is* the
+tooling, the upstream **issue-filing** flow (its own runbook and tooling, live-gated on the operator's
+`gh`), and the operator-narration; the cross-fork pull request *is* the
 [build-orchestration](build-orchestration.md) close in shape (a submitted PR), but the
 **unbypassable merge wall moves from the operator's own merge to the upstream's** — a substantive change the
 locked [build-orchestration](build-orchestration.md) close model carries
@@ -209,13 +223,15 @@ control-plane's upstream-acceptance note, topology's CODEOWNERS-predicate note).
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Reuses the locked machinery** — brownfield install, namespaced confinement, file-precise CODEOWNERS, §13, degrade-to-git-native — adding no new grammar; the genuinely new pieces are the upstream-clean nudge and the split trust model, and build-orchestration's locked close model carries the one substantive change (the merge wall moves to the upstream, [D-104](../../../adr/0104-phase-c-cross-reference-the-external-contribution-mode-into.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The Engine stays off the contribution by posture, backstopped by the upstream** — the product branch is engine-clean by origin, the §6 nudge catches an accidental engine path, and the upstream's own review is the backstop; cleanliness is honest posture, not a mechanical guarantee. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Follows the host's conventions** — the cross-fork pull request adopts the upstream's PR template (and `CONTRIBUTING` / DCO-CLA), falling back to the Engine's own shape only when the upstream has none; the Engine's own [control-plane](../infrastructure/control-plane.md) PR/issue-body contracts govern only the owner's repo ([§13](../../../principles.md), posture, backstopped by the upstream's review). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The hard gate is the upstream's** — for a governed upstream, its own checks plus review; for an ungoverned one, the honest line is that the fork-side checks are the only real gate ([§7](../../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The operator is never misled or stranded** — submitted-is-not-accepted narration, plain-language nudges, decisions surfaced (never raw git), and a working fork on any upstream failure. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The engine-mechanic is non-reflexive; its trust base is engine-template's own human review** — the same cross-repo machinery, and the rule that it upgrades only to human-ratified releases rides that independently-trusted gate (human-review-grade, not a machine proof). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Maturity is disclosed at install** — per [R14](../../../reference/risks.md), the cross-repo path ships **un-exercised end-to-end at v1**; the install disclosure states this in plain operator language (the [clean-code](../../modules/clean-code.md) disclosure precedent), so opting in is informed consent, never trust in a maturity the path has not earned. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Optional, not core** — [§12](../../../principles.md); opt-in is consent, and removal leaves the operator's own product unaffected. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Reuses the locked machinery** — brownfield install, namespaced confinement, file-precise CODEOWNERS, §13, degrade-to-git-native — adding no new grammar; the genuinely new pieces are the upstream-clean nudge and the split trust model, and build-orchestration's locked close model carries the one substantive change (the merge wall moves to the upstream, [D-104](../../../adr/0104-phase-c-cross-reference-the-external-contribution-mode-into.md)). | No merge-gated check asserts the reuse claim; your read that the module adds no new grammar carries it. Partial support: the `module-manifest` and `self-map-drift` checks (hard, CI) gate the module's declared shape and its `depends: core` structure. | operator |
+| **The Engine stays off the contribution by posture, backstopped by the upstream** — the product branch is engine-clean by origin, the §6 nudge catches an accidental engine path, and the upstream's own review is the backstop; cleanliness is honest posture, not a mechanical guarantee. | Your observation carries it — the `upstream-clean` check is by design a soft pre-close nudge, never a merge gate (the criterion's own tier), and the upstream's review is the backstop no local check can replace. | operator |
+| **Follows the host's conventions** — the cross-fork pull request adopts the upstream's PR template (and `CONTRIBUTING` / DCO-CLA), falling back to the Engine's own shape only when the upstream has none; the Engine's own [control-plane](../infrastructure/control-plane.md) PR/issue-body contracts govern only the owner's repo ([§13](../../../principles.md), posture, backstopped by the upstream's review). | Your read of an authored submission carries it; template detection and fill live in the submission and issue-filing tooling, ungated by any check, and the engine's PR-body gate binds the owner's repo only. | operator |
+| **The hard gate is the upstream's** — for a governed upstream, its own checks plus review; for an ungoverned one, the honest line is that the fork-side checks are the only real gate ([§7](../../../principles.md)). | Not assertable from this repo — the gate is the upstream project's own required checks and maintainer review, outside the engine's control; your read of the upstream's governance carries it. | operator |
+| **The operator is never misled or stranded** — submitted-is-not-accepted narration, plain-language nudges, decisions surfaced (never raw git), and a working fork on any upstream failure. | Your observation of the narration carries it; the external-contribution policy holds this at enforcement-tier posture, and no detector grades whether the narration was honest. | operator |
+| **The engine-mechanic is non-reflexive; its trust base is engine-template's own human review** — as built it runs [build-orchestration](build-orchestration.md)'s owned-product arm (a direct pull request into its own checkout, not this module's cross-fork runbook), and the rule that it upgrades only to human-ratified releases rides that independently-trusted gate (human-review-grade, not a machine proof). | Your observation carries it — both external-contribution runbooks carve the mechanic out explicitly, and the trust base is engine-template's own protected-branch review, which no check in this repo can assert. | operator |
+| **Maturity is disclosed at install** — per [R14](../../../reference/risks.md), the cross-repo path ships **un-exercised end-to-end at v1**; the install disclosure states this in plain operator language (the [clean-code](../../modules/clean-code.md) disclosure precedent), so opting in is informed consent, never trust in a maturity the path has not earned. | Your read of the install disclosure carries it — the module catalog's copy states the first contribution would be the live step's first run anywhere. Partial support: the `in-tool-demo-failure-path` check (hard, CI) keeps the nudge demo falsifiable and the `provisioning-catalog` check gates the catalog's well-formedness — neither asserts the disclosure's content. | operator |
+| **Optional, not core** — [§12](../../../principles.md); opt-in is consent, and removal leaves the operator's own product unaffected. | Your observation that removal leaves your product untouched carries it. Partial support: the `module-manifest` check (hard, CI) and the self-map attest the module's optional, core-dependent structure. | operator |
