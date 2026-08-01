@@ -190,8 +190,10 @@ briefing from memory. The injected line is **assistant-facing machine context, n
 kickoff** ("*opening a draft pull request and planning the work*"), fired **exactly once** on either
 path. The line carries **no operator-facing copy, is do-not-relay verbatim, and carries no imperative
 relay marker** (the [operator-presentation relay](../../../reference/glossary.md) reserves that marker for
-governance alarms, the close-gate, and grounding-failure); it is a turn-local **directive**, governed by
-the scent's push posture but never its attributed-pointer *verify-before-asserting* contract.
+governance alarms, the close-gate, and grounding-failure); it is a turn-local **directive** in the
+scent's push posture — put the instruction in front of the model rather than rely on its recall. (It
+carries an instruction, never recalled content: the old caution about verifying the scent's injected
+pointers retired with those pointers — the scent's cue is content-free as built.)
 
 That directive is **turn-local, never a durable stance record**, so a resume cannot resurrect a Build
 belief from it. The **signal is the sole durable stance record** (cleared at every session start →

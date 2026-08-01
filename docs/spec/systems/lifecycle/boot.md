@@ -16,13 +16,17 @@ All orientation is **read-only of canonical state** — it never regenerates der
 Orientation's local writes are two, both non-canonical: the gitignored *standing-alarm
 presentation ledger* ([below](#anti-habituation-collapsing-an-unchanged-standing-alarm)) — presentation
 bookkeeping that records what was already shown, never state regeneration — and the per-user
-**live-session heartbeat marker** boot's handler stamps (the providers seam's session resolver, doubling
-as hooks-ran evidence). Other substrates' writes ride
+**live-session heartbeat marker** boot's handler stamps (a small marker recording which session is
+live, so the engine's tools can find the current session — doubling as evidence the hooks ran). Other
+substrates' writes ride
 boot's `SessionStart` **moment** without being boot's: each belongs to the substrate that owns it —
-[modes](modes.md)' stance clear is modes', and the regenerable, gitignored slice cache
-[knowledge](../cognitive/knowledge.md) rebuilds when stale is knowledge's. None is canonical state, and
-none is orientation. ([Memory](../cognitive/memory.md) rides no `SessionStart` write at all — its
-transcript-first design deleted the boot-time sweep whole, so capture lives entirely at the `Stop`
+[modes](modes.md)' stance clear is modes', the regenerable, gitignored slice cache
+[knowledge](../cognitive/knowledge.md) rebuilds when stale is knowledge's, and
+[memory](../cognitive/memory.md)'s riders are its **erasure-enactment observer** (which enacts an
+operator-merged erasure pull request found pending) and its **throttled backup push** — non-capture
+work both. None is canonical state, and
+none is orientation. (What memory *no longer* rides there is any capture or consolidation sweep — the
+transcript-first design deleted the boot-time sweep whole, so **capture** lives entirely at the `Stop`
 boundary.)
 
 **Boot is unconditional at the floor; the rich pack rides on top.** The `SessionStart`
@@ -47,7 +51,7 @@ using is not*:
 | Every prompt (`UserPromptSubmit`) | the constant **scent** cue (below) | every turn → ~zero |
 | Post-compaction | the next `UserPromptSubmit` scent re-orients, over the re-injected root `CLAUDE.md` floor; a full boot-pack re-render on `SessionStart`'s `compact` source is a deferred enhancement (see *Post-compaction grounding*, below) | rare |
 | Commit boundary (`PreToolUse` git intercept) | [knowledge](../cognitive/knowledge.md) regen — a mutation, not orientation | per commit |
-| Turn end (`Stop`) | ambient [memory](../cognitive/memory.md) capture + the finding-disposition gate ([close](close.md)) — not a heavy ritual | every turn |
+| Turn end (`Stop`) | ambient [memory](../cognitive/memory.md) capture + the finding-disposition gate + close's non-blocking pre-close advisory ([close](close.md)) — not a heavy ritual | every turn |
 
 **Boot owns the event model; [attention](../cognitive/attention.md) owns the budget within it.**
 Which moments fire, the [hook](../infrastructure/hooks.md) driving each, and each event's cadence
@@ -512,7 +516,7 @@ unchanged and relays in full when new or worsened, fail-toward-full.
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | **Always grounds at the floor** — the hook-independent root `CLAUDE.md` grounds every session unconditionally; the `SessionStart` boot pack rides on top whenever the hook runs (it is fail-open), degradable-up. The floor is cheap (committed state plus the thin `CLAUDE.md`); substrate depth is attention-budgeted on top. | No declarative merge-gated check targets boot; the floor's presence is structural (the platform loads the committed `CLAUDE.md`) and your observation of a grounded first reply carries the rest. Partial support: the boot test suite (CI) pins home-repo versus deployed-copy grounding and the refused-state degrade path. | operator |
-| **Read-only of canonical state** — orientation never regenerates derived or committed state (regeneration is the commit-boundary's job); the operations that ride the `SessionStart` moment belong to the substrates that own them, not to orientation — modes' stance clear, knowledge's regenerable slice cache. Orientation's local writes are the gitignored, non-canonical standing-alarm presentation ledger (anti-habituation, above) and the per-user live-session heartbeat marker — bookkeeping, never a regeneration of state. | No check asserts the global no-canonical-write property; your read and code review carry it. Partial support: the boot-alarm-ledger tests (CI) pin the ledger's write path as presentation bookkeeping, and each rider write is pinned by its owner's own tests. | operator |
+| **Read-only of canonical state** — orientation never regenerates derived or committed state (regeneration is the commit-boundary's job); the operations that ride the `SessionStart` moment belong to the substrates that own them, not to orientation — modes' stance clear, knowledge's regenerable slice cache, memory's erasure-enactment observer and throttled backup push. Orientation's local writes are the gitignored, non-canonical standing-alarm presentation ledger (anti-habituation, above) and the per-user live-session heartbeat marker — bookkeeping, never a regeneration of state. | No check asserts the global no-canonical-write property; your read and code review carry it. Partial support: the boot-alarm-ledger tests (CI) pin the ledger's write path as presentation bookkeeping, and each rider write is pinned by its owner's own tests. | operator |
 | **Anti-habituation by collapse, not suppression** — a standing governance alarm whose structured condition is unchanged since last shown in full collapses to a terse reminder (consequence + fix offer retained); a new, changed, or worsened condition relays in full; the ledger is fail-toward-full on any loss or ambiguity. The present-marker block and the all-clear render never collapse. | Your observation across sessions carries it. Partial support: the boot-alarm-ledger tests (CI) pin fail-toward-full, drop-on-vanish, and the retire namespace; the boot tests pin the one-message collapse render, the unchanged-set-aside collapse, and the present marker byte-identical to the floor's. | operator |
 | **"Where we are" is assembled, not stored-and-advanced** — boot derives the standing-situation (`phase` as "what merged last" — the most-recently-merged pull request over a bounded window, "nothing merged yet" on a miss — and `milestone` from the open Milestone set under [state](../cognitive/state.md)'s selection bound — one, several, or `none set`) live from native sources, read-only, falling back to [state](../cognitive/state.md)'s offline cache (staleness-labelled) when GitHub is down; no session advances a stored marker, so the online card cannot silently rot. | Your observation of the card carries it. Partial support: the standing-situation tests (CI) pin the live derive as write-free, and the boot tests pin the live-lines render, the absent-Milestone normal state, and several-open-Milestones-all-named. | operator |
 | **Degrade loud and consented** — substrate outages produce a plain-language degraded notice at boot and a consent point at the plan gate, never a silent run on the floor. | Your observation of a degraded boot carries it. Partial support: the boot tests (CI) pin no-notice-on-healthy-boot, figures-suppressed-on-a-degraded-read, and the quiet-degrade relay paths; the consent point itself is [build orchestration](build-orchestration.md)'s plan gate, a seam boot only feeds. | operator |

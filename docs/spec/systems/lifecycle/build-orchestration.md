@@ -199,7 +199,8 @@ scheduled — the derived source-pinned rows are the criterion-ID scheme, no han
 continuous reverse sweep of the not-yet-built remainder; a product-design-provided,
 [migration-discipline](../../modules/migration-discipline.md)-shaped CI check, self-removing on
 engine removal (as built, the derived matrix and its own CI check are criterion-granular, while the
-per-merge coverage *floor* still traces at capability granularity — the recorded D-287 build-owe, an
+per-merge coverage *floor* still traces at capability granularity — the build-owe recorded in
+[D-287](../../../adr/0287-litigate-engine-template-427-make-the-sdd-spec-drive-the-bui.md), an
 engine-template debt rather than a spec question); the **paired judgment lenses** — **`spec-conformance`**, the systematic reviewer whose
 built-vs-spec verdict (each obligation met, diverged, or untested) is surfaced with every gap
 dispositioned at the operator's merge, and its adversarial counterpart **`divergence-hunter`**
