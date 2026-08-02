@@ -4,7 +4,7 @@ status: draft
 
 # routine-mode
 
-*Ratified in the design workspace on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -14,7 +14,8 @@ branch, entry authority = the operator-authored schedule + the frozen scope-lock
 the locked [modes](../systems/lifecycle/modes.md) doc, and the unattended *workflow* (how a
 build's implement phase distributes across routine sessions) lives in the locked
 [build-orchestration](../systems/lifecycle/build-orchestration.md) doc. **This module is how the
-entry ships**: the `/engine-routine` command an operator-authored Local Desktop routine fires, and the
+entry ships**: the `/engine-routine` command an operator-authored scheduled fire invokes — a Claude
+Desktop routine, or a Codex Automation firing the `$engine-routine` mirror — and the
 routine-entry procedure that command enters. Routine is one of the three stances, not one of the eleven
 foundations; the routine *stance* is **`required`** core ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)) — a trust
 protection present in every generated repo, never an install choice.
@@ -27,7 +28,7 @@ protection present in every generated repo, never an install choice.
 |---|---|
 | `id` | `routine-mode` |
 | `status` | `required` |
-| `provides` | the **`/engine-routine`** [skill](../systems/surfaces/skills.md) (`invocation: operator-typed`, engine-prefixed) — the thin entry command embedded in a Local Desktop routine's Instructions, carrying no step list ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)); the **routine-entry [operation](../systems/surfaces/operations.md)** it delegates to — the procedure home that confirms the unattended posture, reads the frozen scope-locked build Issue, echoes the locked-on Issue on first fire, files a durable Issue on a misfire, and enters the build-orchestration routine workflow |
+| `provides` | the **`/engine-routine`** [skill](../systems/surfaces/skills.md) (`invocation: operator-typed`, engine-prefixed) — the thin entry command embedded in a scheduled fire's Instructions, a single delegating pointer with no procedure of its own ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)); its **generated Codex mirror** (`$engine-routine`, carrying the same no-self-invocation flag); and the **routine-entry [operation](../systems/surfaces/operations.md)** the command delegates to — the procedure home that confirms the unattended posture, reads the frozen scope-locked build Issue, **enters the Routine write-stance through the engine's `set-routine` verb** (the ratified actor, [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), which writes the stance only after a positive worktree-isolation proof), echoes the locked-on Issue on first fire, files a durable Issue on a misfire, and enters the build-orchestration routine workflow |
 | `wires` | **none** |
 | `depends` | `core` |
 | `migrations` | none (v1) |
@@ -43,10 +44,15 @@ protection present in every generated repo, never an install choice.
 - the **routine-entry operation** is *referenced* by the skill, not wired — a referencer mutates nothing
   ([operations](../systems/surfaces/operations.md) "one procedure, one home");
 - the **session stance marker** — modes' ephemeral, session-keyed, non-committed signal of the active
-  stance ([modes](../systems/lifecycle/modes.md); a modes build-spec leaf) — sits outside the
-  closed wiring seam vocabulary, not a `gitignore`/`permission`/`hook` wire; it reflects the stance, it
-  does **not** authorize entry (Routine's authority is the operator-configured schedule + the frozen
-  scope-locked build Issue, [D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)), so `routine-mode` neither sets nor wires it;
+  stance ([modes](../systems/lifecycle/modes.md)) — sits outside the
+  closed wiring seam vocabulary, not a wire: nothing here is *wired*, but as built the module's own
+  routine-entry procedure **does set it**, through modes' `set-routine` verb — the routine-entry actor
+  ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md) — and the
+  write-gate then honors the marker for the session's writes. Entry **authority** is unchanged: the
+  operator-configured schedule plus the frozen scope-locked build Issue authorize the fire
+  ([D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)); `set-routine`
+  is how the already-authorized fire records its stance (behind a worktree-isolation proof), never a
+  model's self-election;
 - the **non-interactive permission posture** that makes "cannot ask" real is an **operator-side
   non-interactive permission preset** (in the operator's Claude Desktop / user-level settings, outside the
   committed repo), so the operator is the gate; its concrete form is a
@@ -83,9 +89,11 @@ affirmative case is the ratified drift-firewall, not a default.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The stance and workflow are the systems'; the entry is this module** — modes owns the Routine stance laws and build-orchestration owns the unattended workflow; `routine-mode` ships only the operator entry verb and the procedure it enters, restating neither. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires nothing** — skill by presence, operation by reference; the permission posture is an operator-side Desktop preset (outside the repo), the push-wrapper/push-gate are build-orchestration build-spec leaves, and the write-gate hook is core/modes — none is `routine-mode`'s, so entering Routine seizes no shared state here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **`required` core, not a foundation** — the routine stance ships in every generated repo and is never an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)); the eleven foundations stay minimal beneath it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The routine-entry operation is preserved on a ratified affirmative case** — the [D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md) drift-firewall, satisfying the operations anti-sprawl bar rather than defaulting past it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The stance and workflow are the systems'; the entry is this module** — modes owns the Routine stance laws and build-orchestration owns the unattended workflow; `routine-mode` ships only the operator entry verb and the procedure it enters, restating neither. | Operator observation: the manifest provides only the entry verb (both runtimes' renders) and its operation, no stance or workflow files; the stance laws live in the modes tooling and the unattended workflow in the orchestration procedure, which routine-entry references rather than restates. Partial support: module-manifest and self-map-drift (both hard, CI) hold the provides set true; neither attests the ownership boundary. | operator |
+| **Wires nothing** — skill by presence, operation by reference; the permission posture is an operator-side Desktop preset (outside the repo), the push-wrapper/push-gate are build-orchestration build-spec leaves, and the write-gate hook is core/modes — none is `routine-mode`'s. The one shared thing entry touches is the ephemeral session stance marker, set through modes' ratified `set-routine` verb ([decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)) — session-scoped and never committed, so no durable shared state is seized. | Operator observation: the manifest carries `wires: []` and the marker write goes through modes' own verb, not a wire. Partial support: module-manifest (hard, CI) validates the wires field's shape without asserting emptiness; self-map-drift (hard, CI) holds the rendered "wires: none" true to the manifest. | operator |
+| **`required` core, not a foundation** — the routine stance ships in every generated repo and is never an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)); the eleven foundations stay minimal beneath it. | Operator observation: the manifest declares `status: required`, the self-map renders it required, and the module is absent from the optional-add catalog so it is never offered as a choice. Partial support: module-manifest (hard, CI) holds the status field schema-valid without pinning its value; provisioning-catalog (hard, CI) governs the catalog it is correctly missing from. | operator |
+| **The routine-entry operation is preserved on a ratified affirmative case** — the [D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md) drift-firewall, satisfying the operations anti-sprawl bar rather than defaulting past it. | Operator observation: the standalone operation exists and its preservation rests on the ratified drift-firewall case in the record. Partial support: operation-shape and operation-frontmatter (both hard, CI) hold the file structurally valid; the affirmative-case judgment is review, not a check. | operator |
