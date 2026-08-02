@@ -7,8 +7,20 @@ Per-record detail lives in the catalogs; this is the judgment at a glance.*
 
 **Disposition totals (247 records):** CORE 32 · ADAPTER 4 · HOST CONFIGURATION 15 · OBSERVATION ONLY 24 ·
 OPTIONAL INTEGRATION 17 · REJECT 155. The large REJECT count is the audit's central result stated bluntly:
-most native surface the Engine leaves unused is left unused *deliberately*, with a specific engine control
-covering the ground — the catalogs record which control, per record.
+most native surface the Engine leaves unused is left unused *deliberately* — either a specific engine
+control covers the ground (the catalogs name it per record), or the capability has no subject in a headless,
+file-based, PR-gated system.
+
+## The core-and-adapter architecture — reviewed, not redrawn
+
+The audit's answer to #657's "revised core-and-adapter architecture" output is explicit: **the existing
+boundary stands; no capability moves across it.** The vendor-neutral core (instruction floors, hooks-borne
+control plane, personas, skills, MCP helpers, memory substrate, worktree-and-merge law) and the provider
+adapter layer (the generated Codex surfaces, the parity toolchain, the per-runtime wiring asymmetries
+recorded per eADR-0034) were each substantiated as deliberate by the reconciliation — all four ADAPTER
+records describe machinery the Engine already runs, and none of the approved migrations (M1–M5) moves a
+capability between core, adapter, or host. The concept-first design #657 feared had drifted holds up under
+the full inventory; its ratification rides the migration decision record with the rest of the dispositions.
 
 | Family (provider) | What the Engine gets from it today | Candidate further use | Balance |
 | --- | --- | --- | --- |

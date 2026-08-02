@@ -23,9 +23,11 @@ corpus's own reconciliation pin. Until then, every platform-currency run reports
 snapshot, under the committed comparison rules, and says so.
 
 The catalogs' dispositions are adopted here as **recommendations**; their ratification — including the five
-approved migrations and the ratified no-changes — is the migration decision record that accompanies the
-migration spec, so that no decision record commits to a boundary change ahead of the spec revision that
-carries it.
+approved migrations and the no-changes recommended to stand — is the migration decision record that
+accompanies the migration spec, so that no decision record commits to a boundary change ahead of the spec
+revision that carries it. The audit's architecture conclusion is nonetheless stated now, in the utility
+matrix, in plain words: the existing core-and-adapter boundary stands — reviewed against the full
+inventory, not redrawn — and none of the approved migrations crosses it.
 
 ## Why
 
