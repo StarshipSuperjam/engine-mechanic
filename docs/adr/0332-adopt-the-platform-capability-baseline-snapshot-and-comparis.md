@@ -6,9 +6,9 @@ engine_record: true
 # Adopt the platform capability baseline — the snapshot and comparison rules become the platform-currency denominator
 
 *Decided 2026-08-02, as the blocking prerequisite of
-[engine-template #657](https://github.com/StarshipSuperjam/engine-template/issues/657). Numbering note: this
-record takes the next free number after the settlement record the spec-settling pull request carries; if that
-pull request lands a different number, this one renumbers at rebase.*
+[engine-template #657](https://github.com/StarshipSuperjam/engine-template/issues/657), immediately after
+[decision 0331](0331-settle-the-reconciled-corpus-as-the-build-baseline.md) settled the spec corpus the
+audit reconciled against.*
 
 ## The decision
 
