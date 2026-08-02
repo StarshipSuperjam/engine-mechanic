@@ -26,10 +26,6 @@ and it is replaced only by a new recorded decision — never refreshed in place.
 
 | Source (fetched 2026-08-02) | sha256 | bytes |
 | --- | --- | --- |
-| https://agents.md | `aa6fbda823099086a550…` | 81690 |
-| https://code.claude.com/docs/en/agent-sdk/claude-code-features | `c116edab9d165b3f808e…` | 533943 |
-| https://code.claude.com/docs/en/agent-sdk/custom-tools | `f5657063c89b04d46d8c…` | 936224 |
-| https://code.claude.com/docs/en/agent-sdk/hooks | `aae6a62222ab0738fb7b…` | 937576 |
 | https://agents.md | `aa6fbda823099086a550048ff638136c05077f3da03f061fea8de154059550a8` | 81690 |
 | https://code.claude.com/docs/en/agent-sdk/claude-code-features | `c116edab9d165b3f808e1248d39e146bd245916ee568e8998db51c9ef55de4e2` | 533943 |
 | https://code.claude.com/docs/en/agent-sdk/custom-tools | `f5657063c89b04d46d8c4ef2dc0babf5426b6110a0e3c12fde984b18f9456c21` | 936224 |

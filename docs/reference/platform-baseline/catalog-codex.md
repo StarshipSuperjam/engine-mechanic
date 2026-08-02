@@ -21,7 +21,7 @@ document are recommendations until the migration decision record ratifies them.*
 ```yaml
 id: codex/approvals-sandbox/approval-policy
 provider: codex
-family: codex / approvals-sandbox
+family: approvals-sandbox
 name: Approval policy (approval_policy)
 what: Controls when Codex pauses to ask the user before running a command or applying a change. Values are "untrusted" (approve everything but a trusted set), "on-request" (the agent asks when it wants to escalate), and "never" (no interactive prompts). A granular object form exposes per-category toggles.
 surfaces: [cli, desktop, cloud-web]
@@ -75,7 +75,7 @@ note: >
 ```yaml
 id: codex/approvals-sandbox/cloud-internet-access
 provider: codex
-family: codex / approvals-sandbox
+family: approvals-sandbox
 name: Cloud sandbox internet access
 what: Codex cloud runs each task in a per-environment sandbox that, unlike local workspace-write, blocks internet during the agent phase by default while still allowing internet during the setup-script phase. Network reach is governed by an environment-level allowlist and HTTP-method restrictions rather than the local sandbox_mode keys.
 surfaces: [cloud-web]
@@ -120,7 +120,7 @@ note: >
 ```yaml
 id: codex/approvals-sandbox/platform-sandbox-mechanisms
 provider: codex
-family: codex / approvals-sandbox
+family: approvals-sandbox
 name: Platform-native sandbox enforcement
 what: Codex enforces the sandbox using OS-native mechanisms rather than a single implementation, so the same modes behave consistently across macOS, Linux, WSL2, and native Windows. The enforcement layer is what actually confines filesystem and network access for the chosen sandbox_mode.
 surfaces: [cli]
@@ -163,7 +163,7 @@ note: >
 ```yaml
 id: codex/approvals-sandbox/sandbox-modes
 provider: codex
-family: codex / approvals-sandbox
+family: approvals-sandbox
 name: Sandbox modes (sandbox_mode)
 what: Sets the filesystem/command boundary the agent operates inside. "read-only" lets it inspect files but not edit or run commands without approval; "workspace-write" (the default for local work) lets it read, edit within the workspace, and run routine local commands; "danger-full-access" removes all sandbox restrictions.
 surfaces: [cli, desktop, cloud-web]
@@ -217,7 +217,7 @@ note: >
 ```yaml
 id: codex/approvals-sandbox/workspace-write-network-and-roots
 provider: codex
-family: codex / approvals-sandbox
+family: approvals-sandbox
 name: Workspace-write network access and writable roots
 what: Within the workspace-write sandbox, outbound network access is off by default and is toggled independently of the filesystem boundary; the set of writable roots can be widened or narrowed. This is the local (non-cloud) network control.
 surfaces: [cli, desktop]
@@ -920,7 +920,7 @@ note: `codex --search` is not enabled; the audit/build workflows are explicitly 
 ```yaml
 id: codex/cloud-web/agent-internet-access
 provider: codex
-family: codex / cloud-web
+family: cloud-web
 name: Cloud agent internet access
 what: Per-environment control of the cloud agent's internet access during the agent phase, with three states — Off, On (unrestricted), or On with restrictions (domain allowlist plus optional HTTP-method limits). Setup scripts always retain internet regardless of the agent setting.
 surfaces: [cloud-web]
@@ -956,7 +956,7 @@ note: none
 ```yaml
 id: codex/cloud-web/cloud-tasks
 provider: codex
-family: codex / cloud-web
+family: cloud-web
 name: Codex cloud tasks (web surface)
 what: Codex cloud runs delegated coding tasks in isolated cloud environments from the web surface at chatgpt.com/codex. Each task runs in the background — many can run in parallel — produces a summary and diff you review, accepts follow-ups, and can open a pull request when ready. The web surface organizes work into Chats, Code reviews, and Archive sections.
 surfaces: [cloud-web]
@@ -986,7 +986,7 @@ note: No chatgpt.com/codex cloud-task usage; not repo-configurable and not refer
 ```yaml
 id: codex/cloud-web/env-vars-and-secrets
 provider: codex
-family: codex / cloud-web
+family: cloud-web
 name: Environment variables and secrets
 what: Cloud environments support environment variables that persist across both the setup and agent phases, and secrets that receive an additional encryption layer and are available only to setup scripts (removed before the agent phase).
 surfaces: [cloud-web]
@@ -1018,7 +1018,7 @@ note: >
 ```yaml
 id: codex/cloud-web/environments-universal-image
 provider: codex
-family: codex / cloud-web
+family: cloud-web
 name: Cloud environments and universal image
 what: Each cloud task runs in a container. The default image is `universal`, pre-installed with common languages, packages, and tools; each repository's environment can pin package versions, run a setup script at container creation, and run an optional maintenance script when resuming a cached container.
 surfaces: [cloud-web]
@@ -1051,7 +1051,7 @@ note: none
 ```yaml
 id: codex/cloud-web/task-start-integrations
 provider: codex
-family: codex / cloud-web
+family: cloud-web
 name: Start and review cloud tasks from other surfaces
 what: Codex cloud tasks can be started or reviewed from surfaces beyond the web app — GitHub pull requests and issues, Linear issues, and Slack — and tasks can be begun or reviewed from the browser or the Codex CLI when away from the development machine.
 surfaces: [cloud-web, github-ci, cli]
@@ -1225,7 +1225,7 @@ note: none
 ```yaml
 id: codex/handoff/ide-to-cloud-delegation
 provider: codex
-family: codex / handoff
+family: handoff
 name: Delegate a task from the IDE to Codex cloud
 what: From the IDE extension you delegate a longer task to Codex cloud without leaving the editor — keeping quick iterations local, or connecting Codex web when a task needs more time and room — then review cloud results, ask follow-ups, and apply the resulting diffs locally. Chat/conversation context carries across the local-to-cloud boundary.
 surfaces: [ide, cloud-web]
@@ -1258,7 +1258,7 @@ note: No IDE→Codex-cloud delegation; the engine has no Codex cloud usage at al
 ```yaml
 id: codex/handoff/local-worktree-handoff
 provider: codex
-family: codex / handoff
+family: handoff
 name: Handoff between Local and a Git worktree
 what: Within the Codex desktop app, move a chat between your Local checkout and a Git worktree, so background or parallel chats run in isolated worktrees without disturbing your current setup and can be pulled back to Local for inspection, testing, or collaboration. Explicitly available only in Codex in the ChatGPT desktop app — not the CLI, IDE extensions, or cloud.
 surfaces: [desktop]
@@ -1299,7 +1299,7 @@ note: >
 ```yaml
 id: codex/handoff/remote-control-from-mobile
 provider: codex
-family: codex / handoff
+family: handoff
 name: Remote control of a host from the ChatGPT mobile app
 what: The ChatGPT mobile app connects to a Mac or Windows host running the Codex desktop app to start or continue Codex work on that host, steer active work, approve commands, review output, and receive notifications when a task completes or needs attention.
 surfaces: [desktop]
@@ -1332,7 +1332,7 @@ note: No ChatGPT-mobile → desktop-host remote control usage.
 ```yaml
 id: codex/handoff/thread-handoff-between-hosts
 provider: codex
-family: codex / handoff
+family: handoff
 name: Thread handoff between local and remote hosts
 what: Move a chat/thread together with its Git state between a local host and a connected remote host by handing it off to a matching project on the destination host and continuing it there; Codex can coordinate the handoff. Codex creates or reuses a worktree, transfers the chat and Git state, and switches the session to the new host.
 surfaces: [desktop, cli]
@@ -1368,7 +1368,7 @@ note: No SSH remote-host thread handoff; unattended work is the routine skill, n
 ```yaml
 id: codex/ide/editor-context
 provider: codex
-family: codex / ide
+family: ide
 name: Prompt with editor context
 what: Lets you reference an open file, a code selection, or a recent chat directly from the composer, so Codex starts from code already visible in the editor instead of re-explained context.
 surfaces: [ide]
@@ -1398,7 +1398,7 @@ note: IDE composer/editor-context feature; nothing in-repo configures or depends
 ```yaml
 id: codex/ide/extension-core
 provider: codex
-family: codex / ide
+family: ide
 name: Codex IDE extension
 what: Embeds the Codex coding agent as a sidebar chat inside supported editors so you run Codex next to your code. Available for Visual Studio Code, VS Code Insiders, Cursor, and Windsurf as a marketplace extension, plus native integrations for Xcode and JetBrains IDEs.
 surfaces: [ide]
@@ -1430,7 +1430,7 @@ note: >
 ```yaml
 id: codex/ide/extension-settings
 provider: codex
-family: codex / ide
+family: ide
 name: IDE extension settings and settings sync
 what: The extension exposes editor-specific settings under `chatgpt.*` keys plus the shared agent settings (model/reasoning, approvals, sandbox, MCP) through config.toml, and synchronizes key settings between the Codex app and the VS Code extension.
 surfaces: [ide]
@@ -1471,7 +1471,7 @@ note: The record's `chatgpt.*` editor keys and settings precedence chain are not
 ```yaml
 id: codex/ide/in-editor-review
 provider: codex
-family: codex / ide
+family: ide
 name: In-place code review (IDE)
 what: Review Codex's proposed changes inside the editor — a concise summary plus a focused diff of changed lines — and follow up in the same chat without a separate navigation pane. Also supports inspecting GitHub pull requests in the sidebar (PR Chat) and reviewing diffs across multiple repositories in a multi-folder project.
 surfaces: [ide]
@@ -1748,7 +1748,7 @@ note: >
 ```yaml
 id: codex/mcp/authentication
 provider: codex
-family: codex / mcp
+family: mcp
 name: MCP server authentication
 what: Streamable HTTP MCP servers can authenticate with a bearer token from the environment, an OAuth flow, ChatGPT session auth for trusted first-party servers, or static/dynamic HTTP headers. OAuth credentials are stored and managed through the CLI.
 surfaces: [cli, desktop, ide]
@@ -1788,7 +1788,7 @@ note: >
 ```yaml
 id: codex/mcp/client-server-config
 provider: codex
-family: codex / mcp
+family: mcp
 name: MCP server configuration (client)
 what: Codex acts as an MCP client, connecting to external MCP servers over stdio (locally launched processes) or streamable HTTP (remote URLs) to add tools and context. Servers are configured in TOML or managed through CLI subcommands.
 surfaces: [cli, desktop, ide]
@@ -1840,7 +1840,7 @@ note: >
 ```yaml
 id: codex/mcp/codex-as-mcp-server
 provider: codex
-family: codex / mcp
+family: mcp
 name: Codex as an MCP server
 what: Codex can itself run as an MCP server, exposing Codex over the protocol to other MCP clients rather than only consuming external servers. An experimental local app-server is also available.
 surfaces: [cli, sdk-api]
@@ -1875,7 +1875,7 @@ note: >
 ```yaml
 id: codex/mcp/tool-approval-integration
 provider: codex
-family: codex / mcp
+family: mcp
 name: MCP tool approval and gating
 what: MCP tools feed into Codex's approval system: a server or per-tool approval mode decides whether calls run automatically or prompt the user, tool visibility can be allow/deny-listed, and MCP elicitations (server-initiated prompts) are surfaced through the approval policy.
 surfaces: [cli, desktop, ide]

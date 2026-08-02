@@ -2990,7 +2990,7 @@ note: WSL execution environment; not configured or referenced by the engine.
 ```yaml
 id: claude/github-ci/action-auth-modes
 provider: claude
-family: claude / github-ci
+family: github-ci
 name: Claude Code Action authentication modes
 what: The GitHub Action authenticates to Claude through one of several providers, chosen independently of the workflow logic. Supported modes are Anthropic direct API (API key or workload identity federation), Claude Code OAuth token, Amazon Bedrock, Google Vertex AI, and Microsoft Foundry.
 surfaces: [github-ci]
@@ -3045,7 +3045,7 @@ note: >
 ```yaml
 id: claude/github-ci/action-commit-signing
 provider: claude
-family: claude / github-ci
+family: github-ci
 name: Commit signing for action-authored commits
 what: The action can produce verified, signed commits when it pushes changes it made, so PRs and branches Claude opens show GitHub's verified-commit badge.
 surfaces: [github-ci]
@@ -3085,7 +3085,7 @@ note: none
 ```yaml
 id: claude/github-ci/claude-code-action
 provider: claude
-family: claude / github-ci
+family: github-ci
 name: Claude Code Action (anthropics/claude-code-action)
 what: A GitHub Action that runs Claude Code inside GitHub Actions workflows. In interactive use it responds to @claude mentions in issue and PR comments to analyze code, answer questions, implement changes, and open pull requests; in automation use it runs immediately from a supplied prompt on any GitHub event. As of v1.0 the action auto-detects interactive vs automation behavior from the workflow context rather than a manual mode setting.
 surfaces: [github-ci]
@@ -3149,7 +3149,7 @@ note: >
 ```yaml
 id: claude/github-ci/github-app-and-installer
 provider: claude
-family: claude / github-ci
+family: github-ci
 name: Claude GitHub App and /install-github-app installer
 what: The Claude GitHub App is the identity that lets the action read and write repository contents, issues, and pull requests. The `/install-github-app` slash command runs an interactive installer from the Claude Code terminal that installs the App and scaffolds the workflow file and API-key secret.
 surfaces: [cli, github-ci]
@@ -6000,7 +6000,7 @@ note: >
 ```yaml
 id: claude/review-handoff-merge/code-review-local
 provider: claude
-family: claude / review-handoff-merge
+family: review-handoff-merge
 name: /code-review (local diff review command)
 what: A Claude Code slash command that reviews a diff in the local terminal without installing the GitHub App. It reports correctness bugs plus reuse, simplification, and efficiency cleanups, defaulting to the branch's commits ahead of upstream plus uncommitted changes.
 surfaces: [cli, sdk-api]
@@ -6052,7 +6052,7 @@ note: >
 ```yaml
 id: claude/review-handoff-merge/code-review-managed
 provider: claude
-family: claude / review-handoff-merge
+family: review-handoff-merge
 name: Code Review (managed GitHub PR review service)
 what: A managed service (research preview) in which a fleet of specialized agents review GitHub pull requests on Anthropic infrastructure and post findings as inline comments on the offending lines, plus a summary and a check run. Findings are tagged by severity and never approve or block the PR, leaving existing review workflows intact.
 surfaces: [github-ci, cloud-web]
@@ -6222,7 +6222,7 @@ note: No mobile push config; Remote Control is unused.
 ```yaml
 id: claude/review-handoff-merge/review-pr-command
 provider: claude
-family: claude / review-handoff-merge
+family: review-handoff-merge
 name: /review <pr> (local pull-request review command)
 what: A Claude Code slash command that reviews a specified GitHub pull request locally in the session — a single-pass review at the session's effort, intended for looking over a teammate's PR the way you would before approving it.
 surfaces: [cli]
@@ -6262,7 +6262,7 @@ note: none
 ```yaml
 id: claude/review-handoff-merge/simplify
 provider: claude
-family: claude / review-handoff-merge
+family: review-handoff-merge
 name: /simplify (cleanup-only review command)
 what: A Claude Code slash command that runs a cleanup-only review — reuse, simplification, and efficiency improvements — and applies the fixes, without hunting for bugs. It is the successor split from the original bug-finding command lineage.
 surfaces: [cli]
@@ -6385,7 +6385,7 @@ note: >
 ```yaml
 id: claude/review-handoff-merge/ultrareview
 provider: claude
-family: claude / review-handoff-merge
+family: review-handoff-merge
 name: Ultrareview (/code-review ultra, cloud multi-agent review)
 what: A deep, multi-agent code review (research preview) that runs on Claude Code on the web infrastructure. `/code-review ultra` launches a fleet of reviewer agents in a remote sandbox to find and independently verify bugs in a branch or pull request before merge, keeping the local terminal free.
 surfaces: [cli, cloud-web, github-ci]
@@ -6488,7 +6488,7 @@ note: No `--teleport`/`/teleport`/`/tp` usage anywhere in the engine surfaces.
 ```yaml
 id: claude/scheduling-background/background-sessions
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Background sessions (background tasks / agent view)
 what: Sessions can run detached in the background via a per-user supervisor process, freeing the terminal while work continues; they persist across terminal close, sleep, and Claude Code restarts. Managed through the agent view and shell subcommands.
 surfaces: [cli]
@@ -6539,7 +6539,7 @@ note: No `claude --bg`, agent-view TUI, `/background`, `/fork`, or daemon relian
 ```yaml
 id: claude/scheduling-background/desktop-scheduled-tasks
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Desktop local scheduled tasks
 what: Local scheduled tasks in the Claude Desktop app start a new session automatically on a schedule, running on your machine with direct access to local files and tools. They fire only while the app is open and the computer is awake.
 surfaces: [desktop]
@@ -6586,7 +6586,7 @@ note: The engine consumes the task's per-task permission mode + isolated-worktre
 ```yaml
 id: claude/scheduling-background/in-session-scheduled-tasks
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: In-session scheduled tasks (/loop and cron tools)
 what: Session-scoped scheduling that re-runs a prompt on an interval, at a self-paced cadence, or once at a future time, within an open Claude Code session. Tasks live in the current conversation and stop when a new one starts, but are restored on --resume/--continue if unexpired.
 surfaces: [cli]
@@ -6638,7 +6638,7 @@ note: The native /loop, CronCreate/List/Delete, and ScheduleWakeup machinery is 
 ```yaml
 id: claude/scheduling-background/monitor-tool
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Monitor tool
 what: A built-in tool that runs a command in the background and feeds each output line back to Claude so it can react to logs, file changes, or polled status mid-conversation, without pausing the session. It can also watch a WebSocket and treat each message as an event.
 surfaces: [cli]
@@ -6677,7 +6677,7 @@ note: The Monitor tool is a deferred/available tool but no engine code invokes i
 ```yaml
 id: claude/scheduling-background/routine-api-trigger
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Routine API trigger (/fire endpoint)
 what: An API trigger gives a routine a dedicated HTTP endpoint; POSTing to it with the routine's bearer token starts a new cloud session and returns a session URL. Used to wire routines into alerting, deploy pipelines, or internal tools.
 surfaces: [cloud-web, sdk-api]
@@ -6718,7 +6718,7 @@ note: No `/fire` endpoint usage; the engine's programmatic trigger surface is Gi
 ```yaml
 id: claude/scheduling-background/routine-github-trigger
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Routine GitHub event trigger
 what: A GitHub trigger starts a new cloud session automatically when a matching event (pull request or release) occurs on a connected repository, with optional filters. Each matching event starts its own session.
 surfaces: [cloud-web]
@@ -6758,7 +6758,7 @@ note: Divergence of choice — GitHub-event automation is reimplemented as class
 ```yaml
 id: claude/scheduling-background/routines-cloud
 provider: claude
-family: claude / scheduling-background
+family: scheduling-background
 name: Routines (cloud) with scheduled and one-off triggers
 what: A routine is a saved Claude Code configuration (prompt, repositories, environment, connectors) that runs autonomously on Anthropic-managed cloud infrastructure, so it keeps working when the machine is off. Currently in research preview. Schedule triggers run on a recurring cadence or once at a future time.
 surfaces: [cli, desktop, cloud-web]
@@ -8041,7 +8041,7 @@ note: >
 ```yaml
 id: claude/worktrees-isolation/background-session-isolation
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: Background-session worktree isolation (worktree.bgIsolation)
 what: Background sessions automatically move into an isolated git worktree before editing files so parallel background sessions do not collide; the behavior can be disabled by setting. This is the worktree-isolation half of the background-sessions capability.
 surfaces: [cli]
@@ -8081,7 +8081,7 @@ note: No `worktree.bgIsolation` setting; background sessions are not used (see b
 ```yaml
 id: claude/worktrees-isolation/base-ref-setting
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: worktree.baseRef setting
 what: A setting that controls which ref new worktrees branch from — the remote default branch or the local HEAD. It applies to --worktree and subagent worktrees.
 surfaces: [cli, desktop]
@@ -8121,7 +8121,7 @@ note: No `worktree.baseRef` key in either settings file; the default "fresh" beh
 ```yaml
 id: claude/worktrees-isolation/cleanup-and-sweep
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: Worktree cleanup, periodic sweep, and locking
 what: Claude cleans up worktrees it created on session exit and via a periodic age-based sweep, and locks a worktree while its agent runs so concurrent cleanup cannot remove it. Worktrees holding uncommitted or unpushed work are preserved.
 surfaces: [cli]
@@ -8164,7 +8164,7 @@ note: 11 worktrees are checked out at cdbbc335; the engine neither drives nor tu
 ```yaml
 id: claude/worktrees-isolation/desktop-parallel-sessions
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: Desktop parallel sessions (automatic per-session worktree)
 what: In the Claude Desktop app, every new session is automatically given its own git worktree, providing the same file isolation as the CLI --worktree flag without a flag.
 surfaces: [desktop]
@@ -8197,7 +8197,7 @@ note: The engine documents "a Claude Desktop routine" as its unattended host (ro
 ```yaml
 id: claude/worktrees-isolation/enter-exit-worktree-tools
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: EnterWorktree / ExitWorktree tools
 what: Built-in tools that let Claude create/enter a worktree mid-session and later return to the original directory, in response to a request like "work in a worktree." Entering moves the session's working directory, write access, and project config to the worktree.
 surfaces: [cli, sdk-api]
@@ -8240,7 +8240,7 @@ note: EnterWorktree/ExitWorktree are available platform tools but are not invoke
 ```yaml
 id: claude/worktrees-isolation/subagent-isolation
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: Isolate subagents with worktrees (isolation: worktree)
 what: Subagents can run in their own git worktree so parallel edits do not conflict, either on request or permanently via subagent frontmatter. Each subagent gets a temporary worktree.
 surfaces: [cli, sdk-api]
@@ -8281,7 +8281,7 @@ note: None of the 10 subagents in /Users/shanekidd/Developer/engine-template/.cl
 ```yaml
 id: claude/worktrees-isolation/worktree-hooks
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: WorktreeCreate / WorktreeRemove hooks (non-git VCS)
 what: Hooks that replace the default git worktree creation and removal logic entirely, enabling worktree isolation for non-git systems (SVN, Perforce, Mercurial) or placing worktrees outside .claude/worktrees/. The hook's stdout directory becomes the session working directory.
 surfaces: [cli]
@@ -8319,7 +8319,7 @@ note: No `WorktreeCreate`/`WorktreeRemove` hooks configured (grep of .claude/set
 ```yaml
 id: claude/worktrees-isolation/worktree-launch
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: Run parallel sessions with worktrees (--worktree / -w)
 what: Launching Claude with a worktree flag creates an isolated git worktree on a new branch and starts the session inside it, so edits in parallel sessions never collide. Each named invocation in a separate terminal is an independent isolated session.
 surfaces: [cli]
@@ -8365,7 +8365,7 @@ note: The engine treats worktree creation as the platform's job (see desktop-par
 ```yaml
 id: claude/worktrees-isolation/worktreeinclude
 provider: claude
-family: claude / worktrees-isolation
+family: worktrees-isolation
 name: .worktreeinclude
 what: A repo-root file listing gitignored paths to copy into each newly created worktree, so untracked local files such as .env are present in the fresh checkout. Only files that match a pattern and are also gitignored are copied.
 surfaces: [cli, desktop]

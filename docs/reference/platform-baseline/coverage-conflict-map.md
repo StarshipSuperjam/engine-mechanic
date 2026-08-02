@@ -51,7 +51,7 @@ dependencies), and what this run did and did not cover (the honest denominator).
 
 ## Coverage — what this run checked, and did not
 
-**Checked.** 17 Claude surface families, 11 Codex families, both model lineups: 247 capability records, 107
+**Checked.** 16 Claude surface families, 11 Codex families, both model lineups: 247 capability records, 107
 unique citations, every citation on an allowlisted origin, all fetched 2026-08-02. Reconciliation read the
 engine-template checkout at `cdbbc335` (its HEAD, identical to the spec pin). Six subsystem reconciliation
 sweeps covered every record id — none missing.
