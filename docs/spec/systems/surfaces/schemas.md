@@ -38,10 +38,12 @@ route-validating its own rule corpus would be circular — disclosed here rather
 
 There is no separate routing table. Each surface's catalog record carries a `governing_schema`
 field, so the validator resolves *file → surface → schema* from the catalog the
-[ontology](../grammar/ontology.md) already maintains. One override channel exists for the two
-cases the catalog cannot express — a rule checking well-formedness itself, and the catalog's own
-self-governance — where the rule names its schema directly in its parameters; everything else rides
-the catalog.
+[ontology](../grammar/ontology.md) already maintains. One override channel exists for what the
+catalog cannot express: a rule may name its schema directly in its parameters. As built, its users
+are the **whole-file data contracts** — a data file with no surface home of its own, or one living
+inside a prose surface's home (the engine manifest, the state files, the module manifests, the data
+policies, and the like) — and the same channel is what a well-formedness or
+catalog-self-governance rule would ride. Everything surface-routed rides the catalog.
 
 ### Reach by surface class
 
