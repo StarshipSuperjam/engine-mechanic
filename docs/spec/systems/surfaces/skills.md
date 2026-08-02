@@ -4,7 +4,7 @@ status: draft
 
 # Skills
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with engine-recall admitted as the single `model-auto` skill by [decision 0326](../../../adr/0326-admit-engine-recall-as-the-single-model-auto-skill.md); ratified as intended design on 2026-06-15 by [decision 0201](../../../adr/0201-resolve-the-d-200-status-verb-cold-start-re-litigation-lande.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with engine-recall admitted as the single `model-auto` skill by [decision 0326](../../../adr/0326-admit-engine-recall-as-the-single-model-auto-skill.md); ratified as intended design on 2026-06-15 by [decision 0201](../../../adr/0201-resolve-the-d-200-status-verb-cold-start-re-litigation-lande.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
 
 ## Summary
 

@@ -4,7 +4,7 @@ status: draft
 
 # product-design
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the authoring-gate routing ruled by [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) and two kept-intent legs annotated below; ratified as intended design on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the authoring-gate routing ruled by [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) and two kept-intent legs annotated below; ratified as intended design on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
 
 ## Summary
 
