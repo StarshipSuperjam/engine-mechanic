@@ -48,7 +48,9 @@ authority tier, which can bind to a hard check; conduct never does.)
   `governing_schema` requires the `id`, the `title`, and the lifecycle `status` of each entry; the
   [template](../guardrails/templates.md) scaffolds each code as a Rule section (the
   plain-language stance) plus an optional Rationale — the id and title ride the frontmatter, and the
-  scaffold's shape is held by the conduct shape check rather than a fixed-section spec. (File granularity — the two layer files above
+  scaffold's shape is held by the conduct shape check rather than a fixed-section spec. In the
+  committed layer file the two meet: each code lands as one prose section headed by its title,
+  matched one-to-one against its frontmatter entry by that same shape check. (File granularity — the two layer files above
   vs. one file per code of conduct plus a derived, fingerprint-gated aggregate — is a build-spec leaf; either way
   the floor-load `@import` below targets a fixed pair of paths, one per layer, so granularity does not move the
   floor law.)

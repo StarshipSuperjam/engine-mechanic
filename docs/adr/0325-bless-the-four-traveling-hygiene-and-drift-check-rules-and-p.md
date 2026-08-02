@@ -32,7 +32,8 @@ a per-rule registry:
 - **`memory-pointer-public-safety`** (hard, CI, construction-scoped) — the public engine-template
   repository must ship the unconfigured memory-vault pointer placeholder, so a maintainer's
   private vault coordinates can never travel to template users; in deployed copies the rule is
-  disclosed-inert behind the construction-scoped carve-out. Recorded with the backup pointer in
+  disclosed-inert behind the construction-scoped carve-out (the running check's own prose calls this
+  home-scoped — the same boundary, keyed on the repository's recorded home). Recorded with the backup pointer in
   the [memory](../spec/systems/cognitive/memory.md) document.
 
 The upstream admitting record owed to engine-template's own decision surface is tracked as

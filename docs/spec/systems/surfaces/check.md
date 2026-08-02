@@ -47,7 +47,7 @@ roster as these and no others):
   pull-request author — and is the rule's declaration of an *applicability* boundary, the PR-context sibling of
   `target`. Absent on every rule by default; its v1 users are the two
   [control-plane](../infrastructure/control-plane.md) PR-body rules — the hard body-completeness
-  check and its soft behaviors-declared companion — each naming the recognized in-repo automation authors
+  check and its soft behaviors-declared companion — each naming the recognized external-automation authors
   `dependabot[bot]` ([D-207](../../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)) and `github-actions[bot]` — the widening beyond D-207's
   one-author scope sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md), which honors
   [D-208](../../../adr/0208-resolve-the-d-207-dependabot-pr-contract-exemption-landed-te.md)'s standing law that any such widening demands a fresh spoof-safety

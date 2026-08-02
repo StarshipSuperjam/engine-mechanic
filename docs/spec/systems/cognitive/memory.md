@@ -320,7 +320,9 @@ unwidened.
   construction-scoped check requires the **public engine template** to ship the pointer as the
   unconfigured placeholder — so a maintainer's private vault coordinates can never travel to everyone
   who generates from the template — while in a deployed copy, where committing a real destination is
-  the operator's own choice, the rule stands down behind its disclosed construction-scoped carve-out.
+  the operator's own choice, the rule stands down behind its disclosed construction-scoped carve-out
+  (home-scoped, in the running check's own words — keyed on the repository's origin not being the
+  engine's recorded home).
 - **Per-project by nature** (each detached instance owns only its own ledger, [D-058](../../../adr/0058-discharge-the-wave-0-gate-q10-substrate-content-world-taggin.md)).
   The default destination is a **single shared memory vault** holding every project's namespace; a
   **per-project repo** — one private repo for this project alone — is the alternative **offered at every

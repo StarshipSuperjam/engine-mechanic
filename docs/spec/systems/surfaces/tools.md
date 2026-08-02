@@ -77,7 +77,9 @@ correctness is established by tests and
 by the [checks](check.md) that exercise it — including the coherence kind the module manager runs
 after an install — not by a schema or a prose-shape rule.
 
-The engine's `tool` code is **Python**, and it executes inside the engine-managed **tool-runtime** — a
+The engine's `tool` code is **Python** — with one deliberate exception, the shell launcher above,
+the bootstrap that locates the venv interpreter and so cannot itself run inside it — and it executes
+inside the engine-managed **tool-runtime** — a
 uv-provisioned, engine-namespaced virtual environment ([topology](../infrastructure/repository-topology.md);
 materialized by [provisioning](../infrastructure/provisioning.md)) with a uv-resolved interpreter
 held to a declared version floor, so the
