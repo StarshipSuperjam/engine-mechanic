@@ -393,7 +393,8 @@ assembled result.
 **Regenerating the derived-committed artifacts is part of integrate.** As the single writer, the orchestrator
 reconciles the PR branch's base against the default branch and then **regenerates every
 [§19](../../../principles.md) derived-committed artifact** — the [knowledge](../cognitive/knowledge.md)
-graph and the [ontology](../grammar/ontology.md) self-map — **from the reconciled tree as the final
+graph, the [ontology](../grammar/ontology.md) self-map, and (once any capability is settled) the
+[product-design](../../modules/product-design.md) spec-obligation matrix — **from the reconciled tree as the final
 authoring step**, so the PR is regenerated-and-current before review. A textual conflict on a member is
 **spurious** (§19): the resolution is to **clear the conflict and regenerate unconditionally** — not a
 side-pick (`--ours`/`--theirs`, which an add/delete-vs-modify case can defeat), never a hand-merge. The

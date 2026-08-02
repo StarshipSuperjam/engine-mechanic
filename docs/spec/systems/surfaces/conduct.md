@@ -26,8 +26,8 @@ authority tier, which can bind to a hard check; conduct never does.)
 
 - **It is** the operator's standing *behavioral stance* — how the AI should conduct itself across all work
   in this repo, present from the first session.
-- **It is not** project narrative (that is [memory](../cognitive/memory.md)'s `preference`/`lesson`
-  roles, which accumulate per-project and ship empty), structural fact (that is
+- **It is not** project narrative (that is [memory](../cognitive/memory.md)'s job — the
+  transcript-first record and the operator's pins, which accumulate per-project and ship empty), structural fact (that is
   [knowledge](../cognitive/knowledge.md)), design rationale (that is the
   [contracts](contracts.md) eADR canon), or an enforcement gate (that is
   [policies](policies.md) / [checks](check.md) / [hooks](../infrastructure/hooks.md)).
@@ -134,8 +134,8 @@ is **defense-in-depth**:
 
 ### Relation to memory
 
-Conduct is the **cold-boot stance floor**; [memory](../cognitive/memory.md)'s `preference`/`lesson`
-roles are the **per-project enrichment** that accumulates through use (and ships empty). They compose: the
+Conduct is the **cold-boot stance floor**; [memory](../cognitive/memory.md)'s record — the captured
+transcript and the operator's pins — is the **per-project enrichment** that accumulates through use (and ships empty). They compose: the
 floor is present from session one, and memory deepens it as the project teaches the Engine. A preference
 learned in a project may be **promoted** to a standing code of conduct on the operator's explicit, governed
 call (the authoring verb) — never automatically.

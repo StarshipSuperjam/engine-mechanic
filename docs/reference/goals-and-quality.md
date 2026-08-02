@@ -16,7 +16,7 @@ engine to build faithfully and show it on evidence the operator can weigh.
 ## Stakeholders
 
 - **Non-engineer operator** — primary consumer. Generates the repo, directs work, approves merges. A capable adult who builds *through* the engine rather than by reading its code; not assumed to debug code or GitHub internals. So the operator's trust cannot rest on code review — the burden of proof is on the engine to do faithful work and show it on evidence the operator can weigh, without their having to watch the mechanics.
-- **Claude Code (the AI builder)** — the engine's other consumer. Boots cold each session; needs externalized state, memory, knowledge, and attention plus unambiguous grammar.
+- **The AI builder (Claude Code, or the Codex runtime)** — the engine's other consumer. Boots cold each session; needs externalized state, memory, knowledge, and attention plus unambiguous grammar.
 - **Engine maintainer** — builds and evolves the template, and is the **sole non-engineer gate-holder of its construction** from the first commit, with no outside engineer ([constraints](constraints.md)). Needs the design fully specified so changes are mechanical, not archaeological — and needs construction to be **approvable on evidence without reading code**, the same trust bar the deployed operator holds ([principles §17](../principles.md)).
 
 ## Quality attributes (the rubric)

@@ -130,8 +130,15 @@ at base (read from the **base** commit's `status`, not head's; the base commit i
 immutable where force-push is blocked — [control-plane](../systems/infrastructure/control-plane.md)
 — so it cannot be edited in the same commit as the body) and, on a changed `locked` body, requires the
 operator's **[§15](../../principles.md)-style acknowledgment** — an action on the PR (a checkbox or an applied
-label), **never an AI-writable committed field** — so no session supplies the body change and the
-re-acceptance in one stroke. It **rides the single ruleset-bound PR-validation check** (adding no new
+label), **never an AI-writable committed field**. As built the gesture is deliberately the **same
+`guardrail-ack` label** the safety guard uses — the operator's one "I reviewed this flagged change and
+deliberately approve it" act, reused rather than minted twice — which also means one applied label clears
+every flagged item of both kinds on that pull request. And it carries the same honest bound
+[control-plane](../systems/infrastructure/control-plane.md) states for the safety guard: in **solo** the
+engine commits as the operator and *could* enact the acknowledgment itself, so the protection is *cannot
+change silently*, never *cannot change at all* — the re-acceptance must be affirmatively, legibly enacted
+rather than ridden past a routine click, with the structural close remaining the operator's choice of
+**team** identity. It **rides the single ruleset-bound PR-validation check** (adding no new
 required-check name) and so **self-removes from the derived roster on engine removal**
 ([validation](../systems/guardrails/validation.md) / [migration-discipline](migration-discipline.md)
 precedent), never an orphaned required check that would deadlock the product's merges — so a `locked` spec's

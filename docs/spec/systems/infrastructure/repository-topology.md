@@ -92,8 +92,9 @@ These laws — not a fixed list of directories — are what guarantee room for e
    [build-orchestration](../lifecycle/build-orchestration.md)'s, as branch protection is the
    control plane's (this doc owns the filesystem partition, not the working-tree topology).
 3. **One directory per engine-governance surface.** Each surface named by the [ontology](../grammar/ontology.md)
-   gets exactly one home at `.engine/<surface>/`. The surface set itself is the ontology's concern;
-   topology fixes only the location convention. A new surface later is a new `.engine/<surface>/` per
+   gets exactly one home, named by its catalog `location`: `.engine/<surface>/` unless a runtime dictates
+   otherwise (the tool-native surfaces of law 4). The surface set itself is the ontology's concern;
+   topology fixes only the location convention. A new surface later is a new home per
    this law — an additive change, not a topology refactor.
 4. **Tool-native surfaces live where each tool dictates.** Agents, skills, and hook
    configuration sit under `.claude/`, and project-scope MCP server definitions sit in the root

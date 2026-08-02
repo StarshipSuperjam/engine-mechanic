@@ -172,6 +172,20 @@ sees is plain language ("no security review
 ran on this change"; the audit digest's plain self-attestation), never these names — the
 [operator-communication law and the maintainer-jargon leak guard](../../../principles.md) apply.
 
+### The Codex render
+
+Each engine persona also ships as a **committed Codex-native render** — a distinct catalogued surface
+(the ontology's `codex-agent`) generated from the canonical `.claude/agents/` source by the render tool,
+never hand-authored, living in the Codex runtime's own corner
+([topology](../infrastructure/repository-topology.md) law 4; at the pin, ten renders under
+`.codex/agents/`, one per persona — full parity, no exception recorded). Two hard, merge-gated checks
+hold the pair: a schema check over the rendered set — a malformed persona would silently **vanish from
+review** rather than erroring, so the shape Codex needs to spawn one is asserted at the merge — and a
+coherence check requiring every render to match **byte-for-byte** what the render tool produces from its
+Claude source, with every review persona keeping its read-only sandbox and pinning no model; a
+hand-edited, stale, or source-less render goes red, and the fix is always to edit the canonical
+`.claude/` source and regenerate, never to touch a render by hand.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
