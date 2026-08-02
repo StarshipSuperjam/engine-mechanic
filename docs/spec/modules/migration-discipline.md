@@ -4,7 +4,7 @@ status: draft
 
 # migration-discipline
 
-*Ratified in the design workspace on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the check's single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -49,7 +49,7 @@ routes a finding, never editing product source ("no seam edits product source"; 
 |---|---|
 | `id` | `migration-discipline` |
 | `status` | `optional` |
-| `provides` | a **migration-discipline [policy](../systems/surfaces/policies.md)** (the standing bar — review-before-apply, reversibility / expand-contract, backup-before-destructive; the policy's own enforcement tier is **posture**) that **names a destructive or irreversible product-schema migration as a recognized instance** of the locked, always-present Escalation policy; a **`soft` ecosystem-detected presence [check](../systems/surfaces/check.md) rule** (a schema-changing PR carries a migration artifact; a migration carries a rollback **where the framework has the concept**) declaring the `CI`/`pre-commit`/`pre-close` suites; and the **read-only detection logic** it invokes. Named by what it governs — the kind realization (`custom/script` read-only or a presence-discovered conforming kind), `params`, and `message` text are build-spec leaves ([§2](../../principles.md)). |
+| `provides` | a **migration-discipline [policy](../systems/surfaces/policies.md)** (the standing bar — review-before-apply, reversibility / expand-contract, backup-before-destructive; the policy's own enforcement tier is **posture**) whose stop-and-ask commitment realizes the locked, always-present Escalation policy's standing irreversibility trigger for product-schema migrations (the built policy states that posture in its own plain words rather than naming the Escalation record); a **`soft` ecosystem-detected presence [check](../systems/surfaces/check.md) rule** with **one assertion** — *a migration carries a rollback where the framework has the concept* — declaring the `CI`/`pre-commit`/`pre-close` suites; and the **read-only detection logic** it invokes (a `custom/script` tool reading only file and directory names). The check **deliberately does not** assert that a schema-changing PR carries a migration at all — its own message and the policy both disclaim that half, leaving it to pull-request review and the standing posture (the single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md), resolving this document's earlier internal contradiction in its own Enforcement section's favor). Remaining `params` and `message` text are build-spec leaves ([§2](../../principles.md)). |
 | `wires` | **none** |
 | `depends` | `core` |
 | `migrations` | none (v1) — the manifest field is the engine's own-state upgrade mechanism, and this module owns no engine store to migrate; this is distinct from the *product* migrations it governs |
@@ -87,13 +87,16 @@ dependency-discipline relays GitHub's vulnerability data. So the tiers are named
   merge gate, and the close-ritual disposition gate. It is the module's primary mechanism, but it is honest
   posture backed by the human gate, not a mechanical wall.
 - **The presence check — `soft`.** A hygiene nudge (CI + local), never blocking; **presence-only — it does
-  not detect destructiveness.** It is ecosystem-detected (by manifest *or* migration-tooling
-  config/convention, since Flyway/Liquibase/golang-migrate/raw-SQL are not in the language manifest) and
-  resolves the rollback nudge three ways: the framework supports rollback and one is present; supports it
-  and one is missing (soft-warn); or **the framework has no rollback concept** (Prisma, free-tier
-  Flyway/Liquibase) → a **disclosed not-applicable**. When no migration framework is present at all it is a
-  **disclosed no-op**, framed *not yet applicable — it activates when the project adds migrations*, never a
-  silent pass.
+  not detect destructiveness, and it never checks whether a schema change has a migration at all** (the
+  adopted single-assertion scope above). It is ecosystem-detected (by directory convention and file names
+  — it never reads SQL) and resolves the rollback nudge along the built branches: separate up/down
+  conventions get the present-or-soft-warn pair; Flyway gets per-version undo pairing; a **forward-only
+  framework** (Supabase, Prisma, Flyway/Liquibase without the undo tier) is a **disclosed not-applicable**
+  — with hand-written rollback files winning over the framework name where both appear; an **in-file
+  rollback framework** (Rails, Django, Alembic — the rollback lives inside the migration file) is likewise
+  a disclosed not-applicable that never warns; a migrations directory it detects but cannot classify gets
+  its own honest disclosure; and when no migration framework is present at all it is a **disclosed no-op**,
+  framed *not yet applicable — it activates when the project adds migrations*, never a silent pass.
 
 ### Operator trust — a non-engineer cannot judge migration safety
 
@@ -144,12 +147,14 @@ stays Engine→product.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the policies/check/validation systems'; the delivery is this module** — no restating laws. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Governs the product's migrations, not the engine's** — the engine's own `migrations` mechanism stays the engine's; the boundary is terminological, not mechanical; the module never runs a product migration. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Escalation is posture-grade, not mechanical teeth** — migration safety is not decidable across ecosystems, so a destructive product migration is routed to a human decision (the core policy already escalates irreversibility); this module shapes that escalation to carry a recommendation and a safe path. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Honest tiers** — the bar and the escalation are posture (human-gated), the presence check is `soft`; nothing is dressed as enforced ([§7](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires nothing** — policy and check bind by presence; the escalation relays into an always-present locked policy; `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **`depends: core`, deliberately** — the check inspects product artifacts and presupposes no engine-self-validation corpus, so `core`'s engine suffices. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are the policies/check/validation systems'; the delivery is this module** — no restating laws. | Operator observation: the manifest provides only a policy instance, one check rule, and its read-only script — each citing the system laws rather than restating tier/gate/escalation text. No check asserts this. | operator |
+| **Governs the product's migrations, not the engine's** — the engine's own `migrations` mechanism stays the engine's; the boundary is terminological, not mechanical; the module never runs a product migration. | Operator observation: the check targets the product-migrations context, its script prunes the engine's own corner and reads only names — the module's demo proves an engine-side migrations file is walled out. Partial support: the migration-rollback check itself proves the wall and read-only floor when it runs; the never-runs-a-migration claim is the script's read-only construction, your read. | operator |
+| **Escalation is posture-grade, not mechanical teeth** — migration safety is not decidable across ecosystems, so a destructive product migration is routed to a human decision (the core policy already escalates irreversibility); this module shapes that escalation to carry a recommendation and a safe path. | Operator observation: the policy's own enforcement-tier section says there is no mechanical detector, and the check's message explicitly does not judge destructiveness. No check covers this — which is the criterion's own point. | operator |
+| **Honest tiers** — the bar and the escalation are posture (human-gated), the presence check is `soft`; nothing is dressed as enforced ([§7](../../principles.md)). | Operator observation: the check declares `tier: soft` and its script asserts no finding is ever hard, so it never blocks even in CI's blocking context; the posture legs are the policy's own words. Partial support: the check's declared tier carries the soft sub-claim; the full multi-leg claim is your read. | operator |
+| **Wires nothing** — policy and check bind by presence; the escalation relays into an always-present locked policy; `depends` ≠ wiring. | Operator observation: the manifest carries `wires: []`, and the policy and check are file-drop artifacts discovered by presence. Partial support: module-manifest (hard, CI) validates the manifest grammar without asserting the wires list is empty. | operator |
+| **`depends: core`, deliberately** — the check inspects product artifacts and presupposes no engine-self-validation corpus, so `core`'s engine suffices. | Operator observation: the manifest's depends carries `core` alone and the check's kind is the read-only script core's dispatcher owns. No check asserts the dependency's rationale. | operator |
+| **Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Operator observation: the manifest declares `status: optional`, the script reads names only, and the policy's rationale commits every escalation to a plain-language account plus a safer path. No mechanical check; verify by reading the policy and manifest. | operator |
