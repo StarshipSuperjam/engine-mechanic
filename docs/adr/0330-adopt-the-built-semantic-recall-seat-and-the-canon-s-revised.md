@@ -3,7 +3,7 @@ status: accepted
 engine_record: true
 ---
 
-# Adopt the built semantic-recall seat and the canon's revised-in-place model
+# Adopt the built semantic-recall seat and the canon's revised-in-place model, with the orchestrator's re-audit judgment
 
 *Decided 2026-08-02 in this repository, by the operator, in the wave-8 ruling round under
 [decision 0320](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). One batched
@@ -53,7 +53,7 @@ Three places where the carried documents contest the shipped build are **adopted
 
 ## Why
 
-Both were verified first-hand at the pin. The catalog's conflation predates the build's split of
+All three were verified first-hand at the pin. The catalog's conflation predates the build's split of
 find-by-meaning recall from graph representation; keeping it would contradict the corpus the
 operator already merged in wave 7 and misdescribe what the setup menu actually offers. The canon
 model is stated twice in the build's own record — the law (eADR-0014) and the enforcing schema —
@@ -73,4 +73,4 @@ law, not an accident). **Fix principles but defer the contracts.md residual to a
 follow-up** (rejected — the residual is the other end of the exact reference this wave
 reconciles, and leaving the corpus self-contradictory across one merge would trade a disclosed
 in-wave fix for a standing inconsistency). **Per-item records** (rejected — one clustered record
-over two adoptions follows the wave-5 and wave-7 precedent and keeps the decision log legible).
+over three adoptions follows the wave-5 and wave-7 precedent and keeps the decision log legible).

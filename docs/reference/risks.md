@@ -442,7 +442,7 @@ single documented local step at the ungated seed rides R15's named, accepted res
 tool-runtime bootstrap is built and validated against live uv on the supported platforms. Tracked in
 [provisioning](../spec/systems/infrastructure/provisioning.md),
 [repository-topology](../spec/systems/infrastructure/repository-topology.md), and
-wbs/stage-0-harness.md; opened by [D-156](../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md).
+the stage-0 harness design (a retired planning-workspace document); opened by [D-156](../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md).
 
 ## R19 — Operator-presentation is relay-posture: the AI is the sole pipe to the operator
 

@@ -1,6 +1,6 @@
 # Architecture
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); the runtime walkthroughs carry the rulings recorded in decisions [0321](adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md), [0322](adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), and [0327](adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); the runtime walkthroughs carry the rulings recorded in decisions [0321](adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md), [0322](adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), [0327](adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md), and [0330](adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 This is the master document. It describes the complete end-state of engine-template v1 and links
 every system, scenario, and module that realizes it. Read `goals-and-quality.md` for the rubric
@@ -565,10 +565,11 @@ sequenceDiagram
   [audits](spec/systems/guardrails/audits.md) judgment rung feeds the same loop through the same two
   lanes — **local retire/reconcile** for accumulated local cruft, **escalate-upstream** for a machinery bug
   ([D-076](adr/0076-lock-the-audits-system-re-founded-for-the-deployed-repo-hygi.md)).
-- **Auto-resolve closes the issue** — for a live-derived signal on **positive clearance** (a pass observed
-  on the same source), never mere absence; for a cache-accrued ambient signal, after its
-  absent-for-N-observations threshold; and a source the resolving pass did not observe at all is carried
-  forward untouched rather than closed. It retires the flag, it does not repair anything.
+- **Auto-resolve closes the issue** — for a signal read live from its source, only on a **pass observed
+  on that same source**, never mere absence; for a signal accrued from ambient caches, once it has been
+  **absent for a set number of observations**; and a source the resolving pass did not observe at all is
+  carried forward untouched rather than closed
+  ([telemetry](spec/systems/guardrails/telemetry.md)). It retires the flag, it does not repair anything.
 - The loop closes across sessions — never claim it heals while the operator sleeps.
 
 ### Contributing to an external repo
@@ -686,6 +687,6 @@ sequenceDiagram
 The choices behind this architecture are recorded individually under `adr/`, one file per decision, each naming what was decided, why, and what was ruled out. The load-bearing ones:
 
 - **A specified-then-layered build, not an incremental cleanup of the prototype.** (decision 0001)
-- **A fixed documentation discipline for the design itself** — one decision record per choice (the design workspace's single log, carried here as the file-per-decision `adr/` corpus), final-voice documents, and a deletion mandate. (decision 0004)
+- **A fixed documentation discipline for the design itself** — one decision record per choice (originally the design workspace's single append-only log, carried here as the file-per-decision `adr/` corpus), final-voice documents, and a deletion mandate. (decision 0004)
 - **Anything that can be a committed file is one**, so the engine travels, diffs and reviews as files rather than settings. (see `principles.md`)
 - **Three enforcement tiers, named honestly**, with the protected-branch merge as the only unbypassable wall. (see `principles.md`)
