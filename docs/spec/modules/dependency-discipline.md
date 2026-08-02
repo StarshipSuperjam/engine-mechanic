@@ -52,7 +52,7 @@ that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-m
 | `provides` | a **dependency-discipline [policy](../systems/surfaces/policies.md)** (the standing pinning/cadence/review-gate bar; the policy's own enforcement tier is **posture**); the **review-gate [check](../systems/surfaces/check.md) rule** (`tier: hard`, declaring the `CI`/`pre-commit`/`pre-close` suites), which relays GitHub's native dependency-review comparison; the **pinning check rule** (`tier: soft`, ecosystem-detected, a disclosed no-op when no pinnable manifest is present); and the **read-only detection logic** those checks invoke. Named by what it governs — the concrete files, the kind realization (a presence-discovered conforming check-kind or the `custom/script` read-only escape-hatch), `params`, and `message` text are build-spec leaves ([§2](../../principles.md)). |
 | `wires` | **none** |
 | `depends` | `core` |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### Wiring nothing — active by presence
 

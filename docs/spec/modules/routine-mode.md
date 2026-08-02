@@ -31,7 +31,7 @@ protection present in every generated repo, never an install choice.
 | `provides` | the **`/engine-routine`** [skill](../systems/surfaces/skills.md) (`invocation: operator-typed`, engine-prefixed) — the thin entry command embedded in a scheduled fire's Instructions, a single delegating pointer with no procedure of its own ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)); its **generated Codex mirror** (`$engine-routine`, carrying the same no-self-invocation flag); and the **routine-entry [operation](../systems/surfaces/operations.md)** the command delegates to — the procedure home that confirms the unattended posture, reads the frozen scope-locked build Issue, **enters the Routine write-stance through the engine's `set-routine` verb** (the ratified actor, [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), which writes the stance only after a positive worktree-isolation proof), echoes the locked-on Issue on first fire, files a durable Issue on a misfire, and enters the build-orchestration routine workflow |
 | `wires` | **none** |
 | `depends` | `core` |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### Wiring nothing — entry by presence, workflow and posture ride `core`
 

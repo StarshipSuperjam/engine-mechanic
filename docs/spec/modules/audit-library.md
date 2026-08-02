@@ -29,7 +29,7 @@ sits on top of them as core that travels and runs by default.)
 | `provides` | the audit persona ([agent](../systems/surfaces/agents.md) file in `.claude/agents/`, with its generated Codex render); the seed **concern-list** + its **concern-entry schema** (audits-owned declarative data); the **setup walkthrough** (a committed `audits`-surface document); the **audit-digest generator** (the dated digest, tamper-gated by the hard `audit-digest-fingerprint` check); the **digest-staleness check** (emits a finding past the staleness bound); the `audit-prep` cron workflow (a `.github/workflows/` file — the default scheduled substrate, though the built manifest does not yet declare it and the self-map omits it: an ownership gap tracked as [engine-template issue 798](https://github.com/StarshipSuperjam/engine-template/issues/798)) |
 | `wires` | **none** |
 | `depends` | `validators-core` — the semantic self-audit assumes the mechanical self-validation floor holds (the [validators-core](validators-core.md) corpus), a real presence assertion, not merely a catalog edge; rests on the always-present [telemetry](../systems/guardrails/telemetry.md) and [agents](../systems/surfaces/agents.md) foundations |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### Wiring nothing — every artifact is active by presence
 
