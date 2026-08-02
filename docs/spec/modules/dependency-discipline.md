@@ -4,7 +4,7 @@ status: draft
 
 # dependency-discipline
 
-*Ratified in the design workspace on 2026-05-30 by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the workflow-Actions license carve-out adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -71,13 +71,22 @@ gate** ([validation](../systems/guardrails/validation.md), [§6](../../principle
 local `pre-commit`/`pre-close` runs are nudges, never a local wall.
 
 - **Review gate — `hard` at CI.** A pull request that introduces a vulnerable or license-incompatible
-  dependency fails the required check and blocks the merge. Its teeth are **conditional on the platform
+  dependency fails the required check and blocks the merge. The license leg's built rule structure: an
+  **unidentifiable license blocks on any repo** (the gate cannot vouch for what it cannot read); a
+  **copyleft license blocks only on a private/internal repo**, where linking obligations bite — on a
+  **public** repo the same finding is a **non-blocking heads-up**, since the code is already public. One
+  deliberate ecosystem carve-out, adopted by
+  [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md):
+  **workflow-declared GitHub Actions skip the license leg entirely** — GitHub reports no license data for
+  the Actions ecosystem, so blocking on an unidentifiable Actions license would block every action; the
+  **vulnerability leg still applies to actions in full**. Its teeth are **conditional on the platform
   exposing the dependency-review data**: full teeth where it is available — **public repos (free)** and
   **private repos only with the paid GitHub Code Security add-on** (part of GitHub Advanced Security,
   billed per active committer — a real recurring cost on the order of $30/committer per month, included
   on Enterprise; **not** a free settings toggle); where it is **not** available (a private repo without
-  that paid add-on) the rule is a **disclosed no-op** — it states, in plain language, that the gate is
-  unavailable on this tier, what is and is not protected, and that unlocking it means **purchasing** the
+  that paid add-on — the same disclosed branch also absorbs any comparison the API refuses, a fork's
+  denied compare included) the rule is a **disclosed no-op** — it states, in plain language, that the gate
+  is unavailable on this tier, what is and is not protected, and that unlocking it means **purchasing** the
   paid add-on (a cost/benefit choice, the exact current price named in the operator disclosure), and
   proceeds. It is **never a silent
   green**, and it never fails closed in a way that strands the operator off their own repo. Unlike the
@@ -137,9 +146,13 @@ detection is strictly **read-only**: it inspects manifests and the dependency-re
 findings, and **never rewrites a lockfile** (that would breach the read-only kind contract and the
 [R5](../../reference/risks.md) mutation firewall). Because the review gate relays GitHub's **native, first-party**
 dependency-review data (the dependency-review REST API, or GitHub's own published dependency-review
-Action — never a **third-party** scanner or Action injected into every repo's CI) and the allow-list is
+Action — never a **third-party** scanner or Action injected into every repo's CI; the one companion read
+is a first-party repo-metadata call for visibility, consulted only to pick the copyleft rule's
+private-versus-public branch and failing open when unreachable) and the allow-list is
 the engine's **own committed check configuration** (not a third-party-dictated file), the module
-introduces **no third-party supply-chain surface**.
+introduces **no third-party supply-chain surface**. The API traffic itself rides the engine's one shared
+authenticated GitHub client ([tools](../systems/surfaces/tools.md)), inheriting its off-host
+fail-closed guard.
 
 ### The contributor wall holds
 
@@ -154,11 +167,13 @@ so removing this module leaves the product's dependencies and its floor intact.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the check/validation/policies systems'; the delivery is this module** — no restating the laws here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Owns discipline, not the floor** — pinning + the review gate + cadence-as-posture; the secret-scan workflow + `dependabot.yml` floor stays the control-plane's, and this module never edits `dependabot.yml`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Honest tiers** — review gate `hard` at CI, pinning `soft`, cadence and the policy itself posture; no posture dressed as enforced ([§7](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires nothing** — policy, checks, and detection logic all bind by presence; the review gate rides the existing required CI check with no new ruleset binding; `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Ecosystem-agnostic with disclosed no-ops** — the review gate relays GitHub's cross-ecosystem dependency-review data; the pinning check detects the ecosystem and discloses its inapplicability rather than passing silently. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are the check/validation/policies systems'; the delivery is this module** — no restating the laws here. | Operator observation: read this document and the module's policy against the linked system documents and confirm they deliver without re-legislating. No merge-gated check asserts the non-duplication. | operator |
+| **Owns discipline, not the floor** — pinning + the review gate + cadence-as-posture; the secret-scan workflow + `dependabot.yml` floor stays the control-plane's, and this module never edits `dependabot.yml`. | Operator observation: the manifest provides only a policy, two checks, and their read-only tooling — `dependabot.yml` appears in no provides. Partial support: module-manifest (hard, CI) proves the provides set is what's declared, and the guardrail-weakening guard (hard, ruleset-bound) watches the floor file itself, so a module edit to it would demand your acknowledgment — neither asserts the ownership boundary as such. | operator |
+| **Honest tiers** — review gate `hard` at CI, pinning `soft`, cadence and the policy itself posture; no posture dressed as enforced ([§7](../../principles.md)). | Operator observation: the review check declares `tier: hard` with the CI suite, the pinning check `tier: soft`, and the policy's own enforcement-tier section names cadence and itself as posture. Partial support: hard-check-bite (hard, CI) proves the review gate bites its committed negative fixture — it covers only that one leg of the claim. | operator |
+| **Wires nothing** — policy, checks, and detection logic all bind by presence; the review gate rides the existing required CI check with no new ruleset binding; `depends` ≠ wiring. | Operator observation: the manifest carries `wires: []` and both checks self-declare their suites, so they ride the one ruleset-bound validation run. Partial support: module-manifest (hard, CI) validates the manifest's grammar without asserting the wires list is empty. | operator |
+| **Ecosystem-agnostic with disclosed no-ops** — the review gate relays GitHub's cross-ecosystem dependency-review data; the pinning check detects the ecosystem and discloses its inapplicability rather than passing silently. | Operator observation: the review tool relays the platform's cross-ecosystem comparison and discloses on every no-PR/unavailable/degraded branch, and the pinning inspector detects by root-manifest presence with a disclosed not-yet-applicable when none exists. The disclosed-no-op behavior is proven by the tools' own demo self-checks riding the CI unit-test step — never merge-gated on their own. | operator |
+| **Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Operator observation: the provisioning catalog's entry discloses the can-block-merges consequence at opt-in, and the allow-lists live inside the review check's own definition. Partial support: the guardrail-weakening guard (hard, ruleset-bound) covers the check-definition prefix, so adding an allow-entry triggers the §15 acknowledgment gate — the consent and never-stranded legs remain your observation. | operator |
