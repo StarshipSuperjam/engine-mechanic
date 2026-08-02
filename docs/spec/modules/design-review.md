@@ -4,7 +4,7 @@ status: draft
 
 # design-review
 
-*Ratified in the design workspace on 2026-06-23 by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-23 by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -27,16 +27,18 @@ gate its own irreversible decisions.
 |---|---|
 | `id` | `design-review` |
 | `status` | `optional` |
-| `provides` | four `role: plan-review` agent personas (`.claude/agents/` files), one per lens below |
+| `provides` | four `role: plan-review` agent personas (`.claude/agents/` files), one per lens below, **plus their four generated Codex renders** (`.codex/agents/` files, held to both-runtime presence by the fleet's hard parity check) — eight provided files in all |
 | `wires` | **none** (file-drop; the roster is derived from agent frontmatter) |
 | `depends` | `core` |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### The four lenses
 
 Each persona is **read-only** (it reports findings via the uniform `output-contract`; the orchestrator
 decides and writes — [agents](../systems/surfaces/agents.md)), and declares `role: plan-review`
-with the lens below. They install by presence; an installed lens nothing consumes is a coherence finding,
+with the lens below. As built, each also declares the `judgment` model tier at high effort and blocks
+`Bash` alongside the native write tools — a stricter grant than the [qa-review](qa-review.md) set, which
+keeps the shell to run checks; a plan reviewer has nothing to execute. They install by presence; an installed lens nothing consumes is a coherence finding,
 so [build orchestration](../systems/lifecycle/build-orchestration.md) records that its plan-review
 gate consumes all four.
 
@@ -87,10 +89,12 @@ at plan-review — distinct, not redundant.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Mirrors the engine's own audit** — the quartet is the product-facing analogue of the lock-time cold-session lenses, not a fresh taxonomy. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Reviewers report; the orchestrator decides** — read-only personas feeding the finding-disposition loop via the uniform `output-contract`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **File-drop, derived roster** — install/uninstall is add/remove a persona file; nothing wires. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Referent-aware, not referent-bound** — only `product-intent` consumes the spec; the other three review with or without one. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Two invocation points, both advisory** — the quartet runs at build-orchestration's plan-review gate (the build plan) and, when installed, advises product-design's spec-lock (the spec); both feed the operator's decision, neither is a gate the engine owns, so the wall and the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation hold ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Mirrors the engine's own audit** — the quartet is the product-facing analogue of the lock-time cold-session lenses, not a fresh taxonomy. | Operator judgment: confirm by inspection that the four lenses are the product-facing analogue of the lock-time audit lenses, not a newly invented taxonomy. A design-intent reading no check asserts. | operator |
+| **Reviewers report; the orchestrator decides** — read-only personas feeding the finding-disposition loop via the uniform `output-contract`. | Operator observation: all four personas declare read-only permissions, block the write tools and Bash, and carry the plan-review `output-contract`, with the orchestration procedure routing each finding through the disposition loop. Partial support: agent-coherence (hard, CI) asserts a read-only persona actually blocks the native write tools, and the agent frontmatter check holds the contract key well-formed — the feeds-the-loop half is procedure, not machine-asserted. | operator |
+| **File-drop, derived roster** — install/uninstall is add/remove a persona file; nothing wires. | Operator observation: the manifest declares `wires: []` and provides a plain file list, with the roster derived from persona presence. Partial support: module-manifest and self-map-drift (both hard, CI) hold the declared files present and mapped; no check asserts the nothing-wires claim itself. | operator |
+| **Referent-aware, not referent-bound** — only `product-intent` consumes the spec; the other three review with or without one. | Operator observation: read the four persona bodies — product-intent anchors on the locked spec and discloses a no-op when none exists, while the other three each state they read intent for context without depending on one. No check inspects which persona consumes the referent. | operator |
+| **Two invocation points, both advisory** — the quartet runs at build-orchestration's plan-review gate (the build plan) and, when installed, advises product-design's spec-lock (the spec); both feed the operator's decision, neither is a gate the engine owns, so the wall and the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation hold ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)). | Operator observation: the orchestration procedure's consumed-lenses record names exactly two consumers — the plan-review gate and the spec-lock ceremony — with acceptance the operator's in both. Partial support: lens-consumption (hard, CI) fails closed if an installed persona is recorded as consumed by no stage; the both-advisory property is not what it asserts. | operator |
