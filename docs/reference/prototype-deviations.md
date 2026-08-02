@@ -1,9 +1,11 @@
 # Deviations: prototype vs. original proposal
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 Where the prototype diverged from the original proposal, and the current verdict on each divergence.
 This is the traceability record that feeds the stepwise design decisions. A verdict here is settled
-only when a `decision-log.md` entry records it; otherwise it is `OPEN` (often parked in
-`open-questions.md`).
+only when a decision record (under [`../adr/`](../adr/README.md)) records it; otherwise it is `OPEN`
+(often parked in `open-questions.md`).
 
 Verdict vocabulary: **KEEP** (carry into the end-state) · **SIMPLIFY** · **DROP** · **ADD** ·
 **OPEN** (undecided). Note: "defer" is not a verdict — capability layering is a WBS concern, the
@@ -20,7 +22,7 @@ by design — see D6).
 | ID | Deviation | Original lean | Current verdict |
 |----|-----------|---------------|-----------------|
 | D1 | Root `CLAUDE.md`: import-thin → governed narrative | SIMPLIFY | DECIDED (D-042) — thin hook-independent grounding floor below the boot pack; carries memory-authority routing + the wall, not a governed narrative |
-| D2 | Skills: narrow intent-shaped set vs the prototype's 8 broad, zero name matches | DEFER some | DECIDED (D-087; the operator-typed set extended by D-187/D-200 and D-192) — v1's `core` ships **five `operator-typed`** verbs (Build-entry, `/engine-help`, policy-tuning, conduct-authoring, status), and v1 modules add per-module `operator-typed` verbs (`engine-design`/`product-design`, `/engine-routine`/`routine-mode`, and `github-projects-sync`'s optional setup skill); **zero `model-auto`, zero `model-only`** — the status verb's flip from `model-auto` to `operator-typed` (D-200) retired the lone `model-auto`, and no `model-only` skill ships (D-087). The prototype's 8 route to agent lenses, hooks, or the orchestration/close flow per the D-042 boundary law |
+| D2 | Skills: narrow intent-shaped set vs the prototype's 8 broad, zero name matches | DEFER some | DECIDED (D-087; the operator-typed set extended by D-187/D-200 and D-192; the built roster ruled at D-329) — `core` ships **eight `operator-typed`** verbs (build-entry, `/engine-help`, status, policy-tuning, conduct-authoring, setup, parts, upgrade), and v1 modules add per-module `operator-typed` verbs (`engine-design`/`product-design`, `/engine-routine`/`routine-mode`, and `github-projects-sync`'s optional setup skill); **one `model-auto`, zero `model-only`** — the status verb's flip from `model-auto` to `operator-typed` (D-200) retired the then-lone `model-auto`, `engine-recall` was later admitted as the single `model-auto` consultation verb (D-326), and no `model-only` skill ships (D-087). The prototype's 8 route to agent lenses, hooks, or the orchestration/close flow per the D-042 boundary law |
 | D3 | Telemetry surface dissolved into reports/checks | SIMPLIFY | DECIDED (D-040) — telemetry is the loop (D-009); observational output is a system-owned non-surface (no `reports` surface) |
 | D4 | Policies relocated to top-level surface | KEEP | KEEP |
 | D5 | `sessions/claims/` removed | tied to D20 | DECIDED (D-038) — dissolved; git branches + draft/merged PRs replace them |
