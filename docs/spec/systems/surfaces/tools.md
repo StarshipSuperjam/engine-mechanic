@@ -55,10 +55,11 @@ It holds the deterministic machinery the rest of the engine leans on:
 - **shared core libraries the other tools import** — the categories above lean on common code rather
   than copying it, and some of it is guardrail-class: the one authenticated GitHub client is the single
   home for the request shape every API-touching engine tool shares, and its **off-host redirect guard**
-  (a token-bearing request pointed off the API host by a crafted pagination link raises rather than
-  follows, and a read-only call carries no write shape) is the weakening guard's load-bearing security
-  property — weakening it is a guardrail-weakening change ([§15](../../../principles.md)), not
-  refactor-at-will code. This blesses the property's spec home without enumerating libraries — the
+  — a token-bearing request pointed off the API host by a crafted pagination link raises rather than
+  follows — is the weakening guard's load-bearing security property; weakening it is a
+  guardrail-weakening change ([§15](../../../principles.md)), not refactor-at-will code. A companion
+  caller-contract seam keeps a read-only call free of any write shape (the write header rides only a
+  write body). This blesses the property's spec home without enumerating libraries — the
   roster stays categories, per this document's own stance;
 - the **implementations behind [interfaces](interfaces.md)** — `tool` is their code-home. Exactly
   *how* an implementation binds, and how a default/fallback is chosen when several or none are present, is the
