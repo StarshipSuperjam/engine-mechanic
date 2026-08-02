@@ -45,8 +45,9 @@ roster as these and no others):
   a silent skip), the [validation](../guardrails/validation.md) engine honoring the boundary itself
   so the closed kinds stay author-agnostic. It is **inert outside `CI`** — `pre-commit`/`pre-close` have no
   pull-request author — and is the rule's declaration of an *applicability* boundary, the PR-context sibling of
-  `target`. Absent on every rule by default; the [control-plane](../infrastructure/control-plane.md)
-  PR-body completeness check is its one v1 user, naming the recognized in-repo automation authors
+  `target`. Absent on every rule by default; its v1 users are the two
+  [control-plane](../infrastructure/control-plane.md) PR-body rules — the hard body-completeness
+  check and its soft behaviors-declared companion — each naming the recognized in-repo automation authors
   `dependabot[bot]` ([D-207](../../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)) and `github-actions[bot]` — the widening beyond D-207's
   one-author scope sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md), which honors
   [D-208](../../../adr/0208-resolve-the-d-207-dependabot-pr-contract-exemption-landed-te.md)'s standing law that any such widening demands a fresh spoof-safety
@@ -58,8 +59,9 @@ roster as these and no others):
   not bind in the `CI` suite: the label-keyed sibling of the author axis, for a **whole single-purpose
   pull-request class** that author-keying cannot express. Like the author field, it resolves to a
   **disclosed not-applicable result**, never a silent skip, and is inert outside `CI`. Sanctioned by
-  [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md): its one v1 user is the
-  [control-plane](../infrastructure/control-plane.md) PR-body completeness check, waiving the
+  [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md): its v1 users are the same two
+  [control-plane](../infrastructure/control-plane.md) PR-body rules — the hard completeness check
+  and its soft behaviors companion — waiving the
   eight-section contract for the `engine-erasure`-labeled erasure-proposal class, whose deliberate
   plain-language consent body *is* its account of the change — the label only waives the body format
   and structurally cannot reach the erasure flow's consent gates. The schema's field text makes
