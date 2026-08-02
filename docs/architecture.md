@@ -565,10 +565,10 @@ sequenceDiagram
   [audits](spec/systems/guardrails/audits.md) judgment rung feeds the same loop through the same two
   lanes — **local retire/reconcile** for accumulated local cruft, **escalate-upstream** for a machinery bug
   ([D-076](adr/0076-lock-the-audits-system-re-founded-for-the-deployed-repo-hygi.md)).
-- **Auto-resolve closes the issue on positive clearance, never mere absence** for a live-derived signal
-  (a pass observed on the same source), while a cache-accrued ambient signal waits out its
-  absent-for-N-observations threshold — a signal that merely stops appearing is carried forward untouched,
-  so absence never manufactures a false all-clear. It retires the flag, it does not repair anything.
+- **Auto-resolve closes the issue** — for a live-derived signal on **positive clearance** (a pass observed
+  on the same source), never mere absence; for a cache-accrued ambient signal, after its
+  absent-for-N-observations threshold; and a source the resolving pass did not observe at all is carried
+  forward untouched rather than closed. It retires the flag, it does not repair anything.
 - The loop closes across sessions — never claim it heals while the operator sleeps.
 
 ### Contributing to an external repo
@@ -636,7 +636,7 @@ sequenceDiagram
     participant GH as GitHub (protected main)
     NE->>CC: build the next step of the construction order (the retired planning workspace's WBS)
     CC->>CC: re-ground from merged disk; plan one small PR
-    CC->>GH: open PR; the seed validator (which grew into core's validator) / validators-core runs (mechanical green)
+    CC->>GH: open PR; the stage-0 seed validator (superseded at M1) / validators-core runs (mechanical green)
     CC->>SUB: build-conformance review — conformance + adversarial divergence-hunter (cold)
     SUB-->>CC: divergences (structural + semantic)
     CC->>CC: ground-truth each against the code; re-adjudicate a high-confirm lens
