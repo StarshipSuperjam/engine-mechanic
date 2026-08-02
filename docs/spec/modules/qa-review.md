@@ -4,7 +4,7 @@ status: draft
 
 # qa-review
 
-*Ratified in the design workspace on 2026-07-11 by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-11 by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -28,17 +28,20 @@ persona judges, a check gates — they complement, never duplicate ([honest enfo
 |---|---|
 | `id` | `qa-review` |
 | `status` | `optional` |
-| `provides` | five `role: pre-submission-review` agent personas (`.claude/agents/` files), one per lens below |
+| `provides` | five `role: pre-submission-review` agent personas (`.claude/agents/` files), one per lens below, **plus their five generated Codex renders** (`.codex/agents/` files, held to both-runtime presence by the fleet's hard parity check) — ten provided files in all |
 | `wires` | **none** (file-drop; roster derived from agent frontmatter) |
 | `depends` | `core` |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### The five lenses
 
 Each is **read-only with respect to authoritative state** (see the dry-run note), reports findings via the
 uniform [`output-contract`](../systems/surfaces/agents.md) while the orchestrator decides and
 writes, and declares `role: pre-submission-review` with the lens below. Build orchestration records that its
-pre-submission gate consumes all five, so none dangles.
+pre-submission gate consumes all five, so none dangles. As built, every persona declares the `judgment`
+model tier at high effort, with a real model split inside the tier: the two adversarial lenses
+(`divergence-hunter`, `security-governance`) bind the heavier model, the other three the lighter one — a
+per-persona binding the [agents](../systems/surfaces/agents.md) grammar carries.
 
 1. **`lens: spec-conformance`** — *Did we build what we said?* Requirements coverage, acceptance-criteria
    pass, regression, edge cases, data correctness. A **primary consumer of the
@@ -104,9 +107,10 @@ mutates the work under review or repo-authoritative state — **not** a ban on e
 the suite in an **ephemeral, discarded worktree** and report the results: that is *reporting findings*, not
 *writing the artifact*. Build orchestration already isolates work in throwaway worktrees on short-lived
 branches, and the orchestrator remains the single writer of final commits, so the
-[agents](../systems/surfaces/agents.md) surface needs no change to permit this — a lens that
-dry-runs simply carries a `permissions` grant that includes execution in a scratch worktree while excluding
-writes to the PR branch. Because executing the operator's code can have side effects a non-engineer would
+[agents](../systems/surfaces/agents.md) surface needs no change to permit this — as built, every
+lens carries the same uniform `read-only` grant, which blocks the native write tools while leaving the
+shell available, so execution in a scratch worktree stays open to any lens without a per-lens
+execution grant; the worktree isolation plus the merge gate, not the grant, are what confine it. Because executing the operator's code can have side effects a non-engineer would
 not anticipate, a dry-run is **disclosed to the operator in plain language** — that the engine ran their
 code in a throwaway copy to judge it — through the gate's operator-facing rendering
 ([build orchestration](../systems/lifecycle/build-orchestration.md)), never run silently.
@@ -120,9 +124,11 @@ is locked to check against"), never a silent green pass ([D-244](../../adr/0244-
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Judgment above mechanics** — the lenses judge; the validation suite and CI gate; no duplication. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The conformance guard** — `spec-conformance` (the systematic reviewer) and `divergence-hunter` (its adversarial, run-together counterpart) judge built-vs-the-`locked`-spec from two decorrelated cold contexts and restate verified-versus-unverified criteria so a thin spec cannot manufacture false confidence; together they are the **judgment** legs of the [conformance-enforcement floor](../../reference/glossary.md), whose mechanical legs are the criterion-granular [spec-obligation matrix](../../reference/glossary.md) and the deployed-environment demonstration harness ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — full rigor against a `locked` spec, a disclosed no-op without one. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Dry-run is allowed** — read-only is no-mutation, so a lens may execute in a discarded worktree. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **File-drop, derived roster; reviewers report, the orchestrator decides.** | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Judgment above mechanics** — the lenses judge; the validation suite and CI gate; no duplication. | Operator observation: the five personas declare the `judgment` model tier and read-only grants while the mechanical layer is the separate declarative check corpus. Partial support: agent-coherence (hard, CI) holds each persona's role and tier to the closed sets — the non-duplication of judgment versus mechanics is your design read. | operator |
+| **The conformance guard** — `spec-conformance` (the systematic reviewer) and `divergence-hunter` (its adversarial, run-together counterpart) judge built-vs-the-`locked`-spec from two decorrelated cold contexts and restate verified-versus-unverified criteria so a thin spec cannot manufacture false confidence; together they are the **judgment** legs of the [conformance-enforcement floor](../../reference/glossary.md), whose mechanical legs are the criterion-granular [spec-obligation matrix](../../reference/glossary.md) and the deployed-environment demonstration harness ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — full rigor against a `locked` spec, a disclosed no-op without one. | Operator observation: both lenses are installed and recorded as consumed together at the pre-submission gate, coupled in the orchestration procedure. Partial support: lens-consumption (hard, CI) asserts only that a stage is *recorded* as consuming each installed lens — by its own message it does not verify the stage genuinely spawns the review — so the run-together decorrelation and the restatement discipline are posture your merge review holds. | operator |
+| **Dry-run is allowed** — read-only is no-mutation, so a lens may execute in a discarded worktree. | Operator observation: the uniform read-only grant blocks the native write tools while keeping the shell. Partial support: agent-coherence (hard, CI) asserts the write-tool block and, by its own text, does not police Bash — the discarded-worktree confinement is build-orchestration's isolation plus the merge gate, not this check. | operator |
+| **File-drop, derived roster; reviewers report, the orchestrator decides.** | Operator observation: the manifest carries `wires: []` and no operations, with the roster derived from installed personas. Partial support: lens-consumption (hard, CI) compares the consumed-lenses record against the personas actually installed, and agent-coherence (hard, CI) enforces the read-only reporting posture — the single-writer orchestrator half is procedure, not machine-asserted. | operator |
