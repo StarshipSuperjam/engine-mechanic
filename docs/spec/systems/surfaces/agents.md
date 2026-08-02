@@ -133,8 +133,10 @@ persona is a future file drop, not a present member.
 ### Coherence
 
 Two merge-gated [checks](check.md) (both `custom/script` rules in the CI suite — the `coherence`
-kind proper stays scoped to module-set consistency) confirm the agent set; the first three bullets
-are the agent-coherence check's, the dangling-lens bullet the lens-consumption check's:
+kind proper stays scoped to module-set consistency) confirm the agent set: the closed-set bullets
+(the closed `role`, and a `lens` on a lensless role) are the agent-coherence check's, which also
+carries the read-only write-tool floor above; the consumption pair (zero-agents disclosure and the
+dangling lens) is the lens-consumption check's:
 
 - **0..N agents per lens is valid.** A consumed lens with zero agents means that gate **did not run a
   review** — disclosed to the operator as exactly that, never reported as a green "passed."

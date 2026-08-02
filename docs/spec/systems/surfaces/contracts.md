@@ -102,9 +102,12 @@ set moves only on the rare, gated re-litigation of a structural law. It is **rea
 orientation scent, search, or a direct read of the committed file — and is **never pushed into the
 cold-start boot pack**; the [knowledge graph](../cognitive/knowledge.md) derives an entity per
 eADR by the same presence walk but adds **no forward `ratifies` edge**, and (per
-[knowledge](../cognitive/knowledge.md)) persists no reverse edges — so **no persisted edge
-targets a canon eADR**, and the cold-start adjacency walk that fills attention's structural-neighbours
-partition never pulls the canon in as ambient bulk. A canon eADR surfaces only when current work cites or
+[knowledge](../cognitive/knowledge.md)) persists no reverse edges. The graph's supersession
+predicate is scoped to the deployment stream — **a canon eADR is never a supersession target, so no
+persisted citation-class reference reaches the canon**; the persisted edges that do touch it are the
+uniform mechanical scaffolding every surface instance carries (the contract checks' targeting edges
+and the schema and module bindings), routing metadata rather than citation bulk. A canon eADR
+surfaces when current work cites or
 lexically matches it (the scent / search), so a stable canon never burdens orientation.
 
 ## Acceptance criteria
