@@ -85,7 +85,7 @@ selection-UX presentation data keyed by module `id`, not a manifest field).
 `memory-semantic-recall` is the shipped **find-by-meaning layer** over the required keyword floor —
 additive, never fused, and not a knowledge graph
 ([memory-semantic-recall](../spec/modules/memory-semantic-recall.md)); the once-catalogued
-"experimental swap-seam" seat this row replaces conflated it with the never-built
+"experimental swap-seam" seat this row replaces conflated it with the not-yet-built
 [engine-knowledge-graph](../spec/modules/engine-knowledge-graph.md) stub below
 ([decision 0330](../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md)).
 
