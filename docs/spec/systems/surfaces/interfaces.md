@@ -129,9 +129,10 @@ handle):
   independent
   ([D-116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md)).
 
-Each MCP-backed declaration additionally carries a content-free **`health`** availability probe — the
-safe liveness check consulted before the first operator-facing answer — which is not a retrieval
-operation and sits outside the pinned op-set law above.
+Each backing MCP server additionally answers a content-free **`health`** availability probe — the
+safe liveness check consulted before the first operator-facing answer — declared once per server (on
+the `search` and knowledge-retrieval contracts; `memory-control` shares its server's probe and
+declares none of its own), not a retrieval operation, and outside the pinned op-set law above.
 
 ### Build-spec leaves
 
