@@ -336,3 +336,5 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0322 | [Ratify `set-routine` as the routine-entry actor](0322-ratify-set-routine-as-the-routine-entry-actor.md) | 2026-08-01 |
 | 0323 | [Sanction the built engine-erasure label exemption and the widened CI author set](0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) | 2026-08-01 |
 | 0324 | [Admit actionlint as an advisory member of the security floor](0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md) | 2026-08-01 |
+| 0325 | [Bless the four traveling hygiene and drift check rules and place their mandates](0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md) | 2026-08-01 |
+| 0326 | [Admit engine-recall as the single `model-auto` skill](0326-admit-engine-recall-as-the-single-model-auto-skill.md) | 2026-08-01 |
