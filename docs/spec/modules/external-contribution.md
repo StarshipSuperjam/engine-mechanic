@@ -81,7 +81,7 @@ discipline. The dependency arrow stays Engine→product, and the product upstrea
 
 ## Acceptance criteria
 
-*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |

@@ -30,7 +30,7 @@ graph-enrichment stubs ([engine-knowledge-graph](engine-knowledge-graph.md),
 |---|---|
 | `id` | `memory-semantic-recall` |
 | `status` | `default-on` — offered on at setup, genuinely declinable and removable |
-| `provides` | the **semantic library code** (a [tool](../systems/surfaces/tools.md) glob: the embedder, the vector store, and a standard-library WordPiece tokenizer written by hand so no tokenizer framework rides along) and **four committed assets** — the vendored, int8-quantized embedding table (~31 MB on disk, derived from a published MIT-licensed retrieval model), its WordPiece vocabulary, a checksums manifest verified at load, and the third-party attribution notice |
+| `provides` | the **semantic library code** (a [tool](../systems/surfaces/tools.md) glob: the embedder, the vector store, and a standard-library WordPiece tokenizer written by hand so no tokenizer framework rides along) and **four committed assets** — the vendored, int8-quantized embedding table (32,555,454 bytes — nearly all of the module's ~33 MB footprint; derived from a published MIT-licensed retrieval model), its WordPiece vocabulary, a checksums manifest verified at load, and the third-party attribution notice |
 | `wires` | **none** — the module adds no shared-state edits; its capability surfaces through the substrate's own MCP server (below), and its derived store lands inside the substrate's already-gitignored memory directory |
 | `depends` | `core` **and** [memory-substrate-sqlite-fts5](memory-substrate-sqlite-fts5.md) — the ledger it reads and the server that exposes it |
 | `migrations` | none — the vector store is a throwaway derivative, versioned by its own schema stamp and dropped-and-rebuilt on a shape change, never migrated |
@@ -39,7 +39,8 @@ One runtime dependency rides outside the manifest by design: the module's **`num
 the engine's project file, selected into the tool-runtime's default groups **by the module manager, not by
 hand** — the derived value the uv-group-drift check (hard, CI) guards. The committed word table means
 nothing is fetched at use time; setup fetches exactly one ordinary Python package, and the catalog entry
-says so in plain language along with the ~33 MB footprint and the first-use index build.
+says so in plain language along with the ~33 MB footprint (the four committed assets together, almost
+all of it the table above) and the first-use index build.
 
 ### What it ships, and where the index lives
 
@@ -105,7 +106,7 @@ load-time checksum refusal.
 
 ## Acceptance criteria
 
-*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support. Every row here is authored from the build — this document was not carried, so no row restates a prior ratified criterion.*
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)* *Every row here is authored from the build — this document was not carried, so no row restates a prior ratified criterion.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |

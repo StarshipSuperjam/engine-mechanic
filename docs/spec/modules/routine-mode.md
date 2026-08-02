@@ -89,7 +89,7 @@ affirmative case is the ratified drift-firewall, not a default.
 
 ## Acceptance criteria
 
-*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
