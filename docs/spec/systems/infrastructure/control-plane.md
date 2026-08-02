@@ -4,7 +4,7 @@ status: draft
 
 # Control plane
 
-*Ratified in the design workspace on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the CI exemption classes sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) and actionlint admitted by [decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md); ratified as intended design on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -18,11 +18,12 @@ invariant and defers the implementation.
 
 ### What travels, what doesn't
 
-- **Travels as files** (via "Use this template"): the CI workflows, `CODEOWNERS`, the PR and issue
-  templates, the secret-scan workflow, and `dependabot.yml`. The workflows and templates ship and run as-is;
-  `CODEOWNERS` ships as a file but is rendered to final form at first run
-  ([provisioning](provisioning.md) derives its engine block from the engine path set × operator
-  handle, [principles §3](../../../principles.md)).
+- **Travels as files** (via "Use this template"): the CI workflows, the PR and issue
+  templates, the secret-scan and workflow-grammar-lint workflows, and `dependabot.yml`. The workflows and
+  templates ship and run as-is. `CODEOWNERS` reaches the deployed repo as a file too, but by **rendering,
+  not copying**: the template carries no committed `CODEOWNERS`; [provisioning](provisioning.md) renders
+  it at first run from the engine path set × operator handle ([principles §3](../../../principles.md)) and
+  the upgrade overlay preserves it as a keyed foundation file.
 - **Does not travel** (settings, not files): the branch ruleset. Workflows run but cannot **block a
   merge** until the ruleset marks a check required; `CODEOWNERS` only gains teeth once the ruleset
   requires its review. (See [constraints](../../../reference/constraints.md).)
@@ -74,7 +75,10 @@ hard-gated at the merge. The ruleset must require:
 never dresses solo's consent gate as airtight ([§15](../../../principles.md)). That bypass-ability is
 exactly why the §15 weakening-detection guard exists — a guard the bypassing change cannot itself falsify
 — so any move to loosen a floor rule or widen bypass stays visible and hard-gated at the merge (*cannot
-weaken silently*). The structural close is the operator's own choice of **team** identity (a distinct
+weaken silently*). As built, the guard's diff classification reaches every guard-bearing file, not only
+the floor rules — a CI workflow, a check rule, an engine tool, `CODEOWNERS`, the tool-runtime lockfiles,
+the suite declarations, and the traveling security-floor files all trip it. The structural close is the
+operator's own choice of **team** identity (a distinct
 actor that holds no bypass), which makes it *cannot weaken at all* — see *Identity and the merge gate*.
 
 **The weakening hard-gate's pass condition is a distinct, deliberate acknowledgment — not the ordinary
@@ -185,29 +189,54 @@ shape of that gate is named honestly per [principles §7](../../../principles.md
 The pull request is where successive AI sessions present work for the human gate, so its structure is
 a trust mechanism, not a scaffold. The committed PR template requires these sections:
 
-**Purpose · Scope · Out of scope · Risk · Validation · Review · Files of interest · Claude involvement.**
+**Purpose · Scope · Out of scope · Risk · Validation · Review · Files of interest · AI involvement.**
+
+The built template adds structure the check also gates: each section carries a one-line **`Impact`**
+subsection (the consequence sentence a reviewer reads first), and a two-paragraph **consent preamble**
+rides above the first heading — the standing note that a green check shows conformance, not correctness,
+and that the operator's merge is the binding gate — anchored by fixed phrases the check matches, because
+a heading scan cannot see copy above the first heading. A soft **`Behaviors`** subsection under Scope
+names the falsifiable capabilities delivered; it nudges, never gates.
 
 A **PR-body completeness check** is bound as a required check: it fails the merge until the sections
 are present and non-empty **for the Engine-authored, contract-bearing pull requests the contract governs**.
-The contract binds the pull requests an Engine build session authors; a pull request authored by a
-**recognized external automation** — `dependabot[bot]`, whose dependency-update PRs carry their own change
-account (changelog, release notes, compatibility data) and never pass through the PR template — is
-**categorically outside the contract's domain**, and for it the completeness check is a **disclosed
-not-applicable no-op** (a stated pass, never a silent green), keyed on the PR author GitHub sets
-authoritatively (a fork cannot author a pull request as a GitHub-managed app identity). This **domain
+The contract binds the pull requests an Engine build session authors; two classes sit **categorically
+outside the contract's domain**, and for each the completeness check is a **disclosed not-applicable
+no-op** (a stated pass, never a silent green):
+
+- **A recognized external automation's pull request**, keyed on the PR author GitHub sets
+  authoritatively (a fork cannot author a pull request as a GitHub-managed app identity). As built the
+  exempt-author set holds `dependabot[bot]` — whose dependency-update PRs carry their own change account
+  (changelog, release notes, compatibility data) and never pass through the PR template — and
+  `github-actions[bot]`, covering the repository's own recognized automation
+  ([decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md)).
+- **A single-purpose engine pull-request class, keyed on a label**: a pull request carrying the
+  erasure-class label (as built, `engine-erasure` — a different label from the engine-domain label below)
+  is a single-purpose erasure proposal whose deliberate plain-language consent body *is* its account of
+  the change, so the eight-section contract does not bind it
+  ([decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md);
+  the label class exists because the erasure proposer authors under the operator's own token, which
+  author-keying cannot scope).
+
+This **domain
 boundary is the contract's** (owned here); the [validation](../guardrails/validation.md) check
-rule realizes it ([validators-core](../../modules/validators-core.md)) and the engine honors it,
-keeping the closed kinds author-agnostic. Because a green required check otherwise reads to the operator as
+rule realizes both classes as data — the check grammar carries them as sanctioned optional fields — and
+the engine honors them,
+keeping the closed kinds author- and label-agnostic. Because a green required check otherwise reads to the operator as
 *verified*, the not-applicable disclosure is surfaced to the operator through the AI's own reply (the
-[operator-presentation relay](../../../reference/glossary.md)), not only in CI output. The exempt-author set is part of
-a check definition, so **introducing or widening it is a guardrail-weakening change**
-([§15](../../../principles.md), [D-207](../../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)) — the change trips the §15
-weakening-detection guard and lands only behind the operator's distinct acknowledgment, exactly as the
-[dependency-discipline](../../modules/dependency-discipline.md) accepted-exception allow-list does;
+[operator-presentation relay](../../../reference/glossary.md)), not only in CI output. The exempt sets are part of
+a check definition, so **introducing or widening either is a guardrail-weakening change**
+([§15](../../../principles.md), [D-207](../../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md),
+[decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md)) —
+the change trips the §15
+weakening-detection guard, lands only behind the operator's distinct acknowledgment, exactly as the
+[dependency-discipline](../../modules/dependency-discipline.md) accepted-exception allow-list does,
+and demands a fresh spoof-safety re-confirmation (non-registrable is not spoof-safe for every bot
+identity — the widening law the check grammar itself now states);
 the §15 guard itself carries no such exemption and continues to evaluate every author. The tiers are honest —
-*structure and presence are hard-gated; truthfulness is posture* (a check can confirm the "Claude
+*structure and presence are hard-gated; truthfulness is posture* (a check can confirm the "AI
 involvement" section is filled, not that it is accurate).
-"Files of interest" and "Claude involvement" direct the human reviewer's limited attention (a
+"Files of interest" and "AI involvement" direct the human reviewer's limited attention (a
 human-facing hook into the [attention](../cognitive/attention.md) foundation) and flag
 whether the AI made design decisions or mechanical edits; where it made design decisions, those land
 in the authoritative decision/contract surface, and the section references them rather than replacing
@@ -221,7 +250,7 @@ acceptance criteria, or a plain reason-named line stating, in cause-language a n
 why there is nothing for them to run (a behavior-preserving refactor, an internal change, or no spec
 to surface against) — never leaning on a passed mechanical check as if it were the operator seeing the
 change work. It is the
-**judgment-layer** record, distinct from **Validation** (mechanical-check results) and from **Claude
+**judgment-layer** record, distinct from **Validation** (mechanical-check results) and from **AI
 involvement** (what the AI did), bound by the completeness check exactly as its siblings — **presence
 and non-emptiness hard-gated; truthfulness posture**. Because a non-engineer reads it at the merge, it
 is rendered in plain language and states, in the block itself, that it is the engine's own account of
@@ -340,7 +369,10 @@ concrete label strings and the mechanism that applies them are deferred build-sp
   and of each producing system. Because the label string and any issue-template copy are **operator-facing**,
   they are bound by the plain-language law — a non-engineer reads them, so no maintainer vocabulary appears in
   a label or template string. This doc fixes the scheme, its owner, the single-domain-label form, and the
-  read-only-for-consumers rule; it does not fix the strings. The committed-spec-corpus referent and its path
+  read-only-for-consumers rule; it does not fix the strings. (As built at the reconciliation pin: the
+  engine-domain label string is `engine`; the shared issue-authoring helper lives at
+  `.engine/tools/issue_author.py`; and the erasure-class label the CI exemption above keys on —
+  `engine-erasure` — is a distinct label outside this routing scheme.) The committed-spec-corpus referent and its path
   resolution are [build-orchestration](../lifecycle/build-orchestration.md)'s
   ([D-244](../../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)), not part of this label scheme.
 
@@ -373,13 +405,15 @@ plain-language-bound.
 The control plane locks the **single-flight concurrency-group pattern** for scheduled jobs and that
 cron-triggered workflows exist — the law that periodic work cannot overlap itself. It does **not** lock
 a concrete audit cron file: the [audits](../guardrails/audits.md) system, when ratified,
-lands the workflow that runs on that schedule, and routine-session semantics live in their module.
+lands the workflow that runs on that schedule, and routine-session semantics live in their module. As
+built the same single-flight law extends to the event-driven `on: issues` backstop above, keyed
+per-issue, so concurrent edits to one Issue cannot race its conformance check.
 
 ### The security floor
 
-Secret, dependency, code, and disclosure safety scales by deployment without ever silently degrading.
-Each concern is present where the repository's tier supports it and **disclosed — never silently dropped
-— where it is not**; visibility is never auto-switched to unlock a feature.
+Secret, dependency, code, disclosure, and workflow-grammar safety scales by deployment without ever
+silently degrading. Each concern is present where the repository's tier supports it and **disclosed —
+never silently dropped — where it is not**; visibility is never auto-switched to unlock a feature.
 
 - **Secrets.** A committed open-source secret-scan CI workflow — **distinct from GitHub's own native
   secret scanning** — runs on every pull request regardless of repository plan or visibility, and
@@ -405,8 +439,16 @@ Each concern is present where the repository's tier supports it and **disclosed 
   repository supports it (public repos), native **private vulnerability reporting** upgrades it; on a
   private repo PVR is **structurally absent** (a GitHub public-only feature, not a tier), disclosed, with
   the `SECURITY.md` the channel there.
+- **Workflow grammar** ([decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md)).
+  A committed **advisory workflow-grammar lint** (actionlint, pinned to a fixed binary version) travels to
+  every repo and runs on every pull request over the `.github/workflows/` files — the engine authors its
+  own CI workflows, and nothing else validates their Actions grammar for a non-engineer. Like the code
+  pillar's alerts it is **advisory, never a merge gate**: its job name is deliberately outside the
+  required-check list, so a finding is surfaced for the Engine to address, never a block a non-engineer
+  cannot clear ([§6](../../../principles.md)). It mirrors the secret-scan workflow's traveling advisory
+  shape exactly.
 
-**Disclose, never downgrade silently** binds all four: where a native feature is unavailable the operator
+**Disclose, never downgrade silently** binds every member: where a native feature is unavailable the operator
 is told, in plain language, what is off and what would unlock it, and work proceeds only on their choice.
 The control plane locks these invariants; the concrete toggles, the seed, the disclosure wording, and the
 first-run step are [provisioning](provisioning.md)'s build-spec leaves.
@@ -426,20 +468,22 @@ likewise GitHub issue infrastructure governed here, not a catalogued surface.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| What travels does so as files; what cannot be a file is named as not travelling, never assumed. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The branch ruleset requires a pull request before merging. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The branch ruleset requires status checks to pass before merging. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The branch ruleset requires conversation resolution before merging. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| Force pushes are blocked and deletion is restricted on the protected branch. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| Bypass is named honestly, and weakening a protection takes exactly one additional deliberate affirmative act by the operator. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| A weakening is explained in plain operator language — the concrete protection that weakens and what the AI could then do unwatched. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The bootstrap is applied by an operator-privileged actor; the engine cannot self-grant it. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| A committed CI guard fails loud until protection is in place, and the unprotected state is surfaced to the operator in plain language, continuously. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The merge gate matches the identity tier — solo by default, team on upgrade, and the external contribution path. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The pull-request contract carries its named sections, and its Review section is the gated judgment layer. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| A recognized external automation's pull request is categorically outside the contract's domain, and says so rather than passing silently. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The engine-domain label is the canonical routing substrate for engine work, and every engine-authored Issue carries the body contract. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The product spec is a committed corpus outside the label scheme; product work is tracked as ordinary work. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
-| The security floor covers secrets, dependencies, code and disclosure — and discloses what is off rather than downgrading silently. | Derived from this document's own normative statement; how it is verified is defined when this capability is settled. | operator |
+| What travels does so as files; what cannot be a file is named as not travelling, never assumed. | The build's travel tests (the seed, secret-scan, and wiring test modules, run in the CI suite) exercise the traveling files — partial support; no single named check asserts the whole statement, and the ruleset's not-travelling half is a settings observation. | operator |
+| The branch ruleset requires a pull request before merging. | The `protection` check (hard, CI suite) reads the protected branch's evaluated rules and fails until a pull request is required, naming the missing floor rule. | engine |
+| The branch ruleset requires status checks to pass before merging. | The `protection` check (hard, CI suite) fails until the required-status-check binding with the engine's frozen check names is detected. | engine |
+| The branch ruleset requires conversation resolution before merging. | The `protection` check (hard, CI suite) fails until the ruleset requires review-conversation resolution. | engine |
+| Force pushes are blocked and deletion is restricted on the protected branch. | The `protection` check (hard, CI suite) fails until force-pushes are blocked and deletion is restricted on the protected branch. | engine |
+| Bypass is named honestly, and weakening a protection takes exactly one additional deliberate affirmative act by the operator. | The `guardrail-weakening` check (hard, run by the required `engine-guard` job) asserts the one-act half — a weakening diff stays red until the operator-applied acknowledgment label is present. That bypass is *named honestly* is prose you judge, not a check's assertion. | operator |
+| A weakening is explained in plain operator language — the concrete protection that weakens and what the AI could then do unwatched. | The weakening guard's own finding copy carries the plain-language explanation — partial support; no check grades the wording's quality, which is exactly the posture tier this row protects. | operator |
+| The bootstrap is applied by an operator-privileged actor; the engine cannot self-grant it. | The bootstrap runbook and its tool realize the operator-privileged path, and the CI guard reads with the default token only — partial support; the cannot-self-grant half rests on your observation at first run. | operator |
+| A committed CI guard fails loud until protection is in place, and the unprotected state is surfaced to the operator in plain language, continuously. | The `protection` check (hard, CI suite) fully asserts the fails-loud half; the continuous plain-language surfacing rides boot's orientation, which no merge-gated check asserts — so the row stays with you, the check as partial support. | operator |
+| The merge gate matches the identity tier — solo by default, team on upgrade, and the external contribution path. | Partial support across surfaces: the `protection` check evaluates the floor for the identity tier, the team-switch tool reconfigures it, and the external path's fork-side checks belong to its own document; no single check spans the three tiers. | operator |
+| The pull-request contract carries its named sections, and its Review section is the gated judgment layer. | The `pr-body-completeness` check (hard, CI suite) asserts all eight sections — Review among them — present and filled, plus the per-section Impact lines and the consent-preamble anchors; that Review's content is truthful stays posture. | engine |
+| A recognized external automation's pull request is categorically outside the contract's domain, and says so rather than passing silently. | The `pr-body-completeness` check's exemption fields resolve an exempt pull request to a disclosed not-applicable pass that names why the rule does not bind — never a silent green ([decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md)); the CI suite's exemption tests pin the disclosure. | engine |
+| The engine-domain label is the canonical routing substrate for engine work, and every engine-authored Issue carries the body contract. | Partial support: the shared issue-authoring helper, the local reroute gate, and the `on: issues` conformance backstop each carry a leg; none is a merge-gated check over Issue creation (GitHub cannot gate creation), so the substrate's health is your observation. | operator |
+| The product spec is a committed corpus outside the label scheme; product work is tracked as ordinary work. | The product-design module's spec checks govern the corpus's shape — partial support; that product work stays outside the label scheme is an absence no check asserts. | operator |
+| The security floor covers secrets, dependencies, code, disclosure, and the advisory workflow-grammar member — and discloses what is off rather than downgrading silently. | Partial support: the travel tests carry the secret-scan and dependabot files, the security-floor tool renders the per-tier disclosure for the native toggles, and the advisory actionlint workflow ([decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md)) travels beside them; the disclosure's plain-language delivery is yours to observe. | operator |

@@ -334,3 +334,5 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0320 | [Reconcile the spec to engine-template as built — the sync policy](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md) | 2026-07-29 |
 | 0321 | [Adopt the build's refusal of fabricated cost-and-time estimates at the plan gate](0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) | 2026-08-01 |
 | 0322 | [Ratify `set-routine` as the routine-entry actor](0322-ratify-set-routine-as-the-routine-entry-actor.md) | 2026-08-01 |
+| 0323 | [Sanction the built engine-erasure label exemption and the widened CI author set](0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) | 2026-08-01 |
+| 0324 | [Admit actionlint as an advisory member of the security floor](0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md) | 2026-08-01 |
