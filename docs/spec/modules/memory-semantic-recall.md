@@ -98,8 +98,10 @@ its folder, drops the numpy group, and leaves the substrate's keyword floor unto
 — the vector store is a separate file the keyword index never reads, so this module can be absent, stale,
 or broken without the floor noticing. The upstream design contract mandates exactly that: the required
 core must import, build, and answer with no embedding code present at all. The module provides no checks
-of its own; its files are governed by the fleet's census and catalog checks, its dependency group by
-uv-group-drift, and its table by its own load-time checksum refusal.
+of its own; its files are listed in the committed surface-ownership census (a registry the fleet ships
+unchanged to every deployment — deliberately not a per-deployment check, so it keeps listing a declined
+module's surfaces), its dependency group is guarded by uv-group-drift, and its table by its own
+load-time checksum refusal.
 
 ## Acceptance criteria
 
@@ -112,4 +114,4 @@ uv-group-drift, and its table by its own load-time checksum refusal.
 | **Offline and vendored** — the committed int8 table and hand-written tokenizer mean no model download, no tokenizer framework, and one ordinary package (numpy) as the entire runtime. | Operator observation: the four assets are committed, the project file's comment records why the tokenizer is hand-rolled, and the dependency group lists numpy alone. Partial support: uv-group-drift (hard, CI) guards the derived group selection against hand-edits and drift. | operator |
 | **Honest answers** — nearest-first with the passage as the only evidence, no closeness figure relayed, and a present-but-unanswerable store returns a declared unavailable reason, never a silent empty list. | Operator observation: read the tool description's commitments and the handler's unavailable branch; the checksum refusal keeps a corrupt table from answering at all. No merge-gated check asserts the contract's content. | operator |
 | **Erasure parity and a throwaway derivative** — an erased record is absent from meaning search too, its vectors dropped at the next question; deleting the store loses nothing. | Operator observation: the store's two erasure guarantees are asserted by its unit tests (riding the CI unit-test step, never `engine`), and the schema-stamp drop-and-rebuild keeps no orphaned shape. | operator |
-| **Clean add and remove** — no wires, a derived dependency group, and removal that leaves the substrate intact with at worst a harmless gitignored orphan store. | Operator observation: the manifest carries no wires, the module folder holds only its manifest, and the remove operation's reversal is file-deletion plus the group drop. Partial support: the census checks (hard, CI) keep every shipped file owned, so a partial removal cannot hide. | operator |
+| **Clean add and remove** — no wires, a derived dependency group, and removal that leaves the substrate intact with at worst a harmless gitignored orphan store. | Operator observation: the manifest carries no wires, the module folder holds only its manifest, and the remove operation's reversal is file-deletion plus the group drop. Partial support: uv-group-drift (hard, CI) catches a dependency-group selection that disagrees with the module set; no merge-gated check verifies module files against disk, so a partial removal is caught by the remove operation's own bookkeeping and your read. | operator |
