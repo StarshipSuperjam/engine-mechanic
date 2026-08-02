@@ -4,7 +4,7 @@ status: draft
 
 # audit-library
 
-*Ratified in the design workspace on 2026-06-23 by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the three-step setup and the dual-runtime walkthrough adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-06-23 by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -26,7 +26,7 @@ sits on top of them as core that travels and runs by default.)
 |---|---|
 | `id` | `audit-library` |
 | `status` | `required` |
-| `provides` | the audit persona ([agent](../systems/surfaces/agents.md) file in `.claude/agents/`); the seed **concern-list** + its **concern-entry schema** (audits-owned declarative data); the **audit-digest generator** (the dated, fingerprint-gated digest); the **digest-staleness check** (emits a finding past the staleness bound); the `audit-prep` cron workflow (a `.github/workflows/` file — the default scheduled substrate) |
+| `provides` | the audit persona ([agent](../systems/surfaces/agents.md) file in `.claude/agents/`, with its generated Codex render); the seed **concern-list** + its **concern-entry schema** (audits-owned declarative data); the **setup walkthrough** (a committed `audits`-surface document); the **audit-digest generator** (the dated digest, tamper-gated by the hard `audit-digest-fingerprint` check); the **digest-staleness check** (emits a finding past the staleness bound); the `audit-prep` cron workflow (a `.github/workflows/` file — the default scheduled substrate, though the built manifest does not yet declare it and the self-map omits it: an ownership gap tracked as [engine-template issue 798](https://github.com/StarshipSuperjam/engine-template/issues/798)) |
 | `wires` | **none** |
 | `depends` | `validators-core` — the semantic self-audit assumes the mechanical self-validation floor holds (the [validators-core](validators-core.md) corpus), a real presence assertion, not merely a catalog edge; rests on the always-present [telemetry](../systems/guardrails/telemetry.md) and [agents](../systems/surfaces/agents.md) foundations |
 | `migrations` | none (v1) |
@@ -56,7 +56,7 @@ that setup is missing or later lapses.
 
 A committed workflow runs the read-only [audit persona](../systems/surfaces/agents.md)
 **non-interactively** as the **top-level session** (the locked agents `--agent` top-level-session semantic) —
-e.g. `claude -p --agent audit --model <judgment-tier>`. The load-bearing grammar any realization must satisfy:
+e.g. `claude -p --agent engine-audit --model <judgment-tier>`. The load-bearing grammar any realization must satisfy:
 
 - the run is **non-interactive** (`-p`/`--print`) — without it a `claude` invocation waits for a TTY the
   runner has not got — and it must **not** be `--bare` (that would skip the `.claude/agents/` persona
@@ -80,15 +80,30 @@ e.g. `claude -p --agent audit --model <judgment-tier>`. The load-bearing grammar
 The concrete vehicle — the official `anthropics/claude-code-action` (passing `--agent`/`--model` through its
 CLI args) versus a direct `claude` install — is a **build-spec leaf**; the grammar above is the contract.
 
+The **persona stays read-only**, but the built workflow around it also carries the audits system's
+promotion and triage side-jobs — conformance-finding promotion, length-budget promotion, and CI-health
+triage — which open or update engine-labelled issues under the workflow's own `issues: write` grant. Those
+jobs belong to the [audits](../systems/guardrails/audits.md) and
+[telemetry](../systems/guardrails/telemetry.md) laws; this module's workflow is where they ride.
+
 **Auth — subscription-funded, no metered key.** The workflow authenticates with a
 **`CLAUDE_CODE_OAUTH_TOKEN`** repository secret — a **one-year** token the operator generates once with
 `claude setup-token` (a browser sign-in), tied to their Claude subscription, **not** a metered
 `ANTHROPIC_API_KEY` (which stays the console-billed alternative). The token **requires a paid plan — Pro,
 Max, Team, or Enterprise** — and draws on that subscription's usage like interactive Claude Code, with no
-separate metered key and no account toggle to enable. So the setup is two short steps the
-walkthrough names **exactly** and in plain language: run `claude setup-token`, then add the result as a
-repository secret named *exactly* `CLAUDE_CODE_OAUTH_TOKEN` (GitHub → Settings → Secrets and variables →
-Actions) — a name typo fails the run silently. Two honest recurring-cost notes the walkthrough carries: a
+separate metered key and no account toggle to enable. So the setup is **three one-time steps** the
+walkthrough names **exactly** and in plain language — its own opening line is "Do all three — skipping any
+one makes the review quietly fail to run": run `claude setup-token`; add the result as a repository secret
+named *exactly* `CLAUDE_CODE_OAUTH_TOKEN` (GitHub → Settings → Secrets and variables → Actions) — a name
+typo fails the run silently; and turn on GitHub's **"Allow GitHub Actions to create and approve pull
+requests"** setting (Settings → Actions → General → Workflow permissions) — without it the review still runs
+but cannot open its summary pull request, so it would look like nothing happened (adopted as the design by
+[decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); the
+walkthrough also discloses that the approval power stays inert on this project). Two further operator
+settings ride the walkthrough: the **`AUDIT_MODEL` repository variable** overrides which model runs the
+review (default the judgment tier; remembered across engine updates, with the honest warning that a weaker
+model gives a less trustworthy review), and the **schedule is the one setting an engine update resets** —
+re-apply a custom cadence after updating. Two honest recurring-cost notes the walkthrough carries: a
 **too-frequent** cadence consumes the plan's usage like any other Claude Code work (a run that hits the
 usage limit produces no digest until it resets), and the **one-year token expires**. In both cases the
 audit simply stops producing digests, so the **staleness notice on the operator's next boot** surfaces the
@@ -104,22 +119,30 @@ operator's return *whatever ran it*. The engine's grammar names only "the schedu
 runner is the cron workflow above, and an operator may instead move the run to a **Cloud Routine** (below)
 without any redesign.
 
-#### Optional — run the audit as a Cloud Routine
+#### Optional — run the audit off the schedule, from Claude or from Codex
+
+The built walkthrough offers **two** off-schedule runners, one per runtime (the dual-runtime offering
+adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md)):
 
 An **Anthropic Cloud Routine** runs the audit on Anthropic-managed cloud, so it fires with the operator's
 machine off, drawing on their subscription with no repository secret. It suits the **read-only** audit
 precisely where it does **not** suit a [Routine build](../systems/lifecycle/build-orchestration.md):
 the audit tolerates a fresh clone and a proposed-changes pull request, where a build needs the operator's
 working tree and a scope-lock. (This is the Anthropic **Cloud Routines product** — distinct from the
-engine's Local Desktop **Routine build stance**, which deliberately does not use it.)
+engine's Local Desktop **Routine build stance**.) The walkthrough **eliminates the wrong choices**: create
+a **Remote** routine (not *Local* — a Local task runs only while the machine is awake), on a **recurring**
+schedule (not a one-off), against **this repository**, pasting the **provided audit prompt verbatim** (it
+instructs the run to load and follow the committed audit persona), then **"Run now" once and confirm a
+fresh digest appears**. Disclosed plainly: a Cloud Routine needs a **paid plan with Claude Code on the web
+enabled**, is a **research-preview** feature that may change — the engine never depends on it; if it stops,
+the staleness signal says so and the default workflow remains — and counts against the account's daily
+routine allowance.
 
-The walkthrough **eliminates the wrong choices**: create a **Remote** routine (not *Local* — a Local task
-runs only while the machine is awake), on a **recurring** schedule (not a one-off), against **this
-repository**, pasting the **provided audit prompt verbatim** (it instructs the run to load and follow the
-committed audit persona), then **"Run now" once and confirm a fresh digest appears**. Disclosed plainly: a
-Cloud Routine needs a **paid plan with Claude Code on the web enabled**, is a **research-preview** feature
-that may change — the engine never depends on it; if it stops, the staleness signal says so and the default
-workflow remains — and counts against the account's daily routine allowance.
+A **Codex Automation** is the same offering on the Codex runtime: the walkthrough configures a read-only
+sandboxed automation (`sandbox_mode = "read-only"`, approvals never prompted) against the module's
+generated Codex audit persona, with the same digest-and-staleness backstop making the runner swappable.
+The audit is the one scheduled surface the engine offers on both runtimes; the parity is held by the same
+generated-render discipline the other dual-runtime surfaces ride.
 
 #### Coverage of local memory
 
@@ -174,9 +197,10 @@ operator language, the same maturity honesty the project applies to other v1-shi
 
 ### Operator-facing register
 
-Every operator-facing surface this module adds — the audit auth-secret step, the **vault-read credential
+Every operator-facing surface this module adds — the three setup steps, the **`AUDIT_MODEL`** model
+override and the schedule-reset note, the **vault-read credential
 turn-on** (a heavy-consent gate owned by [provisioning](../systems/infrastructure/provisioning.md)),
-the Cloud-Routine walkthrough, the digest's memory-coverage notice, the staleness re-arm prompt — is written in
+the two off-schedule walkthroughs, the digest's memory-coverage notice, the staleness re-arm prompt — is written in
 **plain language**, explaining each platform term where the operator meets it (a *fine-grained read-only
 token*, an *Actions secret*) and carrying **no backstage vocabulary** (persona, lens, function-probe,
 concern-list, R-numbers). The audit digest itself stays the plain self-attestation the
@@ -184,10 +208,12 @@ concern-list, R-numbers). The audit digest itself stays the plain self-attestati
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are audits'; the delivery is this module** — no duplication of the posture laws here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **required core, not one of the eleven foundations** — deployed-repo self-audit hygiene ships in every generated repo and is not an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires nothing** — persona, workflow, and concern-list are all active by presence; install/uninstall is add/remove files. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Present-by-default substrate, swappable runner** — the committed cron workflow arms automatically; the digest + staleness backstop is runner-independent, so the optional Cloud-Routine path adds no dependency and the engine never relies on a research-preview feature. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Honest coverage** — the local-memory limit of any cloud/CI substrate is bridged through a least-privilege read-only read of memory's own backup (a provisioning-owned, heavy-consent turn-on), with belief content gated to a private project repo and the gap disclosed in plain language whenever either precondition is unmet — never silently skipped, never pretending memory is empty. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are audits'; the delivery is this module** — no duplication of the posture laws here. | Operator observation: the posture laws (three postures, function-probe, hybrid concern model, digest register) are stated in the [audits](../systems/guardrails/audits.md) system document, while this module's files carry delivery only — the persona applies the postures without re-legislating them, and the concern-list is seed data. No check asserts the non-duplication. | operator |
+| **required core, not one of the eleven foundations** — deployed-repo self-audit hygiene ships in every generated repo and is not an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)). | Operator observation: the module manifest declares `status: required` and the module is absent from the optional-add catalog. The module-manifest check (hard, CI) asserts only that the manifest is schema-valid — it does not pin the value to `required` — so the always-present claim is your read of the manifest. | operator |
+| **Wires nothing** — persona, workflow, and concern-list are all active by presence; install/uninstall is add/remove files. | Operator observation: the manifest's `wires` list is empty and each artifact activates by being a present file. The module-manifest check (hard, CI) validates the field's shape without asserting emptiness — and the workflow itself is not yet manifest-owned ([engine-template issue 798](https://github.com/StarshipSuperjam/engine-template/issues/798)), so the census leg is partly open. | operator |
+| **Present-by-default substrate, swappable runner** — the committed cron workflow arms automatically; the digest + staleness backstop is runner-independent, so the optional off-schedule paths add no dependency and the engine never relies on a research-preview feature. | Operator observation: the workflow ships committed and gates itself until the auth secret exists, and the digest-staleness check keys on the digest's committed run-date, not any runner. That staleness check is soft-tier and rides the report-only audit-prep suite — partial support, never merge-gated — so the runner-independence claim stays with your read. | operator |
+| **Honest coverage** — the local-memory limit of any cloud/CI substrate is bridged through a least-privilege read-only read of memory's own backup (a provisioning-owned, heavy-consent turn-on), with belief content gated to a private project repo and the gap disclosed in plain language whenever either precondition is unmet — never silently skipped, never pretending memory is empty. | Operator observation: the workflow reads the vault with the distinct `MEMORY_VAULT_TOKEN` credential, gates belief content on repo visibility, and carries the in-band gap disclosure in the persona prompt and mandate. Partial support: memory-pointer-public-safety (hard, CI) asserts only the public template's placeholder-pointer leg — the least-privilege read, the visibility gate, and the disclosure are your observation. | operator |
