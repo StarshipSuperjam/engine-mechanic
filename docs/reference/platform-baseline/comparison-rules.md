@@ -31,23 +31,34 @@ sources:                                      # required; ≥1 entry, all allowl
   - url: <URL>
     retrieved: <YYYY-MM-DD>
     note: <what this source evidences>        # optional
-# --- reconciliation (repo-facing wave; never filled by a web-facing agent) ---
+```
+
+A second fenced block per record carries the reconciliation (repo-facing wave; never filled by a web-facing
+agent):
+
+```yaml
 repo_usage: unused | <how engine-template uses it today, with file paths>   # required
 overlap: none | <the existing Engine controls covering the same ground>     # required
-# --- judgment (main loop only) ---
-engine_use: none | <candidate Engine use>     # required
-action_mode: blocks | intercepts | advises | observes | n/a   # required
-enforcement: deterministic | best-effort | advisory | none    # required
-failure_mode: open | closed | n/a             # required; behavior when the mechanism fails
-evidence_quality: primary-doc | changelog | secondary | inferred  # required
-portability: portable | provider-specific | host-local        # required
-verifiability: <how the Engine could verify it is actually in force>  # required
-bypass: <bypass and security implications, or none identified>        # required
-vendor_dependence: <what breaks for the Engine if the vendor changes or retires it> # required
-degradation: <Engine behavior where the capability is absent or unavailable>        # required
-disposition: CORE | ADAPTER | HOST CONFIGURATION | OPTIONAL INTEGRATION | OBSERVATION ONLY | REJECT  # required
-rationale: <1–3 sentences; why this disposition and not the nearest alternative>    # required
+note: <conflicts, duplication, or hand-built analogs>                       # optional
 ```
+
+The judgment layer is rendered per record as two prose lines rather than YAML fields — the shape the shipped
+catalogs actually carry:
+
+- **`Assessment:`** — action mode (`blocks | intercepts | advises | observes | n/a`), enforcement
+  (`deterministic | best-effort | advisory | none`), failure mode (`open | closed | n/a`), and portability
+  (`portable | provider-specific | host-local`), assigned from the record's disposition class with
+  reconciliation-flagged overrides.
+- **`Disposition:`** — one of `CORE | ADAPTER | HOST CONFIGURATION | OPTIONAL INTEGRATION |
+  OBSERVATION ONLY | REJECT`, followed by a rationale (why this disposition and not the nearest
+  alternative).
+
+The remaining judgment dimensions — candidate Engine use, evidence quality, verifiability, bypass and
+security implications, vendor dependence, and degradation behavior — are carried in prose rather than as
+per-record fields: inside the disposition rationale and reconciliation `note` where record-specific, and at
+the family level in the utility matrix and the coverage-and-conflict map's dependency-risk register. A
+future run keeps this same shape; adding the dimensions back as per-record fields is a method change that
+belongs to a new recorded decision.
 
 **Wave ownership is strict.** Web-facing extraction fills only the observational fields (top block through
 `sources`) and never touches the repository. Repository reconciliation fills `repo_usage` and `overlap` and

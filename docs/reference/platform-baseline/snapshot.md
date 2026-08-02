@@ -1,6 +1,6 @@
 # Platform capability baseline — the approved snapshot
 
-*The denominator. Adopted by [decision 0332](../../adr/0332-adopt-the-platform-capability-baseline-snapshot-and-comparis.md);
+*The denominator. Its adopting decision is [decision 0332](../../adr/0332-adopt-the-platform-capability-baseline-snapshot-and-comparis.md);
 every future platform-currency run diffs against this snapshot under [comparison-rules.md](comparison-rules.md),
 and it is replaced only by a new recorded decision — never refreshed in place.*
 
