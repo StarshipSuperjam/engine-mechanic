@@ -3142,7 +3142,7 @@ note: >
 
 **Assessment:** action mode n/a; enforcement none — not in use; failure mode n/a; portability provider-specific.
 
-**Disposition: `REJECT`** — audit-prep deliberately runs the CLI directly so the read-only persona never writes; the workflow owns git/PR. Ratified.
+**Disposition: `REJECT`** — audit-prep deliberately runs the CLI directly so the read-only persona never writes; the workflow owns git/PR. Recommended to stand as-is (ratification rides the migration decision record).
 
 ### `claude/github-ci/github-app-and-installer`
 
@@ -4237,7 +4237,7 @@ note: >
 
 **Assessment:** action mode n/a; enforcement none — not in use; failure mode n/a; portability provider-specific.
 
-**Disposition: `REJECT`** — The engine ships its own authoritative memory substrate and actively fences the native notebook (modes.py denies writes; CLAUDE.md declares it non-authoritative). Ratified as-is.
+**Disposition: `REJECT`** — The engine ships its own authoritative memory substrate and actively fences the native notebook (modes.py denies writes; CLAUDE.md declares it non-authoritative). Recommended to stand as-is (ratification rides the migration decision record).
 
 ### `claude/instructions-memory/claude-md-excludes`
 
@@ -7043,7 +7043,8 @@ sources:
 ```yaml
 repo_usage: unused
 overlap: >
-  none. No .claude-plugin/marketplace.json (find → nil). The engine's own distribution/versioning
+  the engine's own packaging machinery holds this ground — module_manager.py, instantiator.py,
+  and the release workflows (see the coverage map's packaging row). No .claude-plugin/marketplace.json (find → nil). The engine's own distribution/versioning
   is handled by its release workflows (.github/workflows/release*.yml) and engine.json version /
   min_upgradeable_from, not by a plugin marketplace catalog.
 note: >
@@ -7097,7 +7098,8 @@ sources:
 ```yaml
 repo_usage: unused
 overlap: >
-  none. No plugin manifest (.claude-plugin/plugin.json), no plugin.json anywhere (find → nil).
+  the engine's own packaging machinery holds this ground — module_manager.py, instantiator.py,
+  and the release workflows (see the coverage map's packaging row). No plugin manifest (.claude-plugin/plugin.json), no plugin.json anywhere (find → nil).
   The engine ships as standalone .claude/ + .codex/ + .agents/ config — the documented alternative
   to plugin packaging for a single project. Its cross-component bundle (skills + agents + hooks +
   2 MCP servers + settings) is exactly what a plugin would carry, but assembled directly in the

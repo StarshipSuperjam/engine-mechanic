@@ -18,6 +18,10 @@ and it is replaced only by a new recorded decision — never refreshed in place.
   audit session (curl, redirects followed). Client-rendered pages hash their served shell, so a changed hash
   means "the served document changed", not necessarily "the documented capability changed" — the comparison
   rules treat a fingerprint delta as a *prompt to re-read*, never as a finding by itself.
+- **Known same-content pairs:** three `developers.openai.com` entrypoint pairs redirect to one served page
+  and legitimately share a fingerprint — `codex/changelog` with `learn.chatgpt.com/docs/changelog`,
+  `codex/config-file/config-reference` with its learn twin, and `codex/cli/reference` with
+  `codex/cli/slash-commands` (both land on `learn.chatgpt.com/docs/developer-commands?surface=cli`).
 - **Known source-map corrections for the next run:** `developers.openai.com/codex/local-and-cloud` redirects
   to a 404; `developers.openai.com/codex/web` misroutes to general ChatGPT docs (the Codex web surface is
   documented within `/codex/cloud`).
