@@ -1,5 +1,7 @@
 # Product principles
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the canon-evolution passages aligned by [decision 0330](adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 ## What this product is for
 
 A GitHub repository template that stands up a fully operative, AI-driven Engine capable of
@@ -69,7 +71,8 @@ confirms the fix. The loop closes across sessions, performed by the AI — not b
 ### 9. Modules declare files *and* wiring
 
 A module is not a pile of files; it is files plus the wiring it requires (hook registration, MCP
-registration, ontology entries, permissions, gitignore lines). The manifest declares both,
+registration, ontology entries, permissions, gitignore lines — and, on the Codex runtime, the
+`codex-hook`/`codex-mcp` siblings of the first two). The manifest declares both,
 declaratively and reversibly, so install and uninstall are mechanical and a coherence check can
 confirm them. Check-suite membership is *not* wiring — a check rule self-declares the suites it joins,
 so a suite's roster is derived from the rules present rather than mutated by a side-effect.
@@ -81,9 +84,13 @@ the content, so structure is never invented on the fly.
 
 ### 11. One history, living documents everywhere else
 
-Change history lives in exactly one place per workspace (the decision log here; in the engine, the
-structured pull-request body — the control-plane PR contract — which the pull request carries as the
-durable record). Every other document is rewritten in place to its current truth and carries no inline
+Change history lives in exactly one place per workspace (the decision-record corpus here, under
+`adr/`; in the engine, the structured pull-request body — the control-plane PR contract — which the
+pull request carries as the durable record). One surface is governed by exception (the engine's
+eADR-0014): a decision record is **append-only** — a deployment's own engine decision records are
+never edited, only superseded — while the engine's *shipped* founding canon, a cold copy with no
+prior history to carry, is revised in place, each revision's why held by the pull-request body that
+made it. Every other document is rewritten in place to its current truth and carries no inline
 history.
 
 ### 12. Fault-containment is earned at the seams, not conferred by the shape
@@ -117,7 +124,8 @@ dependency**.
 Where the engine must discover *which* providers, implementations, or members are present, it derives that
 set from their **presence and self-declaration** — never from a central list an install must mutate. This is
 the **discovery axis**, and it is distinct from the closed **wiring seam** (`hook`, `mcp`, `ontology-entry`,
-`permission`, `gitignore`), which stays the mechanism for keyed, reversible edits to shared state. Wiring is
+`permission`, `gitignore`, and the Codex runtime's `codex-hook`/`codex-mcp` siblings — seven kinds,
+closed), which stays the mechanism for keyed, reversible edits to shared state. Wiring is
 not "by presence," and this principle does not claim it is: a module that must edit shared settings still
 wires; a consumer that must find its providers derives them. The discovery axis already governs the agent
 roster (derived from agent frontmatter), check-suite membership (derived from rules that self-declare their
@@ -215,9 +223,12 @@ This is the authored complement to §2/§3: canonical *structure* is committed a
 *rationale* is committed and authored — both repo-authoritative, neither hostage to an external service or an
 unreachable workspace. It does not loosen §3: the knowledge entities *about* eADRs stay derived and
 fingerprint-gated; only the decision text is authored, exactly as every contract always has been. It honors
-§11 (the canon is decisions — append-only, changed by supersession, never edited in place) and is bounded by
-the §13 wall and the contract-threshold, so it records *Engine* laws only and stays exceptional — never the
-churn of revised ADRs. Like §12/§14/§16/§17 this is maintainer-layer framing; the operator meets only the
+§11's one-history law the canon's own way (the engine's eADR-0014): a deployment's **own** engine decision
+records are append-only — never edited, only superseded — while the shipped founding canon is a **living
+cold-copy snapshot, revised in place and replaced wholesale by an engine release**, carrying no supersession
+chain because a deployed copy has no prior history to preserve; and it is bounded by
+the §13 wall and the contract-threshold, so it records *Engine* laws only and stays exceptional — never an
+accumulation of routine decisions. Like §12/§14/§16/§17 this is maintainer-layer framing; the operator meets only the
 plain fact that the engine ships records of why it is built as it is, while their project keeps its own.
 
 ### 19. Derived-committed artifacts are source-deterministic; conflicts on them are spurious

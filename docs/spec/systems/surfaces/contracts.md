@@ -93,12 +93,14 @@ the canon `eADR-####`, a deployment's `<project-slug>-eADR-####`:
   and are **preserved across an upgrade** — a deployment's decision history is its own, never clobbered by
   an overlay.
 
-The canon is **stable by construction** — the surface's answer to ADR explosion. It changes only by
-**supersession** (re-litigating a law writes a new linked eADR; the old is kept, never edited), and a
-reconciliation or re-lock of an existing law **folds into** that law's eADR rather than spawning one —
-a fold that absorbs a just-minted record may leave a gap in the number sequence, which is this rule
-working, not a lost record; the
-set moves only on the rare, gated re-litigation of a structural law. It is **reached on demand** — by the
+The canon is **stable by construction** — the surface's answer to ADR explosion. Per its own
+one-history law (eADR-0014), the shipped canon is a **living cold-copy snapshot, revised in place**
+— it carries no supersession chain (the schema's `supersedes` field belongs to the instance stream
+alone), a reconciliation or re-lock of an existing law **folds into** that law's eADR rather than
+spawning one — a fold that absorbs a just-minted record may leave a gap in the number sequence,
+which is this rule working, not a lost record — and only a genuinely new kind of decision earns a
+new founding record; supersession-with-history is the **instance stream's** discipline, where a
+deployment's own standing decision is never edited, only replaced by a new linked record. It is **reached on demand** — by the
 orientation scent, search, or a direct read of the committed file — and is **never pushed into the
 cold-start boot pack**; the [knowledge graph](../cognitive/knowledge.md) derives an entity per
 eADR by the same presence walk but adds **no forward `ratifies` edge**, and (per
@@ -117,5 +119,5 @@ lexically matches it (the scent / search), so a stable canon never burdens orien
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | A contract with no substantive anti-choice or significance statement is structurally not a contract — the template enforces those fields' presence (a `hard-fail`), while their *genuineness* stays posture. | The presence half is fully carried by the contract-threshold check (presence-kind, hard, CI): a contract's Significance and Anti-choice sections must each be filled in, not left blank or as the template's placeholder — with the contract-shape check (hard, CI) holding the five sections present and ordered. The genuineness half is the operator's read of the committed record at review, as the threshold check's own message concedes — so the composite row stays with the operator, the checks as named full support for the presence half. | operator |
-| Authority comes from the contract being `accepted` and non-superseded; supersession, not editing, changes a standing decision. | Operator observation at review that a changed standing decision arrives as a new linked record rather than an edit to the earlier one; the contract-frontmatter check (schema-kind, hard, CI) supports only the vocabulary — the status enum and a well-formed supersedes id — and no check detects an in-place edit to an accepted record's Decision. | operator |
-| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon changes only by supersession and stays exceptional under the contract threshold — never edited in place, never accumulating routine decisions. | Operator observation across the composite: the canon ships non-empty, the overlay's provides-glob replaces engine-owned records while the instance path is preserved, and the anti-accumulation signal is the threshold policy's soft burst note at start-up, never a merge gate. The contract-frontmatter check (hard, CI) supports the id-namespace half by asserting both id shapes; nothing mechanical asserts the overlay or supersession-only behavior. | operator |
+| Authority comes from the contract being `accepted` and non-superseded; in the instance stream, supersession — not editing — changes a standing decision (the shipped canon is revised in place under eADR-0014). | Operator observation at review that a deployment's changed standing decision arrives as a new linked record rather than an edit to the earlier one; the contract-frontmatter check (schema-kind, hard, CI) supports only the vocabulary — the status enum and a well-formed supersedes id — and no check detects an in-place edit to an accepted record's Decision. | operator |
+| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon is revised in place under eADR-0014 (no supersession chain — that is the instance stream's discipline) and stays exceptional under the contract threshold — never accumulating routine decisions. | Operator observation across the composite: the canon ships non-empty, the overlay's provides-glob replaces engine-owned records while the instance path is preserved, and the anti-accumulation signal is the threshold policy's soft burst note at start-up, never a merge gate. The contract-frontmatter check (hard, CI) supports the id-namespace half by asserting both id shapes; nothing mechanical asserts the overlay or either stream's revision discipline. | operator |
