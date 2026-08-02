@@ -4,7 +4,7 @@ status: draft
 
 # Policies
 
-*Ratified in the design workspace on 2026-06-04 by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-04 by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -19,7 +19,9 @@ change a policy, a policy outranks the mechanics and guidance below it.
 
 - **One file per policy**, slug-named, directory-as-index — the [ontology](../grammar/ontology.md) instance law.
 - **Lifecycle** is the `decision` vocabulary: `proposed → accepted → superseded`.
-- Each policy declares its **enforcement tier** ([principles §7](../../../principles.md)); most are
+- Each policy declares its **enforcement tier** ([principles §7](../../../principles.md)) — in prose,
+  in a required Enforcement-tier body section rather than a frontmatter field, because one policy may
+  bind a layered control no single fixed value could honestly represent; most are
   posture or soft-warn (behavioral), some bind to a hard check.
 - A policy carries an **optional `established_by`** link to the contract that decided it — encouraged
   for auditability, not required, since some policies are foundational.
@@ -28,10 +30,14 @@ change a policy, a policy outranks the mechanics and guidance below it.
 
 ### The v1-core policies
 
-Four policies are v1-core, shipping from layer one and non-removable. Three are foundational to the
-**trust model** (below); the fourth — the **Triage-threshold policy** — is foundational instead to
+The core module ships six prose policies plus one policy expressed as data (the model-bindings file),
+all from layer one and non-removable — the four below, plus the
+[attention](../cognitive/attention.md) policy (the tunable-values home the override section reads)
+and the model-routing pair (the execution-posture rules and their data file). The four detailed here
+are the trust-model three plus the **Triage-threshold policy**, which is foundational instead to
 **telemetry's operation**: the legible home for the promotion thresholds telemetry reads, not a trust-model
-peer.
+peer. (Optional modules ship further policies alongside — dependency and migration discipline,
+upstream-contribution honesty, and the like — outside the core set.)
 
 #### Contract-threshold
 
@@ -98,9 +104,12 @@ so an operator who opens the file is informed, not alarmed.
 A policy's machine-read **tunable values** — the numeric knobs a consumer reads, never the policy's prose
 rule — carry a **shipped default** a deployment may supersede for itself. The default lives in the committed
 policy (template-owned machinery, overlaid wholesale on upgrade); a per-deployment
-[**operator policy-override**](../../../reference/glossary.md) — committed **operator config**, preserved across overlays
+[**operator policy-override**](../../../reference/glossary.md) — a committed **operator config** file
+(`.engine/operator-overrides.json`), preserved across overlays
 the way the operator handle is — supersedes named keys, merged **per-key over the default at read time** (an
-unset or stale key falls back to the default). The policy and its shipped default stay present and
+unset or stale key falls back to the default). A hard merge-gated check additionally surfaces a saved
+override key that has gone stale — renamed, removed, structural, or non-numeric — so a dead setting is
+raised to the operator rather than silently ignored forever. The policy and its shipped default stay present and
 **non-removable**, and the authority tiers are unchanged: the override sets the *value* a consumer reads, it
 does not re-rank policies against contracts or mechanics.
 
@@ -108,7 +117,8 @@ Two bounds keep this safe:
 
 - **Tunable values only, never the laws.** Only genuine tuning knobs are override-eligible —
   [attention](../cognitive/attention.md)'s budget splits, intra-partition weights, and
-  debt-blocking/scent thresholds, and the triage-threshold persistence/auto-resolve/triage-pressure values.
+  debt-blocking threshold, the triage-threshold persistence/auto-resolve/triage-pressure values, and
+  the contract-threshold burst signal's rate limit.
   Tuning the triage-threshold values adjusts only the *latency and visibility of persistent-benign debt* (the
   operator's own backlog cadence) — a trust-critical signal promotes immediately regardless, so an override
   can never suppress a governance-critical alarm.
@@ -116,9 +126,11 @@ Two bounds keep this safe:
   trim order stay fixed, so "blocking-debt-first" holds by construction, never by an operator's number. No
   enforcement/guardrail config is a tunable policy value, so the override never reaches the
   [§15](../../../principles.md)-monitored surface — it retunes *within* the laws, never weakens them.
-- **Same validation as the default; determinism preserved.** The override is validated by the policy's own
-  value schema, and each consumer applies to the merged values the same defensive normalization it already
-  applies to the shipped ones, so an override can retune but cannot produce an out-of-law value. Because the
+- **Same validation as the default; determinism preserved.** The override is guarded at every stage — the
+  authoring command refuses structural keys and non-finite numbers, the merge is per-key over the shipped
+  default, the stale-key check bites at the merge gate, and each consumer applies to the merged values the
+  same defensive normalization it already
+  applies to the shipped ones — so an override can retune but cannot produce an out-of-law value. Because the
   merged value is a *static* input, a deterministic ranking function stays deterministic — the same inputs
   yield the same result.
 
@@ -129,6 +141,8 @@ this same override lane. ([D-167](../../../adr/0167-take-up-q17-component-a-auth
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| Escalation is posture-led but made safe by hard backstops it does not own: the lock fingerprint, the protected-branch merge gate ([control-plane](../infrastructure/control-plane.md)), and the close-ritual disposition gate. Even an un-escalated issue is caught at human review. | Operator observation across the named backstops, each with partial mechanical support: the protection and guarded-paths checks (hard, CI) bite on unauthorized protected-surface changes, the close ritual's turn-end block pushes back on an undisposed finding, and the disposition-resolution check (hard, CI) confirms cited issues are real while disclosing it cannot show every finding was logged. The terminal backstop — a human at the protected-branch merge — is repository governance no check can self-assert, so the row stays with the operator. | operator |

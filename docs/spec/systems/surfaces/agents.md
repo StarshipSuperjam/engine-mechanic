@@ -4,7 +4,7 @@ status: draft
 
 # Agents
 
-*Ratified in the design workspace on 2026-07-16 by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-16 by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -61,9 +61,11 @@ Every agent declares these routing fields in frontmatter (`lens` only for the re
   `plan-review`/`pre-submission-review`, the Implement phase for `worker`), the `audit-prep` cron for
   `audit` (the read-only self-audit persona) — so there is no separate trigger field (one fewer way to
   misconfigure).
-- **`lens`** — the specific perspective **within a review role** (the v1 roster, [D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md): `product-intent`, `architecture`,
-  `feasibility`, `risk-governance` at plan-review; `spec-conformance`, `usability`, `technical-integrity`,
-  `security-governance` at pre-submission; plus the optional `retroactive`); open and additive, a module may ship a new lens.
+- **`lens`** — the specific perspective **within a review role**. The shipped roster: `product-intent`,
+  `architecture`, `feasibility`, `risk-governance` at plan-review (the [D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) four); `spec-conformance`, `usability`, `technical-integrity`,
+  `security-governance`, and `divergence-hunter` — an adversarial fifth added since D-066, exactly the
+  additive growth the open roster invites — at pre-submission; plus the optional `retroactive`, which
+  ships no persona. Open and additive, a module may ship a new lens.
   The `worker` and `audit` roles carry **no lens** — a worker implements, and the single self-audit
   persona is recognized by its role, not a lens.
 - **`model-tier`** — a **closed demand vocabulary** `judgment` · `mechanical`: the persona-owned
@@ -101,7 +103,7 @@ Every agent declares these routing fields in frontmatter (`lens` only for the re
 - plus the platform `description` Claude Code uses to present the agent.
 
 These routing fields are **engine-governed-and-read** frontmatter — the engine's roster derivation and its
-coherence kind read them. They sit alongside the keys **Claude Code itself enforces**: `name` (the platform
+coherence checks read them. They sit alongside the keys **Claude Code itself enforces**: `name` (the platform
 identity field that makes file-drop discovery work), `description`, `tools` / `permissionMode` (the platform
 mechanism the **`permissions`** split maps to — read-only reviewer vs. scoped-write worker), and the
 **execution-realization pair `model` and `effort`** — the persona-owned, platform-passthrough keys that
@@ -123,11 +125,18 @@ An agent installs as a **file drop**: discovery is by presence in `.claude/agent
 `audit-prep` cron, not a build gate, so it is **never a member of the build roster**. This is exactly how a
 check-suite's membership is derived from rules that self-declare into it ([D-023](../../../adr/0023-check-system-locked-validator-architecture-the-check-surface.md))
 — the [derived binding by presence principle](../../../principles.md). There is **no central playbook list**
-an install must edit; adding an agent re-derives the roster for free.
+an install must edit; adding an agent re-derives the roster for free. One realization note: the
+`worker` / `scoped-write` / `mechanical` leg of the grammar is fully supported by the schema but ships
+no v1 instance — every shipped persona is a read-only `judgment` reviewer or the auditor; a worker
+persona is a future file drop, not a present member.
 
 ### Coherence
 
-The locked [validation](../guardrails/validation.md) `coherence` kind confirms the agent set:
+Two merge-gated [checks](check.md) (both `custom/script` rules in the CI suite — the `coherence`
+kind proper stays scoped to module-set consistency) confirm the agent set: the closed-set bullets
+(the closed `role`, and a `lens` on a lensless role) are the agent-coherence check's, which also
+carries the read-only write-tool floor above; the consumption pair (zero-agents disclosure and the
+dangling lens) is the lens-consumption check's:
 
 - **0..N agents per lens is valid.** A consumed lens with zero agents means that gate **did not run a
   review** — disclosed to the operator as exactly that, never reported as a green "passed."
@@ -137,8 +146,10 @@ The locked [validation](../guardrails/validation.md) `coherence` kind confirms t
   from the build-gate roles only, so a present `audit` persona is never pulled into a gate; *which lens a
   gate consumes* is a separate mapping, below.)
 - **`lens` recognition is by consumption** ([derived binding §14](../../../principles.md); no central
-  list). An installed **review** agent whose lens **nothing in the orchestration consumes** is a coherence
-  **finding** (the dangling-check-kind posture, [D-023](../../../adr/0023-check-system-locked-validator-architecture-the-check-surface.md)), disclosed to the
+  list). An installed **review** agent whose lens **nothing in the orchestration consumes** is a
+  **finding** — enforced by the separate lens-consumption check, which reads the orchestration's
+  consumed-lens declaration against the installed personas (the dangling-check-kind posture,
+  [D-023](../../../adr/0023-check-system-locked-validator-architecture-the-check-surface.md)), disclosed to the
   operator at the plan gate, never left as a check-only signal the operator may never run. The `worker` and
   `audit` roles carry no lens and are recognized by role, so the dangling-lens finding scopes to review
   lenses. *Which* gate consumes *which* lens is the
@@ -163,8 +174,10 @@ ran on this change"; the audit digest's plain self-attestation), never these nam
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Template is core; personas are additive** — the routing-field grammar is the critical-path piece; which suites ship is settled ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)), and operators extend it. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **File-drop, no wiring** — discovery by presence; roster derived from frontmatter; install/uninstall is add/remove a file, with the roster re-derived rather than mutated. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Reviewers and the auditor report, workers write** — `permissions` enforces the split; the non-writing personas feed a finding-disposition loop via the `output-contract` — the build gates' orchestrator, the `audit` role's cron. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Template is core; personas are additive** — the routing-field grammar is the critical-path piece; which suites ship is settled ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)), and operators extend it. | Operator observation via the self-map and module manifests: the persona template ships with core while every persona instance is provided by a separate optional module, core shipping none; the template-shape check asserts the template's form, not its core ownership. | operator |
+| **File-drop, no wiring** — discovery by presence; roster derived from frontmatter; install/uninstall is add/remove a file, with the roster re-derived rather than mutated. | Operator observation that the persona-bearing modules declare their agents under `provides` and wire nothing, and that adding or removing a persona file re-derives the roster with no manifest edit; the lens-consumption check (hard, CI) supports the presence-derivation half by reading the roster directly from the agents directory, but asserts consumption, not absence-of-wiring. | operator |
+| **Reviewers and the auditor report, workers write** — `permissions` enforces the split; the non-writing personas feed a finding-disposition loop via the `output-contract` — the build gates' orchestrator, the `audit` role's cron. | Split: the read-only leg is fully asserted by the agent-coherence check (hard, CI, merge-gated) — a persona declared read-only must actually block the authoritative write tools via a declared denial or write-excluding allowlist, never inherit every tool — with its disclosed limit that Bash and write-capable MCP calls are confined by isolation and the merge gate, not the check. The worker leg ships no instance to assert, and the disposition loop is the trigger-owners' observed behavior — so the composite row stays with the operator, the check as named partial support. | operator |

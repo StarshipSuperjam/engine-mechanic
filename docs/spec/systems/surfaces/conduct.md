@@ -4,7 +4,7 @@ status: draft
 
 # Conduct
 
-*Ratified in the design workspace on 2026-06-14 by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-14 by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -45,8 +45,12 @@ authority tier, which can bind to a hard check; conduct never does.)
     [audits](../guardrails/audits.md) three-way split tells it from machinery by `provides`
     membership, exactly as a per-deployment override is told from a shipped [policy](policies.md).
 - **Each code of conduct carries a stable `id`** (frontmatter), a one-line title, and the prose rule. The
-  `governing_schema` requires the `id`; the [template](../guardrails/templates.md) requires Id,
-  Rule (the plain-language stance), and an optional Rationale. (File granularity — the two layer files above
+  `governing_schema` requires the `id`, the `title`, and the lifecycle `status` of each entry; the
+  [template](../guardrails/templates.md) scaffolds each code as a Rule section (the
+  plain-language stance) plus an optional Rationale — the id and title ride the frontmatter, and the
+  scaffold's shape is held by the conduct shape check rather than a fixed-section spec. In the
+  committed layer file the two meet: each code lands as one prose section headed by its title,
+  matched one-to-one against its frontmatter entry by that same shape check. (File granularity — the two layer files above
   vs. one file per code of conduct plus a derived, fingerprint-gated aggregate — is a build-spec leaf; either way
   the floor-load `@import` below targets a fixed pair of paths, one per layer, so granularity does not move the
   floor law.)
@@ -83,8 +87,8 @@ not run**. This is the same floor guarantee `CLAUDE.md` carries, held with the s
 not external `~/` imports, so they are not subject to the platform's first-time external-import approval prompt
 (the live Claude Code docs scope that prompt to external imports) — to be re-confirmed against the live platform at build-spec. It is deliberately **not** pushed into the boot
 pack (which vanishes on a hook failure) and **not** surfaced as a governance alarm — it is the AI's
-behavioral floor. The active stance is **committed and always readable**, and may also be surfaced on demand
-via the [status verb](../../../reference/glossary.md). Because the
+behavioral floor. The active stance is **committed and always readable**, and is surfaced on demand
+by the authoring verb itself, whose first step reads the current stance back before any change. Because the
 floor is paid every session, the *bounded* rule above is load-bearing.
 
 ### Travel across repos — seeded, then operator-owned
@@ -94,8 +98,9 @@ provisioning from a seed the maintainer's template carries**: the maintainer aut
 once in their template, and every repo generated from it starts with them. Thereafter `operator.md` is
 **operator-owned and preserved** across upgrades. The **public** template's `defaults.md` stays universal —
 a third party who generates from it without the maintainer's seed gets the universal defaults plus an empty
-override they fill themselves. An optional [core](../../modules/core.md) command **promotes** a
-code of conduct learned in one repo back into the maintainer's template seed. The seed-and-preserve
+override they fill themselves. An optional final step of the authoring verb **promotes** a
+code of conduct learned in one repo back into the maintainer's template seed — a step of the one verb,
+not a separate command. The seed-and-preserve
 mechanism is [provisioning](../infrastructure/provisioning.md)'s, and the first-run seed is
 **disclosed** to the operator in plain language — the stance is present and theirs to tune (the copy is a
 build-spec leaf) — never silently installed.
@@ -121,9 +126,11 @@ is **defense-in-depth**:
   [§15](../../../principles.md) requires.
 - **A validation guard (defense-in-depth).** A [check](check.md) flags a code of conduct that
   purports to instruct weakening a guardrail (skip a gate, auto-approve, treat built-in auto-memory as
-  authoritative) — a `soft-warn` surfaced for the human merge, the reflexive [§15](../../../principles.md) guard
-  applied to this surface. It is a `validators-core` rule that ships **with** the conduct slice, so the surface
-  never exists without it; it checks conduct *content* and never makes conduct itself enforce.
+  authoritative, force-push, merge without review) — a `soft-warn` surfaced for the human merge, the reflexive [§15](../../../principles.md) guard
+  applied to this surface. It is a `validators-core` rule — and because `validators-core` is itself a
+  required module, the guard is always present with the surface; the same required module carries the
+  two hard structural checks (frontmatter and shape, the latter also holding the disable-list to the
+  operator layer only). The guard checks conduct *content* and never makes conduct itself enforce.
 
 ### Relation to memory
 
@@ -143,9 +150,11 @@ subsystem — lives in [core](../../modules/core.md).
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Pure posture, subordinate to every law.** Conduct shapes behavior and never enforces; it is tier-3 and never collides with a contract, policy, or mechanical gate. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Present from cold boot, in every repo.** It rides `core` and the topology-governed floor (it cannot be optional), seeded so the operator's stance travels without re-teaching. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Tunable but never silently weakening.** Operator-owned, preserved across overlay, authored by a verb; any change is merge-visible and guarded against weakening a guardrail. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **One job.** It carries behavioral stance only — not project narrative, structural fact, design rationale, or enforcement. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Pure posture, subordinate to every law.** Conduct shapes behavior and never enforces; it is tier-3 and never collides with a contract, policy, or mechanical gate. | Operator observation that conduct appears in no hard gate: its only behavioral guard is soft-tier (a warning, never a block), its two hard checks assert file form only, and no conduct file wires a deny or a hook — the absence from every enforcement path is the observable proof it never enforces. | operator |
+| **Present from cold boot, in every repo.** It rides `core` and the topology-governed floor (it cannot be optional), seeded so the operator's stance travels without re-teaching. | Operator observation: both layer files are floor-imported by the root `CLAUDE.md`, conduct rides the non-deselectable core module, and first-run seeds the operator layer from the template's seed with a plain-language disclosure. No check asserts the floor import. | operator |
+| **Tunable but never silently weakening.** Operator-owned, preserved across overlay, authored by a verb; any change is merge-visible and guarded against weakening a guardrail. | Operator observation with named partial support: the conduct-weakening guard (soft, CI) warns on weakening-shaped content but never blocks, so it cannot fully assert the criterion; merge-visibility is the protected-branch flow, preservation is the operator layer's absence from every module's provides, and the authoring verb exists as the committed skill and operation. | operator |
+| **One job.** It carries behavioral stance only — not project narrative, structural fact, design rationale, or enforcement. | Operator observation at review: the semantic boundary is human judgment. The two hard structural checks (frontmatter and shape) mechanically confine the file's form — each code one titled prose section, the disable-list on the operator layer only — but neither asserts what the prose is about. | operator |

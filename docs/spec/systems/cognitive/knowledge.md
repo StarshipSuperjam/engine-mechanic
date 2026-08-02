@@ -47,7 +47,8 @@ runs where its cost is tolerable:
   entity-type enum copies in the knowledge schema and the retrieval interface equal the catalogued
   surface names plus the `module` type — closing a drift hole the fingerprint gate structurally cannot see, because the gate
   re-derives entity types from the same catalog both sides read, so a retired type moves both sides
-  together (operator-ruled: the build's extra guard is adopted).
+  together (operator-ruled: the build's extra guard is adopted, its standing blessing under the
+  no-drift law recorded by [decision 0325](../../../adr/0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md)).
 - **Boot only reads** the already-committed entities; it never regenerates. ("Latency while building is
   tolerable; latency while using is not.")
 

@@ -4,7 +4,7 @@ status: draft
 
 # Docs
 
-*Ratified in the design workspace on 2026-06-18 by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-18 by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -48,9 +48,9 @@ The law has two **orthogonal** edges. The **substance** edge is above: never hid
 engineer-shorthand. The **register** edge governs *how the operator is addressed* — **address the operator as the
 capable adult they are, never condescending, never a register pitched below them, never explaining at length what
 they plainly already grasp as if they could not.** The edges are independent: a doc can satisfy the substance edge
-in full and still fail the register edge by talking down — complete, accurate, and patronizing at once. This
-register standard is the **rubric** the [audits](../guardrails/audits.md) cold-context doc-probe reads
-each doc against (*Anti-drift* below): a doc that talks down is **surfaced for remediation rather than passing
+in full and still fail the register edge by talking down — complete, accurate, and patronizing at once. Both
+edges are the **rubric** the [audits](../guardrails/audits.md) cold-context random-artifact probe reads
+operator-facing prose against (*Anti-drift* below): a doc that talks down is **surfaced for remediation rather than passing
 unexamined** — the audit tier (a recommendation the operator adjudicates), which is what makes the standard bite
 where silent posture did not, without dressing a recommendation as a hard gate.
 
@@ -75,18 +75,24 @@ committed v1 deliverable, such a pointer can always resolve.
 
 Because docs are hand-authored, they can drift as the engine changes — the failure derived output is immune
 to. Their defense is the [audits](../guardrails/audits.md) layer's **cold-context random-target
-probe**: an audit reads a randomly chosen doc as a cold consumer and asks whether it still tells the truth,
-still tells the operator how to *use* what it describes, **and still addresses the operator in the right
-register** — the operator-communication law's register edge, never condescending or talked-down. Structure and
-frontmatter are mechanically checked; truth, usefulness, **and register** are the audit's judgment, not a
+probe** — a sample, not a sweep: each audit run reads at least one randomly chosen **in-repo artifact**
+cold (a doc is one case, alongside a tool's operator-facing strings or code), so any given doc may go
+several cycles unread; drift defense accrues over time. When the pick is operator-facing prose, the probe
+asks whether it still tells the truth,
+still tells the operator how to *use* what it describes, and still meets **both edges** of the
+operator-communication law — the register edge (never condescending or talked-down) *and* the substance
+edge (clarity over jargon, no engineer-shorthand where a plainer word serves). Structure and
+frontmatter are mechanically checked; truth, usefulness, register, and clarity are the audit's judgment, not a
 check's — a doc that is accurate and usable but talks down is **flagged by the probe for remediation** (the audit
 recommends; the operator adjudicates).
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **For the operator, not the AI** — the AI orients from derived output; docs serve the human. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Plain language, always** — the operator-communication law governs every doc. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Engine corner, never the product's** — docs document the engine; the product's docs are the product's. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **A floor, never empty** — at least one orientation doc ships in v1, named and committed. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **For the operator, not the AI** — the AI orients from derived output; docs serve the human. | Operator observation: the surface's catalogued purpose binds it to the human reader, and the operator's own read at merge confirms a doc serves them; no check asserts the semantic property. | operator |
+| **Plain language, always** — the operator-communication law governs every doc. | Operator observation plus the sampled audit probe: the doc-shape check (hard, CI) asserts structure only and its own message disclaims judging whether content is clear or genuinely plain-language; the cold random-artifact probe reads register and clarity, one target a cycle, as a recommendation the operator adjudicates — advisory and sampled, never a merge gate. | operator |
+| **Engine corner, never the product's** — docs document the engine; the product's docs are the product's. | Operator observation at review that no engine doc lands in the product's tree; the catalog-coverage check (hard, CI) supports only the engine-corner half (the catalogued home exists where declared, at directory granularity) and asserts nothing about the product side of the wall. | operator |
+| **A floor, never empty** — at least one orientation doc ships in v1, named and committed. | Split: the committed-and-present half is held at the merge by the link-integrity check (hard, CI) — the root grounding floor's relative link to the orientation doc must resolve to a file that exists, so removing the doc blocks the merge. That the doc genuinely orients (its substance) is the operator's read — so the composite row stays with the operator, the check as named support for presence. | operator |

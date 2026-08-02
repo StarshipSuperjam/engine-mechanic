@@ -171,6 +171,14 @@ They are deliberately outside the [ontology](../grammar/ontology.md)'s surface c
 amend-the-grammar-first rule applies to engine surfaces, not to platform files whose shape GitHub
 already fixes.
 
+### Corner hygiene
+
+The engine's reserved namespace carries a standing hygiene warning, blessed by
+[decision 0325](../../../adr/0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md): a soft
+CI [check](../surfaces/check.md) flags any file present under the engine corner but untracked by
+git — the file-sync duplicate ("`something 2.py`") that would otherwise sit invisible beside the real
+surface — a warning surfaced for the operator, never a block.
+
 ### Two tiers: laws now, leaves later
 
 This doc fixes the partition and the laws (Tier 1). Each downstream system lays its own subtree
