@@ -4,7 +4,7 @@ status: draft
 
 # Operations
 
-*Ratified in the design workspace on 2026-05-25 by [decision 0055](../../../adr/0055-collapse-command-into-the-skill-surface-invocation-is-a-gove.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-05-25 by [decision 0055](../../../adr/0055-collapse-command-into-the-skill-surface-invocation-is-a-gove.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -37,7 +37,9 @@ with a product's own runbooks).
 ### What an operation is — and is not
 
 An operation is the home for a procedure that is **shared** (entered by two or more invokers — skills,
-operator-typed or model-auto, and agents) or that is a **human-in-the-loop runbook** (steps the operator must perform — e.g. authenticating
+operator-typed or model-auto, and, by design, agents; in the build as it stands every realized entry
+comes from a skill, the boot and hook flow, or another operation — no shipped agent enters one yet) or
+that is a **human-in-the-loop runbook** (steps the operator must perform — e.g. authenticating
 with an admin-scoped token — that no deterministic code can carry). It is deliberately *not*:
 
 - **`tool` code** — a procedure that executes deterministically with no reading-and-following is
@@ -55,15 +57,18 @@ with an admin-scoped token — that no deterministic code can carry). It is deli
 A procedure has exactly **one authoritative body**. When a skill or agent needs it, that surface
 **references** the operation — it never restates the steps. The reference is an ordinary link from the
 invoking surface to the operation; there is no central index of "who uses this operation" to maintain (a
-referencer points outward, so adding one mutates nothing here). This is what keeps an `/engine-upgrade`
-skill's `SKILL.md` thin while the deep, reviewed procedure lives in one place.
+referencer points outward, so adding one mutates nothing here). This is what keeps a deep verb like
+`/engine-recall` thin — its skill file delegates by link to the memory-recall operation, the reviewed
+procedure living in one place.
 
 ### The anti-sprawl heuristic
 
 The test for whether a procedure earns a standalone operation is **"is this only one skill's private
 depth?"** — if yes, it folds into that skill; if it is a genuinely shared body (≥2 referencers) or a
 human-in-loop runbook (which has no invoker count at all), it is legitimately an operation. This is a
-**judgment bar an [audit](../guardrails/audits.md) applies**, never a hard mechanical gate: a
+**judgment bar an [audit](../guardrails/audits.md) applies**, never a hard mechanical gate — and as
+built the audit's standing concern sweeps the **project-authored local operations** for this, the
+engine-shipped corpus being reviewed at authoring rather than by the concern: a
 single-referrer operation is *a fold-or-retire candidate*, preserved only with an affirmative case — so a real
 shared procedure anticipating a second referrer is never deleted out from under the design, and clutter does
 not silently accrete. *How* the audits layer reaches that judgment is the
@@ -73,14 +78,18 @@ not silently accrete. *How* the audits layer reaches that judgment is the
 
 The frontmatter is governed by a [schema](schemas.md) ([check](check.md) kind `schema`);
 section structure is the operation [template](../guardrails/templates.md)'s control and length is
-a `soft-warn` budget, never a hard cap. Semantic adequacy — does the runbook actually tell a cold operator
+a `soft-warn` budget, never a hard cap — though a specific operation may carry a recorded higher
+budget, and the shape rule guards that override mechanism itself at the hard tier so a granted
+budget can never silently go reasonless. Semantic adequacy — does the runbook actually tell a cold operator
 how to perform the procedure — is the [audits](../guardrails/audits.md) layer's job, not a
 mechanical check (how the audits layer probes for it is that surface's concern).
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Shared body, entered many ways** — the operation holds the steps; skills and agents hold the entry. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Runbook, not code or persona** — reading-and-following content, distinct from `tool` and `agent`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Anti-sprawl by judgment** — the ≥2-referencer / not-one-skill's-depth bar is an audit concern, so a genuinely shared procedure is never left homeless and clutter never accretes unexamined. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Shared body, entered many ways** — the operation holds the steps; skills and agents hold the entry. | Operator observation at review that an invoking skill or agent links to the operation rather than restating its steps; the link-integrity check (hard, CI) supports only the written-reference-resolves half, asserting nothing about shared bodies or invoker counts. | operator |
+| **Runbook, not code or persona** — reading-and-following content, distinct from `tool` and `agent`. | Operator observation of placement judgment, with the operation-shape and operation-frontmatter checks (both hard, CI) asserting the positive half — a prose runbook with the required Purpose, Steps, and Done-when structure and schema-valid frontmatter; neither asserts the negative (that the content is not code or a persona). | operator |
+| **Anti-sprawl by judgment** — the ≥2-referencer / not-one-skill's-depth bar is an audit concern, so a genuinely shared procedure is never left homeless and clutter never accretes unexamined. | Operator observation via the periodic audit's report: the standing single-referrer concern (scoped as built to project-authored local operations) carries the fresh per-run judgment; the audit-concern-list check (hard, CI) asserts only that the concern row is well-formed and reasoned, not that the judgment was exercised. | operator |
