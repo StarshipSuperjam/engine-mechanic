@@ -752,7 +752,7 @@ the recognizable engine seed, so a product's own LICENSE is structurally never t
 **Mitigation direction.** Recognize-and-clear at first run ([provisioning](../spec/systems/infrastructure/provisioning.md),
 definition-of-record) + a **sequencing gate** (build-owe — the clear ships with/before any committed template LICENSE,
 closing surface (a)) + the **first-run disclosure** (surfaces the removal in plain language so a leak that slipped through
-is visible, never silent). The recognizer (a build-spec leaf) is the conjunction above, conservative and preserve-on-doubt,
+is visible, never silent). The built recognizer realizes the conjunction above **strictly** — a whitespace-normalized full-seed-text match, its own code naming itself a stricter realization of the body-∧-anchor design — conservative and preserve-on-doubt,
 closing surface (b)'s clobber risk. **Residual — a repo generated before the clear shipped, or drifted back to the seed** still carries the foreign copyright
 (the clear fires only at first run): the remedy is **built at the pin** — the **foreign-`LICENSE`-seed detector**
 ([provisioning](../spec/systems/infrastructure/provisioning.md), [D-302](../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md)), a standing boot-invoked
