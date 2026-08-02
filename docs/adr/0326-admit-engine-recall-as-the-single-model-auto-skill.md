@@ -20,7 +20,8 @@ This extends, through its own carve-out, the roster claim of
 that pair's operative decision — flipping the *status verb* to `operator-typed` because a
 `model-auto` skill is absent from the operator's `/` menu at a cold session start — stands
 untouched, and its conclusion that v1 then shipped zero `model-auto` skills explicitly kept the
-value in the taxonomy "so a future need is additive." engine-recall is that anticipated additive
+value in the taxonomy — "the value survives in the taxonomy for a future module, exactly as
+`model-only` does." engine-recall is that anticipated additive
 arrival, and the cold-start premise does not bite here: recall is a mid-session push-to-consult
 (the same metacognition gap the memory scent addresses), not a verb the operator must reach at a
 cold start, so menu invisibility at the first message costs nothing. The build's own grammar
