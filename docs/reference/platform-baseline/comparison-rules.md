@@ -89,6 +89,11 @@ any other host is background at most — never a citation.
 - `developers.openai.com`, `platform.openai.com` — Codex and OpenAI API documentation
 - `openai.com` / `www.openai.com`, `help.openai.com` — announcements, product docs, model pages
 - `github.com/openai/*` (+ `raw.githubusercontent.com/openai/*`) — official repos, changelogs, SDK
+- `learn.chatgpt.com` — the live serving host for hosted Codex documentation (every
+  `developers.openai.com/codex/*` path permanently redirects here); added 2026-08-02 during the baseline
+  run's source mapping. Cite the stable `developers.openai.com` entrypoint where one exists.
+- `agents.md` — scoped: canonical home of the AGENTS.md standard only; added 2026-08-02.
+  (Declined the same day: `npmjs.com` — the allowlisted GitHub source is the canonical SDK evidence.)
 
 ## Evidence rules
 

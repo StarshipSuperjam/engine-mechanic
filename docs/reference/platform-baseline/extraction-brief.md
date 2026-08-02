@@ -60,8 +60,9 @@ is the one failure this audit cannot absorb.
 - **Allowlist.** Cite only: `docs.anthropic.com`, `docs.claude.com`, `code.claude.com`,
   `platform.claude.com`, `anthropic.com`/`www.anthropic.com`, `support.claude.com`, `support.anthropic.com`,
   `github.com/anthropics/*`, `developers.openai.com`, `platform.openai.com`,
-  `openai.com`/`www.openai.com`, `help.openai.com`, `github.com/openai/*`, and
-  `raw.githubusercontent.com/{anthropics,openai}/*`. A page elsewhere may inform your search but can never be
+  `openai.com`/`www.openai.com`, `help.openai.com`, `github.com/openai/*`,
+  `raw.githubusercontent.com/{anthropics,openai}/*`, `learn.chatgpt.com` (prefer citing the stable
+  `developers.openai.com` entrypoint where one exists), and `agents.md` (the AGENTS.md standard only). A page elsewhere may inform your search but can never be
   a `sources:` entry; if a genuinely canonical home sits outside this list, name it in your coverage note as
   a proposed addition — do not cite it.
 - **No judgment fields.** You never fill dispositions, engine use, enforcement, or any comparison — those
