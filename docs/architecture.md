@@ -44,7 +44,7 @@ graph TD
 The engine is consumed via GitHub's **"Use this template"** (generate a repo = copy the tree as a
 single initial commit), **not** `git clone`. The consequences are load-bearing:
 
-- Every **committed file** ships automatically — all of `.engine/`, `.claude/`, workflows, CODEOWNERS, PR/issue templates, docs, and the substrate *code* — including the Codex runtime's committed surface set (root `AGENTS.md`, `.codex/`, `.agents/skills/`, root `.mcp.json`), so both runtimes travel together.
+- Every **committed file** ships automatically — all of `.engine/`, `.claude/`, workflows, CODEOWNERS, PR/issue templates, docs, and the substrate *code* — the Claude adapter's committed surfaces (`.claude/`, root `CLAUDE.md`, root `.mcp.json`) and the Codex adapter's (root `AGENTS.md`, `.codex/`, `.agents/skills/`) alike, so both runtimes travel together (eADR-0034's split).
 - **Gitignored data and derivatives** correctly do not travel — a generated repo starts with empty experiential memory, a freshly derivable knowledge index, and an unmaterialized [tool-runtime](spec/systems/infrastructure/repository-topology.md) (`.engine/.venv/`, which `provisioning` re-materializes from the committed `.engine/pyproject.toml` + `.engine/uv.lock` that *do* ship — the same shape as the derivable knowledge index).
 - Only true repo **settings** (branch protection / rulesets, native secret/code scanning, private vulnerability reporting, secrets) do not travel; they require a one-time bootstrap that enables them where the repo's tier supports them and discloses the gap where it does not (see [control-plane](spec/systems/infrastructure/control-plane.md) and [provisioning](spec/systems/infrastructure/provisioning.md)).
 
@@ -677,7 +677,9 @@ sequenceDiagram
   judge *product* builds against a product spec; the v1 self-construction had no such referent, so
   build-conformance — not those lenses — covered it through v1. Post-v1 that same rigor is **re-homed**:
   the engine-mechanic builds through build-orchestration's owned-product arm, where the shipped
-  `spec-conformance`/`divergence-hunter` lenses run against the mechanic's own spec corpus
+  `spec-conformance`/`divergence-hunter` lenses activate **only against a `locked` spec row** — until the
+  mechanic's own spec corpus settles rows to `locked`, the pair is its disclosed no-op and the review
+  leans on the other installed passes and the merge gate
   ([build-orchestration](spec/systems/lifecycle/build-orchestration.md)).
 - The unbypassable wall is the **protected-branch merge** ([principles §6](principles.md)); the
   build-conformance review nudges, it does not force.

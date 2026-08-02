@@ -239,8 +239,9 @@ rather than manufacturing it, with the honest tier riding *in the artifact* the 
 only in a spoken merge line a walk-away operator may miss; and (b) the **post-audit-fix delta** — the
 highest-stakes line for a go/no-go, since the approved thing and the merged thing now differ — is
 rendered in **consequence-named plain language** ("*I fixed two things after the review and re-ran the
-tests, but did not put those fixes back through the review*"), the same consequence-named grammar the
-depth choice uses. Review's **review-judgment** part is the **one** stretch of the contract whose
+tests; I judged the repair small enough not to need a fresh review — that call is disclosed here for
+your read*", or "*…and gave the repair its own scoped re-check, which found nothing*"), the same
+consequence-named grammar the depth choice uses. Review's **review-judgment** part is the **one** stretch of the contract whose
 subject the operator cannot independently corroborate — unlike Validation, whose green checks the
 operator sees, or Risk, which describes the visible diff, it is a retrospective self-report of an
 invisible process — so that part's posture-truthfulness tier is **load-bearing in a way its siblings'

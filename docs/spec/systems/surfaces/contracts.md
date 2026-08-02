@@ -38,8 +38,10 @@ lets history stay append-only while specifications stay final-voice.
   canon** at the identifier level as its ids grow. This gives the
   [knowledge graph](../cognitive/knowledge.md) a citable entity per decision and lets
   supersession be a link between files.
-- **Append-only history.** A superseded contract is kept and linked from its successor, never
-  deleted. This is the explicit history exception to the deletion mandate ([principles §11](../../../principles.md)).
+- **Append-only history (the instance stream's discipline).** A deployment's superseded contract is kept
+  and linked from its successor, never deleted — the explicit history exception to the deletion mandate
+  ([principles §11](../../../principles.md)). The shipped canon supersedes nothing; it is revised in
+  place (see *The foundational canon* below).
 - **Lifecycle** is the `decision` vocabulary: `proposed → accepted → superseded`. There is **no
   `rejected` state** — a rejected alternative is recorded as an anti-choice inside the contract that
   prevailed. An abandoned proposal (never accepted, no history value) may be deleted while still

@@ -25,8 +25,9 @@ Three places where the carried documents contest the shipped build are **adopted
   seat as a distinct post-v1 stub beside the other two, per the module's governing transcript
   contract (its eADR-0038) and the wave-7 corpus
   ([memory-semantic-recall](../spec/modules/memory-semantic-recall.md)). The "experimental"
-  status word, absent from the build's `required`/`optional`/`default-on` vocabulary, is
-  retired with the seat.
+  status word — a defined enum value in the module schema that **no shipped module uses** — is
+  retired with the seat: the built module is `default-on`, genuinely offered and declinable,
+  not opt-in-unstable.
 - **The shipped eADR canon is revised in place, never superseded.** The carried
   [principles](../principles.md) §18 (leaning on §11) held the canon "append-only, changed by
   supersession, never edited in place." The build's governing law says otherwise for the shipped
