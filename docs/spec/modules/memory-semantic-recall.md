@@ -4,7 +4,7 @@ status: draft
 
 # memory-semantic-recall
 
-*Authored from engine-template@`cdbbc33` as built (2026-08-02) — written during the reconciliation under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), **not carried from the design workspace**: the module shipped unspecced, and its governing design record is the upstream transcript-first memory contract (its eADR-0038), which this document describes rather than re-derives. Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Authored from engine-template@`cdbbc33` as built (2026-08-02) — written during the reconciliation under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), **not carried from the design workspace**: the module shipped unspecced, and its governing design record is the upstream transcript-first memory contract (its eADR-0038), which this document describes rather than re-derives. Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
 
 ## Summary
 

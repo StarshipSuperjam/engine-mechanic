@@ -1,6 +1,6 @@
 # Deviations: prototype vs. original proposal
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees.*
 
 Where the prototype diverged from the original proposal, and the current verdict on each divergence.
 This is the traceability record that feeds the stepwise design decisions. A verdict here is settled

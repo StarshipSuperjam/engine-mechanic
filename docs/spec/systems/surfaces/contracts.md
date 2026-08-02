@@ -4,7 +4,7 @@ status: draft
 
 # Contracts
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the canon-model passages corrected (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-12 by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the canon-model passages corrected (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-12 by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
 
 ## Summary
 

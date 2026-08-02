@@ -4,7 +4,7 @@ status: draft
 
 # routine-mode
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
 
 ## Summary
 
