@@ -1,7 +1,10 @@
 # Risks and technical debt
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 Known risks to the design and their mitigations. A risk graduates to a decision (and leaves this
-register) once its mitigation is settled and recorded in `decision-log.md`.
+register) once its mitigation is settled and recorded in a decision record (under
+[`../adr/`](../adr/README.md)).
 
 ## R1 — Control-plane bootstrap is skipped
 
@@ -48,9 +51,9 @@ reversal, with operator-facing floors fixed in [memory](../spec/systems/cognitiv
 [D-081](../adr/0081-re-litigate-memory-ledger-write-integrity-law-reframe-usage.md) firms this further: a **ledger write-integrity law** (serialized atomic appends;
 line-resilient reads) protects the canonical store from torn or concurrent writes, and the restore floor
 states its bound honestly — automatic restore-offer needs the project repo present (its committed
-destination pointer), so a bare machine with nothing cloned first requires the repo. R2 now
-**closes when the export path is built** (a build / provisioning bootstrap-UX matter), no longer an open design
-gap. Tracked in [memory](../spec/systems/cognitive/memory.md) and
+destination pointer), so a bare machine with nothing cloned first requires the repo. R2's close condition —
+**the export path built** — is met at the pin (the backup-vault export/restore tools and the committed
+destination pointer ship, with the [D-264](../adr/0264-authorize-git-native-retention-for-the-pre-migration-memory.md) retained-snapshot logic); no design gap remains. Tracked in [memory](../spec/systems/cognitive/memory.md) and
 [provisioning](../spec/systems/infrastructure/provisioning.md). [D-264](../adr/0264-authorize-git-native-retention-for-the-pre-migration-memory.md) hardens the
 migration-reversal half: the pre-migration snapshot is a **distinct retained tag the routine backup never
 overwrites**, so a routine backup landing between an engine update and the operator's undo can no longer
@@ -68,7 +71,9 @@ from problems the engine only *reports*. Trust built on a false claim breaks lou
 validate); never claim autonomous correction. **Firmed** by [D-075](../adr/0075-lock-the-telemetry-system-guardrails-arc-head-the-triage-vol.md): telemetry is locked
 with the honest loop, and the triage-volume resolution explicitly rejects both autonomous state-alteration
 ("self-healing") and any volume cap that would have telemetry *judge* which signals matter — its only
-autonomous write stays open/update/auto-resolve of a deduped issue. Closes when the loop is built. Tracked
+autonomous write stays open/update/auto-resolve of a deduped issue. The loop is built at the pin
+(consume → dedup → promote → auto-resolve over engine-labelled issues, telemetry's sole autonomous write) —
+the close condition is met. Tracked
 in [telemetry](../spec/systems/guardrails/telemetry.md).
 
 ## R4 — Attention left as hardcoded constants
@@ -101,8 +106,9 @@ genuine shared-state edits). The
 [module-system](../spec/systems/grammar/module-system.md) design **firms** this mitigation — a closed seam
 vocabulary, engine-namespaced-identity keying, manifest-derived reversal, and a directly-callable coherence
 check, and the now-locked [provisioning](../spec/systems/infrastructure/provisioning.md)
-([D-077](../adr/0077-lock-the-provisioning-system-terminal-foundation-lock-the-bo.md)) specifies the appliers/reversers that apply and reverse it — but it does **not**
-close until they are built. Tracked in
+([D-077](../adr/0077-lock-the-provisioning-system-terminal-foundation-lock-the-bo.md)) specifies the appliers/reversers that apply and reverse it — and at the pin they
+**are built** (the wiring library's paired appliers/reversers, the module manager, and the directly-callable
+coherence check), so the built half of this close condition is met. Tracked in
 [module-system](../spec/systems/grammar/module-system.md), [hooks](../spec/systems/infrastructure/hooks.md),
 and [provisioning](../spec/systems/infrastructure/provisioning.md).
 
@@ -193,21 +199,23 @@ cold-start walk. Tracked in
 
 **Risk.** [product-design](../spec/modules/product-design.md) authors product-owned artifacts (the committed
 `docs/spec/` corpus, the arc42 doc, C4 diagrams, the ADR stream, the Diátaxis tree). The engine
-**mechanically validates the spec corpus's FORM** ([D-244](../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) but runs **no**
-[audits](../spec/systems/guardrails/audits.md) cold-context **quality** probe on any of them — so an arc42 doc
-or ADR the engine wrote, or a locked spec whose form still passes, can silently **drift from the product's
-current reality** as the product changes.
+**mechanically validates the spec corpus's FORM** ([D-244](../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)), and — where a
+`docs/spec/` is locked — the [audits](../spec/systems/guardrails/audits.md) cron runs the standing,
+report-only **conformance** sweep of the product against that frozen spec ([D-296](../adr/0296-litigate-engine-template-427-residual-three-l1-l2-l3-audits.md)); but no probe
+judges the artifacts' own **freshness** — so an arc42 doc or ADR the engine wrote, or a locked spec whose
+form still passes, can silently **drift from the product's current reality** as the product changes.
 **Severity.** Low — it degrades a product-side convenience, never the engine or the build path; product-doc
 freshness is the product's own responsibility under [asymmetric awareness](../principles.md).
 **Mitigation direction.** Stated honestly rather than papered over ([principles §7](../principles.md)), on a
-clean line — the engine validates product-artifact **form**, never **freshness or correctness**.
+clean line — the engine validates product-artifact **form**, and (per [D-296](../adr/0296-litigate-engine-template-427-residual-three-l1-l2-l3-audits.md)) the product's
+*conformance to* a locked spec, never the artifacts' **freshness or correctness against reality**.
 **Mechanical form-validation of the spec corpus is in scope**: read-only,
 [migration-discipline](../spec/modules/migration-discipline.md)-shaped checks that the spec is well-shaped
 ([D-244](../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)), wall-safe because they inspect a product-owned artifact and own nothing
 ([D-142](../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md): the removal test is *strengthened*). **Semantic freshness is unmonitored by the
-Engine by design** — extending engine **quality-audit** machinery (the cold-context "is this still right /
-has it gone stale" probe) onto product artifacts would breach the
-[engine/product wall](../spec/systems/infrastructure/repository-topology.md) and [§12](../principles.md). The
+Engine by design** — the [D-296](../adr/0296-litigate-engine-template-427-residual-three-l1-l2-l3-audits.md) sweep treats the locked artifact as ground truth (a wall-safe,
+read-only, report-only read of a product-owned artifact), and no engine probe asks whether the artifact
+*itself* has gone stale against the product's reality — that judgment stays the product's own. The
 Engine *contributes* an update when it next touches that area, as a contributor would, but does not own it. A
 related durability choice: product C4 defaults to stable mermaid `flowchart` form, not the experimental
 `C4Context` DSL, so a non-engineer's diagrams do not break on a renderer bump. Tracked in
@@ -434,7 +442,7 @@ single documented local step at the ungated seed rides R15's named, accepted res
 tool-runtime bootstrap is built and validated against live uv on the supported platforms. Tracked in
 [provisioning](../spec/systems/infrastructure/provisioning.md),
 [repository-topology](../spec/systems/infrastructure/repository-topology.md), and
-wbs/stage-0-harness.md; opened by [D-156](../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md).
+the stage-0 harness design (a retired planning-workspace document); opened by [D-156](../adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md).
 
 ## R19 — Operator-presentation is relay-posture: the AI is the sole pipe to the operator
 
@@ -672,8 +680,8 @@ generation is *source-deterministic* and the file is *fully* derived. Two failur
 Determinism drift** — a generator change introduces non-determinism (an unsorted glob / `os.walk`, set
 iteration, a locale / timestamp / float), so the same source tree yields differing bytes; the CI fingerprint
 gate then flaps red with no source change, reintroducing the very CI-red → `CONFLICTING` escalation §19 exists
-to remove. (One latent case exists today — `module_coherence.provides_claims()` does not sort its glob — though
-it does not currently reach committed bytes; tracked as a defense-in-depth build-owe.) **(b) Mis-classification**
+to remove. (The once-flagged latent case — an unsorted glob in `module_coherence.provides_claims()` — is
+closed at the pin: the glob is sorted, with an in-code note naming the defense-in-depth.) **(b) Mis-classification**
 — a future artifact that is *partly authored* (a catalog's governance fields, a run-dated audit digest) is
 wrongly treated as a class member, so regenerate-to-resolve **destroys authored content** on a real conflict.
 **Severity.** Low–moderate — bounded ([R6](risks.md)). (a) fails *loud* (a red gate, never a silent bad merge),
@@ -682,9 +690,10 @@ mode (silent content loss), but is structurally guarded: §19 defines membership
 fully-derived* property, and the [glossary](glossary.md) + [ontology](../spec/systems/grammar/ontology.md) name
 the catalog and the audit digest as instructive non-members.
 **Mitigation direction.** A **required** regenerate-twice round-trip determinism test
-([validation](../spec/systems/guardrails/validation.md) owns it) is the enforcing correlate of §19.1 — the
-build-owe that turns determinism from *exercised* (the fingerprint gate flaps) into *enforced*. The unsorted
-glob is sorted as defense-in-depth. Mis-classification is guarded by the property-based membership and the named
+([validation](../spec/systems/guardrails/validation.md) owns it) is the enforcing correlate of §19.1 — at the
+pin the round-trip is exercised by the self-map unit tests riding CI's test step, while a check-corpus rule
+owned by validation remains the open half of that build-owe. The unsorted
+glob is already sorted as defense-in-depth (closed at the pin). Mis-classification is guarded by the property-based membership and the named
 non-members; adding a member is a reviewed, audited authoring act, never an implicit add. The operator-facing
 **degradation** (a failed or flapping regeneration surfaced in plain language — "could not regenerate an
 internal index; not safe to merge") keeps a determinism break from stranding the operator behind an opaque red
@@ -744,9 +753,9 @@ the recognizable engine seed, so a product's own LICENSE is structurally never t
 **Mitigation direction.** Recognize-and-clear at first run ([provisioning](../spec/systems/infrastructure/provisioning.md),
 definition-of-record) + a **sequencing gate** (build-owe — the clear ships with/before any committed template LICENSE,
 closing surface (a)) + the **first-run disclosure** (surfaces the removal in plain language so a leak that slipped through
-is visible, never silent). The recognizer (a build-spec leaf) is the conjunction above, conservative and preserve-on-doubt,
+is visible, never silent). The built recognizer realizes the conjunction above **strictly** — a whitespace-normalized full-seed-text match, its own code naming itself a stricter realization of the body-∧-anchor design — conservative and preserve-on-doubt,
 closing surface (b)'s clobber risk. **Residual — a repo generated before the clear shipped, or drifted back to the seed** still carries the foreign copyright
-(the clear fires only at first run): the remedy is **designed** — the **foreign-`LICENSE`-seed detector**
+(the clear fires only at first run): the remedy is **built at the pin** — the **foreign-`LICENSE`-seed detector**
 ([provisioning](../spec/systems/infrastructure/provisioning.md), [D-302](../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md)), a standing boot-invoked
 **self-seed** detect-and-offer that fires on the engine's **own** historically-shipped seed (never on a guess about the
 operator's legal identity, which the engine does not hold) and, on consent, removes it through a **reviewed pull request
@@ -759,9 +768,11 @@ a re-consent in that window an empty-diff no-op. A plain decline collapses to a 
 **kept-on-purpose** acknowledgment retires it ([boot](../spec/systems/lifecycle/boot.md) intent-exit); a maintainer who
 *intends* adopters to inherit terms ships them as an explicit authored choice, never the silent default. Relates
 [R26](risks.md) (the cosmetic README sibling — no standing detector, [D-302](../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md) scoped this to LICENSE-only)
-and [R7](risks.md) (template drift / what travels). Closes when the first-run clear + the standing detector + the
-per-era/historical-seed recognizer + disclosure are built and the sequencing gate holds. Opened by
-[D-222](../adr/0222-resolve-the-d-221-first-run-license-clear-re-litigation-land.md); standing detector + Apache-anchor recognizer correction designed by [D-302](../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md).
+and [R7](risks.md) (template drift / what travels). The first-run clear, the standing detector, the
+per-era/historical-seed recognizer, and the disclosure are **built at the pin** (the boot-invoked license-health
+detector with its offline seed recognizer and open-removal-PR dedupe, and the instantiator's clear +
+disclosure); the sequencing-gate half remains the open condition this risk closes on. Opened by
+[D-222](../adr/0222-resolve-the-d-221-first-run-license-clear-re-litigation-land.md); standing detector + Apache-anchor recognizer correction designed by [D-302](../adr/0302-litigate-engine-template-471-design-the-standing-foreign-lic.md), landed as built.
 
 ## R30 — Operator-facing jargon/identifier leak in tool output is judgment-tier, not mechanically gated
 
@@ -867,18 +878,21 @@ Its home decision ([D-261](../adr/0261-establish-the-artifact-warrant-discipline
 **artifact warrant** as **design-side canon only** (the glossary term + matrix rule; the two genuine
 design-doc gaps closed in [module-system](../spec/systems/grammar/module-system.md) +
 [ontology](../spec/systems/grammar/ontology.md)). The **consumption-side surfacing** — the plain-language
-line riding the surfaces where the operator actually meets a result: the **boot** orientation, the
-**pull-request** body, and the **coherence- and coverage-check renderings** — is a build-owe. Until it
-lands, the operator meets green outputs without the bound at the moment of consent, so the over-trust
-this discipline guards against persists.
+line riding the surfaces where the operator actually meets a result — is **partly landed at the pin**: the
+**boot** orientation renders its proportionately-light warrant and the **coherence-check** rendering carries
+the adapted locked warrant, while the **pull-request body** still carries only the general green-check
+warrant and the **coverage-check rendering** no distinct artifact-warrant line. Where a surface still lacks
+its line, the operator meets green outputs without the bound at the moment of consent, so the over-trust
+this discipline guards against persists there.
 **Severity.** Medium. The mechanical checks are sound and the gap is disclosure, not correctness — but
 informed consent ([§17](../principles.md)) requires the bound be *visible where consent happens*, and the
 design-side text alone does not reach a walk-away operator. It falls to Low as the build-owes land and
 rises if they drift.
 **Mitigation direction.** The discipline is canon (the glossary *Artifact warrant* term + the
 change-propagation-matrix rule force it on every new generated artifact); the two design-doc gaps are
-closed. The named consumption surfaces (boot, PR, coherence/coverage check renderings) are
-**must-land** build-owes filed in `../engine-template`; warrant **accuracy** rides the per-PR
+closed. Of the named consumption surfaces, boot and the coherence rendering carry their warrants at the
+pin; the PR body's distinct artifact-warrant line and the coverage rendering remain
+**must-land** build-owes filed in the engine's home repository; warrant **accuracy** rides the per-PR
 build-conformance review and register/jargon drift the
 [audits](../spec/systems/guardrails/audits.md) prose-probe — no new check kind. Opened by
 [D-261](../adr/0261-establish-the-artifact-warrant-discipline-a-7-17-application.md).

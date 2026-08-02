@@ -1,5 +1,7 @@
 # Constraints
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 The hard limits every part of the design must respect. These are not negotiable within v1; they
 come from the platforms and the operator, not from our preferences.
 
@@ -18,6 +20,23 @@ come from the platforms and the operator, not from our preferences.
 - **Autonomous/scheduled runs cannot ask clarifying questions.** Routine-mode prompts must carry explicit success conditions and finding-routing.
 - **Subagents and plan mode** are first-class: exploration and research can run without touching disk.
 - **Claude Desktop auto-isolates each interactive session in its own git worktree.** A new session opens in `<repo>/.claude/worktrees/<name>` on a generated branch, leaving the operator's top-level checkout untouched; new worktrees branch from `origin/HEAD` when the remote is reachable (falling back to local `HEAD` offline). This is **per-entry-point and version-contingent**: **Local Desktop scheduled tasks do *not* auto-isolate by default** (they run in the working directory unless the operator enables a per-task worktree toggle), and a manually `cd`-entered worktree can resolve `.claude/settings.json` from the wrong root so engine hooks may not fire there — whereas an auto-isolated session loads its committed `.claude/` normally (hooks fire). The engine **relies on this native isolation** for the operator-checkout boundary ([build-orchestration](../spec/systems/lifecycle/build-orchestration.md), [provisioning](../spec/systems/infrastructure/provisioning.md)) rather than a bespoke guard, held with the same don't-depend posture as the items above — a default, not a guarantee, with the never-strand-main floor and the stranded-checkout detector covering the residual.
+
+## Codex (the second runtime)
+
+- **Codex skips new or changed hooks until the operator re-approves them.** Codex records trust
+  against each hook's registration; after any engine update that changed a hook, the changed hooks
+  stay **off** until the operator re-trusts them (`/hooks` in Codex). The engine's response is
+  disclosure at the moment of change — the wiring library attaches a plain-language re-trust notice
+  to every Codex hook edit (eADR-0034) — and the unattended routine entry treats hooks-off as a
+  safety refusal: no briefing evidence means do not write, report, and stop.
+- **The unattended approval posture is the operator's setup, not the engine's.** A Codex Automation
+  proceeds without prompts only under the approval posture the operator configured; if that posture
+  is unavailable to a run, the run reports plainly and stops. Whether a Codex Automation provides
+  single-flight (skip-while-running) is **not verified from inside the engine** — overlapping fires
+  are bounded by the no-merge wall, not a lease.
+- **The session-id flag may be absent.** Engine entry points resolve the session identity themselves
+  when the environment flag is missing, as on Codex — no procedure may assume the Claude-style
+  session variable exists.
 
 ## GitHub
 

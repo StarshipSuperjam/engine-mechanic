@@ -1,5 +1,7 @@
 # Goals and quality attributes
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 This document is the **rubric**. Every design decision and every deviation verdict cites a quality
 attribute here. When two options compete, the one that better serves these attributes wins; when an
 addition serves none of them, it is scope creep.

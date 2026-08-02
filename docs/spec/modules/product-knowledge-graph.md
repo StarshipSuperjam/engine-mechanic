@@ -30,8 +30,11 @@ retrieval [interface](../systems/surfaces/interfaces.md) (as the engine graph do
 dense-graph hub-explosion concern ([R8](../../reference/risks.md)) is **deferred behind the same swappable representation
 seam** at product scale. It respects the [§13](../../principles.md) engine/product wall: it **reads** the
 product's artifacts and never edits them, and its derived index is an engine-owned, gitignored artifact — it
-imposes no committed engine files on the product. Distinct from the experimental [engine-knowledge-graph](engine-knowledge-graph.md),
-which is semantic recall over the memory ledger, not a structural product map. ([D-105](../../adr/0105-hold-a-post-v1-product-knowledge-graph-module-stub-product-s.md).)
+imposes no committed engine files on the product. Distinct from the [engine-knowledge-graph](engine-knowledge-graph.md)
+stub — the deferred graph-representation layer over the engine's memory ledger
+([decision 0330](../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md)), not a structural
+product map — and from the shipped find-by-meaning module,
+[memory-semantic-recall](memory-semantic-recall.md). ([D-105](../../adr/0105-hold-a-post-v1-product-knowledge-graph-module-stub-product-s.md).)
 
 ## Behavior
 
@@ -60,5 +63,5 @@ which is semantic recall over the memory ledger, not a structural product map. (
   seam, memory — re-derived in the design session); operator-facing vs. hidden engine-infra (likely the
   latter, like [engine-knowledge-graph](engine-knowledge-graph.md)) is decided at promotion.
 
-See [engine-architecture.md](../../architecture.md) for its catalogued role and the
+See [the architecture overview](../../architecture.md) for its catalogued role and the
 [module catalog](../../reference/module-catalog.md) for its place in the packaging view.

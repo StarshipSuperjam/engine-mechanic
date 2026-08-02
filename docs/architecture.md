@@ -1,5 +1,7 @@
 # Architecture
 
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); the runtime walkthroughs carry the rulings recorded in decisions [0321](adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md), [0322](adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), [0327](adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md), and [0330](adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees. Until the [product spec index](spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+
 This is the master document. It describes the complete end-state of engine-template v1 and links
 every system, scenario, and module that realizes it. Read `goals-and-quality.md` for the rubric
 this design is judged against, `constraints.md` for the hard limits it respects, and `principles.md`
@@ -42,7 +44,7 @@ graph TD
 The engine is consumed via GitHub's **"Use this template"** (generate a repo = copy the tree as a
 single initial commit), **not** `git clone`. The consequences are load-bearing:
 
-- Every **committed file** ships automatically — all of `.engine/`, `.claude/`, workflows, CODEOWNERS, PR/issue templates, docs, and the substrate *code*.
+- Every **committed file** ships automatically — all of `.engine/`, `.claude/`, workflows, CODEOWNERS, PR/issue templates, docs, and the substrate *code* — the Claude adapter's committed surfaces (`.claude/`, root `CLAUDE.md`, root `.mcp.json`) and the Codex adapter's (root `AGENTS.md`, `.codex/`, `.agents/skills/`) alike, so both runtimes travel together (eADR-0034's split).
 - **Gitignored data and derivatives** correctly do not travel — a generated repo starts with empty experiential memory, a freshly derivable knowledge index, and an unmaterialized [tool-runtime](spec/systems/infrastructure/repository-topology.md) (`.engine/.venv/`, which `provisioning` re-materializes from the committed `.engine/pyproject.toml` + `.engine/uv.lock` that *do* ship — the same shape as the derivable knowledge index).
 - Only true repo **settings** (branch protection / rulesets, native secret/code scanning, private vulnerability reporting, secrets) do not travel; they require a one-time bootstrap that enables them where the repo's tier supports them and discloses the gap where it does not (see [control-plane](spec/systems/infrastructure/control-plane.md) and [provisioning](spec/systems/infrastructure/provisioning.md)).
 
@@ -84,10 +86,15 @@ substantive close-model change in build-orchestration (the merge wall moves to t
 
 ## The main parts
 
-### The eleven foundations (non-modular)
+### The eleven foundations (required from layer one)
 
-These cannot be bolted on later without a refactor; they are present from layer one. Everything
-else is a module on top. This is a microkernel-*inspired* shape — a small trusted core plus optional
+These cannot be bolted on later without a refactor; they are present from layer one, delivered as
+`required` packages — most riding `core`'s provides, with the memory and validation foundations as their
+own required modules (`memory-substrate-sqlite-fts5`, `validators-core`). Everything else is a module on
+top — including two required *non-foundation* modules that ship in every repo but are deliberately not
+counted among the foundations ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)): the routine stance
+(`routine-mode`) and self-checkups (`audit-library`, which delivers the
+[audits](spec/systems/guardrails/audits.md) guardrail rung). This is a microkernel-*inspired* shape — a small trusted core plus optional
 extensions — but the containment that keeps one extension's failure from spreading is earned by the
 wiring discipline at the shared seams, not granted by the shape (see [principles §12](principles.md));
 the core stays minimal precisely because a defect in it reaches every generated project.
@@ -130,7 +137,7 @@ runtime narration. See `risks.md` and the relevant system docs.
 The engine does not let a cold AI invent structure on the fly. Two systems define the grammar:
 
 - **[Ontology](spec/systems/grammar/ontology.md)** — the meta-contract and authoring-grammar spine. It names every surface in a single schema-governed catalog and fixes the laws that shape everything authored: amend-first, the four-tier authority order, the three orthogonal axes (authority, enforcement, escalation), and the two lifecycle vocabularies. Surfaces attach to the catalog additively; the laws stay fixed.
-- **[Module system](spec/systems/grammar/module-system.md)** — the composability layer: a manifest grammar where every artifact declares the files it *provides* and the *wiring* it requires (hook registration, MCP servers, ontology entries, permissions, gitignore lines — a closed seam vocabulary), plus a semver dependency graph. Check-suite membership is *not* wiring — it is derived from the check files a module provides. This is what lets a module install mechanically instead of by surgery.
+- **[Module system](spec/systems/grammar/module-system.md)** — the composability layer: a manifest grammar where every artifact declares the files it *provides* and the *wiring* it requires (hook registration, MCP servers, ontology entries, permissions, gitignore lines, and the Codex runtime's hook/MCP siblings — a closed seven-kind seam vocabulary), plus a semver dependency graph. Check-suite membership is *not* wiring — it is derived from the check files a module provides. This is what lets a module install mechanically instead of by surgery.
 
 ### Building-block view
 
@@ -173,11 +180,11 @@ The [conduct](spec/systems/surfaces/conduct.md) surface likewise ships **non-emp
 
 ### Modules and the build order
 
-The composable capability bundles, their wiring, dependencies, and status are catalogued in
-[modules/README.md](reference/module-catalog.md). Because modules declare a semver dependency graph, the
-build sequence is the **topological sort of that graph**, authored in the
-WBS module build-order (which follows the hand-built
-stage-0 harness). A single milestone turns the sort into a plan: **M1, the
+The composable capability bundles — **thirteen at the pin** — with their wiring, dependencies, and status
+are catalogued in the [module catalog](reference/module-catalog.md). Because modules declare a semver
+dependency graph, the construction sequence was the **topological sort of that graph**, authored in the
+retired planning workspace's module build-order (which followed the hand-built
+stage-0 harness). A single milestone turned the sort into a plan: **M1, the
 self-construction crossover** ([D-101](adr/0101-pin-the-stage-0-self-construction-threshold-to-a-concrete-mo.md), [D-107](adr/0107-author-the-wbs-module-build-order-the-builder-crossover-reso.md)) — the point at which the
 partially-built engine (topology + `core` + `validators-core` + the memory floor + the control-plane
 bootstrap) takes over its own construction. The nascent engine builds the rest of v1 **in-repo**; the
@@ -198,15 +205,19 @@ one matrix: build-orchestration's per-merge gate, and a **standing, report-only 
 after merge — so the guardrail rung, not only the design→build→QA axis, carries the floor's standing half.
 
 The optional-module roster is resolved ([D-068](adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)): four prototype bundles were cut and two
-kept as `optional` Software Configuration Management modules (`dependency-discipline`, `migration-discipline`).
-The operator-facing **packaging model** ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)) presents only the opt-out-able optional
-packages, grouped under three recognized SDLC discipline categories — **Product Management, Software
+kept as `optional` Software Configuration Management modules (`dependency-discipline`, `migration-discipline`),
+joined in the built set by `external-contribution`, `github-projects-sync`, and the `default-on`
+find-by-meaning layer `memory-semantic-recall`.
+The operator-facing **packaging model** ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)) presents only the declinable
+packages — the seven opt-out-able optionals plus the one `default-on` module, an eight-entry menu — grouped
+under three recognized SDLC discipline categories: **Product Management, Software
 Configuration Management, Verification & Validation**; the required spine (the core packages, plus the
 routine stance and self-checkups) is never an install choice and is disclosed in the project README.
 
 ## How it behaves at runtime
 
-Each flow below is carried from the design workspace's own runtime walkthroughs.
+Each flow below was carried from the design workspace's own runtime walkthroughs and is reconciled to
+the build as ruled.
 
 ### Operating modes
 
@@ -214,7 +225,7 @@ Three enforced stances, with Explore as the grounded boot default — see [modes
 
 - **Explore** (default) — interactive; reads, reasons, logs Issues. Engine/product writes and PR creation are gated off by a `PreToolUse` block (a strong local default, not an absolute wall).
 - **Build** — interactive, accountable work as the [build orchestration](spec/systems/lifecycle/build-orchestration.md): a draft PR is the claim; close = the PR submitted for human review.
-- **Routine** — unattended, scope-locked execution of a build's implement phase on Local Desktop routines.
+- **Routine** — unattended, scope-locked execution of a build's implement phase, fired by a scheduled automation on either runtime (a Claude Desktop routine, or a Codex Automation).
 
 Every session boots grounded ([boot](spec/systems/lifecycle/boot.md) runs at every session start over a hook-independent `CLAUDE.md` floor) and in Explore; leaving Explore is a deliberate human act.
 
@@ -270,9 +281,12 @@ sequenceDiagram
 The operator says *what* they want built, and the [product-design](spec/modules/product-design.md)
 module turns it into a **committed, structured, validated spec corpus** with acceptance criteria, then
 decomposes the `locked` spec into a legible build-plan and ordinary work Issues — the front half of the
-design → build → QA axis. This runs in Explore (it reads, reasons, authors committed files, and logs
-Issues); starting a build from a work Issue is the deliberate act that later enters [Build](architecture.md#build-session-lifecycle)
-— by the operator-typed verb, or by accepting the build's plan ([D-179](adr/0179-augment-interactive-build-entry-with-plan-acceptance-correct.md)).
+design → build → QA axis. The verb opens in Explore — it reads, reasons, elicits, and **proposes**; the
+**committed authoring lands in Build, entered through the operator's plan acceptance**
+([decision 0327](adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)) — the same
+door every other committed write uses ([D-179](adr/0179-augment-interactive-build-entry-with-plan-acceptance-correct.md)'s plan-acceptance entry, with the
+Explore write-gate kept whole). Starting an *implementation* build from a work Issue is a later
+deliberate act — by the operator-typed verb, or by accepting that build's plan.
 
 ```mermaid
 sequenceDiagram
@@ -284,6 +298,7 @@ sequenceDiagram
     CC->>CC: pre-check gh; persist typed intent (nothing lost)
     CC->>NE: propose the stub map — "do these look like the right pieces?"
     CC->>NE: depth choice (short vs full spec), consequence named
+    NE->>CC: accept the authoring plan → enters Build (plan acceptance)
     CC->>FS: author spec doc(s) from the scaffold; criteria as a checkable table
     CC->>CC: validation runs (form checks); plain-language readout, its bound stated
     CC->>NE: criteria-quality verdict ("checkable" vs "too vague — what's missing")
@@ -334,7 +349,7 @@ sequenceDiagram
     participant GH as GitHub
     NE->>CC: "build this"
     CC->>CC: boot pack (grounded); leave Explore
-    CC->>GH: open draft PR (the claim) + plan the commit sequence (into the build Issue)
+    CC->>GH: open draft PR (the claim) + plan the commit sequence (written to the build Issue where the work warrants it)
     CC->>NE: risk assessment + suggested depth → approve plan & depth
     CC->>SUB: plan-review lenses, at the approved depth, before any implementation
     SUB-->>CC: findings → synthesize one call; re-engage NE if material (always if blocking)
@@ -350,12 +365,15 @@ sequenceDiagram
   enters Build — no extra verb — and the same announced kickoff (draft PR + plan) follows
   ([modes](spec/systems/lifecycle/modes.md), [D-179](adr/0179-augment-interactive-build-entry-with-plan-acceptance-correct.md)); a rejected plan stays in
   Explore.
-- **Two surfaces:** the **draft PR is the claim** (the change surface); the **build Issue** carries the
-  forward plan (the commit sequence as an ordered checklist) — there is no separate claim artifact,
+- **Two surfaces:** the **draft PR is the claim** (the change surface); the **build Issue** is the
+  forward plan's home where one is written — the checklist is **proportionate** (required for
+  routine-distributed work, offered for an interactive multi-commit build, otherwise held in-session,
+  and skipped on the fast path) — and there is no separate claim artifact,
   slot, or active-session record. Findings from each gate are dispositioned (fix / log an Issue /
   escalate) before advancing ([policies](spec/systems/surfaces/policies.md)).
 - **The plan gate is two beats:** a risk-assessment **consent before the spend** (a plain-language
-  headline + a consequence-named depth choice + a cost estimate, operator-gated), then the lenses run
+  headline + what will run + a consequence-named depth choice, operator-gated — **never a cost or time
+  figure**, which the engine cannot know; [decision 0321](adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md)), then the lenses run
   and the orchestrator **synthesizes** their findings into one recommended call **after** — re-engaging
   the operator on material findings and *always* on an unresolved blocking finding. A trivial change
   collapses to the [fast path](spec/systems/lifecycle/build-orchestration.md) (no checklist, no
@@ -369,7 +387,9 @@ sequenceDiagram
   ([build-orchestration](spec/systems/lifecycle/build-orchestration.md)).
 - **Validate before the expensive review.** A green mechanical baseline is the precondition to the
   pre-submission lenses; validation reruns on every change, but the cold audits run once at the agreed
-  depth and don't rerun on fixes unless the operator asks (the Review record states that delta).
+  depth and do not blanket-rerun on fixes — the orchestrator measures the post-review divergence and
+  makes a **proportional re-audit judgment**, re-invoking the passes that fit the repair, scoped to the
+  post-review diff, when warranted (the Review record states that delta).
 - **The lens roster is the design → build → QA axis.** Each gate runs its v1 lens suite
   ([design-review](spec/modules/design-review.md) quartet / [qa-review](spec/modules/qa-review.md) quintet);
   when the building Issue carries a [product-design](spec/modules/product-design.md) spec, the
@@ -386,7 +406,7 @@ sequenceDiagram
 
 ### Routine session
 
-An unattended, scope-locked Local Desktop run that advances a batch of **decomposable bulk work** (e.g.
+An unattended, scope-locked scheduled run that advances a batch of **decomposable bulk work** (e.g.
 populating a store with thousands of nodes) while the operator is away — the time-distributed
 [implement phase](spec/systems/lifecycle/build-orchestration.md) of a build whose PR an
 interactive Plan session opened and an interactive Finalize session will close. Decomposability is a
@@ -394,10 +414,10 @@ Plan-time judgment; tightly-coupled work stays in interactive Build.
 
 ```mermaid
 sequenceDiagram
-    participant SCH as Local Desktop routine
-    participant CC as Claude Code (non-interactive)
+    participant SCH as Scheduled automation (Desktop routine or Codex Automation)
+    participant CC as AI session (non-interactive)
     participant GH as GitHub (open PR + build Issue)
-    SCH->>CC: fire — Instructions invoke /engine-routine (scheduler skips if a run is in progress)
+    SCH->>CC: fire — Instructions invoke the routine command (/engine-routine or $engine-routine)
     CC->>GH: boot; read git + the build Issue checklist — next planned chunk + its scope?
     alt nothing eligible
         CC-->>SCH: exit cleanly ("nothing to do")
@@ -410,18 +430,22 @@ sequenceDiagram
     end
 ```
 
-- **Entry is `/engine-routine`** — the operator embeds this engine-prefixed command in the routine's
-  Instructions; firing invokes it via the slash-command parser path (not model self-election), entering
-  the routine procedure. A **misfire is operator-visible**: a fire that finds no valid target where one
+- **Entry is the routine command** — `/engine-routine` on Claude Code, or its generated Codex mirror
+  `$engine-routine` (carrying the same no-self-invocation flag) — the operator embeds the engine-prefixed
+  command in the automation's Instructions; firing invokes it via the command-parser path (not model
+  self-election), entering the routine procedure. A **misfire is operator-visible**: a fire that finds no valid target where one
   was expected leaves a durable Issue (not a silent exit), and the routine echoes the build Issue it
   locked onto on its first fire — so a forgotten command or mis-aimed target surfaces rather than idling.
-- v1 runs on **Local Desktop routines** (explicitly *not* the cloud Routines product) — subscription-
-  billed, the operator's own git identity (the solo [identity model](spec/systems/infrastructure/control-plane.md)),
-  the machine kept awake (a Desktop routine does not fire while the machine sleeps). The operator
-  configures and starts it in Claude Desktop; an AI session cannot stand one up alone. Because a scheduled
-  run does **not** auto-isolate into a worktree by default, the `/engine-routine` setup has the operator
+- The scheduling substrate is **operator-owned on either runtime**: a **Local Desktop routine**
+  (explicitly *not* the cloud Routines product — subscription-billed, the operator's own git identity per
+  the solo [identity model](spec/systems/infrastructure/control-plane.md), the machine kept awake, since a
+  Desktop routine does not fire while the machine sleeps) or a **Codex Automation**. The operator
+  configures and starts it; an AI session cannot stand one up alone. Because a scheduled
+  run does **not** auto-isolate into a worktree by default, the routine setup has the operator
   enable the per-task **worktree toggle** so each run isolates from the operator checkout rather than
-  committing in it ([build-orchestration](spec/systems/lifecycle/build-orchestration.md)).
+  committing in it — and the entry itself grants the write stance only on positive proof of worktree
+  isolation ([decision 0322](adr/0322-ratify-set-routine-as-the-routine-entry-actor.md),
+  [build-orchestration](spec/systems/lifecycle/build-orchestration.md)).
 - The **durable plan and the scope-lock both live in the build Issue** — the ordered commit-sequence
   checklist and the planned chunks' permitted write-scope — so a cold routine session reads what to do
   next and what it may touch. This is bounded by GitHub availability (offline ⇒ no plan ⇒ the run does
@@ -431,8 +455,11 @@ sequenceDiagram
   stalling on a permission prompt. An out-of-scope observation is filed as an Issue and the run
   continues; a genuine blocker files an Issue and **halts that task**, leaving a plain-language status
   that names the concrete next step ("answer Issue #N, then re-run the routine").
-- **Single-flight** is the **Desktop scheduler's skip-a-run-while-one-is-in-progress** behavior (the
-  local counterpart to the control-plane single-flight law for Actions-hosted scheduled work). Routine
+- **Single-flight** is the **scheduler's skip-a-run-while-one-is-in-progress** behavior *where the
+  scheduler provides it* — the Claude Desktop routine does; whether a Codex Automation does is not
+  verified from inside the engine, so two overlapping fires are possible there, bounded by the no-merge
+  wall and the Finalize review rather than a lease (the local counterpart to the control-plane
+  single-flight law for Actions-hosted scheduled work). Routine
   **accumulates commits on one open PR and never closes or merges it**; the interactive Finalize
   session confirms the green baseline, runs pre-submission review, and submits for human review
   ([build orchestration](spec/systems/lifecycle/build-orchestration.md)).
@@ -450,10 +477,10 @@ sequenceDiagram
     participant WL as Wiring library
     participant VAL as Validation
     NE->>MM: add module X
-    MM->>MM: resolve dependency closure (semver)
+    MM->>MM: verify dependencies present, in range (semver) — refuse cleanly otherwise
     MM->>MM: copy provided files (check rules self-declare their suites)
-    MM->>WL: apply wiring (hooks, MCP, ontology, permissions)
-    MM->>VAL: coherence check (installed ↔ settings ↔ MCP ↔ suites ↔ ontology)
+    MM->>WL: apply wiring (the seven-kind seam)
+    MM->>VAL: coherence check (dependency · ownership · wiring forward/reverse · block-budget)
     VAL-->>NE: green, or loud failure on drift
 ```
 
@@ -482,7 +509,7 @@ sequenceDiagram
     MM->>WL: overlay engine paths — code replaced (incl. pyproject + uv.lock), config + data preserved; apply/reverse wiring deltas
     MM->>MM: re-sync tool-runtime — uv sync rebuilds .engine/.venv/ from the new uv.lock (group-scoped), before migrations run in it
     MM->>MM: snapshot affected gitignored stores, then run migrations current → target, in dependency order
-    MM->>VAL: coherence check (files ↔ settings ↔ MCP ↔ suites ↔ ontology)
+    MM->>VAL: coherence check (dependency · ownership · wiring forward/reverse · block-budget)
     MM->>CP: open a pull request (required checks)
     CP-->>NE: green checks; merge is informed consent
 ```
@@ -538,8 +565,11 @@ sequenceDiagram
   [audits](spec/systems/guardrails/audits.md) judgment rung feeds the same loop through the same two
   lanes — **local retire/reconcile** for accumulated local cruft, **escalate-upstream** for a machinery bug
   ([D-076](adr/0076-lock-the-audits-system-re-founded-for-the-deployed-repo-hygi.md)).
-- **Auto-resolve closes the issue** when the originating signal has been absent for a set number of
-  observations; it retires the flag, it does not repair anything.
+- **Auto-resolve closes the issue** — for a signal read live from its source, only on a **pass observed
+  on that same source**, never mere absence; for a signal accrued from ambient caches, once it has been
+  **absent for a set number of observations**; and a source the resolving pass did not observe at all is
+  carried forward untouched rather than closed
+  ([telemetry](spec/systems/guardrails/telemetry.md)). It retires the flag, it does not repair anything.
 - The loop closes across sessions — never claim it heals while the operator sleeps.
 
 ### Contributing to an external repo
@@ -605,9 +635,9 @@ sequenceDiagram
     participant CC as Claude Code (orchestrator)
     participant SUB as Cold-context lenses
     participant GH as GitHub (protected main)
-    NE->>CC: build the next WBS step
+    NE->>CC: build the next step of the construction order (the retired planning workspace's WBS)
     CC->>CC: re-ground from merged disk; plan one small PR
-    CC->>GH: open PR; seed validator / validators-core runs (mechanical green)
+    CC->>GH: open PR; the stage-0 seed validator (superseded at M1) / validators-core runs (mechanical green)
     CC->>SUB: build-conformance review — conformance + adversarial divergence-hunter (cold)
     SUB-->>CC: divergences (structural + semantic)
     CC->>CC: ground-truth each against the code; re-adjudicate a high-confirm lens
@@ -643,10 +673,14 @@ sequenceDiagram
   exhaustive operator-runnable seed checklist + native-protection minimization + maximal cold review
   (stage-0 §2) — but with no engineer, a behavioral proof cannot fully
   confirm a gate is bound and unbypassable ([R15](reference/risks.md)). It is accepted knowingly, not hidden.
-- **The engine's own product lenses do not cover this.** `design-review`/`qa-review`, once built, judge
-  *product* builds against a product spec; engine self-construction has no such referent, so
-  build-conformance — not those lenses — covers it through all of v1
-  ([build-orchestration](spec/systems/lifecycle/build-orchestration.md) §7).
+- **The engine's own product lenses did not cover this during construction.** `design-review`/`qa-review`
+  judge *product* builds against a product spec; the v1 self-construction had no such referent, so
+  build-conformance — not those lenses — covered it through v1. Post-v1 that same rigor is **re-homed**:
+  the engine-mechanic builds through build-orchestration's owned-product arm, where the shipped
+  `spec-conformance`/`divergence-hunter` lenses activate **only against a `locked` spec row** — until the
+  mechanic's own spec corpus settles rows to `locked`, the pair is its disclosed no-op and the review
+  leans on the other installed passes and the merge gate
+  ([build-orchestration](spec/systems/lifecycle/build-orchestration.md)).
 - The unbypassable wall is the **protected-branch merge** ([principles §6](principles.md)); the
   build-conformance review nudges, it does not force.
 
@@ -655,6 +689,6 @@ sequenceDiagram
 The choices behind this architecture are recorded individually under `adr/`, one file per decision, each naming what was decided, why, and what was ruled out. The load-bearing ones:
 
 - **A specified-then-layered build, not an incremental cleanup of the prototype.** (decision 0001)
-- **A fixed documentation discipline for the design itself** — a single decision log, final-voice documents, and a deletion mandate. (decision 0004)
+- **A fixed documentation discipline for the design itself** — one decision record per choice (originally the design workspace's single append-only log, carried here as the file-per-decision `adr/` corpus), final-voice documents, and a deletion mandate. (decision 0004)
 - **Anything that can be a committed file is one**, so the engine travels, diffs and reviews as files rather than settings. (see `principles.md`)
 - **Three enforcement tiers, named honestly**, with the protected-branch merge as the only unbypassable wall. (see `principles.md`)
