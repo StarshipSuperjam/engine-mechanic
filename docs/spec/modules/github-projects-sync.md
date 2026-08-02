@@ -4,7 +4,7 @@ status: draft
 
 # github-projects-sync
 
-*Ratified in the design workspace on 2026-07-16 by [decision 0318](../../adr/0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the What's-next board field adopted by [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md) and the two-count description ruled by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-07-16 by [decision 0318](../../adr/0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -45,11 +45,17 @@ part GitHub cannot know:
    *verifies* the result by reading the workflow's `enabled` state. This native layer is the engine
    acting as a contributor over a native substrate ([D-038](../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)).
 2. **A thin engine layer projects the engine-specific signal** native automation cannot see. The
-   projected-signal set is fixed here, not deferred: the committed **state cursor** (where the work is),
-   **attention** prioritization/ordering (**ranked work** — the in-flight work and open engine-labeled
-   debt attention orders; *not* "what's next", which is the plan's to answer and is no part of this
-   projection, [D-314](../../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md)), the **debt count** (open engine-labeled
-   issues), and a **"last synced" freshness stamp** (the staleness marker below). It is shipped as a
+   projected-signal set is fixed here, not deferred — **five engine-owned fields** as built: the committed
+   **state cursor** (where the work is — *what's being built*); **attention** prioritization/ordering
+   (**ranked work** — the in-flight work and open engine-labeled debt attention orders); the ranking's
+   genuine **top line projected under its own *What's next* field** — adopted by
+   [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md),
+   which supersedes this document's earlier ban on that label (the ban's premise was a "what's next" the
+   engine never computes; the attention ranking is that computation, and the field projects its real top
+   line, never an invented verdict); **two debt-derived figures** — *needs your review*, fed by the **live**
+   open engine-labeled issue count, and *known issues*, fed by the **committed cursor's cached count**
+   (the sources differ, and the disclosure below owns what that means); and a **"last synced" freshness
+   stamp** (the staleness marker below). It is shipped as a
    sync [tool](../systems/surfaces/tools.md) (engine code under `.engine/tools/`) that reads
    those committed/native sources and writes the board's **engine-owned custom fields** through the
    operator's local `gh`/GraphQL — strictly **read-the-repo / write-the-board**, resolving field- and
@@ -76,8 +82,18 @@ position** — is **never overwritten**: that gesture survives and is governed b
 the operator. The engine's own fields are **read-only on the board view where the Projects UI/API
 permits**, and where they cannot be locked, a divergence is **surfaced in plain language, never silently
 reverted**. The honest, narrow statement the operator is given is: *the engine keeps only its own
-"what's being built / ranked work / known issues / last synced" fields in step with the real record;
-your Status, your card moves, and your own board text are yours.*
+"what's being built / what's next / ranked work / needs your review / known issues / last synced" fields
+in step with the real record; your Status, your card moves, and your own board text are yours.*
+
+**One disclosed defect in the two debt figures, kept as intent.** Because *needs your review* reads the
+live issue count while *known issues* reads the committed cursor's cache — a cursor that advances only on
+explicit refresh, whose own reader calls it the degraded fallback — a stale cursor can put **two
+disagreeing debt numbers on the board face with nothing labeling the gap**; the *last synced* stamp marks
+when the sync ran, not whether the cursor is current. The intent that the two must never silently disagree
+**stands** ([decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md));
+the reconciling fix — live-first with a stale-labelled fallback, or dating the cached figure on its face —
+is the build's, tracked as
+[engine-template issue 801](https://github.com/StarshipSuperjam/engine-template/issues/801).
 
 ### Manifest shape
 
@@ -85,12 +101,12 @@ your Status, your card moves, and your own board text are yours.*
 |---|---|
 | `id` | `github-projects-sync` |
 | `status` | `optional` |
-| `provides` | the **sync [tool]** (the engine-field projection, read-repo/write-board); a **setup [operation]** (the ordered `project`-scope grant → board create → board link, then the operator-guided auto-add **enablement walkthrough** with a read-back verification — never a programmatic enable), with an optional `operator-typed` setup **[skill]** that invokes it; a **board-coordinate config [schema]** (a `schema`-surface instance governing the linked project id/number + the field/option-id mapping the setup step writes — the precedent is [audit-library](audit-library.md)'s concern-entry schema); optionally one operator orientation **[doc]**. The board-coordinate config *data itself* is **per-instance, gitignored runtime state — not a committed `provides` file** (*ship-the-substrate-not-the-data*, [principles §4](../../principles.md)): the schema is the shipped substrate; the board id/field-map is the operator's local state, gitignored like the `mcp` data and the memory ledger and so outside the coherence file-ownership set entirely. Named by what it governs — concrete paths, the field mapping, and the `gh`/GraphQL calls are build-spec leaves. |
-| `wires` | **`hook`** (the sync trigger) **and `gitignore`** (the board-config-data line). The **`hook`** is **non-blocking, best-effort, fail-open-and-flag, and never block-eligible**: a side-effect, never a gate, so it cannot enter the [hooks](../systems/infrastructure/hooks.md) block budget and cannot deadlock an unattended run (the block-satisfiability law binds only *blocking* `Stop` hooks). It **declares its active modes** per the hooks mode-awareness law, and is keyed by its `{event, matcher, type, command}` tuple into `.engine/`, fully reversible — keyed distinctly from `core`'s hooks, the same pattern [memory](memory-substrate-sqlite-fts5.md) uses for its own capture hooks ([D-091](../../adr/0091-flesh-the-memory-substrate-sqlite-fts5-module-doc-to-designe.md)). The concrete event(s) and debounce cadence are build-spec leaves. The **`gitignore`** keys the per-instance board-coordinate config *data* (the operator's local board id/field-map, written by setup) out of version control — so the data never travels with the template and is never a committed engine file, exactly as the gitignored `mcp` data and memory ledger; keyed/reversible like `core`'s gitignore wire. The concrete config path is a build-spec leaf. |
+| `provides` | the **sync [tool]** (the engine-field projection, read-repo/write-board); a **setup [operation]** (the ordered `project`-scope grant → board create → board link → **the engine's five fields created** → id resolution, then the operator-guided auto-add **enablement walkthrough** with a read-back verification — never a programmatic enable), with the `operator-typed` setup **[skill]** that invokes it **and its generated Codex mirror**; and a **board-coordinate config [schema]** (a `schema`-surface instance governing the linked project id/number + the field/option-id mapping the setup step writes — the precedent is [audit-library](audit-library.md)'s concern-entry schema). One built gap, kept as intent: the schema file ships on disk but **no manifest declares it and the tool validates inline rather than loading it** — the ownership gap is tracked as [engine-template issue 800](https://github.com/StarshipSuperjam/engine-template/issues/800). The board-coordinate config *data itself* is **per-instance, gitignored runtime state — not a committed `provides` file** (*ship-the-substrate-not-the-data*, [principles §4](../../principles.md)): the schema is the shipped substrate; the board id/field-map is the operator's local state, gitignored like the `mcp` data and the memory ledger and so outside the coherence file-ownership set entirely. Named by what it governs — concrete paths, the field mapping, and the `gh`/GraphQL calls are build-spec leaves. |
+| `wires` | **`hook`** (the sync trigger — as built, two `SessionStart` registrations, startup and resume, **plus their two `codex-hook` mirrors**) **and `gitignore`** (the board-config-data line). Each **`hook`** is **non-blocking, best-effort, fail-open-and-flag, and never block-eligible**: a side-effect, never a gate, so it cannot enter the [hooks](../systems/infrastructure/hooks.md) block budget and cannot deadlock an unattended run (the block-satisfiability law binds only *blocking* hooks — and a non-blocking `SessionStart` injector has no `modes` field to declare; it runs in every stance). Each is keyed by its `{event, matcher, type, command}` tuple into `.engine/`, fully reversible — keyed distinctly from `core`'s hooks, the same pattern [memory](memory-substrate-sqlite-fts5.md) uses for its own capture hooks ([D-091](../../adr/0091-flesh-the-memory-substrate-sqlite-fts5-module-doc-to-designe.md)). The **`gitignore`** keys the per-instance board-coordinate config *data* (the operator's local board id/field-map, written by setup) out of version control — so the data never travels with the template and is never a committed engine file, exactly as the gitignored `mcp` data and memory ledger; keyed/reversible like `core`'s gitignore wire. The concrete config path is a build-spec leaf. |
 | `depends` | `core` — reads the `core`-resident state + attention floors and the telemetry debt register by §16 channel relay; no edge to any optional/feature module. The deliberate `depends: core` (not `validators-core`) matches [migration-discipline](migration-discipline.md): this module ships no checks on the self-validation corpus. |
 | `migrations` | none (v1) — it owns no engine store; the board is an external, regenerable projection. |
 
-### Wiring — one hook, one gitignore line, no surgery
+### Wiring — its own session-start hooks, one gitignore line, no surgery
 
 The `wires: hook` is the module's **own** trigger because **`core` cannot depend on an optional
 module**, so the projection cannot ride the locked [close](../systems/lifecycle/close.md) /
@@ -116,12 +132,13 @@ required-status binding, no merge block, no escalation. There is **no enforcemen
 
 A GitHub Project (Projects v2) is **owned by a user or org and merely linked to a repo**, so it is **not
 template-borne** — generating the repo brings no board. The module ships a **setup step** (its setup
-operation, optionally invoked by the operator-typed skill) that runs in a fixed order, each step a
+operation, invoked by the operator-typed skill) that runs in a fixed order, each step a
 precondition of the next: (1) walk the operator through granting their local `gh` the one-time
 **`project` scope** (the engine **cannot self-grant**) — the precondition for everything that follows;
-(2) **`gh project create`** the board; (3) **`gh project link`** it to the repo; (4) **guide the
+(2) **`gh project create`** the board; (3) **`gh project link`** it to the repo; (4) **create the
+engine's five fields** and resolve their opaque ids into the local config; (5) **guide the
 operator to enable the auto-add workflow in the Projects UI** and **verify** by reading the workflow's
-`enabled` state. Step (4) is an **operator walkthrough with a read-back check, not an automated action**
+`enabled` state. The last step is an **operator walkthrough with a read-back check, not an automated action**
 — the engine cannot enable a built-in workflow (no API/`gh` command exists). Both the **UI walkthrough
 copy and the read-back fail-message** (what the operator is told in plain language when `enabled` is
 still false: exactly what to click, and that skipping it only means a **thinner board** — the engine
@@ -146,7 +163,8 @@ Every failure path degrades to the git-native truth ([principles §5](../../prin
   authoritative git/GitHub record and the committed state cursor are untouched; losing the board loses
   nothing authoritative.
 - **A board-trusting operator must not be misled by a frozen board.** Because a non-engineer may come to
-  read the board instead of the Issues, the sync stamps a **"last synced HH:MM"** value onto an
+  read the board instead of the Issues, the sync stamps a **"last synced" value — a full UTC date-time
+  as built, deliberately not a bare clock time a reader would take for their own timezone** — onto an
   **engine-owned custom field**, which shows **on the engine's own item cards** — board-face, where the
   operator actually looks, and **purely the engine's own field** (no operator-content clobber, no
   read-modify-write race). A timestamp that has gone stale *is* the staleness-on-its-face signal — the
@@ -173,13 +191,15 @@ The operator is a non-engineer, so every cost and consequence is disclosed in pl
   nothing** — so opting in is consent, not a later surprise.
 - **The manual-edit contract is stated up front** (field ownership above): the operator's Status and
   card moves are theirs; only the engine's own fields are kept in step.
-- **Board labels are plain language** — *what's being built · ranked work · needs your review · known
-  issues* — and obey the [§12](../../principles.md) leak guard: maintainer vocabulary ("state cursor",
-  "attention prioritization", "projection", "telemetry debt") **never** appears on the board face. The
-  ranked field is **not** labelled *"what's next"*: the board carries the operator's own un-labeled
-  Issues whenever auto-add is on, and a "what's next" the engine never computes for them would read as a
-  verdict that their backlog was ranked below rather than never ranked at all — the false belief
-  [§7](../../principles.md)/[§17](../../principles.md) forbid. The label matches the
+- **Board labels are plain language** — *what's being built · what's next · ranked work · needs your
+  review · known issues · last synced* — and obey the [§12](../../principles.md) leak guard: maintainer
+  vocabulary ("state cursor", "attention prioritization", "projection", "telemetry debt") **never**
+  appears on the board face. The *What's next* label carries the attention ranking's genuine top line —
+  adopted by [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md),
+  superseding this document's earlier ban: the ban guarded against a "what's next" the engine never
+  computes reading as a verdict, and the built field projects exactly what the engine does compute, the
+  same signal the ranked-work field carries in full. The false-belief guard's live demand is unchanged —
+  never project what was not computed. The *ranked work* label matches the
   [status verb](../../reference/glossary.md)'s dashboard field of the same name, so the two operator surfaces say
   one thing ([D-314](../../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md)).
 
@@ -215,13 +235,15 @@ top, nothing more.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are the locked systems'; the delivery is this module** — no restating laws here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The board is a projection, never authoritative** — committed state + the native record stay the truth; the board is a deletable, rebuildable derivative ([§2](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Native-first, with honest defaults** — GitHub's built-in automation carries status transitions server-side: Status-on-close/merge are on by default; auto-add is **off by default and operator-enabled in the UI** (the engine guides and verifies via `ProjectV2Workflow.enabled` but cannot enable it — no API exists). By default the engine's own defensive `item-add` populates the board with engine work; auto-add additionally pulls in non-engine items. The engine ships only the thin layer it alone can know — the custom fields (state / ranked work / debt / last-synced) and the defensive `item-add`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **One-way is honest because field ownership is explicit** — the engine writes only its own fields and adds only its own already-labeled items; the operator's Status, card moves, and own board text are never overwritten. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **No enforcement** — pure projection; the board gates nothing ([§7](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires one non-blocking hook + one gitignore line** — the hook is best-effort, fail-open, never block-eligible, mode-declared, keyed distinctly; the gitignore keys the per-instance board-config *data* out of version control (the committed substrate is its schema; the data is gitignored like `mcp`/memory data, so no `provides` entry is a non-surface committed file); nothing else wires; `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Module-owned setup of a non-traveling resource** — the board is not template-borne; the module sets it up in the fixed `project`-scope → create → link → operator-guided-auto-add order (with a committed UI walkthrough and read-back fail-message), reusing provisioning's pattern without editing the locked provisioning doc, and stores no PAT secret. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Never strands a non-engineer** — every failure degrades to the git-native truth with a plain-language fix, a board-face staleness marker, informed consent for the scope grant, and plain-language labels that honor the [§12](../../principles.md) leak guard. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are the locked systems'; the delivery is this module** — no restating laws here. | Operator observation: the sync tool reads substrate signals only through the boot/telemetry relays and defines no law text of its own. No merge-gated check asserts the non-duplication. | operator |
+| **The board is a projection, never authoritative** — committed state + the native record stay the truth; the board is a deletable, rebuildable derivative ([§2](../../principles.md)). | Operator observation: the tool's only writes target the external board (its GraphQL mutations), never committed state or issues, so removal leaves the record intact. Partial support: in-tool-demo-failure-path (hard, CI) keeps the tool's own self-check falsifiable — the self-check that asserts writes hit only board fields rides the CI unit-test step and never earns `engine`. | operator |
+| **Native-first, with honest defaults** — GitHub's built-in automation carries status transitions server-side: Status-on-close/merge are on by default; auto-add is **off by default and operator-enabled in the UI** (the engine guides and verifies via `ProjectV2Workflow.enabled` but cannot enable it — no API exists). By default the engine's own defensive `item-add` populates the board with engine work; auto-add additionally pulls in non-engine items. The engine ships only the thin layer it alone can know — the five engine fields and the defensive `item-add`. | Operator observation: the tool only *reads* the workflow's enabled state and the setup step's copy guides the UI enable; the defensive add filters to already-engine-labeled items and applies no label. The server-side transitions and the UI enable are GitHub's, outside any check's reach. | operator |
+| **One-way is honest because field ownership is explicit** — the engine writes only its own fields and adds only its own already-labeled items; the operator's Status, card moves, and own board text are never overwritten. | Operator observation: every field mutation targets an id resolved from the engine's own field map and every added item carries the engine label — the tool's demo self-check asserts exactly this (no write touches Status, only own field and item ids), riding the CI unit-test step. Partial support: in-tool-demo-failure-path (hard, CI) guarantees only that the demo can fail. | operator |
+| **No enforcement** — pure projection; the board gates nothing ([§7](../../principles.md)). | Operator observation: the manifest provides no check, and the session-start handler only injects or proceeds — never a block; the hook is not block-eligible. No merge-gated check targets this module's gating absence. | operator |
+| **Wires its session-start hooks + one gitignore line** — each hook is best-effort, fail-open, never block-eligible, keyed distinctly (both runtimes' mirrors included); the gitignore keys the per-instance board-config *data* out of version control (the committed substrate is its schema; the data is gitignored like `mcp`/memory data, so no `provides` entry is a non-surface committed file); nothing else wires; `depends` ≠ wiring. | Operator observation: read the manifest's wires — two SessionStart hooks, their Codex mirrors, and the gitignore line — and confirm each hook path injects or proceeds only. Partial support: self-map-drift (hard, CI) holds the rendered wire set true to the manifest. | operator |
+| **Module-owned setup of a non-traveling resource** — the board is not template-borne; the module sets it up in the fixed `project`-scope → create → link → fields → operator-guided-auto-add order (with a committed UI walkthrough and read-back fail-message), reusing provisioning's pattern without editing the locked provisioning doc, and stores no PAT secret. | Operator observation: read the setup operation's fixed step order, its informed-consent frame, and the UI walkthrough copy; the sync authenticates through the operator's local `gh`, writing no repository secret, and the provisioning document is unedited. Partial support: operation-shape and operation-frontmatter (both hard, CI) hold the operation structurally valid — its content claims are your read. | operator |
+| **Never strands a non-engineer** — every failure degrades to the git-native truth with a plain-language fix, a board-face staleness marker, informed consent for the scope grant, and plain-language labels that honor the [§12](../../principles.md) leak guard. | Operator observation: every not-configured/degraded path returns a plain-language injected message rather than an error, the last-synced stamp carries the staleness signal, the field labels are plain-language constants, and the scope-consent copy rides setup step 1. Partial support: the tool's demo asserts a board error degrades rather than crashes (CI unit-test step); in-tool-demo-failure-path (hard, CI) keeps that demo falsifiable. | operator |
