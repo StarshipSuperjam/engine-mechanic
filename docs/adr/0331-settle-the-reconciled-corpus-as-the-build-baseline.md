@@ -40,6 +40,14 @@ stage of their own and stay alongside as reconciled material.
   standing "no build order yet" note is the expected state, and it must not be silenced by authoring a
   build order reactively.
 
+**Two rows left the ratified obligation set, on the operator's explicit ruling:** the lineage-attestation
+criteria in the attention and knowledge documents — rows whose own how-verified cells admitted nothing
+could falsify them — moved to prose beneath their tables, knowledge keeping its falsifiable
+swappable-leaf half as a slimmed row. An attestation nothing could falsify is not a criterion (the
+project's decisions 0231/0232 rejected the same shape for demonstrations, and the same holds one layer
+up). The memory document's heritage row stays: it carries a falsifiable half — nothing extracts at write
+time — so it remains a criterion under the ruling's own terms.
+
 **Ratified knowingly, on the operator's explicit review:** memory's shared-vault backup default — one
 vault holding every project's verbatim transcripts, namespacing organizational rather than isolating,
 per-project separation opt-in — was put to the operator as the maximum-blast-radius default, and they
@@ -55,8 +63,9 @@ memory erasure has no completion signal — is tracked as
 [engine-template issue 813](https://github.com/StarshipSuperjam/engine-template/issues/813).)
 
 **The register accounting behind decision 0320's precondition** — all 48 open items of the pinned
-conformance register dispositioned — is recorded in full in the wave-9 pull request body (PR 40),
-the surface 0320 sanctioned for per-item dispositions.
+conformance register dispositioned — is recorded in full in the wave-9 pull request body (PR 40).
+Decision 0320 required each disposition be recorded without naming a surface; the pull-request body is
+where this effort recorded them.
 
 **Known hole, recorded rather than papered over:** runtime parity (the Claude/Codex pair) has no
 single owning capability document — its material is spread across the topology, agents, skills, and
