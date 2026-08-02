@@ -221,7 +221,8 @@ engine's own judgment with its gaps named — **never collapsed into one "all gr
 
 The PR the orchestrator submits fills the locked control-plane contract's **Review** section with
 **the depth that ran, which lenses ran, that each gate completed, the findings' dispositions**, and —
-when post-audit fixes were made — that they were **validated but not re-reviewed** (below). The honest
+when post-audit fixes were made — the measured divergence, **whether a re-audit ran, and what it
+found** (below). The honest
 tier is exactly control-plane's own: the **PR-body completeness check hard-gates that the Review
 section is present and non-empty**, while its **truthfulness stays posture** — the same tier the Risk
 and Validation sections carry. Review is the **judgment-layer** record, distinct from **Validation**
