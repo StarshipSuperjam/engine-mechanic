@@ -5707,7 +5707,7 @@ sources:
 ```yaml
 repo_usage: >
   Only permissions.allow is used, in .claude/settings.local.json (project-local, gitignored-shape) —
-  a large (~110-entry) allowlist of Bash(...) specifiers (gh pr/run/api/issue, git fetch/ls-remote/
+  a large (102-entry) allowlist of Bash(...) specifiers (gh pr/run/api/issue, git fetch/ls-remote/
   grep/rg/awk/python3 one-liners, uv run *) and bare MCP rules (mcp__engine-memory__search,
   mcp__engine-memory__recall-by-meaning/recall-window, mcp__engine-knowledge-graph__get-entity/
   neighbors). Read(...) rules for //Users/shanekidd/** paths also appear. These are accumulated
