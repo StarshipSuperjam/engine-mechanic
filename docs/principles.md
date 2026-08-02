@@ -86,8 +86,8 @@ the content, so structure is never invented on the fly.
 
 Change history lives in exactly one place per workspace (the decision-record corpus here, under
 `adr/`; in the engine, the structured pull-request body — the control-plane PR contract — which the
-pull request carries as the durable record). One surface is governed by exception (the engine's
-eADR-0014): a decision record is **append-only** — a deployment's own engine decision records are
+pull request carries as the durable record). Decision records are the governed exception (the engine's
+eADR-0014): a deployment's own engine decision records are **append-only** —
 never edited, only superseded — while the engine's *shipped* founding canon, a cold copy with no
 prior history to carry, is revised in place, each revision's why held by the pull-request body that
 made it. Every other document is rewritten in place to its current truth and carries no inline
