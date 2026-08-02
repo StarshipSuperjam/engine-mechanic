@@ -4,7 +4,7 @@ status: draft
 
 # Interfaces
 
-*Ratified in the design workspace on 2026-05-29 by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-05-29 by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -64,7 +64,12 @@ precedence is a build-spec leaf.
 Because the contract **names its default/fallback implementation**, the engine always has a working answer
 even with no module installed — the guarantee holds because the named fallback is itself a shipped
 foundation [`tool`](tools.md) (ship-the-substrate, [principle §4](../../../principles.md)) — and
-the audit can verify the fallback exists. How an *active* fallback is surfaced splits on two conditions, so
+the audit can verify the fallback exists. One disclosed qualification, operator-ruled in the
+reconciliation: a contract may carry an operation the floor cannot answer, provided the declaration
+itself says so and the floor's answer is an **explicit declared-unavailable shape**, never an error or a
+silent absence — the `search` contract's meaning-based recall operation is the one v1 case (below). The
+floor still answers every operation; for such an operation the working answer is the honest
+"not available here." How an *active* fallback is surfaced splits on two conditions, so
 "loud" never becomes a nag the operator learns to ignore:
 
 - **A richer implementation is installed but its substrate is down.** An unexpected degraded state:
@@ -85,22 +90,32 @@ search; richer meaning-based search is available — want me to set it up?*", ne
 ### Conformance
 
 The interface **declaration** is governed by JSON Schema 2020-12 (the `schema` kind). A present
-implementation's conformance — and the single-active invariant above — are confirmed by the locked
-[`coherence`](check.md) check-kind, run post-install: a file claiming to implement an interface
+implementation's conformance — and the single-active invariant above — are confirmed by a dedicated
+merge-gated interface-coherence [check](check.md) (a `custom/script` rule applying the coherence
+posture, running in the CI suite): a file claiming to implement an interface
 but diverging from the declaration, or a second non-default implementation present, is a **finding**
 (surfaced, not silently trusted) — the same posture as a dangling check-kind. This introduces **no new
-check-kind**; the locked [validation](../guardrails/validation.md)/[check](check.md)
+check-kind** — the `coherence` kind proper stays scoped to module-set consistency, and the escape-hatch
+rule rides the existing grammar; the locked [validation](../guardrails/validation.md)/[check](check.md)
 grammar is untouched. Mechanical conformance is structure and presence; full *behavioral* equivalence of
 arbitrary code is a test concern, not a check.
 
 ### The v1 interfaces
 
-Two seams ship as interfaces in v1, both already required by locked/designed cognitive work:
+Three seams ship as interfaces in v1 (home `.engine/interfaces/`; the memory pair share one fallback
+handle):
 
 - **`search`** — memory recall. The default/fallback is the foundation's FTS5 lexical floor (offline,
-  zero-dependency); the semantic-recall [module](../grammar/module-system.md) overrides it behind
-  the same `search` boundary, so swapping in embeddings is a bolt-in, not a store migration
-  ([memory](../cognitive/memory.md)).
+  zero-dependency). Semantic recall arrives **inside that same implementation, as an added operation**,
+  not as an override: installing the semantic-recall [module](../grammar/module-system.md) makes the
+  one memory implementation register its meaning-based recall operation, and with the module absent the
+  contract's declaration answers that operation with the explicit declared-unavailable shape (the
+  disclosed qualification above) — so adding embeddings is a bolt-in, not a store migration
+  ([memory](../cognitive/memory.md)), and the boundary never silently picks between two engines.
+- **`memory-control`** — the operator's memory controls (pin, withhold, restore, erase, and the like),
+  deliberately split from `search` so that recall's own contract can keep its promise that **reading
+  never changes or removes what is stored**: the operations that write live behind their own seam,
+  answered by the same foundation implementation.
 - **knowledge representation/retrieval** — the [knowledge](../cognitive/knowledge.md) graph's
   representation and retrieval leaf, kept swappable so a richer engine can slot in (and be bounded) without
   reopening knowledge ([R8](../../../reference/risks.md)). Its **operation set** — the structural query surface every
@@ -114,6 +129,10 @@ Two seams ship as interfaces in v1, both already required by locked/designed cog
   independent
   ([D-116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md)).
 
+Each MCP-backed declaration additionally carries a content-free **`health`** availability probe — the
+safe liveness check consulted before the first operator-facing answer — which is not a retrieval
+operation and sits outside the pinned op-set law above.
+
 ### Build-spec leaves
 
 The concrete interface declarations as **JSON Schemas** — the `search` declaration and the per-operation
@@ -126,10 +145,12 @@ a-deliberate-floor-is-not-nagged, and the knowledge-retrieval **operation set** 
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **A deliberate floor is not nagged** — a fallback the operator runs by choice is a valid steady state, not a standing alarm; only an unexpectedly-down richer substrate is surfaced loudly. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | Operator observation: each declaration under `.engine/interfaces/` names callable operations with input and output schemas, while payload shape lives with the [schemas](schemas.md) surface; the interface-declaration check (hard, CI) asserts the declaration's form but not the boundary distinction itself. | operator |
+| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Operator observation, partially supported by the interface-coherence check (hard, CI), which discovers implementations by the presence of the wired handle rather than from any roster; the not-wiring half is observed in the module manifests, where no interface implementation appears as a wiring entry. | operator |
+| **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Split: the named-at-the-contract half is asserted by the interface-declaration check (hard, CI), whose governing schema makes `fallback` a required field — a declaration without one is refused at the merge. The surfaced-in-plain-language half is [boot](../lifecycle/boot.md)'s rendering, observed by the operator; no check asserts it, so the composite row stays with the operator. | operator |
+| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | The interface-coherence check (hard, CI, merge-gated) asserts exactly this: it goes red if two different tools are installed to answer one capability — only one may be active, the engine never silently picking between them. Honest limit, disclosed by the check itself: no richer second implementation ships at the pin, so the rule is armed rather than exercised; it fires on the first real arrival. | engine |
+| **A deliberate floor is not nagged** — a fallback the operator runs by choice is a valid steady state, not a standing alarm; only an unexpectedly-down richer substrate is surfaced loudly. | Operator observation of [boot](../lifecycle/boot.md)'s behavior across the two conditions: a no-richer-module deployment surfaces the richer option at most once and then stays silent, while an installed-but-down substrate is surfaced loudly with the one step back. No check asserts nag-versus-steady-state. | operator |
