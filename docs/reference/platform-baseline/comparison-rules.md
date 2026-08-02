@@ -80,6 +80,9 @@ adopted only by the orchestrating session's explicit approval, recorded in the r
 any other host is background at most — never a citation.
 
 - `docs.anthropic.com`, `docs.claude.com`, `code.claude.com` — Anthropic / Claude Code documentation
+- `platform.claude.com` — Anthropic platform documentation (API, models, deprecations, pricing, managed
+  agents, platform release notes); added 2026-08-02 during the baseline run's source mapping, which found
+  `docs.claude.com` API pages now redirect here
 - `www.anthropic.com` / `anthropic.com` — announcements, engineering posts, model pages
 - `support.claude.com`, `support.anthropic.com` — help-center surfaces (Desktop, claude.ai apps)
 - `github.com/anthropics/*` (+ `raw.githubusercontent.com/anthropics/*`) — official repos, changelogs, SDK

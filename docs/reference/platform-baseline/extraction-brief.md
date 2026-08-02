@@ -58,7 +58,7 @@ is the one failure this audit cannot absorb.
 - **Read-only, web-only.** Use only web fetch/search tools and this brief. Do not run shell commands, do not
   read or write repository files, do not touch any other tool even though it may be available to you.
 - **Allowlist.** Cite only: `docs.anthropic.com`, `docs.claude.com`, `code.claude.com`,
-  `anthropic.com`/`www.anthropic.com`, `support.claude.com`, `support.anthropic.com`,
+  `platform.claude.com`, `anthropic.com`/`www.anthropic.com`, `support.claude.com`, `support.anthropic.com`,
   `github.com/anthropics/*`, `developers.openai.com`, `platform.openai.com`,
   `openai.com`/`www.openai.com`, `help.openai.com`, `github.com/openai/*`, and
   `raw.githubusercontent.com/{anthropics,openai}/*`. A page elsewhere may inform your search but can never be
