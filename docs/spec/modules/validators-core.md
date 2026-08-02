@@ -4,7 +4,7 @@ status: draft
 
 # validators-core
 
-*Ratified in the design workspace on 2026-06-27 by [decision 0263](../../adr/0263-resolve-re-lock-validators-core-the-disposition-issue-resolu.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the exemption grammar as sanctioned by [decision 0323](../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md); ratified as intended design on 2026-06-27 by [decision 0263](../../adr/0263-resolve-re-lock-validators-core-the-disposition-issue-resolu.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -25,10 +25,10 @@ present in every repo ([D-089](../../adr/0089-flesh-the-core-module-doc-to-desig
 |---|---|
 | `id` | `validators-core` |
 | `status` | `required` |
-| `provides` | the base [check](../systems/surfaces/check.md) corpus (`structured` files in `.engine/check/`, each carrying the check rule record), grouped by what it validates: **schema-conformance** of every structured surface (`kind: schema`); the **governed-shape + anti-changelog/current-state editorial lints** for prose surfaces (`kind: shape`); **link integrity** and **catalog coverage** — no orphan or uncatalogued surface (`kind: coverage`); **PR-body completeness** against the control-plane PR contract (declaring a `ci_author_exempt` for the external-automation author `dependabot[bot]`, realizing control-plane's domain boundary — a Dependabot security PR carries its own change account and is a disclosed not-applicable no-op, never silently skipped, [D-207](../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)) and the **presence checks** for the contract anti-choice + the close findings-disposition summary (`kind: presence`); and the **knowledge fingerprint-coverage** CI backstop (`kind: coverage`, relaying knowledge's own fingerprint mechanism); and the **`custom/script`** rules owned outright — the first-run **reference-closure** travel-safety check, the **disposition-issue-resolution** check (CI suite, `hard`) that every Issue number a PR's Review cites as a finding disposition resolves to a real engine-labeled issue, and the **negative-fixture meta-check** (CI suite) that proves every in-scope hard logic-unit is *witnessed to bite* against its discovered negative fixture (or is a disclosed not-applicable). Each rule self-declares into the `pre-commit` / `pre-close` / `CI` suites |
+| `provides` | the base [check](../systems/surfaces/check.md) corpus (`structured` files in `.engine/check/`, each carrying the check rule record), grouped by what it validates: **schema-conformance** of every structured surface (`kind: schema`); the **governed-shape + anti-changelog/current-state editorial lints** for prose surfaces (`kind: shape`); **link integrity** and **catalog coverage** — no orphan or uncatalogued surface (`kind: coverage`); **PR-body completeness** against the control-plane PR contract (declaring, per the sanctioned exemption grammar of [decision 0323](../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md), a `ci_author_exempt` for the recognized external-automation authors — `dependabot[bot]` and `github-actions[bot]` — and a `ci_label_exempt` for the single-purpose erasure PR class, each a disclosed not-applicable no-op, never silently skipped, [D-207](../../adr/0207-authorize-the-dependabot-pr-contract-exemption-a-ci-author-a.md)) and the **presence check** for the contract anti-choice (`kind: presence` — the corpus's two presence rules are that one and PR-body completeness itself; the close findings-disposition record is deliberately **not** a presence rule, because the disposition record is ephemeral under the close lock and its gate is close's own Stop-block, as the [validation](../systems/guardrails/validation.md) doc records under this reconciliation); and the **knowledge fingerprint-coverage** CI backstop (`kind: coverage`, relaying knowledge's own fingerprint mechanism); and the **`custom/script`** rules owned outright — **roughly half the corpus as built** (the coherence, parity, drift, and hygiene guards among them), of which three are worth naming for their checks-a-contract-it-does-not-own shape: the first-run **reference-closure** travel-safety check, the **disposition-issue-resolution** check (CI suite, `hard`) that every Issue number a PR's Review cites as a finding disposition resolves to a real engine-labeled issue, and the **negative-fixture meta-check** (CI suite) that proves every in-scope hard logic-unit is *witnessed to bite* against its discovered negative fixture (or is a disclosed not-applicable). Each rule self-declares its suites — as built, the corpus rides **`CI`** (the merge gate, all but one rule) and the report-only **`audit-prep`** pass (a nine-rule shape-and-hygiene subset, one of which — the digest-staleness signal — rides audit-prep exclusively); no rule here declares the local `pre-commit`/`pre-close` nudges, which other modules' rules ride. The manifest also provides one **policy data file** — the provider-exception ledger the dual-runtime render checks consult (with its own schema and vocabulary-confinement rules riding this corpus) |
 | `wires` | **none** |
 | `depends` | `core` (the validation engine: the dispatcher, the five closed kinds, the suite declarations, and the trigger set its rules populate) |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 The corpus is named here by *what it validates*, not as an exhaustive file list — the concrete rule files,
 their `params`, and their `message` text are build-spec leaves, kept current as a derived listing rather than
@@ -37,8 +37,11 @@ hand-enumerated here ([principle §2](../../principles.md)).
 ### Data files only — kinds and detection stay with their owners
 
 `validators-core` **owns all these rule files**, but ships check **data only — zero check-kinds and zero
-detection mechanisms**. The five closed kinds are `core`'s; every rule names one of them in its `kind` field
-and carries no logic of its own. Two distinct relationships, kept distinct:
+detection mechanisms**. The closed kinds are `core`'s — the closed five plus the `custom/script` escape
+hatch its registry also owns — and every rule here names one of them in its `kind` field; a data-kind rule
+carries no logic of its own, while a `custom/script` rule carries only a pointer to a script that lives in
+`core`'s code-home, never in this corpus (this module ships zero callables). Two distinct relationships,
+kept distinct:
 
 - **A §16 detection relay** — the **fingerprint-coverage** rule. [Knowledge](../systems/cognitive/knowledge.md)
   owns the fingerprint *detection* (it derives the fingerprints; it rides `core`); the locked knowledge doc
@@ -65,9 +68,10 @@ and carries no logic of its own. Two distinct relationships, kept distinct:
   to a real engine-labeled issue (open or closed), so the locked
   [finding-disposition](../systems/surfaces/policies.md) routing to a tracked issue is mechanically
   *witnessed*, not taken on the PR's word. It binds `hard` on a resolvable non-AI correlate — the Issue object
-  the engine cannot fabricate without filing it. It emits **two distinct findings**: a cited number that
-  resolves to nothing or to a non-engine issue is `disposition-issue-unresolved` (the aimed bite); an inability
-  to reach the issue API is `disposition-issue-unevaluable`, the
+  the engine cannot fabricate without filing it. It emits **two distinct findings** (tier-plus-prose records; the build names no finding codes — internally
+  the classifier's verdicts are the bare *unresolved*/*unevaluable* tokens): a cited number that
+  resolves to nothing or to a non-engine issue is the **unresolved** red (the aimed bite); an inability
+  to reach the issue API is the **unevaluable** red, the
   [validation](../systems/guardrails/validation.md) `custom/script` **fail-closed** verdict (never a
   false green) — kept separate so the two reds carry distinct operator-facing messages (*"the engine cited a
   follow-up that doesn't exist"* — act; versus *"the issue service was unreachable"* — clears on its own), and
@@ -75,12 +79,12 @@ and carries no logic of its own. Two distinct relationships, kept distinct:
   **exercised in CI** (a live `gh` query against a cited number), so the unit can be made to fail in CI and
   carries a fixture — no carve-out: its committed negative is a seeded PR body citing a **sentinel-nonexistent**
   issue (a reserved never-allocated number that resolves deterministically as *absent* against the repo under
-  check), asserting `disposition-issue-unresolved` by set-membership. Because this is the meta-check roster's
+  check), asserting the *unresolved* verdict by set-membership. Because this is the meta-check roster's
   first unit whose witnessing is non-offline, the meta-check job **materializes the same `gh` + `issues: read`
   runtime this unit needs** — an instancing of
   [validation](../systems/guardrails/validation.md)'s "runs identically as a library locally and in
   CI; the CI job materializes that runtime" commitment, a build-spec leaf, not a new law (validation does not
-  re-lock); run offline, this unit emits `disposition-issue-unevaluable` and reddens the meta-check, never
+  re-lock); run offline, this unit emits the *unevaluable* red and reddens the meta-check, never
   falsely passes. The workflow takes least-privilege `issues: read` (never write). Finding-disposition owns the routing; the
   rule that checks it is here. Its surfaced verdict carries its [artifact warrant](../../reference/glossary.md): a green
   result shows the cited issues are real, **not** that every out-of-scope finding was logged (an *uncited*
@@ -106,16 +110,16 @@ registry, `custom/script` instances from the check-rule directory listing), neve
   its own scope and carries its **own negative fixture**: a seeded hard logic-unit with a missing or
   non-biting fixture must turn it red. The guard is not falsifiable by what it judges
   ([§15](../../principles.md)), and this terminates the regress without a meta-meta-check.
-- **Each fixture co-locates with its unit's owner; only the rules are here.** A `custom/script` instance's
-  fixture sits with the rule, so `reference-closure`'s, `disposition-issue-resolution`'s, and the meta-check's
-  own fixtures are `validators-core`'s; a **module-added** kind's fixture ships **with that module's callable**, so adding the
-  kind drops both and uninstall removes both ([§14](../../principles.md)/[R5](../../reference/risks.md) reversibility,
-  no orphan stranded); the five **closed-core** kinds' fixtures co-locate with their callables in
-  [`core`](core.md) — core's to ship, the
-  [core](core.md)/[repository-topology](../systems/infrastructure/repository-topology.md)
-  adjudication's to settle. `validators-core` adds **no kind and no detection** — the meta-check is a
-  `custom/script` rule and its fixtures are the data it owns, exactly the `reference-closure` shape, so
-  **data-files-only** holds.
+- **Each fixture binds to its unit in the reserved namespace; only the rules are here.** Fixtures live in
+  the [check](../systems/surfaces/check.md)-reserved `.engine/_fixtures/` namespace, bound to
+  their unit by directory name — a `custom/script` rule's fixture directory by the rule's id stem, a
+  kind's by its kind name — so `reference-closure`'s, `disposition-issue-resolution`'s, and the
+  meta-check's own fixtures ride this corpus's units; a **module-added** kind would drop its fixture with
+  its callable and uninstall removes both ([§14](../../principles.md)/[R5](../../reference/risks.md)
+  reversibility, no orphan stranded); the **closed-core** kinds' fixtures are
+  [`core`](core.md)'s exactly as their callables are. `validators-core` adds **no kind and no
+  detection** — the meta-check is a `custom/script` rule pointing at a core-owned script, exactly the
+  `reference-closure` shape, so **data-files-only** holds.
 
 ### Wiring nothing — active by presence
 
@@ -157,10 +161,12 @@ a reasoned decision, well-grounded:
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are validation's, the engine is `core`'s, the corpus is this module** — no duplication of the validation laws or the kind logic here. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Data files only** — `validators-core` ships rules, never kinds or detection; each rule relays to an owner-held kind/contract/mechanism ([§16](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Wires nothing** — rules are active by presence, suite rosters derived; install/uninstall is add/remove files, and `depends` ≠ wiring. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The consolidated self-validation floor** — feature modules extend it with domain checks and the semantic audit assumes it; that shared dependence is why it is one `required` base rather than scattered. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The proven-to-bite enforcer is data here; its law and grammar are elsewhere** — the negative-fixture meta-check is a `custom/script` rule (validation's invariant, check's fixture grammar, the rule `validators-core`'s), self-covering per [§15](../../principles.md) and failing closed on a fixtureless in-scope unit; module-kind fixtures travel with their modules and core-kind fixtures with `core`, so `wires: none` and the add/remove-files reversibility both stand. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are validation's, the engine is `core`'s, the corpus is this module** — no duplication of the validation laws or the kind logic here. | Operator observation: every file this module provides carries only rule data (target/kind/params/tier/suites/message) and names a core-owned kind; the kind callables live in core's dispatcher, never under the corpus. No check asserts the non-duplication. | operator |
+| **Data files only** — `validators-core` ships rules, never kinds or detection; each rule relays to an owner-held kind/contract/mechanism ([§16](../../principles.md)). | Operator observation: the manifest provides checks and one policy data file, zero callables — every `custom/script` rule points at a script in core's code-home. The check corpus's own conformance to the rule schema rides a CI unittest (the disclosed bootstrap seam the [schemas](../systems/surfaces/schemas.md) doc records), which never earns `engine`. | operator |
+| **Wires nothing** — rules are active by presence, suite rosters derived; install/uninstall is add/remove files, and `depends` ≠ wiring. | Operator observation: the manifest carries `wires: []` and each rule self-declares its suites, so the roster derives from the files present. Partial support: module-manifest (hard, CI) holds the manifest schema-valid without asserting the wires list is empty. | operator |
+| **The consolidated self-validation floor** — feature modules extend it with domain checks and the semantic audit assumes it; that shared dependence is why it is one `required` base rather than scattered. | Operator observation: audit-library's manifest declares `depends: validators-core` and the self-map's graph carries the edge; the one-base-not-scattered choice is a recorded design judgment, not a mechanically asserted invariant. | operator |
+| **The proven-to-bite enforcer is data here; its law and grammar are elsewhere** — the negative-fixture meta-check is a `custom/script` rule (validation's invariant, check's fixture grammar, the rule `validators-core`'s), self-covering per [§15](../../principles.md) and failing closed on a fixtureless in-scope unit; fixtures bind to their units in the reserved namespace, so `wires: none` and the add/remove-files reversibility both stand. | Operator observation for the full claim. Partial support: hard-check-bite (hard, CI) is the enforcer itself — its own assertion runs each hard check against its deliberately-broken example and reddens on a miss or an unexplained absence — which proves the self-covering and fail-closed legs live; the fixture-binding, ownership-partition, and reversibility legs stay your read. | operator |

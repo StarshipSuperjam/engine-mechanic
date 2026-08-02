@@ -4,7 +4,7 @@ status: draft
 
 # product-design
 
-*Ratified in the design workspace on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the authoring-gate routing ruled by [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) and two kept-intent legs annotated below; ratified as intended design on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -33,10 +33,10 @@ spec-lock (below) — never a hard dependency in either direction ([D-066](../..
 |---|---|
 | `id` | `product-design` |
 | `status` | `optional` |
-| `provides` | one intent-shaped [skill](../systems/surfaces/skills.md) (`engine-design`, `operator-typed`); the `product-intake` [operation](../systems/surfaces/operations.md); one operator orientation [doc](../systems/surfaces/docs.md); the **spec-authoring scaffold** (a product-authoring template, **not** a catalogued engine-surface [template](../systems/guardrails/templates.md)); and the **spec [check](../systems/surfaces/check.md) rules** — `presence`/`shape`/`coverage`/`coherence` form checks on the corpus, the **[spec-obligation matrix](../../reference/glossary.md)** — a derived-committed coverage artifact (one row per `locked` criterion, keyed by criterion-cell digest at its `shape`-validated table position) plus the **coverage check** that gates criterion-granular traceability over it — and the **lock-integrity re-acceptance check** (below) |
-| `wires` | **none** (file-drop + derived binding; the spec checks join their suites by presence; work Issues + Milestones via native `gh`/`gh api`) |
+| `provides` | one intent-shaped [skill](../systems/surfaces/skills.md) (`engine-design`, `operator-typed`) **with its generated Codex mirror**; the `product-intake` [operation](../systems/surfaces/operations.md); one operator orientation [doc](../systems/surfaces/docs.md); a **spec-structure-integrity [policy](../systems/surfaces/policies.md)**; the **authoring scaffold set** — ten templates as built: the spec index/capability/build-plan trio plus principles, architecture, ADR, and the four Diátaxis shapes (product-authoring scaffolds, **not** catalogued engine-surface [templates](../systems/guardrails/templates.md)); and the **spec [check](../systems/surfaces/check.md) rules** — the corpus form check (presence/shape/index-coherence folded into one rule as built), the **fuller-documents form check** (when recorded depth is full, principles + architecture must exist and be well-formed), the **product-ADR form check** (the rejected-options presence leg, hard and merge-gated), the **[spec-obligation matrix](../../reference/glossary.md)** — a derived-committed coverage artifact (one row per `locked` criterion, keyed by criterion-cell digest at its `shape`-validated table position), shipped as a committed foundation file with a regenerate-and-compare drift gate — the **coverage check** (as built, a capability-granularity floor: every settled capability has a place in the committed build plan; the criterion-granular tracing this design names is kept as the ruled intent, with the recorded build-owe tracked as [engine-template issue 803](https://github.com/StarshipSuperjam/engine-template/issues/803)) — and the **lock-integrity re-acceptance check** (below) |
+| `wires` | **two `PreToolUse` hooks** (Claude and its Codex mirror), each regenerating the committed obligation matrix at the commit boundary so the derived artifact can never silently lag its sources — the module's one shared-state seam; everything else is file-drop + derived binding (the spec checks join their suites by presence; work Issues + Milestones via native `gh`/`gh api`) |
 | `depends` | `core` (the universal required root); **no hard edge to any optional/feature module** — the spec checks are the [migration-discipline](migration-discipline.md) product-targeting precedent (`depends: core`, read-only, not `validators-core`), and the design-review advisory invocation is *consumed-by*, never *depended-on-by* |
-| `migrations` | none (v1) |
+| `migrations` | none |
 
 ### One intent-shaped front door
 
@@ -119,8 +119,12 @@ so the consumed-by record is symmetric across both docs and no installed lens da
 drives a build.**
 
 The lock's **weight is reproduced through native surfaces**, retiring only this workspace's bespoke
-`lock.py`/`locks.yaml` hand-tooling: the **boot-grounding don't-churn norm** every product session reads
-("adapt to locked specs; never change one to fit current work"); the **lock-integrity re-acceptance check**
+`lock.py`/`locks.yaml` hand-tooling. Three legs carry it. One is **kept intent, not yet built**: the
+**boot-grounding don't-churn norm** every product session reads ("adapt to locked specs; never change one
+to fit current work") ships in no boot-floor or deployed-guidance file at the pin — the owed leg is
+tracked, with the re-litigation reconcile step below, as
+[engine-template issue 802](https://github.com/StarshipSuperjam/engine-template/issues/802). The two
+built legs: the **lock-integrity re-acceptance check**
 this module provides — a CI-gated check that **diffs the PR base against head** over docs that were `locked`
 at base (read from the **base** commit's `status`, not head's; the base commit is the prior-state correlate,
 immutable where force-push is blocked — [control-plane](../systems/infrastructure/control-plane.md)
@@ -162,14 +166,22 @@ works without it.
 
 ### The flow, and how it degrades
 
-`engine-design` runs in Explore (it reads, reasons, authors committed files, and logs Issues). It:
+`engine-design` opens in Explore — it reads, reasons, elicits, and **proposes**; the **committed
+authoring lands in Build, entered through the operator's plan acceptance**, the same door every other
+committed write uses ([decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md):
+the Explore write-gate keeps its integrity whole, with no product-spec carve-out — the built intake
+runbook still instructs authoring without naming the gate, and aligning that copy is the build's half,
+tracked as [engine-template issue 804](https://github.com/StarshipSuperjam/engine-template/issues/804)).
+The flow:
 
 1. **pre-checks `gh`** and, on failure, states the one concrete next action in plain language — and persists
    the intent already typed as a committed file, so nothing is lost;
 2. on first engagement, **proposes the stub map** for the operator to confirm at the shape level, then elicits
    intent with an **operator-controlled depth choice that names its consequence** — *how much product*, not
    *whether structure* (a short conforming spec versus a full one), defaulting low;
-3. **authors the spec doc(s)** from the scaffold into `docs/spec/`, with acceptance criteria as the
+3. **authors the spec doc(s)** from the scaffold into `docs/spec/` — a committed write, so it lands
+   after the operator's plan acceptance enters Build (the [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
+   routing above) — with acceptance criteria as the
    criterion → how-verified table; **validation runs** (form checks) and the result is reported in plain
    language with its bound stated — the early, cheap signal that replaces a late surprise at QA;
 4. **the operator accepts and `locks`** the spec — validation green + (advisory lenses when installed) + the
@@ -210,7 +222,12 @@ runs them at the merge. The three mechanisms deepen the persona-judges / check-g
   not a stable semantic identity — a reworded criterion re-opens for re-confirmation). Those derived,
   source-pinned rows *are* the criterion-ID scheme that lets coverage trace at **criterion granularity** —
   every `locked` criterion traced to committed work, not merely every capability scheduled — without
-  hand-authoring forbidden structure. **Lock is per-doc**: `status: locked` is read from the base commit
+  hand-authoring forbidden structure. **The tracing itself is kept intent at the pin**: the built
+  coverage check asserts the capability-granularity floor (every settled capability in the build plan)
+  and the matrix check is a drift gate over the derived rows — the criterion-to-committed-work trace is
+  the recorded build-owe, tracked as
+  [engine-template issue 803](https://github.com/StarshipSuperjam/engine-template/issues/803).
+  **Lock is per-doc**: `status: locked` is read from the base commit
   (the lock-integrity mechanic below), so *every* criterion of a `locked` doc is a row and a `draft`/`stub`
   doc contributes none. Read-only, migration-discipline-shaped, self-removing on engine removal — the
   always-present mechanical leg (it gates on `depends: core` alone);
@@ -238,11 +255,17 @@ never a silent green and never a block on the unspecced or MVP scope the operato
 
 ### Anti-churn and build-readiness
 
-- **Anti-choices are captured and validated.** Significant what/why decisions — and the options rejected, with
-  the reason — land in the product **ADR stream**, with a presence check on the rejected-options section, so a
-  later session does not re-propose ground already settled (the anti-churn value behind the lock).
-- **Re-litigation propagates.** Re-opening a `locked` spec reconciles the build-plan, its Milestones, the open
-  work Issues, and any dependent specs; the coverage/coherence checks catch *orphans* mechanically, and the
+- **Anti-choices are captured and validated — built.** Significant what/why decisions — and the options
+  rejected, with the reason — land in the product **ADR stream**, with the hard, merge-gated presence
+  check on the rejected-options section (gated to engine-authored records only, so a third-party's MADR
+  files are untouched), so a later session does not re-propose ground already settled (the anti-churn
+  value behind the lock).
+- **Re-litigation propagates — kept intent, not yet built.** Re-opening a `locked` spec reconciles the
+  build-plan, its Milestones, the open work Issues, and any dependent specs. At the pin no intake step
+  performs that walk — the runbook covers the reopen acknowledgment and re-running the build order, but
+  no reconcile-on-reopen step ships; the owed leg is tracked as
+  [engine-template issue 802](https://github.com/StarshipSuperjam/engine-template/issues/802). What does
+  hold mechanically: the coverage/coherence checks catch *orphans*, and the
   [spec-obligation matrix](../../reference/glossary.md) **stale-flags exactly the rows whose `docs/spec/` span changed**
   (the fingerprint mechanic — the *coverage* side of staleness is mechanically surfaced); the residual
   **semantic** staleness (does the built work still match the changed criterion's *meaning*?) stays the
@@ -263,13 +286,15 @@ authored on spec — the front door is operator-typed unless a later pass clears
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The referent producer, not the lens roster** — product-design authors the spec; the [design-review](design-review.md) / [qa-review](qa-review.md) suites review build work and do not depend on it. The design-review advisory invocation at spec-lock is *consumed-by*, not a hard edge, so the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation holds both ways. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Structure is the confidence surface** — a committed, validated spec corpus is what a non-engineer can weigh; the validator does the checking the operator cannot, and states its own bound (form, not correctness). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Operator-governed lock with real gravity** — the operator's acceptance gates the lock; the engine advises and never vetoes; the weight is the don't-churn norm + the CI re-acceptance teeth + the ADR-recorded re-litigation, native surfaces, not bespoke tooling. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Product-owned outputs, engine-cornered machinery** — the wall holds because the engine contributes the artifacts and validates their *form* read-only; it never annexes the product's doc tree, and removal leaves the product standing. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Issues are pointers; the spec is authoritative and un-skippable** — work Issues are un-labeled backlog that point at the committed `locked` spec; the **[conformance-enforcement floor](../../reference/glossary.md)** the design → build → QA axis carries against a `locked` `docs/spec/` — the criterion-granular [spec-obligation matrix](../../reference/glossary.md) this module provides, plus qa-review's adversarial `spec-conformance` judgment and the deployed-environment demonstration harness — keeps the spec un-skippable at the merge, and bites only on what the operator locked (never a block on MVP scope, §20). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **One plain-language front door** — intent in, framework labels attached internally; no vocabulary the operator must learn, on any surface this module creates. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Proportionate** — rigor is uniform, ceremony scales with stakes; nothing forces the heavy path on small work, and a trivial change can skip the door entirely. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Native and degradable** — committed files + `gh`/`gh api`; every step survives a substrate outage. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The referent producer, not the lens roster** — product-design authors the spec; the [design-review](design-review.md) / [qa-review](qa-review.md) suites review build work and do not depend on it. The design-review advisory invocation at spec-lock is *consumed-by*, not a hard edge, so the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) separation holds both ways. | Operator observation: this module's manifest depends on `core` alone, neither review suite's manifest depends on it, and the spec-lock invocation is a consumed-by record in the orchestration procedure, not a manifest edge. No check asserts dependency direction. | operator |
+| **Structure is the confidence surface** — a committed, validated spec corpus is what a non-engineer can weigh; the validator does the checking the operator cannot, and states its own bound (form, not correctness). | Operator observation: read a validated corpus and its readout's stated bound. Partial support: the product-spec form check (hard; CI and local suites) asserts the corpus is present and well-formed and its own message states the form-not-correctness bound — the confidence-surface judgment is yours. | operator |
+| **Operator-governed lock with real gravity** — the operator's acceptance gates the lock; the engine advises and never vetoes; the weight is the don't-churn norm + the CI re-acceptance teeth + the ADR-recorded re-litigation, native surfaces, not bespoke tooling. | Operator observation: acceptance settles per the intake flow, and the engine's lenses only advise. Partial support: product-lock-integrity (hard, CI) carries the re-acceptance teeth and product-adr-form (hard, CI) the rejected-options leg; the don't-churn norm leg is kept intent, unbuilt at the pin ([engine-template issue 802](https://github.com/StarshipSuperjam/engine-template/issues/802)), so the weight currently rests on the two built legs. | operator |
+| **Product-owned outputs, engine-cornered machinery** — the wall holds because the engine contributes the artifacts and validates their *form* read-only; it never annexes the product's doc tree, and removal leaves the product standing. | Operator observation: all six checks are read-only — four target product doc contexts, the lock-integrity check reads the pull-request diff, and the matrix check reads the engine-cornered foundation file — the module depends on `core` alone, and the outputs carry no engine namespace. No check asserts the removal-leaves-standing property. | operator |
+| **Issues are pointers; the spec is authoritative and un-skippable** — work Issues are un-labeled backlog that point at the committed `locked` spec; the **[conformance-enforcement floor](../../reference/glossary.md)** the design → build → QA axis carries against a `locked` `docs/spec/` — the [spec-obligation matrix](../../reference/glossary.md) this module provides, plus qa-review's adversarial `spec-conformance` judgment and the deployed-environment demonstration harness — keeps the spec un-skippable at the merge, and bites only on what the operator locked (never a block on MVP scope, §20). | Operator observation: the intake flow links each tracked item to its spec doc. Partial support: product-spec-matrix (hard, CI) drift-gates the criterion denominator and product-spec-coverage (hard, CI) keeps settled capabilities in the build order — the criterion-to-committed-work trace is the tracked build-owe ([engine-template issue 803](https://github.com/StarshipSuperjam/engine-template/issues/803)), and the un-skippable judgment legs are qa-review's personas, judges rather than checks. | operator |
+| **One plain-language front door** — intent in, framework labels attached internally; no vocabulary the operator must learn, on any surface this module creates. | Operator observation: read the skill copy and check messages for framework tokens. No merge-gated check scans this module's operator surfaces for vocabulary — the fleet's vocabulary checks target other contexts. | operator |
+| **Proportionate** — rigor is uniform, ceremony scales with stakes; nothing forces the heavy path on small work, and a trivial change can skip the door entirely. | Operator observation: the intake's depth choice records full or light. Partial support: the fuller-documents form check (hard, CI and local) bites only when recorded depth is full and nudges otherwise, and the matrix/coverage checks disclose a no-op when nothing is settled — the skip-the-door path is process, not machine-asserted. | operator |
+| **Native and degradable** — committed files + `gh`/`gh api`; every step survives a substrate outage. | Operator observation: the intake pre-checks `gh` and never dead-ends, with only the tracked-items step waiting on the connection per its own notes. No check asserts substrate-outage survival. | operator |

@@ -338,3 +338,6 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0324 | [Admit actionlint as an advisory member of the security floor](0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md) | 2026-08-01 |
 | 0325 | [Bless the four traveling hygiene and drift check rules and place their mandates](0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md) | 2026-08-01 |
 | 0326 | [Admit engine-recall as the single `model-auto` skill](0326-admit-engine-recall-as-the-single-model-auto-skill.md) | 2026-08-01 |
+| 0327 | [Route product-spec authoring through plan acceptance into Build](0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) | 2026-08-02 |
+| 0328 | [Adopt the board's What's-next field, superseding the spec's ban](0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md) | 2026-08-02 |
+| 0329 | [Adopt the built letter where locked module documents lag the build](0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md) | 2026-08-02 |
