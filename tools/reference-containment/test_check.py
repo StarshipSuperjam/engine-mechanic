@@ -138,6 +138,19 @@ class SurfacesScopeTest(_TempRepoTest):
         self.assertEqual(sorted(set(f[0] for f in findings)),
                          [".engine/contracts/eADR-0037-z.md"])
 
+    def test_skips_the_settled_criteria_record_but_not_engine_machinery_beside_it(self):
+        """`.engine/product-spec-matrix.json` is generated per-deployment from this repository's
+        own docs/spec/ and preserved across upgrades — its rows embed criterion text that
+        legitimately links this repository's decision records. Engine machinery beside it under
+        `.engine/` still travels, so it stays in scope."""
+        d = self._mkrepo()
+        self._write(d, ".engine/product-spec-matrix.json",
+                    '{"rows": [{"criterion": "see ../../adr/0001-x.md and ' + D_MID + '"}]}\n')
+        self._write(d, ".engine/tools/y.py", "# per " + D_MID + "\n")
+        self._commit(d)
+        findings, _, _ = check.scan_surfaces(d)
+        self.assertEqual(sorted(set(f[0] for f in findings)), [".engine/tools/y.py"])
+
     def test_skips_operator_owned_config_under_the_engine_directory(self):
         d = self._mkrepo()
         self._write(d, ".engine/conduct/operator.md", "per " + D_MID + "\n")
