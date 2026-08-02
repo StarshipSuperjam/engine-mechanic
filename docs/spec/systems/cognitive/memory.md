@@ -314,7 +314,13 @@ unwidened.
   vault** below, optionally a per-project repo. The backup is a **copy** — the
   canonical home stays the local gitignored ledger ([D-007](../../../adr/0007-memory-data-is-local-and-gitignored-substrate-ships-empty.md));
   [topology](../infrastructure/repository-topology.md) law 5 is satisfied because the copy is
-  off-repo, and the committed *destination pointer* is exactly that law's carve-out.
+  off-repo, and the committed *destination pointer* is exactly that law's carve-out. The pointer
+  carries its own public-safety guard, blessed as standing by
+  [decision 0325](../../../adr/0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md): a hard,
+  construction-scoped check requires the **public engine template** to ship the pointer as the
+  unconfigured placeholder — so a maintainer's private vault coordinates can never travel to everyone
+  who generates from the template — while in a deployed copy, where committing a real destination is
+  the operator's own choice, the rule stands down behind its disclosed construction-scoped carve-out.
 - **Per-project by nature** (each detached instance owns only its own ledger, [D-058](../../../adr/0058-discharge-the-wave-0-gate-q10-substrate-content-world-taggin.md)).
   The default destination is a **single shared memory vault** holding every project's namespace; a
   **per-project repo** — one private repo for this project alone — is the alternative **offered at every

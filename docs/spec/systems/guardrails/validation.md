@@ -105,6 +105,12 @@ member. This is a **system-local invariant**, not a numbered principle: it *inst
   ([engine-template#531](https://github.com/StarshipSuperjam/engine-template/issues/531)).
   Each class is bounded by its property; the set of classes is closed and grew only by reviewed
   decision.
+- **The falsification bar extends to the in-tool demos.** Every in-tool `demo` subcommand a shipped
+  tool carries must be a real falsification capability able to return non-zero — a print-only showcase
+  that can only succeed is a `hard` CI finding. This is
+  [D-231](../../../adr/0231-promote-the-in-tool-demo-subcommand-as-a-governed-ai-run-sta.md)'s optional
+  failure-path floor exercised and made merge-gating, its standing blessing recorded by
+  [decision 0325](../../../adr/0325-bless-the-four-traveling-hygiene-and-drift-check-rules-and-p.md).
 - **A module-added kind's negative fixture lives in the central reserved namespace**
   (`.engine/_fixtures/kind-<name>/`), and the meta-check **fails closed** on a present in-scope kind
   with no fixture there. As built this is not the co-located-with-the-callable layout whose
