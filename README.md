@@ -23,13 +23,15 @@ freshly-generated repo would hit surface here first and get fixed at the source.
 
 ## The design it works from
 
-[`docs/`](docs/spec/index.md) holds the written design for engine-template — what it is meant to do, the
-principles behind it, how it fits together, and the decisions that got it there. It was written in a separate
-design workspace and carried here whole.
+[`docs/`](docs/spec/index.md) holds the written design for engine-template — what it does, the principles
+behind it, how it fits together, and the decisions that got it there. First written in a separate design
+workspace and carried here as intended design, it has since been reconciled document by document to describe
+engine-template **as built**, AI-compared against one pinned commit and edited under per-item operator
+rulings ([decision 0320](docs/adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md)).
 
-Read the [product spec index](docs/spec/index.md) first: it explains that this is **intended design**, that
-the built engine-template has drifted from it, and that the code these documents describe lives in that other
-repository, not this one.
+Read the [product spec index](docs/spec/index.md) first: it records the pinned commit the corpus describes,
+explains that reconciled documents are not yet settled, and that the code these documents describe lives in
+that other repository, not this one.
 
 ## Working with it
 
