@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Check
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the exemption grammar's disclosure carried under [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md); ratified as intended design on 2026-06-27 by [decision 0258](../../../adr/0258-resolve-re-lock-check-the-by-presence-negative-fixture-gramm.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the exemption grammar's disclosure carried under [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md); ratified as intended design on 2026-06-27 by [decision 0258](../../../adr/0258-resolve-re-lock-check-the-by-presence-negative-fixture-gramm.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 

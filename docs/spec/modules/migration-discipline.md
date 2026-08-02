@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # migration-discipline
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the check's single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the check's single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 

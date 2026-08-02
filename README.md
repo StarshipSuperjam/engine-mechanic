@@ -27,10 +27,13 @@ freshly-generated repo would hit surface here first and get fixed at the source.
 behind it, how it fits together, and the decisions that got it there. First written in a separate design
 workspace and carried here as intended design, it has since been reconciled document by document to describe
 engine-template **as built**, AI-compared against one pinned commit and edited under per-item operator
-rulings ([decision 0320](docs/adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md)).
+rulings ([decision 0320](docs/adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md)) —
+and then **settled**: the operator accepted the reconciled capability documents as the ratified baseline
+([decision 0331](docs/adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md)), so changing one
+now requires the operator's recorded re-acceptance at the merge.
 
 Read the [product spec index](docs/spec/index.md) first: it records the pinned commit the corpus describes,
-explains that reconciled documents are not yet settled, and that the code these documents describe lives in
+explains what settling does and does not guarantee, and that the code these documents describe lives in
 that other repository, not this one.
 
 ## Working with it

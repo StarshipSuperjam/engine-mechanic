@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Build orchestration
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 

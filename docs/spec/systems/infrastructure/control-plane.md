@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Control plane
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the CI exemption classes sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) and actionlint admitted by [decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md); ratified as intended design on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the CI exemption classes sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) and actionlint admitted by [decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md); ratified as intended design on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 

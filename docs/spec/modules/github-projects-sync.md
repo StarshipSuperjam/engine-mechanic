@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # github-projects-sync
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the What's-next board field adopted by [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md) and the two-count description ruled by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-07-16 by [decision 0318](../../adr/0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the What's-next board field adopted by [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md) and the two-count description ruled by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-07-16 by [decision 0318](../../adr/0318-resolve-re-lock-github-projects-sync-the-board-s-engine-fiel.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
