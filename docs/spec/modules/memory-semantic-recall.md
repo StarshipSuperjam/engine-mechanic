@@ -20,7 +20,7 @@ the [interfaces](../systems/surfaces/interfaces.md) surface records. It is also 
 graph**: it is a vector store over the narrative ledger, answering recall questions; structural fact
 stays the [knowledge](../systems/cognitive/knowledge.md) surface's job, and the unbuilt
 graph-enrichment stubs ([engine-knowledge-graph](engine-knowledge-graph.md),
-[product-knowledge-graph](product-knowledge-graph.md)) are a different, never-built capability.
+[product-knowledge-graph](product-knowledge-graph.md)) are a different capability, not yet built.
 
 ## Behavior
 
