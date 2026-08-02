@@ -4,7 +4,7 @@ status: draft
 
 # Contracts
 
-*Ratified in the design workspace on 2026-07-12 by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0300](../../../adr/0300-resolve-re-lock-contracts-the-two-eadr-populations-named-can.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -45,8 +45,9 @@ lets history stay append-only while specifications stay final-voice.
   prevailed. An abandoned proposal (never accepted, no history value) may be deleted while still
   `proposed`.
 - The [template](../guardrails/templates.md) requires: Decision, a Significance statement
-  (the architectural significance and what it constrains — the field the contract-threshold policy
-  hard-checks), Rationale, Anti-choice, and Status. A Supersedes link is required **only when** the
+  (the architectural significance and what it constrains), Rationale, Anti-choice, and Status —
+  Significance **and** Anti-choice being the two fields the contract-threshold policy hard-checks
+  as filled, never blank or the template's placeholder. A Supersedes link is required **only when** the
   contract replaces an earlier one — a first-of-its-kind decision supersedes nothing.
 
 ### The contract threshold
@@ -94,7 +95,9 @@ the canon `eADR-####`, a deployment's `<project-slug>-eADR-####`:
 
 The canon is **stable by construction** — the surface's answer to ADR explosion. It changes only by
 **supersession** (re-litigating a law writes a new linked eADR; the old is kept, never edited), and a
-reconciliation or re-lock of an existing law **folds into** that law's eADR rather than spawning one; the
+reconciliation or re-lock of an existing law **folds into** that law's eADR rather than spawning one —
+a fold that absorbs a just-minted record may leave a gap in the number sequence, which is this rule
+working, not a lost record; the
 set moves only on the rare, gated re-litigation of a structural law. It is **reached on demand** — by the
 orientation scent, search, or a direct read of the committed file — and is **never pushed into the
 cold-start boot pack**; the [knowledge graph](../cognitive/knowledge.md) derives an entity per
@@ -106,8 +109,10 @@ lexically matches it (the scent / search), so a stable canon never burdens orien
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| A contract with no substantive anti-choice or significance statement is structurally not a contract — the template enforces those fields' presence (a `hard-fail`), while their *genuineness* stays posture. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| Authority comes from the contract being `accepted` and non-superseded; supersession, not editing, changes a standing decision. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon changes only by supersession and stays exceptional under the contract threshold — never edited in place, never accumulating routine decisions. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| A contract with no substantive anti-choice or significance statement is structurally not a contract — the template enforces those fields' presence (a `hard-fail`), while their *genuineness* stays posture. | The presence half is fully carried by the contract-threshold check (presence-kind, hard, CI): a contract's Significance and Anti-choice sections must each be filled in, not left blank or as the template's placeholder — with the contract-shape check (hard, CI) holding the five sections present and ordered. The genuineness half is the operator's read of the committed record at review, as the threshold check's own message concedes — so the composite row stays with the operator, the checks as named full support for the presence half. | operator |
+| Authority comes from the contract being `accepted` and non-superseded; supersession, not editing, changes a standing decision. | Operator observation at review that a changed standing decision arrives as a new linked record rather than an edit to the earlier one; the contract-frontmatter check (schema-kind, hard, CI) supports only the vocabulary — the status enum and a well-formed supersedes id — and no check detects an in-place edit to an accepted record's Decision. | operator |
+| **The why ships, bounded.** The surface carries a foundational canon (engine-owned `eADR-####`, overlaid on upgrade) and a per-instance stream (deployment-owned `<project-slug>-eADR-####`, preserved), distinguished by path for the overlay and by id namespace for the reader; the canon changes only by supersession and stays exceptional under the contract threshold — never edited in place, never accumulating routine decisions. | Operator observation across the composite: the canon ships non-empty, the overlay's provides-glob replaces engine-owned records while the instance path is preserved, and the anti-accumulation signal is the threshold policy's soft burst note at start-up, never a merge gate. The contract-frontmatter check (hard, CI) supports the id-namespace half by asserting both id shapes; nothing mechanical asserts the overlay or supersession-only behavior. | operator |
