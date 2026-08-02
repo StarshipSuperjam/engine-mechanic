@@ -392,10 +392,14 @@ assembled result.
 
 **Regenerating the derived-committed artifacts is part of integrate.** As the single writer, the orchestrator
 reconciles the PR branch's base against the default branch and then **regenerates every
-[§19](../../../principles.md) derived-committed artifact** — the [knowledge](../cognitive/knowledge.md)
-graph, the [ontology](../grammar/ontology.md) self-map, and (once any capability is settled) the
-[product-design](../../modules/product-design.md) spec-obligation matrix — **from the reconciled tree as the final
-authoring step**, so the PR is regenerated-and-current before review. A textual conflict on a member is
+[§19](../../../principles.md) derived-committed artifact** — as built, the reconciler's member set is
+exactly the [knowledge](../cognitive/knowledge.md)
+graph and the [ontology](../grammar/ontology.md) self-map — **from the reconciled tree as the final
+authoring step**, so the PR is regenerated-and-current before review. The
+[product-design](../../modules/product-design.md) spec-obligation matrix shares the class's
+source-determinism, but it is **not** in the built reconciler's member set: its refresh rides the
+product-design module's own commit-boundary hook with the CI drift gate as the durable backstop, so a
+concurrent conflict on it is surfaced for an ordinary regenerate-and-commit rather than auto-cleared. A textual conflict on a member is
 **spurious** (§19): the resolution is to **clear the conflict and regenerate unconditionally** — not a
 side-pick (`--ours`/`--theirs`, which an add/delete-vs-modify case can defeat), never a hand-merge. The
 load-bearing guarantee is **reconcile-before-merge**: GitHub's server-side merge cannot run a local merge
