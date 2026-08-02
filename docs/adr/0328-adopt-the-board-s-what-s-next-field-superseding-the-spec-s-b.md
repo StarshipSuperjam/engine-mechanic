@@ -23,11 +23,13 @@ the projected set.
 The ban's premise no longer holds. The carried text forbade the label because *"a 'what's next'
 the engine never computes for them would read as a verdict"* — a label pretending to an answer
 the engine did not have. At the pin the engine does compute it: the attention policy ranks the
-open work, and the field projects that ranking's genuine top line, the same signal the "ranked
-work" field carries in full. A projection of a real computation is not a false belief; it is the
+open work, and the field projects that ranking's genuine top line — the top of the same ranking
+the status verb's dashboard already surfaces in full (no board field carries the full ordering).
+A projection of a real computation is not a false belief; it is the
 board doing exactly what the module's honest-projection laws demand — engine-owned fields
 carrying engine-derived signals, never authority. The remaining risk (an operator over-trusting
-the top line as a plan) is the same risk the ranked-work field already carries and the same
+the top line as a plan) is the same risk the status dashboard's full ranking already carries, and
+the same
 answer applies: the board is a projection, the committed record is the truth, and the field's
 content is traceable to the ranking that produced it.
 

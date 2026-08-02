@@ -46,9 +46,9 @@ part GitHub cannot know:
    acting as a contributor over a native substrate ([D-038](../../adr/0038-session-lifecycle-re-founded-on-native-substrates.md)).
 2. **A thin engine layer projects the engine-specific signal** native automation cannot see. The
    projected-signal set is fixed here, not deferred — **five engine-owned fields** as built: the committed
-   **state cursor** (where the work is — *what's being built*); **attention** prioritization/ordering
-   (**ranked work** — the in-flight work and open engine-labeled debt attention orders); the ranking's
-   genuine **top line projected under its own *What's next* field** — adopted by
+   **state cursor** (where the work is — *what's being built*); the **attention ranking's genuine top
+   line, projected under its own *What's next* field** — the ranking's only board presence (the full
+   ordering stays the status verb's dashboard; no board field carries it) — adopted by
    [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md),
    which supersedes this document's earlier ban on that label (the ban's premise was a "what's next" the
    engine never computes; the attention ranking is that computation, and the field projects its real top
@@ -82,7 +82,7 @@ position** — is **never overwritten**: that gesture survives and is governed b
 the operator. The engine's own fields are **read-only on the board view where the Projects UI/API
 permits**, and where they cannot be locked, a divergence is **surfaced in plain language, never silently
 reverted**. The honest, narrow statement the operator is given is: *the engine keeps only its own
-"what's being built / what's next / ranked work / needs your review / known issues / last synced" fields
+"what's being built / what's next / needs your review / known issues / last synced" fields
 in step with the real record; your Status, your card moves, and your own board text are yours.*
 
 **One disclosed defect in the two debt figures, kept as intent.** Because *needs your review* reads the
@@ -191,17 +191,17 @@ The operator is a non-engineer, so every cost and consequence is disclosed in pl
   nothing** — so opting in is consent, not a later surprise.
 - **The manual-edit contract is stated up front** (field ownership above): the operator's Status and
   card moves are theirs; only the engine's own fields are kept in step.
-- **Board labels are plain language** — *what's being built · what's next · ranked work · needs your
+- **Board labels are plain language** — *what's being built · what's next · needs your
   review · known issues · last synced* — and obey the [§12](../../principles.md) leak guard: maintainer
   vocabulary ("state cursor", "attention prioritization", "projection", "telemetry debt") **never**
   appears on the board face. The *What's next* label carries the attention ranking's genuine top line —
   adopted by [decision 0328](../../adr/0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md),
   superseding this document's earlier ban: the ban guarded against a "what's next" the engine never
-  computes reading as a verdict, and the built field projects exactly what the engine does compute, the
-  same signal the ranked-work field carries in full. The false-belief guard's live demand is unchanged —
-  never project what was not computed. The *ranked work* label matches the
-  [status verb](../../reference/glossary.md)'s dashboard field of the same name, so the two operator surfaces say
-  one thing ([D-314](../../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md)).
+  computes reading as a verdict, and the built field projects exactly what the engine does compute — the
+  top of the same ranking the [status verb](../../reference/glossary.md)'s dashboard surfaces in full
+  under its *ranked work* field, so the two operator surfaces stay one story
+  ([D-314](../../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md)). The
+  false-belief guard's live demand is unchanged — never project what was not computed.
 
 ### The contributor wall holds
 
