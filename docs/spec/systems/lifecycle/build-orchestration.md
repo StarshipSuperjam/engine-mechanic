@@ -4,7 +4,7 @@ status: draft
 
 # Build orchestration
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -414,12 +414,16 @@ Mechanical [validation](../guardrails/validation.md) is cheap and deterministic,
 **green baseline is a precondition** to the pre-submission judgment review — cold-context lenses must
 not be spent on code that does not pass tests, and their findings stay about substance rather than red
 builds. Validation **reruns on every change**, including fixes that disposition audit findings. The
-**cold audits run once at the agreed depth and do not rerun** on those fixes **unless the operator
-requests it** — re-running expensive judgment on every fix-cycle would loop without bound. Two honest
-riders follow: the orchestrator **advises re-audit when a post-audit fix is substantial enough to
-warrant it** (the same adjudication reflex as the plan gate; the operator decides), and the **Review
-record states the delta** — *"audit ran at depth X; post-audit fixes were validated but not
-re-reviewed."* CI re-validates the submitted PR as the **required check**; the merge stays the wall.
+**cold audits run once at the agreed depth and do not blanket-rerun** on those fixes — re-running
+expensive judgment on every fix-cycle would loop without bound. Instead the orchestrator **measures
+the post-review divergence and makes a proportional re-audit judgment** (the magnitude is data behind
+the call, never a threshold that fires a rerun): when warranted it re-invokes the pre-submission
+passes that fit the repair, scoped to the post-review diff, before the record is finalized — the
+re-audit is never itself a gate, though a `blocking` finding it surfaces gates the merge as any
+finding does ([decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md)). The **Review
+record states the delta** — the reviewed→submitted commits, the measured divergence, and the
+disposition — and the operator may always request a fuller re-review. CI re-validates the submitted
+PR as the **required check**; the merge stays the wall.
 
 ### Proportionality — the fast path and its floor
 
@@ -599,7 +603,7 @@ the design:
 | **Consent before the spend, synthesis after, with a floor** — the risk assessment is the pre-audit consent and coverage surface with a consequence-named depth choice (never a time or cost figure, [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md)); lens findings are synthesized into one call afterward, re-engaging the operator on material findings and *always* on an unresolved blocking finding, with every disposition surfaced. | Your observation carries it — the risk-assessment relay is in-chat posture whose template instances are ephemeral, reachable by no validator; the fixed template copy itself bans the fabricated figure. | operator |
 | **Cold-context review is the quality spine** — independent lenses, dispositioned between gates; more valuable, not less, when work is unattended. | Your observation carries it. Partial support: the finding-disposition Stop gate ([close](close.md)) holds raised findings to a disposition, the `disposition-issue-resolution` check (hard, CI) asserts cited follow-up issues are real, and the `lens-consumption` check flags an installed lens nothing consumed. | operator |
 | **The orchestrator is the single writer** — workers generate mechanical work product in isolation; the orchestrator reviews, revises, and authors the cohesive set. Delegation buys cohesion under context pressure, not speed; reconciling semantic overlap is real, bounded work; partial failure is a missing planned commit, not a phantom slot. | No check asserts single-writer authorship; your read of a build's commit history carries it. | operator |
-| **Validate before the expensive review; rerun validation, not the audit** — a green baseline gates pre-submission; fixes re-validate but do not re-audit unless the operator asks, and the Review record says so. | Your read of the Review record carries the ordering claim. Partial support: the CI validation suite is the mechanical green baseline every merge re-runs; the don't-re-audit rule is posture the Review record discloses. | operator |
+| **Validate before the expensive review; rerun validation, not the audit** — a green baseline gates pre-submission; fixes re-validate, and the cold review re-runs only on the orchestrator's proportional re-audit judgment, scoped to the post-review diff and disclosed in the Review record ([decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md)). | Your read of the Review record carries the ordering claim. Partial support: the CI validation suite is the mechanical green baseline every merge re-runs; the re-audit judgment is posture the Review record discloses. | operator |
 | **Proportionate to a real floor** — the fast path is one entry, one glance, one merge; "fixed gates" is a shape, never a fixed depth. | Your observation of a trivial change's fast path carries it — no check measures proportionality. | operator |
 | **Routine is the same workflow, constrained** — for decomposable bulk work only (a Plan-time judgment), Local-Desktop-stood-up, non-interactive, scheduler-serialized single-flight, never auto-merging; its weaker cohesion guarantee is stated, not hidden. | Your observation carries it. Partial support: `set-routine` mechanically refuses the write stance without proven worktree isolation ([modes](modes.md)); single-flight is the Desktop scheduler's behavior, not engine-asserted. | operator |
 | **The operator checkout is a protected surface, not a build workspace** — build/Routine work runs in the platform's per-session worktree (native isolation), never in the operator's top-level checkout; the never-strand-main posture floor and #80's stranded-checkout detect-and-offer-to-fix cover the residual; native isolation is a default not a wall, and the merge stays the only unbypassable wall for shipped history. | Your observation carries it. Partial support: `set-routine`'s isolation proof for unattended runs; the never-strand posture floor in the deployed grounding copy; the stranded-checkout detect-and-offer owned by [boot](boot.md)/provisioning. No check fully asserts the criterion. | operator |

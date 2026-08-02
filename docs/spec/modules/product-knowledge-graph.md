@@ -63,5 +63,5 @@ product map — and from the shipped find-by-meaning module,
   seam, memory — re-derived in the design session); operator-facing vs. hidden engine-infra (likely the
   latter, like [engine-knowledge-graph](engine-knowledge-graph.md)) is decided at promotion.
 
-See [engine-architecture.md](../../architecture.md) for its catalogued role and the
+See [the architecture overview](../../architecture.md) for its catalogued role and the
 [module catalog](../../reference/module-catalog.md) for its place in the packaging view.

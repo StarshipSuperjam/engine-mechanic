@@ -7,13 +7,13 @@ engine_record: true
 
 *Decided 2026-08-02 in this repository, by the operator, in the wave-8 ruling round under
 [decision 0320](0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). One batched
-record for the wave's two adoptions, each reversing a carried top-of-corpus document's deliberate
-wording in favor of the build as shipped.*
+record for the wave's three adoptions — the third added when the wave's own re-verification loop
+surfaced it — each reversing a carried document's deliberate wording in favor of the build as
+shipped.*
 
 ## The decision
 
-Two places where the carried orientation documents contest the shipped build are **adopted as
-built**:
+Three places where the carried documents contest the shipped build are **adopted as built**:
 
 - **The module catalog's semantic-recall seat belongs to `memory-semantic-recall`.** The carried
   [catalog](../reference/module-catalog.md) presented the never-built `engine-knowledge-graph`
@@ -40,6 +40,16 @@ built**:
   [contracts surface document](../spec/systems/surfaces/contracts.md) that still carried the
   supersession-only wording for the canon — a wave-6 reconciliation defect fixed in this wave
   with the reference's other end.
+- **The post-audit re-review is the orchestrator's proportional judgment.** The carried
+  [build-orchestration](../spec/systems/lifecycle/build-orchestration.md) wording — the cold audits
+  "do not rerun unless the operator requests it," the orchestrator only advising — is planning-workspace
+  text wave 4's reconciliation never touched (verified in the git history; no ruling covers it). The
+  build's operation assigns the call to the orchestrator: it measures the post-review divergence,
+  makes a **proportional re-audit judgment**, and when warranted re-invokes the pre-submission passes
+  that fit the repair, scoped to the post-review diff — never itself a gate, fully disclosed in the
+  Review record, with the operator's oversight held by that disclosure, the merge wall, and their
+  standing ability to request a fuller re-review. The spec passage and its criterion row adopt that
+  model.
 
 ## Why
 
@@ -49,8 +59,11 @@ operator already merged in wave 7 and misdescribe what the setup menu actually o
 model is stated twice in the build's own record — the law (eADR-0014) and the enforcing schema —
 and the build's reasoning is the stronger one: a deployed cold copy carries no prior history for
 a supersession chain to preserve, and the pull-request body already holds the one history of each
-revision. Grading the build down to either letter would remove something true to restore
-something outdated.
+revision. The re-audit model is likewise how every wave of this reconciliation has actually run —
+each scoped re-audit was the orchestrator's disclosed judgment — and an operator-gated default
+would either idle the repair review while the operator is away or make every fix-cycle a
+consultation. Grading the build down to any of these letters would remove something true to
+restore something outdated.
 
 ## What we ruled out
 
