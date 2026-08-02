@@ -4,7 +4,7 @@ status: draft
 
 # memory-substrate-sqlite-fts5
 
-*Ratified in the design workspace on 2026-06-27 by [decision 0265](../../adr/0265-resolve-coupled-re-lock-of-memory-memory-substrate-sqlite-ft.md). Carried here as an **in-progress** description of intended design — the built engine has drifted from it; see the [product spec index](../../spec/index.md).*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the capture-relay wiring adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-06-27 by [decision 0265](../../adr/0265-resolve-coupled-re-lock-of-memory-memory-substrate-sqlite-ft.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees. Until the [product spec index](../../spec/index.md) retires the corpus drift caveat, links out of this document may reach documents still describing intended design.*
 
 ## Summary
 
@@ -29,8 +29,8 @@ project ([ship-the-substrate-not-the-data](../../principles.md)).
 |---|---|
 | `id` | `memory-substrate-sqlite-fts5` |
 | `status` | `required` |
-| `provides` | the **NDJSON ledger** substrate (canonical, append-only, gitignored, shipped empty) + its ledger-integrity machinery (serialized writes, line-resilient reads); the **derived SQLite/FTS5 index** + the plain-scan fallback; the **capture** code (turn-delta append, episodic consolidation, the abandoned-session sweep) and the closed **role-vocabulary** ([schema](../systems/surfaces/schemas.md), [D-030](../../adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md)); the **active-forgetting** maintenance pass — including **ledger compaction** (the self-directed whole-ledger rebuild-and-swap that bounds growth under the crash-safe-swap sequence) and the **audit-adjudicated erasure** path (the cross-session observer that idempotently enacts an operator-merged single-purpose erasure PR); reversible tidying recovers from the ledger; the **`search` interface FTS5 lexical fallback** [implementation](../systems/surfaces/tools.md) (the named-fallback [`tool`](../systems/surfaces/tools.md)); the **memory MCP server**; the **backup/restore mechanism + restore contract** (export, snapshot manifest with the ledger-generation stamp, replace-and-rebuild, privacy re-check, the **retained pre-migration snapshot tag** + the **migration-revert restore mode**, [D-264](../../adr/0264-authorize-git-native-retention-for-the-pre-migration-memory.md)) |
-| `wires` | `mcp` — the memory `search` server (engine-prefixed in root `.mcp.json`; `command`/`args` via `${CLAUDE_PROJECT_DIR:-.}` → server code under `.engine/tools/`; ledger + index data gitignored); `gitignore` — the NDJSON ledger and the derived SQLite/FTS5 index; `hook` — memory's own capture hooks (`Stop` append, `PreCompact` consolidate, `SessionStart` abandoned-session sweep) |
+| `provides` | the **NDJSON ledger** substrate (canonical, append-only, gitignored, shipped empty) + its ledger-integrity machinery (serialized writes, line-resilient reads); the **derived SQLite/FTS5 index** + the plain-scan fallback; the **capture** code (the turn-delta append — transcript-first, with **no** episodic consolidation and **no** boot-time sweep: the consolidation lifecycle was deleted whole with the curation model, as the [memory](../systems/cognitive/memory.md) doc records) and the closed **role-vocabulary** ([schema](../systems/surfaces/schemas.md), [D-030](../../adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md)); the **active-forgetting** maintenance pass — including **ledger compaction** (the self-directed whole-ledger rebuild-and-swap that bounds growth under the crash-safe-swap sequence) and the **audit-adjudicated erasure** path (the cross-session observer that idempotently enacts an operator-merged single-purpose erasure PR); reversible tidying recovers from the ledger; the **`search` interface FTS5 lexical fallback** [implementation](../systems/surfaces/tools.md) (the named-fallback [`tool`](../systems/surfaces/tools.md)); the **memory MCP server**; the **backup/restore mechanism + restore contract** (export, snapshot manifest with the ledger-generation stamp, replace-and-rebuild, privacy re-check, the **retained pre-migration snapshot tag** + the **migration-revert restore mode**, [D-264](../../adr/0264-authorize-git-native-retention-for-the-pre-migration-memory.md)) |
+| `wires` | `mcp` — the memory `search` server (engine-prefixed in root `.mcp.json`; `command`/`args` via `${CLAUDE_PROJECT_DIR:-.}` → server code under `.engine/tools/`; ledger + index data gitignored); `gitignore` — the memory directory holding the NDJSON ledger and the derived SQLite/FTS5 index; `hook` — memory's own hooks as built: `SessionStart` (the erasure observer and the backup export) and `PreCompact` (ledger compaction). **No `Stop` hook is memory's** — the turn-delta append is triggered by `core`'s close handler relaying to memory's capture entry, fail-soft ([decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); below). Plus the `codex-hook`/`codex-mcp` mirrors of all of it for the Codex runtime. |
 | `depends` | `core` (the cognitive-floor host: the [interface](../systems/surfaces/interfaces.md) surface grammar the `search` contract lives in, the [schema](../systems/surfaces/schemas.md) + [tool](../systems/surfaces/tools.md) surfaces, the hook registration library, the boot scent that consumes recall) |
 | `migrations` | the owned **ledger record-shape** migration unit — **none in v1** (first version); this module is the home for future ledger migrations, and backup/restore routes through `migrations` on a record-shape change |
 
@@ -54,10 +54,15 @@ for `search`:
   build-spec leaf ([interfaces](../systems/surfaces/interfaces.md)).
 
 "Memory owns the `search` seam" ([D-086](../../adr/0086-cognitive-foundations-as-required-packages-reconciliation-me.md)) is this **substrate** ownership: the
-optional semantic-recall module ([engine-knowledge-graph](engine-knowledge-graph.md)) overrides
-the lexical fallback **behind the same boundary**, reading the same ledger — a swappable index, not a
-store migration — and so depends on this package as its named dependency target. The contract being a
-stable interface-surface concern is what lets the implementation swap underneath without reopening it.
+semantic layer — the **[memory-semantic-recall](memory-semantic-recall.md)** module, `default-on` and
+distinct from the unbuilt knowledge-graph stubs — reads the same ledger and depends on this package as
+its named dependency target, but as built it does **not** override the lexical fallback: it arrives as
+its **own additive operation** (`recall-by-meaning`), conditionally registered by this module's own MCP
+server when the semantic code is present — the two ranked operations answer different questions and
+neither substitutes for the other, the additive model the
+[interfaces](../systems/surfaces/interfaces.md) surface adopted under this reconciliation. The
+contract being a stable interface-surface concern is what lets implementations arrive underneath
+without reopening it.
 
 ### Backup, restore, and the migration unit
 
@@ -97,34 +102,44 @@ guaranteed-reversible:
   travels with no one.
 - **`gitignore`** keeps the ledger and the FTS5 index out of the tree (the canonical store is local-only;
   the backup copy is the off-repo carve-out, [topology](../systems/infrastructure/repository-topology.md) law 5).
-- **`hook`** registers memory's **own** capture hooks (`Stop`, `PreCompact`, `SessionStart`), keyed
-  distinctly from `core`'s own hooks on those events (multiple hooks per event coexist by the
-  [module-system](../systems/grammar/module-system.md) keyed-registration rule). They are
-  memory's, not invoked by `core`, because **`core` cannot depend on `memory-substrate`** (the graph runs
-  `core → memory-substrate`); the capture mechanism rides with its owner, and the boot scent reaches recall
-  through the presence-bound `search` interface rather than a `core → memory` call. Write-safety across the
-  distinct `Stop` hooks is the **ledger-integrity law** (serialized writes), not hook ordering. Exact
-  event/matcher tuples are a build-spec leaf.
+- **`hook`** registers memory's **own** hooks — `SessionStart` (erasure observer + backup export) and
+  `PreCompact` (compaction) — keyed distinctly from `core`'s own hooks on those events (multiple hooks
+  per event coexist by the [module-system](../systems/grammar/module-system.md)
+  keyed-registration rule). **The `Stop`-append is deliberately not a memory hook**
+  ([decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md)): the
+  one `Stop` hook is `core`'s close handler, which **relays** to memory's capture entry behind a
+  swallow-everything guard — capture is ambient and never gates close, and the fail-soft import means
+  `core` still takes **no hard dependency** on this package (the graph stays `core → memory-substrate`
+  in name only where memory is present; an absent or broken memory is a silent no-op at close). The
+  capture *mechanism* still rides with its owner — the entry point, the scrub, and the serialized-write
+  lock are all memory's — and write-safety is the **ledger-integrity law** (capture's own lock), not
+  hook ordering. Exact event/matcher tuples are a build-spec leaf.
 
 ### Degradation
 
 Recall always has a working answer, and the failure modes are surfaced honestly (per the locked memory doc):
 
-- **MCP server down** — boot proceeds without recall and the per-prompt scent goes silent behind a
-  plain-language "running degraded (memory offline)" notice; the session is never blocked
-  ([degrade-to-git-native](../../principles.md)).
-- **FTS5 absent (server up)** — recall degrades to a plain scan over the NDJSON ledger: **availability
-  holds, latency does not**, so the scent's single-digit-ms budget no longer applies. Memory **detects**
-  the FTS5-absent condition; [boot](../systems/lifecycle/boot.md) **renders** the degraded-latency
-  disclosure ([§16](../../principles.md)).
+- **Recall unavailable** — boot proceeds without recall and renders the plain-language degraded notice
+  itself (keyed on an unreadable local store); the session is never blocked
+  ([degrade-to-git-native](../../principles.md)). The per-prompt scent needs no degrade branch of its
+  own — as built it is a **constant near-zero cue that reads no store** (it checks only that the module
+  is installed), so a server or store fault cannot slow or silence it; the
+  [memory](../systems/cognitive/memory.md) doc carries this as landed.
+- **FTS5 absent (store readable)** — recall degrades to a plain scan over the NDJSON ledger:
+  **availability holds, latency does not**. Memory **detects** the FTS5-absent condition;
+  [boot](../systems/lifecycle/boot.md) **renders** the degraded-latency disclosure
+  ([§16](../../principles.md)) — and the slow scan is reached through the recall pull (the MCP `search`
+  path), never pushed per-prompt.
 
 ## Acceptance criteria
 
+*In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
+
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **The laws are memory's system doc; the substrate is this module** — no duplication of the memory laws; the build-spec leaves stay deferred. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Its own required package, decisively on the ledger** — the only floor with non-regenerable per-instance data, so it gets an owned, legible migration unit instead of burying ledger migrations in `core`. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Implementation here, contract in the interface surface** — memory owns the `search` FTS5 fallback + MCP + the bound substrate; the semantic module swaps behind the same contract. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Owns the backup mechanism; provisioning consumes** — memory defines export/restore; provisioning triggers and owns the UX but may not widen it ([§16](../../principles.md)). | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Capture rides with its owner** — memory wires its own lifecycle hooks because `core` cannot depend on it; write-safety is the ledger-integrity law. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
-| **Ships empty, degrades cleanly, never strands** — the machinery travels with no data; an outage narrows recall, never blocks the session. | Not recorded in the design workspace — how this is verified is defined when this capability is settled. | operator |
+| **The laws are memory's system doc; the substrate is this module** — no duplication of the memory laws; the build-spec leaves stay deferred. | Operator observation: read this document against the locked memory system document and confirm it stays at what-and-why. No merge-gated check attests non-duplication of prose. | operator |
+| **Its own required package, decisively on the ledger** — the only floor with non-regenerable per-instance data, so it gets an owned, legible migration unit instead of burying ledger migrations in `core`. | Operator observation: the manifest declares `status: required` as a distinct module, with ledger migrations housed in the module's own migration tooling. Partial support: module-manifest (hard, CI) holds the manifest schema-valid — it does not assert the rationale or the owned-unit claim. | operator |
+| **Implementation here, contract in the interface surface** — memory owns the `search` FTS5 fallback + MCP + the bound substrate; the semantic layer arrives additively behind the same server, as its own operation. | Operator observation: the FTS5 fallback, the MCP server, and the bound ledger all ride this module, and the server conditionally registers the semantic operation when [memory-semantic-recall](memory-semantic-recall.md) is present. Partial support: interface-coherence (hard, CI) asserts each capability is answered by exactly one tool — the ownership split itself is your read. | operator |
+| **Owns the backup mechanism; provisioning consumes** — memory defines export/restore; provisioning triggers and owns the UX but may not widen it ([§16](../../principles.md)). | Operator observation: the backup, export, and restore tooling live in the module's code-home with provisioning as trigger-only. Partial support: memory-pointer-public-safety (hard, CI) asserts one sliver — the public template ships the unconfigured pointer placeholder — not the ownership boundary. | operator |
+| **Capture rides with its owner, triggered by close** — memory owns the capture entry, the scrub, and the serialized-write lock; the one `Stop` hook is `core`'s close handler relaying fail-soft ([decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md)); write-safety is the ledger-integrity law. | Operator observation: memory's manifest wires only SessionStart and PreCompact hooks, the close handler's first act is the guarded relay into memory's capture entry, and the capture lock serializes writes. No check attests hook-ownership semantics; the relay's fail-soft behavior is exercised by its demo riding the CI unit-test step. | operator |
+| **Ships empty, degrades cleanly, never strands** — the machinery travels with no data; an outage narrows recall, never blocks the session. | Operator observation: the gitignore wire keeps the store local so the template ships empty, the plain-scan path answers when FTS5 is absent, boot renders the latency disclosure, and the capture relay is a no-op on any fault. Partial support: catalog-coverage (hard, CI) treats the memory directories as infrastructure so data never rides the census; the degrade behaviors themselves ride unit tests, never a merge gate. | operator |
