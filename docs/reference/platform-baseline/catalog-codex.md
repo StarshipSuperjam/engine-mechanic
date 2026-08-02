@@ -362,7 +362,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: This is the Codex-side host for the engine's unattended routine. /Users/shanekidd/Developer/engine-template/.claude/skills/engine-routine/SKILL.md names "a Codex **Automation**" as an alternate host running `$engine-routine`; /Users/shanekidd/Developer/engine-template/.engine/operations/routine-entry.md is the shared entry procedure; /Users/shanekidd/Developer/engine-template/.engine/operations/codex-validation.md item 10 is the live acceptance test (configure a Codex Automation with `approval_policy="never"` + `workspace-write`, a dedicated background worktree, pointed at a scope-locked build Issue; confirm it enters Routine, advances one chunk, never merges). Item 11 additionally uses a `sandbox_mode="read-only"` Automation to host the from-Codex self-review persona.
+repo_usage: This is the Codex-side host for the engine's unattended routine. .claude/skills/engine-routine/SKILL.md names "a Codex **Automation**" as an alternate host running `$engine-routine`; .engine/operations/routine-entry.md is the shared entry procedure; .engine/operations/codex-validation.md item 10 is the live acceptance test (configure a Codex Automation with `approval_policy="never"` + `workspace-write`, a dedicated background worktree, pointed at a scope-locked build Issue; confirm it enters Routine, advances one chunk, never merges). Item 11 additionally uses a `sandbox_mode="read-only"` Automation to host the from-Codex self-review persona.
 overlap: modes.py `set-routine` isolation gate + routine-entry.md + operating-modes.md Routine stance are the same engine layer used for both providers; codex-validation.md is the Codex acceptance runbook.
 note: The engine relies on two unverifiable-from-repo Codex platform facts (codex-validation.md item 10 "item zero"): that the installed Codex build supports Automations AND that a scheduled Automation fires SessionStart and its "dedicated background worktree" is a git-linked worktree the isolation gate recognizes. routine-entry.md (step 1, line 23) also encodes a Codex-specific caveat: hooks stay OFF after any engine update that changed them until the operator re-trusts via `/hooks` — so the routine refuses to write until hooks are confirmed. Whether a Codex Automation provides single-flight is noted as unverified (routine-entry.md line 87). `requirements.toml` admin enforcement and the "Scheduled" inbox are not engine-managed.
 ```
@@ -459,7 +459,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: Actively used. /Users/shanekidd/Developer/engine-template/.codex/config.toml holds two engine-managed MCP server blocks (engine-knowledge-graph, engine-memory) with `default_tools_approval_mode="auto"`, inside BEGIN/END managed-block markers, rendered by /Users/shanekidd/Developer/engine-template/.engine/tools/wiring.py (render_codex_mcp_body, the codex-mcp wire type).
+repo_usage: Actively used. .codex/config.toml holds two engine-managed MCP server blocks (engine-knowledge-graph, engine-memory) with `default_tools_approval_mode="auto"`, inside BEGIN/END managed-block markers, rendered by .engine/tools/wiring.py (render_codex_mcp_body, the codex-mcp wire type).
 overlap: This is the Codex counterpart of the Claude `.mcp.json`; both register the same two in-repo MCP servers. Parity enforced by provider_parity_check.py.
 note: Only MCP-server and approval-mode keys are set; model/history/profile keys are not managed by the engine.
 ```
@@ -597,7 +597,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: The engine supports Codex as a co-equal runtime and operates inside its TUI. The Codex instruction surface is /Users/shanekidd/Developer/engine-template/AGENTS.md (engine-managed-block structure), the analog of CLAUDE.md. Operator commands are exposed as `$`-prefixed skills (/Users/shanekidd/Developer/engine-template/.agents/skills/, 13 mirrors) rendered by engine-help.
+repo_usage: The engine supports Codex as a co-equal runtime and operates inside its TUI. The Codex instruction surface is AGENTS.md (engine-managed-block structure), the analog of CLAUDE.md. Operator commands are exposed as `$`-prefixed skills (.agents/skills/, 13 mirrors) rendered by engine-help.
 overlap: AGENTS.md floor block; provider-parity tooling (providers.py, provider_parity_check.py) keeps the Claude and Codex surfaces in lockstep.
 note: No TUI sub-feature is configured; the engine only relies on the session existing and firing lifecycle hooks.
 ```
@@ -639,7 +639,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: Deliberately NOT set per-agent. /Users/shanekidd/Developer/engine-template/.engine/tools/codex_gen.py (lines 21-22) states `model` is NEVER emitted into `.codex/agents/*.toml` because "a pinned model id in a persona file rots — eADR-0034"; the generated toml keys are name/description/sandbox_mode/model_reasoning_effort/developer_instructions only (confirmed on engine-audit.toml).
+repo_usage: Deliberately NOT set per-agent. .engine/tools/codex_gen.py (lines 21-22) states `model` is NEVER emitted into `.codex/agents/*.toml` because "a pinned model id in a persona file rots — eADR-0034"; the generated toml keys are name/description/sandbox_mode/model_reasoning_effort/developer_instructions only (confirmed on engine-audit.toml).
 overlap: model-bindings.json governs the Claude side; on Codex only the effort half is mapped (see reasoning-effort).
 note: Asymmetry — Claude agents get a bound `model`, Codex agents get none (model left to the Codex session default). An intentional divergence, recorded in codex_gen.py.
 ```
@@ -716,7 +716,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: Used. /Users/shanekidd/Developer/engine-template/.codex/agents/*.toml carry `model_reasoning_effort`, mapped from the Claude tier by /Users/shanekidd/Developer/engine-template/.engine/tools/codex_gen.py (_EFFORT_BY_TIER: judgment→high, mechanical→low, line 53).
+repo_usage: Used. .codex/agents/*.toml carry `model_reasoning_effort`, mapped from the Claude tier by .engine/tools/codex_gen.py (_EFFORT_BY_TIER: judgment→high, mechanical→low, line 53).
 overlap: Same model-bindings.json tier vocabulary as the Claude effort stamp; codex_gen.py is the Codex stamper.
 note: model_reasoning_summary, model_verbosity, plan_mode_reasoning_effort are not used. `xhigh`/`minimal` levels are not exercised (only high/low).
 ```
@@ -760,7 +760,7 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: The engine reads Codex session transcripts (rollout files) for memory capture. /Users/shanekidd/Developer/engine-template/.engine/tools/memory/capture.py carries a dedicated, provider-routed Codex transcript recognizer (`_codex_messages`, `_extract_records`, the known-`type` allow-set around lines 207-300) that fails CLOSED on an unrecognized shape rather than using the tolerant Claude parser, because "Codex's transcript format is EXPLICITLY unstable."
+repo_usage: The engine reads Codex session transcripts (rollout files) for memory capture. .engine/tools/memory/capture.py carries a dedicated, provider-routed Codex transcript recognizer (`_codex_messages`, `_extract_records`, the known-`type` allow-set around lines 207-300) that fails CLOSED on an unrecognized shape rather than using the tolerant Claude parser, because "Codex's transcript format is EXPLICITLY unstable."
 overlap: capture.py is the single memory-capture mechanism for both providers; the Codex path is a distinct recognizer within it.
 note: The engine depends on the Codex rollout/transcript format and treats format drift as a defect (codex-validation.md item 7: a "conversation wasn't saved" line means "the transcript reader needs updating"). `codex resume`/`codex exec resume` and history.persistence config are not otherwise used.
 ```
@@ -834,8 +834,8 @@ sources:
 **Reconciliation (engine-template@cdbbc335):**
 
 ```yaml
-repo_usage: The engine ships its own operator commands as Codex/AGENTS skills under /Users/shanekidd/Developer/engine-template/.agents/skills/ (13 mirrors of the Claude skills), invoked as `$engine-*`. codex-validation.md item 9 verifies engine-help renders the `$` prefix. Native built-in slash commands are consumed as-is but not extended.
-overlap: skill mirroring is kept coherent by /Users/shanekidd/Developer/engine-template/.engine/tools/codex_skill_coherence_check.py.
+repo_usage: The engine ships its own operator commands as Codex/AGENTS skills under .agents/skills/ (13 mirrors of the Claude skills), invoked as `$engine-*`. codex-validation.md item 9 verifies engine-help renders the `$` prefix. Native built-in slash commands are consumed as-is but not extended.
+overlap: skill mirroring is kept coherent by .engine/tools/codex_skill_coherence_check.py.
 note: The `$` vs `/` prefix difference between runtimes is an engine-tracked parity concern.
 ```
 
@@ -1279,7 +1279,7 @@ sources:
 ```yaml
 repo_usage: unused
 overlap: >
-  The engine has its OWN worktree-isolation model — /Users/shanekidd/Developer/engine-template/.claude/worktrees/
+  The engine has its OWN worktree-isolation model — .claude/worktrees/
   (~11 live), plus the parallel-workers isolated-worktree build strategy in
   .engine/operations/build-orchestration.md step 4 — but this is plain git worktrees under Claude Code's build
   flow, NOT Codex's desktop-app Local↔Worktree handoff ($CODEX_HOME/worktrees, .worktreeinclude, detached-HEAD
@@ -1451,7 +1451,7 @@ sources:
 ```yaml
 repo_usage: >
   Partially adjacent, not the IDE half. The engine uses the SHARED config.toml agent-settings surface — 
-  /Users/shanekidd/Developer/engine-template/.codex/config.toml carries the engine-MCP server blocks and
+  .codex/config.toml carries the engine-MCP server blocks and
   default_tools_approval_mode="auto", and per-agent model_reasoning_effort/sandbox_mode live in
   .codex/agents/*.toml (generated by .engine/tools/codex_gen.py from model-bindings). But NONE of the
   editor-specific `chatgpt.*` keys or the app↔extension settings-sync are used.
@@ -1550,7 +1550,7 @@ sources:
 
 ```yaml
 repo_usage: >
-  Used. Root /Users/shanekidd/Developer/engine-template/AGENTS.md is the Codex instruction file,
+  Used. Root AGENTS.md is the Codex instruction file,
   a keyed engine-managed floor block (BEGIN engine-managed block: floor) installed as the second
   instruction-floor half by instantiator.py (_ROOT_AGENTS_REL = "AGENTS.md", L1283). Project scope
   only; single root file (only nested AGENTS.md copies are inside .claude/worktrees/, i.e. build
@@ -1815,7 +1815,7 @@ sources:
 
 ```yaml
 repo_usage: >
-  Used, stdio subset. /Users/shanekidd/Developer/engine-template/.codex/config.toml defines
+  Used, stdio subset. .codex/config.toml defines
   [mcp_servers.engine-knowledge-graph] and [mcp_servers.engine-memory] with command="uv" and an args
   list (stdio). Only command + args (+ default_tools_approval_mode) are used; the record's other stdio
   keys — env, env_vars, cwd, enabled, required, experimental_environment, startup_timeout_sec,
@@ -2017,7 +2017,7 @@ repo_usage: unused
 overlap: >
   Codex's native `/review` (and review_model / chatgpt.reviewDelivery settings) is not used. The engine's review
   is its own persona set; on the Codex runtime those same reviewers are the committed renders under
-  /Users/shanekidd/Developer/engine-template/.codex/agents/engine-qa-review-*.toml and engine-design-review-*.toml
+  .codex/agents/engine-qa-review-*.toml and engine-design-review-*.toml
   (generated from the .claude/agents/*.md source by .engine/tools/codex_gen.py), invoked through
   build-orchestration.md — not Codex's built-in reviewer.
 note: >
@@ -2140,7 +2140,7 @@ sources:
 repo_usage: unused
 overlap: none
 note: >
-  No openai-codex dependency in /Users/shanekidd/Developer/engine-template/.engine/pyproject.toml
+  No openai-codex dependency in .engine/pyproject.toml
   and no Codex/AsyncCodex import. The engine's Python is its own tool runtime
   (uv-managed .engine/.venv), not a Codex-embedding host.
 ```
