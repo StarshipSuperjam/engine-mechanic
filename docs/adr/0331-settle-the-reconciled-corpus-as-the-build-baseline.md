@@ -43,9 +43,10 @@ stage of their own and stay alongside as reconciled material.
 **Two rows left the ratified obligation set, on the operator's explicit ruling:** the lineage-attestation
 criteria in the attention and knowledge documents — rows whose own how-verified cells admitted nothing
 could falsify them — moved to prose beneath their tables, knowledge keeping its falsifiable
-swappable-leaf half as a slimmed row. An attestation nothing could falsify is not a criterion (the
-project's decisions 0231/0232 rejected the same shape for demonstrations, and the same holds one layer
-up). The memory document's heritage row stays: it carries a falsifiable half — nothing extracts at write
+swappable-leaf half as a slimmed row. An attestation nothing could falsify is not a criterion (the project's decisions
+[0231](0231-promote-the-in-tool-demo-subcommand-as-a-governed-ai-run-sta.md) and
+[0232](0232-correct-d-231-s-offender-census-the-full-demo-population-has.md) rejected the same shape for
+demonstrations, and the same holds one layer up). The memory document's heritage row stays: it carries a falsifiable half — nothing extracts at write
 time — so it remains a criterion under the ruling's own terms.
 
 **Ratified knowingly, on the operator's explicit review:** memory's shared-vault backup default — one
