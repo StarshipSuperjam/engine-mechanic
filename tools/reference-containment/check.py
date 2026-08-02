@@ -104,7 +104,13 @@ TRAVELING_SCOPES = (".engine/", ".claude/", ".codex/", ".agents/", ".github/",
 LOCAL_SCOPES = (".engine/contracts/instance/", ".engine/operator-guarded-paths.json",
                 ".engine/operator-overrides.json", ".engine/conduct/operator.md",
                 ".engine/provisioning/readme-seed.md", ".engine/provisioning/conduct-seed.md",
-                ".engine/provisioning/security-seed.md", ".engine/state/", ".engine/memory/")
+                ".engine/provisioning/security-seed.md", ".engine/state/", ".engine/memory/",
+                # The settled-acceptance-criteria record: generated per-deployment from this
+                # repository's own docs/spec/, preserved across engine upgrades as instance state,
+                # and never shipped. Its rows embed criterion text verbatim, which legitimately
+                # links this repository's decision records — the same sanctioned-home argument as
+                # contracts/instance/. Discovered when settling filled it from zero rows.
+                ".engine/product-spec-matrix.json")
 
 # This directory necessarily discusses the vocabulary it bans. The tests do not RELY on this
 # exclusion — they assemble token literals at runtime, so no matchable string sits in them.

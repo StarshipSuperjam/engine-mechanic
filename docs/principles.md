@@ -1,6 +1,6 @@
 # Product principles
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the canon-evolution passages aligned by [decision 0330](adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the canon-evolution passages aligned by [decision 0330](adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md). This document sits alongside the **settled** capability corpus ([decision 0331](adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md)) as reconciled supporting material — it describes the build as observed and carries no settled stage of its own.*
 
 ## What this product is for
 

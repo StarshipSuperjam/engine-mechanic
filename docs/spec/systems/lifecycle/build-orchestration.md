@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Build orchestration
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -392,9 +392,14 @@ assembled result.
 
 **Regenerating the derived-committed artifacts is part of integrate.** As the single writer, the orchestrator
 reconciles the PR branch's base against the default branch and then **regenerates every
-[§19](../../../principles.md) derived-committed artifact** — the [knowledge](../cognitive/knowledge.md)
+[§19](../../../principles.md) derived-committed artifact** — as built, the reconciler's member set is
+exactly the [knowledge](../cognitive/knowledge.md)
 graph and the [ontology](../grammar/ontology.md) self-map — **from the reconciled tree as the final
-authoring step**, so the PR is regenerated-and-current before review. A textual conflict on a member is
+authoring step**, so the PR is regenerated-and-current before review. The
+[product-design](../../modules/product-design.md) spec-obligation matrix shares the class's
+source-determinism, but it is **not** in the built reconciler's member set: its refresh rides the
+product-design module's own commit-boundary hook with the CI drift gate as the durable backstop, so a
+concurrent conflict on it is surfaced for an ordinary regenerate-and-commit rather than auto-cleared. A textual conflict on a member is
 **spurious** (§19): the resolution is to **clear the conflict and regenerate unconditionally** — not a
 side-pick (`--ours`/`--theirs`, which an add/delete-vs-modify case can defeat), never a hand-merge. The
 load-bearing guarantee is **reconcile-before-merge**: GitHub's server-side merge cannot run a local merge

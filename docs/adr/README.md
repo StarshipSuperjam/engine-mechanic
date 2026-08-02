@@ -342,3 +342,4 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0328 | [Adopt the board's What's-next field, superseding the spec's ban](0328-adopt-the-board-s-what-s-next-field-superseding-the-spec-s-b.md) | 2026-08-02 |
 | 0329 | [Adopt the built letter where locked module documents lag the build](0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md) | 2026-08-02 |
 | 0330 | [Adopt the built semantic-recall seat and the canon's revised-in-place model, with the orchestrator's re-audit judgment](0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md) | 2026-08-02 |
+| 0331 | [Settle the reconciled corpus as the build baseline](0331-settle-the-reconciled-corpus-as-the-build-baseline.md) | 2026-08-02 |

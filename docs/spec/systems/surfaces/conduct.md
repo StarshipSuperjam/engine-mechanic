@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Conduct
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-14 by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-14 by [decision 0195](../../../adr/0195-ratify-lock-the-conduct-surface-fresh-five-lens-cold-session.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -26,8 +26,8 @@ authority tier, which can bind to a hard check; conduct never does.)
 
 - **It is** the operator's standing *behavioral stance* — how the AI should conduct itself across all work
   in this repo, present from the first session.
-- **It is not** project narrative (that is [memory](../cognitive/memory.md)'s `preference`/`lesson`
-  roles, which accumulate per-project and ship empty), structural fact (that is
+- **It is not** project narrative (that is [memory](../cognitive/memory.md)'s job — the
+  transcript-first record and the operator's pins, which accumulate per-project and ship empty), structural fact (that is
   [knowledge](../cognitive/knowledge.md)), design rationale (that is the
   [contracts](contracts.md) eADR canon), or an enforcement gate (that is
   [policies](policies.md) / [checks](check.md) / [hooks](../infrastructure/hooks.md)).
@@ -134,8 +134,8 @@ is **defense-in-depth**:
 
 ### Relation to memory
 
-Conduct is the **cold-boot stance floor**; [memory](../cognitive/memory.md)'s `preference`/`lesson`
-roles are the **per-project enrichment** that accumulates through use (and ships empty). They compose: the
+Conduct is the **cold-boot stance floor**; [memory](../cognitive/memory.md)'s record — the captured
+transcript and the operator's pins — is the **per-project enrichment** that accumulates through use (and ships empty). They compose: the
 floor is present from session one, and memory deepens it as the project teaches the Engine. A preference
 learned in a project may be **promoted** to a standing code of conduct on the operator's explicit, governed
 call (the authoring verb) — never automatically.

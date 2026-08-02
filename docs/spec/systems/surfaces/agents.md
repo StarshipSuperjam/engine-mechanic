@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Agents
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-16 by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-16 by [decision 0313](../../../adr/0313-resolve-re-lock-agents-the-engine-naming-rule-the-read-only.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -171,6 +171,20 @@ dangling-check-kind posture, the role/lens/trigger vocabulary including the `aud
 sees is plain language ("no security review
 ran on this change"; the audit digest's plain self-attestation), never these names — the
 [operator-communication law and the maintainer-jargon leak guard](../../../principles.md) apply.
+
+### The Codex render
+
+Each engine persona also ships as a **committed Codex-native render** — a distinct catalogued surface
+(the ontology's `codex-agent`) generated from the canonical `.claude/agents/` source by the render tool,
+never hand-authored, living in the Codex runtime's own corner
+([topology](../infrastructure/repository-topology.md) law 4; at the pin, ten renders under
+`.codex/agents/`, one per persona — full parity, no exception recorded). Two hard, merge-gated checks
+hold the pair: a schema check over the rendered set — a malformed persona would silently **vanish from
+review** rather than erroring, so the shape Codex needs to spawn one is asserted at the merge — and a
+coherence check requiring every render to match **byte-for-byte** what the render tool produces from its
+Claude source, with every review persona keeping its read-only sandbox and pinning no model; a
+hand-edited, stale, or source-less render goes red, and the fix is always to edit the canonical
+`.claude/` source and regenerate, never to touch a render by hand.
 
 ## Acceptance criteria
 

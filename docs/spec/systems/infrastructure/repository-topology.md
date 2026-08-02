@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Repository topology
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0303](../../../adr/0303-resolve-re-lock-repository-topology-law-2-gains-the-standing.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -92,8 +92,9 @@ These laws — not a fixed list of directories — are what guarantee room for e
    [build-orchestration](../lifecycle/build-orchestration.md)'s, as branch protection is the
    control plane's (this doc owns the filesystem partition, not the working-tree topology).
 3. **One directory per engine-governance surface.** Each surface named by the [ontology](../grammar/ontology.md)
-   gets exactly one home at `.engine/<surface>/`. The surface set itself is the ontology's concern;
-   topology fixes only the location convention. A new surface later is a new `.engine/<surface>/` per
+   gets exactly one home, named by its catalog `location`: `.engine/<surface>/` unless a runtime dictates
+   otherwise (the tool-native surfaces of law 4). The surface set itself is the ontology's concern;
+   topology fixes only the location convention. A new surface later is a new home per
    this law — an additive change, not a topology refactor.
 4. **Tool-native surfaces live where each tool dictates.** Agents, skills, and hook
    configuration sit under `.claude/`, and project-scope MCP server definitions sit in the root

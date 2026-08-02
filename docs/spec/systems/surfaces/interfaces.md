@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # Interfaces
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-05-29 by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-05-29 by [decision 0116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -113,9 +113,12 @@ handle):
   disclosed qualification above) — so adding embeddings is a bolt-in, not a store migration
   ([memory](../cognitive/memory.md)), and the boundary never silently picks between two engines.
 - **`memory-control`** — the operator's memory controls (pin, withhold, restore, erase, and the like),
-  deliberately split from `search` so that recall's own contract can keep its promise that **reading
+  deliberately split from `search` so that recall's contract can *state* on its face that **reading
   never changes or removes what is stored**: the operations that write live behind their own seam,
-  answered by the same foundation implementation.
+  answered by the same foundation implementation. The split expresses the read/write boundary; what
+  *upholds* it is that one implementation's discipline, not the seam's shape —
+  [§12](../../../principles.md) attributes every isolation claim to the wiring discipline, never to the
+  architecture's shape, and this seam is no exception.
 - **knowledge representation/retrieval** — the [knowledge](../cognitive/knowledge.md) graph's
   representation and retrieval leaf, kept swappable so a richer engine can slot in (and be bounded) without
   reopening knowledge ([R8](../../../reference/risks.md)). Its **operation set** — the structural query surface every
@@ -124,8 +127,10 @@ handle):
   category, path glob, or attribute), `neighbors(id, edge-filter?, direction?, depth?)` (adjacency
   traversal), and
   `relate(id-a, id-b)` (the relationship/path between two entities). The read-time memory link is **not** an
-  operation here — the consumer composes it (knowledge returns entity-ids; memory's read-time join
-  surfaces the drawers tagged with them, [memory](../cognitive/memory.md)), keeping the two seams
+  operation here — the consumer composes it, or it does not exist: knowledge returns entity-ids, and the
+  consumer queries memory's recall with one as a plain search term over the transcript
+  ([memory](../cognitive/memory.md) — the once-designed tag-keyed read-time join went with the retired
+  curation layer, so no persisted join exists on either side), keeping the two seams
   independent
   ([D-116](../../../adr/0116-q27-3-re-litigation-the-knowledge-retrieval-interface-operat.md)).
 
@@ -151,7 +156,7 @@ a-deliberate-floor-is-not-nagged, and the knowledge-retrieval **operation set** 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | **Protocol, not payload** — an interface governs a callable boundary; data shape is a `schema`'s job. | Operator observation: each declaration under `.engine/interfaces/` names callable operations with input and output schemas, while payload shape lives with the [schemas](schemas.md) surface; the interface-declaration check (hard, CI) asserts the declaration's form but not the boundary distinction itself. | operator |
-| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Operator observation, partially supported by the interface-coherence check (hard, CI), which discovers implementations by the presence of the wired handle rather than from any roster; the not-wiring half is observed in the module manifests, where no interface implementation appears as a wiring entry. | operator |
+| **Polymorphism, not wiring** — many implementations of one contract, selected by presence; not a shared-state side-effect. | Operator observation, partially supported by the interface-coherence check (hard, CI), which carries the only-one-active rule — though as built no production mechanism discovers a present implementation (the single-active row below); the not-wiring half is observed in the module manifests, where no interface implementation appears as a wiring entry. | operator |
 | **Fallback named and never silent** — degradability is stated at the contract and an active fallback is surfaced to the operator in plain language. | Split: the named-at-the-contract half is asserted by the interface-declaration check (hard, CI), whose governing schema makes `fallback` a required field — a declaration without one is refused at the merge. The surfaced-in-plain-language half is [boot](../lifecycle/boot.md)'s rendering, observed by the operator; no check asserts it, so the composite row stays with the operator. | operator |
-| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | The interface-coherence check (hard, CI, merge-gated) asserts exactly this: it goes red if two different tools are installed to answer one capability — only one may be active, the engine never silently picking between them. Honest limit, disclosed by the check itself: no richer second implementation ships at the pin, so the rule is armed rather than exercised; it fires on the first real arrival. | engine |
+| **Single-active resolution** — exactly one implementation answers; more than one non-default present is a coherence finding, never a silent pick. | The interface-coherence check (hard, CI, merge-gated) carries the rule, but partially: as built, its present-implementations input is **empty in production** — no engine mechanism yet discovers an installed second implementation, and the only-one-active rule is witnessed biting only against seeded test fixtures (the check's own negative-fixture seam). Until a discovery mechanism exists, a second implementation arriving would **not** turn the check red on its own — so the resolution rests on your read, with the check as partial support, not an assertion. | operator |
 | **A deliberate floor is not nagged** — a fallback the operator runs by choice is a valid steady state, not a standing alarm; only an unexpectedly-down richer substrate is surfaced loudly. | Operator observation of [boot](../lifecycle/boot.md)'s behavior across the two conditions: a no-richer-module deployment surfaces the richer option at most once and then stays silent, while an installed-but-down substrate is surfaced loudly with the one step back. No check asserts nag-versus-steady-state. | operator |

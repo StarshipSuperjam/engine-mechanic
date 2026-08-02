@@ -1,6 +1,6 @@
 # Goals and quality attributes
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). Still **in progress** — reconciled is not settled, and this document describes the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). This document sits alongside the **settled** capability corpus ([decision 0331](../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md)) as reconciled supporting material — it describes the build as observed and carries no settled stage of its own.*
 
 This document is the **rubric**. Every design decision and every deviation verdict cites a quality
 attribute here. When two options compete, the one that better serves these attributes wins; when an
@@ -16,7 +16,7 @@ engine to build faithfully and show it on evidence the operator can weigh.
 ## Stakeholders
 
 - **Non-engineer operator** — primary consumer. Generates the repo, directs work, approves merges. A capable adult who builds *through* the engine rather than by reading its code; not assumed to debug code or GitHub internals. So the operator's trust cannot rest on code review — the burden of proof is on the engine to do faithful work and show it on evidence the operator can weigh, without their having to watch the mechanics.
-- **Claude Code (the AI builder)** — the engine's other consumer. Boots cold each session; needs externalized state, memory, knowledge, and attention plus unambiguous grammar.
+- **The AI builder (Claude Code, or the Codex runtime)** — the engine's other consumer. Boots cold each session; needs externalized state, memory, knowledge, and attention plus unambiguous grammar.
 - **Engine maintainer** — builds and evolves the template, and is the **sole non-engineer gate-holder of its construction** from the first commit, with no outside engineer ([constraints](constraints.md)). Needs the design fully specified so changes are mechanical, not archaeological — and needs construction to be **approvable on evidence without reading code**, the same trust bar the deployed operator holds ([principles §17](../principles.md)).
 
 ## Quality attributes (the rubric)

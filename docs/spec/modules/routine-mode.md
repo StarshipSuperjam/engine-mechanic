@@ -1,10 +1,10 @@
 ---
-status: draft
+status: locked
 ---
 
 # routine-mode
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Still **in progress** — reconciled is not settled, and the criteria below describe the build as observed, not ratified guarantees.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
