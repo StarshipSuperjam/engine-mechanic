@@ -928,3 +928,40 @@ lens** charged to ask of each affirmative claim whether a named mechanism backs 
 named honestly ([§7](../principles.md)). **Closes** only if a mechanical means of measuring a prose claim
 against a mechanism exists here, which is not currently foreseen; until then it is a **standing, accepted
 residual** and the honest bound on what a `locked` status asserts. Opened by [D-314](../adr/0314-litigate-engine-template-394-attention-s-work-record-commiss.md).
+
+## R36 — Load-bearing dependence on unowned platform behavior
+
+**Risk.** The platform capability baseline audit ([D-332](../adr/0332-adopt-the-platform-capability-baseline-snapshot-and-comparis.md))
+found eight behaviors that engine guarantees consume but the platform vendors own — enumerated durably in
+the baseline's [dependency register](platform-baseline/coverage-conflict-map.md): the
+`.claude/worktrees/<name>/` **worktree layout** the isolation proof rides (hard-coded in the wiring,
+proven by the checkout-health read, created only by the platform); **shared-config load parity** across
+CLI / Desktop / IDE / cloud / Codex (the floors, hooks, skills, and MCP registrations must load
+identically everywhere — unverifiable from the repo); `PostToolUse` **`additionalContext` delivery**;
+**hook fail-open semantics** (the whole gate posture assumes a crashing hook never blocks); **scheduled
+hosts firing `SessionStart`** plus the unverified Codex Automation single-flight; the **Codex transcript
+format** (unstable upstream; the fail-closed recognizer turns drift into a visible capture failure);
+**`claude_desktop_config.json` duplicate-name precedence** (latent — a same-named user-scope MCP server
+could shadow the engine's); and **Codex hook re-approval** after an engine update (hooks stay off until
+the operator re-trusts, honest-tier only). A silent vendor change to any of these breaks an engine
+guarantee **with no diff in the repo** — nothing committed changes, so no merge gate or check can see it.
+A sibling standing interaction from the same audit: native **allow rules outrank hook denies**, so an
+operator widening `permissions.allow` onto a gated tool would override the engine's own deny hook.
+**Severity.** Low-to-medium — a named, bounded residual ([R6](risks.md)). Each dependency is
+observation-tier by discipline (the engine reads the signal, never rests a governance guarantee on it —
+the protected-branch merge depends on none of them), and the sharpest instances already fail toward
+safety (the fail-closed transcript recognizer; the routine entry that refuses to write without positive
+isolation proof). Not low: several are load-bearing for *correctness* (isolation, floor delivery), and
+the failure mode is silent-by-construction.
+**Mitigation direction.** **Watch, document, never depend — and diff on a schedule.** The
+observation-only discipline is the standing rule (ratified at [D-333](../adr/0333-ratify-the-platform-baseline-dispositions-the-migration-set.md)):
+no governance guarantee may come to rest on an unowned behavior. The M5 migration documents the
+dependencies and the recommended host hardening (the native OS sandbox and credential masking as
+defense-in-depth for the fail-open gate) in engine-template's own docs; defensive assumption-tests (e.g.
+a worktree-layout probe) are candidate follow-ups, not commitments. The **standing watch is the
+platform-currency module**: its recurring runs diff the live platforms against the fingerprinted baseline
+snapshot, so a vendor-side change to a documented behavior surfaces as a sourced delta instead of a
+silent break. Instances with existing homes stay there: `additionalContext` delivery is [R19](risks.md)'s
+build-spec re-verify leaf; worktree-*exhaust* accumulation is the [R20](risks.md) boundary note;
+preview-feature posture is [R12](risks.md)/[R17](risks.md). Opened by
+[D-333](../adr/0333-ratify-the-platform-baseline-dispositions-the-migration-set.md).

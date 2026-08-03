@@ -3142,7 +3142,7 @@ note: >
 
 **Assessment:** action mode n/a; enforcement none — not in use; failure mode n/a; portability provider-specific.
 
-**Disposition: `REJECT`** — audit-prep deliberately runs the CLI directly so the read-only persona never writes; the workflow owns git/PR. Recommended to stand as-is (ratification rides the migration decision record).
+**Disposition: `REJECT`** — audit-prep deliberately runs the CLI directly so the read-only persona never writes; the workflow owns git/PR. Ratified to stand as-is (decision 0333).
 
 ### `claude/github-ci/github-app-and-installer`
 
@@ -4237,7 +4237,7 @@ note: >
 
 **Assessment:** action mode n/a; enforcement none — not in use; failure mode n/a; portability provider-specific.
 
-**Disposition: `REJECT`** — The engine ships its own authoritative memory substrate and actively fences the native notebook (modes.py denies writes; CLAUDE.md declares it non-authoritative). Recommended to stand as-is (ratification rides the migration decision record).
+**Disposition: `REJECT`** — The engine ships its own authoritative memory substrate and actively fences the native notebook (modes.py denies writes; CLAUDE.md declares it non-authoritative). Ratified to stand as-is (decision 0333).
 
 ### `claude/instructions-memory/claude-md-excludes`
 
