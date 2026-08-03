@@ -428,7 +428,7 @@ never silently dropped — where it is not**; visibility is never auto-switched 
   traveling fallback**: on a free private repo native code scanning is unavailable, so it is **absent
   there and disclosed as a known drawback**, never replaced by a bespoke scanner. It is a **native GitHub
   security feature** (the same class as native secret scanning) — distinct from the optional product-code
-  *style/lint* governance the [clean-code](../../modules/clean-code.md) module owns
+  *style/lint* governance the [clean-code](../../../reference/module-catalog.md) module owns
   ([D-095](../../../adr/0095-cut-expression-contracts-disposition-prose-organization-cove.md)), and it introduces **no third-party CI surface** (so the
   [dependency-discipline](../../modules/dependency-discipline.md) no-third-party-scanner stance
   is untouched). Its alerts are **advisory, not a merge gate** — a finding is surfaced for the Engine to

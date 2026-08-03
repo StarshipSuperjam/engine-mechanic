@@ -67,7 +67,7 @@ non-engineer oriented (wording deferred to build, [§12](../../principles.md) le
   channel (Engine drafts, operator files).
 - **Setup-time disclosure:** the provisioning selection-UX states plainly that this package contributes to
   repos the operator does not control, that acceptance is the upstream's call, and that the cross-repo path
-  **has not been exercised end-to-end at v1** ([R14](../../reference/risks.md), the [clean-code](clean-code.md)
+  **has not been exercised end-to-end at v1** ([R14](../../reference/risks.md), the [clean-code](../../reference/module-catalog.md)
   disclosure precedent), so opting in is informed consent.
 
 ### The contributor wall holds
