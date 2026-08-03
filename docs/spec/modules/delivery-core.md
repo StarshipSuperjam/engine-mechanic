@@ -6,10 +6,12 @@ status: draft
 
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
-establishes. Intended design, not yet built; enters in progress and settles only by the operator's
-recorded acceptance before wave 1's build begins. Revised in draft after four cold design reviews; the
-largest changes: content-addressed task identity, the lease/projection model behind honest `unknown`,
-and the envelope stated at its honest tier — a declaration, not an enforcement boundary.*
+establishes. Intended design, not yet built; enters in progress, settles only by the operator's
+recorded acceptance before wave 1's build begins, and — as a **security surface** (it coins the plane's
+authority vocabulary) — takes the engine's full pre-settle design review then, per decision 0334.
+Revised in draft after four cold design reviews; the largest changes: content-addressed task identity,
+the lease/projection model behind honest `unknown`, and the envelope stated at its honest tier — a
+declaration, not an enforcement boundary.*
 
 ## Summary
 

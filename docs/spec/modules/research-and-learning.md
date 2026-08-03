@@ -8,8 +8,9 @@ status: draft
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design for wave 7 — deliberately the program's last module: it exists only after the
 plane can deliver, deploy, and observe, because learning machinery ahead of delivery capability generates
-backlog, not knowledge. Enters in progress and settles by the operator's recorded acceptance before wave
-7's build begins.*
+backlog, not knowledge. Enters in progress, settles by the operator's recorded acceptance before wave 7's
+build begins, and — as a **security surface** (the plane's one external-web intake) — takes the engine's
+full pre-settle design review then, per decision 0334.*
 
 ## Summary
 
