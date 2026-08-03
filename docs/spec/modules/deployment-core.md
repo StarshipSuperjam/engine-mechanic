@@ -8,18 +8,22 @@ status: draft
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design for wave 4, not yet built; enters in progress, settles by the operator's
 recorded acceptance before wave 4's build begins, and — as a **security surface** — takes the engine's
-full pre-settle design review then, per decision 0334.*
+full pre-settle design review then, per decision 0334. Revised in draft after four cold reviews; the
+largest changes: effects gain a home and a target lease, drift gains its record and its boundary, health
+gains its ceiling disclosure, and the marquee invariants gain merge-gated checks.*
 
 ## Summary
 
-The **optional** deployment contract: what it means, provider-neutrally, to put an **identified immutable
-artifact** onto a **named target**, verify the product is actually healthy there, roll back when it is not,
-and reconcile drift between what was declared and what the provider actually runs. It specializes the
-plane's effect-receipt grammar for deployment effects and owns the typed states no transport result may
-skip: an accepted request is not a deployment; a green health endpoint is not a healthy product; a rollback
-that did not verify is not a rollback. Provider mechanics live in
-[deployment-adapter](deployment-adapter.md) implementations; credentials live behind the
-[credential-broker](credential-broker.md) — this module owns the contract and the honesty rules.
+The **optional** deployment contract: putting an **identified immutable artifact** onto a **named,
+resolved target**, verifying the product is actually healthy there, rolling back when it is not, and
+recording drift between declared and actual. Its effect records live in **their own store under
+delivery-core's state home** (recorded through [delivery-evidence](delivery-evidence.md) when installed;
+the reconciliation vocabulary — `confirmed`\|`partial`\|`contradicted`\|`unknown` — is
+**[delivery-core](delivery-core.md)'s shared base grammar**, referenced not redefined). External effects
+are **runtime-serialized by a per-target lease** in the broker's runtime store — two worktrees cannot
+double-apply what a git merge cannot undo; the merge-durability model covers records, the target lease
+covers the world. An accepted request is not a deployment; a green endpoint is not a healthy product; a
+rollback that did not verify is not a rollback.
 
 ## Behavior
 
@@ -29,61 +33,57 @@ that did not verify is not a rollback. Provider mechanics live in
 |---|---|
 | `id` | `deployment-core` |
 | `status` | `optional` |
-| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`deploy-target.v1` — a named target resolved to immutable provider identity (account/region/resource — never an alias left unresolved), its environment class (non-production first), and its rollback anchor; `deploy-effect.v1` — the deployment effect specializing the plane's effect-receipt base: artifact digest, target, the provider operation's identity, the **independently observed** post-state, and reconciliation (`confirmed`\|`partial`\|`contradicted`\|`unknown`); `deploy-health.v1` — typed health: provider-reported, endpoint-probed, and behavior-verified are three separate lanes, never merged; `rollback-record.v1` — the rollback as its own effect with its own verification, never assumed from the deploy's undo); the **[tool](../systems/surfaces/tools.md)** (`deploy.py` — plan/execute/verify/rollback through the installed adapter and the broker; idempotency keys on every effect so duplicate invocation cannot double-apply); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **unresolved-target check** — a deploy effect whose target carries an unresolved alias fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`deploy-target.v1` — a named target with its **resolution proof** (`resolution: {method, at-revision}` — an alias-only target is unrepresentable), immutable provider identity, environment class (with the **class-vs-resolved-identity residual named**: the class attestation rides the resolved identity the operator sees, and a lying resolver is the stated residual admission probes), and its rollback anchor (with typed **anchor-absent** and **anchor-unretrievable** states — first deploys and pruned artifacts cannot pretend to a rollback they lack); `deploy-effect.v1` — artifact digest, target, provider operation identity, the **independently observed** post-state (an `observed` claim without a named source distinct from the operation's own response is **schema-invalid** — the plane's rule, carried as a hard check), and reconciliation in the shared vocabulary; `deploy-health.v1` — three lanes (provider-reported, endpoint-probed, behavior-verified), never merged, cross-module references opaque; `rollback-record.v1` — the rollback as its own verified effect, with **rollback-partial-failure** a named state; `drift-record.v1` — declared vs observed per target in the shared vocabulary — **this module owns effect-time reconciliation and the drift grammar; standing periodic drift observation is [operations-core](operations-core.md)'s ground**, per decision 0334's cut); the **[tool](../systems/surfaces/tools.md)** (`deploy.py` — plan/execute/verify/rollback through the installed adapter (which carries the broker path); **deterministic idempotency keys** derived from artifact digest + target identity + run — a retry re-derives the same key; the **per-target lease** taken in the broker-runtime store before any effect); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **unresolved-target check** — a `custom/script` check over the resolution proof; the **class-boundary check** — a deploy effect whose target class is outside the admitted set fails; the **unobserved-success check** — an effect claiming success with no observation reads `unknown`, and a staged success-without-observation fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
-| `depends` | `core`, `delivery-core`, `authority-broker-contract` (every deployment effect exercises a task grant) |
+| `depends` | `core`, `delivery-core`, `authority-broker-contract` |
 | `migrations` | none |
-
-[delivery-evidence](delivery-evidence.md) records the effects (when installed — its effect-receipt base is
-what `deploy-effect.v1` specializes, stated); [platform-web](platform-web.md)'s artifact identity is the
-first artifact source.
 
 ### The deployment model
 
-- **Artifacts are immutable and named by digest.** What deploys is a digest; "deploy latest" is
-  unrepresentable. The artifact-to-revision link rides the effect so deploy-to-source traceability holds.
-- **Targets resolve before approval.** A target alias resolves to immutable provider identity *before* the
-  grant is approved — the approval binds what will actually be touched, and the unresolved-target check
-  makes the shortcut mechanical to catch.
-- **Effects reconcile independently.** After the provider accepts, the actual state is observed through a
-  read-back distinct from the operation's own response; `contradicted` exists for "the provider says done
-  and the observed state is wrong." Partial failure yields `partial` with the delta enumerated — never
-  rounded to success or silently retried.
-- **Health is three lanes.** Provider-reported health, endpoint probes, and behavior verification (a
-  browser-evidence scenario against the deployed surface, where installed) report separately; a claim of
-  "healthy" names its lane. Only behavior verification may back a user-visible-health claim.
-- **Rollback is an effect, verified like one.** The rollback anchor is captured before the deploy; rolling
-  back executes and *verifies* — a rollback whose post-state was not observed is `unknown`, loudly. A
-  failed rollback is a named, un-rounded state the operator sees.
-- **Duplicate and interrupted invocations are safe.** Idempotency keys make re-invocation observable as
-  the same effect; an interruption mid-deploy resolves at reconciliation to the observed actual state,
-  never to an assumption.
+- **Artifacts by digest; targets resolved before approval.** "Deploy latest" is unrepresentable; the
+  grant's approval binds the resolved identity.
+- **Effects reconcile independently; drift is a record.** Read-back uses a provider path distinct from
+  the apply response; `contradicted` exists for "provider says done, observed state is wrong"; `partial`
+  enumerates its delta **within the stated observation coverage** (the coverage bound rides the record).
+  **Any drift repair is a new deployment under its own unexpired, operator-consented grant** — reconcile
+  means record, never silently re-apply.
+- **Health is three lanes with a stated ceiling.** Only behavior verification (a
+  [browser-evidence](browser-evidence.md) scenario against the deployed surface, identified by the
+  effect's deployed digest) may back a user-visible-health claim. **Without browser-evidence — or for
+  any non-web product until other behavior lanes exist — no user-visible-health claim is representable**;
+  health tops out at endpoint-probed, typed as such. Stated in the Summary-level promise, not buried.
+- **Rollback verifies or types its failure.** Anchor captured before deploy where one exists;
+  anchor-absent, anchor-unretrievable, and rollback-partial-failure are named states the operator sees —
+  "I can always roll back" is deliberately not a promise this contract makes.
+- **Duplicates and interruptions are safe by two named mechanisms.** The deterministic idempotency key
+  dedupes retries; the per-target lease serializes concurrent invocations across worktrees and sessions;
+  interruption resolves at reconciliation against recorded intent (the broker's ordering rule).
 
 ### Degraded behavior
 
-No adapter → deployment operations refuse plainly. No broker → refuse (deployment without brokered
-authority is not a degraded mode — it is out of contract). Observation unavailable → effects stay
-`unknown` and the tool says what could not be observed. Both runtimes drive the same tool.
+No adapter → refuse plainly (the adapter carries the broker path, so "no broker" arrives as "no
+usable adapter" — stated). Observation unavailable → `unknown`, with what could not be observed named.
+Absent delivery-evidence → effects persist in this module's store; the recording seam degrades disclosed.
+Both runtimes drive the same tool. Stub-adapter fixtures ride CI; live-provider conformance is
+operator-local — the split stated.
 
 ### What stays out
 
-- **No production-first.** The contract's first exercised class is a disposable non-production target;
-  production classes arrive by recorded decision after the contract has been exercised.
-- **No provider mechanics, no credentials** — adapters and the broker respectively.
-- **No auto-deploy.** Every deployment traces to a run under an operator-consented grant; no schedule or
-  event deploys on its own.
+- **No production-first.** The first exercised class is a disposable non-production target; production
+  classes arrive by recorded decision — the class-boundary check is that decision's mechanical arm.
+- **No provider mechanics, no credentials, no auto-deploy.**
 
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation
-carries at least part of it. Adapter-dependent rows are disclosed not-applicable until the first adapter
-exists.*
+carries at least part of it.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Schemas validate; unresolved targets fail** — deploy effects conform; an aliased target fails the check. | Schema checks + negative fixture ride CI (hard). | engine |
-| **Transport is never deployment** — a staged accepted-request-then-wrong-state scenario reads `contradicted`; observation withheld reads `unknown`. | Fixture: both staged against a stub adapter. | operator |
-| **Partial stays partial** — a staged partial application enumerates its delta and never rounds to success. | Fixture: staged partial. | operator |
-| **Health lanes stay separate** — a staged green-endpoint/broken-behavior scenario reports the lanes distinctly; the health claim names its lane. | Fixture: the false-green health scenario. | operator |
-| **Rollback verifies or reads `unknown`** — staged rollback with observation withheld is `unknown`; a failed rollback is named, never rounded. | Fixture: both staged. | operator |
-| **Duplicates cannot double-apply** — re-invoking a completed effect with the same idempotency key is observably the same effect. | Fixture: staged duplicate invocation. | operator |
+| **Schemas validate; the three marquee checks bite** — unresolved targets, out-of-class targets, and success-without-observation each fail their negative-fixtured checks. | Schema + the three custom checks ride CI (hard). | engine |
+| **Transport is never deployment** — accepted-but-wrong-state reads `contradicted`; observation withheld reads `unknown`. | Fixture: staged against the stub adapter. | operator |
+| **Partial stays partial, within coverage** — a staged partial application enumerates its delta and its coverage bound. | Fixture: staged partial. | operator |
+| **Health lanes and the ceiling** — the false-green scenario reports lanes distinctly; without browser-evidence the user-visible claim is unrepresentable, typed. | Fixture: both staged. | operator |
+| **Rollback honesty** — verified rollback, `unknown` rollback, anchor-absent, anchor-unretrievable, and partial-failure each read as their typed state. | Fixture: all staged. | operator |
+| **Duplicates and races cannot double-apply** — same-key retry is the same effect; two staged concurrent invocations serialize on the target lease. | Fixture: staged retry + race. | operator |
+| **Drift records, never re-applies** — a staged drift yields its record; no effect runs without a fresh grant. | Fixture: staged drift. | operator |
