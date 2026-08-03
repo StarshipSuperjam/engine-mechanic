@@ -6,19 +6,29 @@ status: draft
 
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
-establishes. Intended design for wave 5, not yet built; enters in progress and settles by the operator's
-recorded acceptance before wave 5's build begins.*
+establishes. Intended design for wave 5, not yet built; enters in progress, settles by the operator's
+recorded acceptance before wave 5's build begins, and — as a **security surface** (it mutates product
+code unattended) — takes the engine's full pre-settle design review then, per decision 0334. Revised in
+draft after the trio's four cold reviews; the largest changes: route provenance becomes a hard check,
+progress is honestly binary, the acceptance surface joins the per-task forbidden set, and the
+draft-only gate is pinned to an acknowledgment artifact.*
 
 ## Summary
 
-The **optional** module that lets the engine attempt a repair **without an operator watching — and without
-ever holding the authority an operator has**: a qualifying, reproducible defect enters as a repair task
-with an immutable envelope; attempts run **deterministic playbooks first, generative repair second**; every
-continuation decision is made by **independently measured progress**, never the worker's own claim of being
-close; and the only possible output is a **draft pull request** — never a merge, never a deploy, never an
-edit to anything that governs the repair itself. Budget exhausted, progress absent, or the defect not
-reproducing: the attempt stops in a typed non-success and escalates to the operator. Repetition is not
-reliability; the module exists to make one bounded attempt honest, not to make many attempts inevitable.
+The **optional** module that lets the engine attempt a repair **without an operator watching — and
+without ever holding the authority an operator has**: a qualifying, reproducible defect enters as a
+repair task whose **route provenance is mechanically checked** (a repair task must cite a resolving
+[operations-core](operations-core.md) route record whose class qualified as repair-eligible — a task
+without one fails at merge, so routing cannot be laundered); attempts run **deterministic playbooks
+first, generative repair second**; continuation is decided by the **supervisor's own re-derivation of the
+reproduction** — honestly binary (`not-reproducing`\|`reproducing`\|`passing`, run twice for
+repeatability where confined; a per-class ordinal ladder only where a class defines one — no invented
+"progress curve"); and the only output is a **draft pull request**. The draft-only gate is pinned to the
+**acknowledgment-artifact reading**: a repair PR may be marked ready only under an explicit operator
+acknowledgment (label/checkbox — the dependency-discipline pattern), and the check fails a ready repair
+PR without it — since the unattended fire runs under the operator's own identity, actor attribution
+alone cannot distinguish them. Symptom suppression (a "fix" that breaks the triggering path) remains a
+named residual of any reproduction-based measure.
 
 ## Behavior
 
@@ -28,47 +38,49 @@ reliability; the module exists to make one bounded attempt honest, not to make m
 |---|---|
 | `id` | `bounded-repair` |
 | `status` | `optional` |
-| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`repair-task.v1` — the defect (reproduction with content bindings, per the plane's convention), the qualifying route from [operations-core](operations-core.md), and the immutable envelope: attempt budget, mutation scope, forbidden surfaces (the repair's own scheduler, checks, validators, and this module's files — unrepresentable as in-scope); `repair-attempt.v1` — the lane (`playbook`\|`generative`), the run reference, the **independent progress measure** (the reproduction's state re-derived after the attempt, by the tool, never by the worker), and the typed outcome; `escalation.v1` — what stopped the repair, what was tried, what the operator decides); the **[tool](../systems/surfaces/tools.md)** (`repair.py` — the supervisor: routes lanes, re-derives progress, enforces the budget, opens the draft pull request through the engine's normal flow, and stops — the worker recommends, the supervisor decides); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **forbidden-surface check** — a repair diff touching its own governing surfaces fails, negative-fixtured; the **draft-only check** — a repair task whose pull request left draft state without operator action fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`repair-task.v1` — the defect's reproduction (referencing [delivery-core](delivery-core.md)'s owned reproduction grammar), the qualifying route reference, and the immutable envelope: attempt budget, mutation scope, **per-attempt re-derivation cost bound** (repair eligibility is restricted to cheaply-re-derivable reproductions; the bound is declared here), and the forbidden-surface set — **static** (the ledger slots that scheduled it, the repair checks and validators, this module's files) **plus per-task: the reproduction's acceptance files from its content bindings** — so weakening the failing test is mechanically in the forbidden set, not just morally; `repair-attempt.v1` — lane (`playbook`\|`generative`), run reference, the supervisor's re-derived reproduction state, and outcome in delivery-core's vocabulary plus a repair-layer classification (`non-reproducing` is a typed classification on a refused task, reconciled with the kernel's outcomes, not a new one); `escalation.v1` — what stopped, what was tried, what the operator decides); the **[tool](../systems/surfaces/tools.md)** (`repair.py` — the supervisor: routes lanes, re-derives, enforces budgets, opens the draft PR through the engine's normal flow; **the worker consumes reproduction content bindings as quarantined data, never instructions** — restated here, at the generative consumption point, per the plane's rule); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **orphan-route check** — a repair task whose route reference does not resolve to a qualifying operations-core record fails; the **forbidden-surface check** — a repair diff touching the envelope's full forbidden set (static + per-task acceptance) fails; the **collateral-test guard** — a repair diff touching any test or fixture file outside the change's stated scope is flagged on the draft PR, and deletion/assertion-removal patterns fail (a heuristic with a named residual); the **draft-only check** — a ready repair PR without the operator's acknowledgment artifact fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
-| `depends` | `core`, `delivery-core` (repair tasks are tasks; attempts are runs), `structured-change` (all mutation through the applier), `operations-core` (qualifying routes) |
+| `depends` | `core`, `delivery-core`, `structured-change`, `operations-core` |
 | `migrations` | none |
 
-[debugger-diagnosis](debugger-diagnosis.md), [engineering-quality](engineering-quality.md), and
-[execution-environment](execution-environment.md) are when-installed integrations: diagnosis verdicts
-inform hypotheses, quality results inform preflight, environments confine attempts — each degraded
-plainly when absent.
+[debugger-diagnosis](debugger-diagnosis.md) verdicts inform hypotheses;
+[engineering-quality](engineering-quality.md) is the regression gate when installed;
+[execution-environment](execution-environment.md) confines attempts — each when-installed, degraded
+plainly. Unattended entry is the standing maintenance Issue's scope (operations-core's ground);
+absent it, repair tasks enter only by explicit operator creation.
 
 ### The repair model
 
-- **Reproduce or refuse.** A defect that does not reproduce under its bindings is not repair-eligible;
-  the task closes typed non-reproducing and escalates. No attempt runs against a ghost.
-- **Deterministic first.** A defect class with a declared playbook runs the playbook — cheap, auditable,
-  no generative variance. Generative repair is the second lane, entered only when no playbook fits, and
-  the lane is on every attempt record.
-- **Progress is measured, never claimed.** After each attempt the supervisor re-derives the reproduction's
-  state itself. Progress means the defect's observable state changed toward passing under unchanged
-  acceptance; a worker's "almost there" is not a continuation reason. No measured progress → stop, typed.
-- **Tests are acceptance, not material.** An attempt that weakens, skips, or rewrites the failing check to
-  make it pass is a forbidden-surface violation, not a repair — the reproduction's acceptance is part of
-  the envelope.
-- **Draft PR is the ceiling.** The output enters the engine's normal review flow as a draft pull request
-  with the full attempt history attached. The module cannot mark ready, cannot merge, cannot deploy, and
-  its checks make a non-draft escape a hard failure.
-- **Escalation is a first-class product.** A stopped repair hands the operator the reproduction, the
-  attempts, the measured progress curve, and what it would try next — a decision surface, not a shrug.
+- **Reproduce or refuse; provenance or refuse.** A non-reproducing defect closes typed; a task without a
+  resolving qualified route never merges.
+- **Deterministic first, generative second, both budgeted.** The lane rides every attempt record; every
+  attempt consumes the task's budget; the volume ceiling (the ledger's) bounds how many repair tasks
+  exist per window.
+- **The supervisor measures, binary and repeated.** Post-attempt, the supervisor re-derives the
+  reproduction itself — twice, where a confined environment makes repetition meaningful. The worker's
+  claim is never the measure; an unrelated flip that does not change the reproduction's state is not
+  progress. Most repairs get effectively one meaningful generative attempt — stated, not dressed as a
+  curve.
+- **Acceptance is in the forbidden set.** The failing test and its bound fixtures are per-task forbidden
+  surfaces; collateral tests outside scope are guarded; engineering-quality's suite is the broader
+  regression gate where installed — and where not, the draft PR review is the backstop, named.
+- **Draft PR is the ceiling, acknowledged ready.** Full attempt history attached; ready only under the
+  operator's acknowledgment artifact; merge is theirs alone.
+- **Escalation is a decision surface.** Reproduction, attempts, measured states, and what it would try
+  next — under the aggregate ceiling, so escalations arrive as a bounded set, not a flood.
 
 ### Degraded behavior
 
-Absent structured-change: generative repair is unavailable (no mutation path) — playbook-lane repairs that
-mutate are likewise refused; observation-only playbooks still run, disclosed. Absent operations-core
-routing, repair tasks enter only by explicit operator creation. Supervisor state unreadable → running
-attempts stop at their next checkpoint, typed. Both runtimes drive the same supervisor tool.
+Absent structured-change: not installable (mutation path is a dependency). Absent operations-core
+routing: operator-created tasks only. Supervisor state unreadable → attempts stop at their next
+checkpoint, typed. Both runtimes drive the same supervisor.
 
 ### What stays out
 
-- **No merge, no ready, no deploy, ever** — mechanically checked, not promised.
-- **No self-maintenance** — this module's own surfaces are forbidden repair targets by schema.
-- **No unbounded lanes** — every attempt consumes the task's budget; there is no free retry.
+- **No merge, no ready-without-acknowledgment, no deploy — mechanically checked.**
+- **No self-maintenance; no test-weakening** — the per-task forbidden set and collateral guard carry
+  the mechanizable slice; the residuals are named.
+- **No unbounded lanes, no free retries, no invented progress.**
 
 ## Acceptance criteria
 
@@ -77,9 +89,9 @@ carries at least part of it.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Schemas validate; forbidden surfaces refuse** — a staged repair diff touching its scheduler/checks/own files fails the forbidden-surface check. | Schema checks + negative fixture ride CI (hard). | engine |
-| **Draft-only holds** — a staged repair PR marked ready without operator action fails the draft-only check. | Negative fixture rides CI (hard). | engine |
-| **Non-reproduction refuses** — a staged non-reproducing defect closes typed, no attempts run. | Fixture: staged ghost defect. | operator |
-| **Progress is supervisor-derived** — a staged worker claiming progress while the reproduction is unchanged is stopped for no-progress; the attempt record shows the supervisor's measure. | Fixture: the lying-worker scenario. | operator |
-| **Acceptance cannot be weakened** — a staged attempt that edits the failing test to pass is caught as a forbidden-surface violation. | Fixture: the test-weakening attempt (negative fixture). | engine |
-| **Budget stops the loop** — a staged always-failing defect stops at budget exhaustion with a typed escalation carrying the attempt history. | Fixture: staged exhaustion. | operator |
+| **Schemas validate; the four guards bite** — orphan routes, forbidden-surface touches (static and per-task acceptance), unacknowledged ready PRs, and collateral deletion patterns each fail their negative-fixtured checks. | Schema + the four custom checks ride CI (hard). | engine |
+| **Non-reproduction and unqualified routes refuse** — staged ghost defect and staged unqualified route each close typed. | Fixture: both staged. | operator |
+| **The supervisor's measure is its own** — the staged lying-worker scenario stops for no-progress; the record shows the supervisor's re-derived state, run twice where confined. | Fixture: staged lying worker. | operator |
+| **Acceptance cannot be weakened, collaterals are guarded** — the staged failing-test edit fails the forbidden-surface check; the staged out-of-scope test deletion fails the collateral guard. | Negative fixtures (hard). | engine |
+| **Budget and ceiling stop the loop** — staged exhaustion escalates typed with history; the staged task-flood hits the volume ceiling and aggregates. | Fixture: both staged. | operator |
+| **Cost bound gates eligibility** — a staged expensive reproduction is refused as repair-ineligible under its declared bound. | Fixture: staged expensive reproduction. | operator |
