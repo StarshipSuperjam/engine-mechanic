@@ -7,19 +7,20 @@ status: draft
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design, not yet built; enters in progress and settles only by the operator's
-recorded acceptance before wave 1's build begins. This family contract absorbs the territory the
-retired `clean-code` stub reserved, per decision 0334.*
+recorded acceptance before wave 1's build begins. Revised in draft after four cold design reviews. This
+family contract absorbs the territory the retired `clean-code` stub reserved, per decision 0334.*
 
 ## Summary
 
 The **optional** family contract for **stack-declared engineering feedback**: what it means, for a given
 product stack, to run the formatter, the linter, the type checker, the build, the tests, and the dependency
-checks — declared once per stack as a **profile** (a sibling module realizing this contract), so delivery
-work stops rediscovering a project's toolchain per session and starts citing typed, fresh quality evidence.
-The contract fixes the grammar every profile speaks: which check kinds exist, how results are typed, what
-"fast-loop" versus "clean-environment" evidence means, which files are generated and excluded, and what an
-autofix may and may not do. Style conformance is never presented as software correctness — a "clean" run
-is evidence about the checks that ran, nothing more.
+checks — declared once per stack as a **profile module** realizing this contract. The contract fixes the
+grammar every profile speaks: the check kinds, the typed result states, the two evidence lanes, generated-
+file exclusion, fixer authority, and the **mapper contract** — the small per-tool translator each profile
+ships, because turning real tool output into typed results is code, and it lives with the profile that
+knows its tools. Every result carries the standing marker **"checks ran; this is not a correctness
+claim"** — the marker travels with the record into every consumer, so a green run can never quietly become
+"the code is correct."
 
 ## Behavior
 
@@ -29,55 +30,70 @@ is evidence about the checks that ran, nothing more.
 |---|---|
 | `id` | `engineering-quality` |
 | `status` | `optional` |
-| `provides` | the **profile contract [schema](../systems/surfaces/schemas.md)** (`eq-profile.v1` — the check kinds a profile declares: `format`, `lint`, `types`, `build`, `test`, `deps`; per-kind: the pinned tool identity, invocation, result grammar, and whether the kind is absent for this stack — absent is declared, never silent); the **result [schema](../systems/surfaces/schemas.md)** (`eq-result.v1` — typed per-check outcomes: `pass`, `fail` with findings, `degraded`, `unavailable`, `not-run`; the evidence lane — fast-loop or clean-environment; the revision measured); the **runner [tool](../systems/surfaces/tools.md)** (`eq_run.py` — resolves the installed profile, runs declared kinds, emits results in the shared grammar); a hard **[check](../systems/surfaces/check.md)** (profile and result schema conformance); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **profile contract [schema](../systems/surfaces/schemas.md)** (`eq-profile.v1` — per kind (`format`, `lint`, `types`, `build`, `test`, `deps`): pinned tool identity, invocation, **version-probe invocation**, **config-locus declaration** (which in-repo files the tool reads), mapper reference, per-run budget, or an explicit `absent`); the **result [schema](../systems/surfaces/schemas.md)** (`eq-result.v1` — per-kind states `pass`, `fail` (with findings), `degraded/off-pin` (ran complete, version drifted — named), `unavailable` (missing or crashed), `not-run` (skipped by policy), `absent` (declared absent — emitted as a row, never silence); the lane; the **effective config** that governed the run; the exclusion scope applied, surfaced prominently; the revision/digests measured; and the standing not-correctness marker); the **mapper contract [schema](../systems/surfaces/schemas.md)** (`eq-mapper.v1` — what a profile's per-tool translator must consume and emit, including the per-tool exit-code interpretation table distinguishing findings from crash); the **runner [tool](../systems/surfaces/tools.md)** (`eq_run.py` — resolves the installed profile, invokes declared kinds through the profile's mappers, emits results); a hard **[check](../systems/surfaces/check.md)** (profile, mapper, and result schema conformance — profile instances live at a named location the check's glob covers, so any profile module's declaration is found); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
-| `depends` | `core`, `delivery-core` (results attach to runs as evidence inputs) |
+| `depends` | `core`, `delivery-core` (results attach to runs) |
 | `migrations` | none |
+
+[delivery-evidence](delivery-evidence.md) and [structured-change](structured-change.md) are when-installed
+integrations, deliberately not dependencies; their absence degrades named behaviors below, disclosed.
 
 ### The contract
 
-- **Profiles declare; the contract types.** A profile module (first: [engineering-quality-python](engineering-quality-python.md))
-  declares its stack's tools by pinned identity and maps their output into `eq-result.v1`. The contract
-  never embeds a tool; a stack with no type checker declares `types: absent` and that absence rides every
-  result. Generated files are declared by the profile and excluded from quality findings — a finding
-  inside a generated file is reported as a generation-input problem, not autofixed in place.
-- **Two evidence lanes, never conflated.** `fast-loop` results come from the working tree mid-iteration —
-  cheap, advisory, staleness-prone. `clean-environment` results come from a fresh checkout/build of the
-  exact revision — the lane delivery-evidence treats as authoritative for a merge claim. Every result
-  names its lane; presenting a fast-loop pass where a clean-environment result is expected is a lane
-  violation the result grammar makes visible.
-- **Autofix has authority bounds.** A profile may declare fixers (formatter, import sorter). A fixer that
-  can change program behavior is not an autofix — it is a proposed edit that routes through
-  [structured-change](structured-change.md) like any other mutation. Formatting-only fixes may apply
-  directly but land as visible diffs, never squashed into unrelated commits.
-- **Freshness rides delivery-evidence.** Results bind to the revision measured; mutation of measured
-  surfaces stales them by the normal sweep. This module adds no second freshness mechanism.
+- **Profiles declare and translate; the contract types.** A profile module (first:
+  [engineering-quality-python](engineering-quality-python.md)) declares its stack's tools and ships the
+  mappers that translate each tool's output into `eq-result.v1`. A stack without a kind declares `absent`,
+  and that rides every result as a row. **Config conflicts are contract grammar**: when a product
+  repository's own configuration conflicts with the profile's declaration, every profile reports the
+  conflict as a finding and records the effective config that actually governed the run — identical
+  semantics across profiles, never a per-profile invention.
+- **Two evidence lanes, never conflated.** `fast-loop` results come from the working tree — cheap,
+  advisory. `clean-environment` results come from a fresh, pinned checkout of the exact revision, and a
+  clean-lane result is schema-valid **only with its isolation receipt** — the fresh-checkout digest and
+  environment identity that back the tag. Until [execution-environment](execution-environment.md) (wave 2)
+  can provision that substrate, clean-lane results carry the typed state `not-materializable`, disclosed —
+  the lane is specified now and materializable then, and nothing may present a fast-loop result where a
+  clean-environment result is claimed.
+- **Generated files excluded, visibly.** Exclusions come from the profile's declaration; a finding inside a
+  declared generated file is reported as a generation-input problem. The exclusion scope is
+  product-influenced — a suppression channel — so every result surfaces the applied scope prominently
+  rather than burying it.
+- **Fixer authority is per-fix, and every fix is a change set.** A profile's fixer table classifies at the
+  finest granularity its tools expose (per rule/fix class, never per tool — an import sorter is
+  behavior-affecting in Python). **No fixer writes the tree directly**: every fix, formatting included,
+  is staged through [structured-change](structured-change.md)'s applier as a change set — one writer path,
+  visible diffs by construction. Where structured-change is absent, fixes are refused with a plain reason,
+  never applied bare. A fix class declared formatting-only must be behavior-equivalent under the profile's
+  equivalence check (parse-normalized comparison); one that is not is caught, not trusted.
+- **Freshness and registration.** Where delivery-evidence is installed, results are recorded in its grammar
+  (with the lane carried on the record) and perish by its derived-on-read freshness. Absent it, results
+  carry their own digests and the receipt disclosess that freshness is unguaranteed.
 
 ### Degraded behavior
 
-No profile installed → the runner reports `unavailable` for every kind, plainly; nothing guesses a
-toolchain. A declared tool that is missing or crashes → `degraded`/`unavailable` for that kind, disclosed,
-never silently skipped. Both runtimes invoke the same runner; results are committed artifacts.
+No profile installed → the runner reports `unavailable` for every kind, plainly. A declared tool missing or
+crashing → `unavailable` for that kind; version drift → `degraded/off-pin` with the observed version named.
+Nothing guesses a toolchain; nothing silently skips. Both runtimes invoke the same runner.
 
 ### What stays out
 
-- **No universal defaults.** The contract ships zero tool opinions; every tool identity comes from a
-  profile the deployment chose.
-- **No correctness laundering.** No surface of this module may summarize a run as "code is clean/correct";
-  results enumerate what ran and what it found.
-- **No gate ownership.** Whether a `fail` blocks anything belongs to the consuming workflow (the engine's
-  gates, a profile policy) — the contract records.
+- **No universal defaults; no tool opinions** — every identity comes from a profile.
+- **No correctness laundering** — no surface of this module summarizes a run as "clean/correct code"; the
+  marker field makes the same refusal travel into consumers.
+- **No gate ownership** — whether a `fail` blocks anything belongs to the consuming workflow.
 
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation
-carries at least part of it.*
+carries at least part of it. Rows needing a live product substrate are the disclosed not-applicable class
+until wave 2 provides it — stated, never a silent pass.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Profiles and results validate** — a profile declaration and every emitted result conform to their schemas. | Schema check rides CI (hard). | engine |
-| **Absence is declared** — a profile lacking a kind yields results that say `absent` for it; no kind is silently missing. | Fixture: a staged profile without `types`; results inspected. | operator |
-| **Lanes never conflate** — every result names fast-loop or clean-environment; a staged attempt to cite a fast-loop pass as clean-environment evidence is visible as a lane violation. | Fixture: the staged lane-violation scenario; result grammar inspected. | operator |
-| **Generated files excluded** — a seeded finding inside a declared generated file is reported as a generation-input problem, not fixed in place. | Fixture: seeded generated-file finding; report inspected. | operator |
-| **Behavior-changing autofix refused** — a fixer declared behavior-affecting cannot apply directly; the runner routes it as a proposed edit. | Fixture: staged behavior-changing fixer; routing inspected. | operator |
-| **Missing tools degrade loudly** — a declared tool removed from the environment yields `unavailable` for its kind, disclosed in the result. | Fixture: tool withheld; result inspected. | operator |
+| **Profiles, mappers, and results validate** — declarations and emitted results conform; a clean-lane result without its isolation receipt is schema-invalid. | Schema check rides CI (hard; negative fixture stages the receiptless clean tag). | engine |
+| **No correctness laundering** — a staged surface summarizing a green run as "code is correct/clean" is catchable; every result carries the not-correctness marker. | Fixture: staged laundering summary inspected; marker presence schema-checked. | operator |
+| **Absence and no-profile are loud** — a declared-absent kind emits an `absent` row; with no profile installed every kind reads `unavailable`. | Fixture: both staged; results inspected. | operator |
+| **Lanes never conflate** — a fast-loop result cited where clean-environment is claimed is schema-invalid (no receipt); `not-materializable` is the honest pre-wave-2 clean-lane state. | Fixture: staged lane violation; schema check catches. | engine |
+| **Generated-file exclusion visible** — a seeded generated-file finding reports as generation-input; the applied exclusion scope is prominent in the result. | Fixture: seeded finding; result inspected. | operator |
+| **Every fix is a change set** — formatting and behavior-affecting fixes alike stage through structured-change; absent it, fixes are refused with a plain reason; a mis-declared formatting-only fix that fails behavior-equivalence is caught. | Fixture: each staged (incl. the misdeclared fixer). | operator |
+| **Config conflict and effective config** — a conflicting repo config yields a finding, and the result names the config that governed. | Fixture: seeded conflicting config. | operator |
