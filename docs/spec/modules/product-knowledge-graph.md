@@ -6,12 +6,16 @@ status: draft
 
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
-establishes — completing the design this capability's earlier stub ([D-105](../../adr/0105-hold-a-post-v1-product-knowledge-graph-module-stub-product-s.md))
-held a slot for. The stub's revisit signal was live-read cost pressure; the program commissions the design
-ahead of that signal as a deliberate call — the delivery plane's code-intelligence layer (wave 1) is this
-module's feed, and designing the persistence layer with its feeder visible is the program's
-contracts-with-consumers-visible rule. Enters in progress and settles by the operator's recorded
-acceptance before wave 7's build begins.*
+establishes — completing, **and deliberately expanding**, the design this capability's earlier stub
+([D-105](../../adr/0105-hold-a-post-v1-product-knowledge-graph-module-stub-product-s.md)) held a slot
+for: the stub reserved a code-derived structural graph; this design adds the authored-design source, the
+`designed` lane, and as-built↔as-designed drift — an owned expansion, not a filled-in hole. The stub's
+revisit signal (live-read cost pressure) is restated below as each deployment's **adoption criterion**;
+the program commissions the design ahead of it so the wave-1 feeder (whose `structure-walk` enumeration
+surface is this module's bulk feed) is drawn with this consumer visible. Enters in progress, settles by
+the operator's recorded acceptance before wave 7's build begins, and — as a **security surface** (it
+derives an index from possibly-untrusted product content) — takes the engine's full pre-settle design
+review then, per decision 0334.*
 
 ## Summary
 
@@ -38,22 +42,25 @@ never a re-litigation of the locked knowledge foundation.
 |---|---|
 | `id` | `product-knowledge-graph` |
 | `status` | `optional` |
-| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`product-graph-node.v1`/`product-graph-edge.v1` — typed nodes (file, module, symbol, test, artifact, design-element) and edges (contains, references, depends, tests, builds-to, realizes-design), every node carrying content-digest bindings, every edge its derivation lane (`symbol`\|`structure`\|`lexical`\|`declared`\|`designed`); `graph-query-result.v1` — per-item freshness, lanes, and the coverage disclosure (what was indexed, what was unsupported, when); `design-drift.v1` — an as-built element diverging from its as-designed counterpart, surfaced as a finding for reconciliation, never auto-resolved); the **[tool](../systems/surfaces/tools.md)** (`product_graph.py` — build/refresh/query over the gitignored index; refresh incremental by changed bindings; representation behind the substrate's swappable retrieval [interface](../systems/surfaces/interfaces.md), so the dense-graph hub-explosion risk (R8) stays behind the same swap seam the engine graph uses; result excerpts ride code-intelligence-core's quarantine framing); a hard **[check](../systems/surfaces/check.md)** (schema conformance of the committed result surfaces; the index itself is uncommitted, validated at build/refresh); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`product-graph-node.v1`/`product-graph-edge.v1` — typed nodes (file, module, symbol, test, artifact, design-element) and edges (contains, references, depends, tests, builds-to, realizes-design), every node carrying content-digest bindings, every edge its derivation lane (`symbol`\|`structure`\|`lexical`\|`declared`\|`designed`) — **quarantine framing extends to identifiers and labels**, not only excerpts: a hostile symbol name is data everywhere it appears; `graph-query-result.v1` — per-item freshness, lanes, coverage disclosure; `design-drift.v1` — an as-built element diverging from its as-designed counterpart, **emitted into [research-and-learning](research-and-learning.md)'s reconciliation record as a divergence class** (one reconciliation surface, not two; absent that module the finding parks typed); the **`realizes-design` correspondence is operator-declared** — explicit annotations in the design model bind design-elements to code; unbound elements type `unmapped`, no heuristic matching); the **[tool](../systems/surfaces/tools.md)** (`product_graph.py` — build/refresh/query over the gitignored index, fed by [code-intelligence-core](code-intelligence-core.md)'s `structure-walk` enumeration surface; the design source is [product-design](product-design.md)'s C4 model — the stable mermaid-flowchart subset in the arc42 document, a **when-installed integration**: absent it, the `designed` lane and drift are typed absent; refresh is incremental by changed bindings **plus re-resolution of known referrers from the graph's own reverse edges** (cross-file reference invalidation is not local — stated, over-approximated where unknown, the cost disclosed); a **declared build/refresh budget with typed degradation** (a hostile-scale repository is a denial surface, bounded like the feeder's); **containment**: derivation resolves within the checkout root and refuses symlink/`..` escape — the subject wall's discriminator is **ownership** (the *operating engine's own tree* is refused; a product checkout's engine surfaces are product subject, the engine-mechanic case handled correctly); representation behind the module's **own retrieval interface instance** — the R8 swap-seam *pattern* mirrored, deliberately not the locked knowledge surface, so no coupling to the engine self-map; the seam defers hub-explosion, the budget bounds the first store — both stated); a hard **[check](../systems/surfaces/check.md)** (schema conformance of the committed result surfaces; the index is uncommitted, validated at build/refresh); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** (which restates the D-105 cost signal as the adoption criterion: install when cold-session live-read strains the attention budget — and notes `depends` edges are **systematically partial by default** where the product's installed closure is invisible, per the feeder's disclosure) |
 | `wires` | a **`gitignore` wire** for the index home (the one wiring this module needs) |
 | `depends` | `core`, `delivery-core`, `code-intelligence-core` |
 | `migrations` | none |
 
 ### The graph model
 
-- **Subject discipline.** Nodes describe the product; engine surfaces are refused by node typing, and the
-  engine self-map never merges. One index per product checkout; in the external-contribution case the
-  product is an un-owned upstream checkout — the index derives from it, stays engine-owned/gitignored,
-  and never rides the cross-fork pull request. (For the engine-mechanic deployment, whose product is
-  itself an engine that self-describes, this module's gap largely closes — stated, per the stub's
-  analysis.)
-- **Freshness per binding, the plane's one model.** Every node binds its source content; queries answer
-  per-item `current`/`stale`; incremental refresh re-derives only changed bindings. Unsupported-language
-  regions are typed coverage gaps in every result that touches them — absence of edges is never silent.
+- **Subject discipline, by ownership.** The wall's discriminator is ownership and location, not path
+  pattern: the **operating engine's own tree** is refused; a **product checkout's** surfaces — engine
+  directories included, the engine-mechanic case — are product subject, correctly indexed. Derivation is
+  contained to the checkout root; symlink and `..` escapes refuse. The engine self-map never merges. One
+  index per product checkout; un-owned upstream checkouts index engine-owned/gitignored, never riding
+  the cross-fork pull request. (engine-mechanic barely *needs* this module — its product self-describes —
+  D-105's point about need, distinct from behaving correctly there.)
+- **Freshness per binding, referrers re-resolved.** Every node binds its source content; queries answer
+  per-item `current`/`stale`; refresh re-derives changed bindings **and re-resolves their known
+  referrers** (cross-file references invalidate non-locally — the reverse edges say who to re-check;
+  where unknown, refresh over-approximates, cost disclosed). Unsupported-language regions are typed
+  coverage gaps in every result that touches them — absence of edges is never silent.
 - **Lanes stay visible; design is a lane, not a truth.** `designed` edges derive from the authored
   structural model; `symbol`/`structure` edges from code. Where both exist, `design-drift.v1` surfaces
   divergence as a finding for the product-design reconciliation path — the graph never rewrites either
@@ -81,9 +88,10 @@ carries at least part of it.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Query results validate** — per-item freshness, derivation lanes, and coverage disclosure conform. | Schema check rides CI (hard). | engine |
-| **Staleness is per-binding** — one mutated file stales only queries touching it; refresh re-derives only changed bindings. | Fixture: staged mutation + refresh. | operator |
-| **Coverage gaps are typed** — a staged mixed repo disclosed the unsupported region wherever results touch it. | Fixture: staged mixed repo. | operator |
-| **Design drift surfaces, never auto-resolves** — a staged as-built/as-designed divergence yields a `design-drift.v1` finding routed to reconciliation. | Fixture: staged divergence. | operator |
+| **Query results validate** — per-item freshness, derivation lanes, framed identifiers, and coverage disclosure conform. | Schema check rides CI (hard). | engine |
+| **Staleness is per-binding, referrers re-resolve** — one mutated file stales its bindings and re-resolves its known referrers; untouched regions stay current. | Fixture: staged mutation + refresh; reverse edges inspected. | operator |
+| **Coverage gaps and budgets are typed** — the staged mixed repo discloses its unsupported region; the staged hostile-scale repo degrades at its declared budget. | Fixture: both staged. | operator |
+| **Design drift routes into the one reconciliation surface** — a staged divergence yields the finding in research-and-learning's record (or parks typed absent it); an unbound design-element types `unmapped`, never guessed. | Fixture: staged divergence + unbound element. | operator |
 | **Delete-and-rebuild converges** — rebuilding from the same tree reproduces equivalent results. | Fixture: rebuild comparison. | operator |
-| **Subject discipline holds** — staged engine-path input is refused by node typing. | Fixture: staged engine paths. | operator |
+| **The wall is ownership, and escapes are refused** — the operating engine's own tree is refused; a product-tree symlink into an engine corner is refused; a product checkout's engine surfaces index as product subject. | Fixture: staged operating-engine input + staged symlink escape. | operator |
+| **Value earns the index** — on the staged localization task, graph-backed answers match or beat bounded live-read within the attention budget — the adoption signal, demonstrated once. | Fixture: the comparison task. | operator |

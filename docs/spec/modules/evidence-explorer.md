@@ -43,9 +43,13 @@ dead-end the walk reports**, never a smoothed-over hop.
   gate and what a reviewer needs to see before the gate.
 - **Lanes and quarantine carry through.** A walked record's source lane rides the hop; quoted content
   stays in its quarantine framing. The explorer adds navigation, never re-interpretation.
-- **Read-only, rebuild-free.** The explorer keeps no index; every walk derives from the committed records
-  at query time. Slow-and-true over fast-and-cached, by design — the cockpit may cache renders; the walk
-  itself never does.
+- **Read-only, rebuild-free, budgeted.** The explorer keeps no index; every walk derives from committed
+  records at query time — and the cost curve is stated honestly: each hop's resolution scans the record
+  store, so a walk costs hops × corpus, growing with the plane's history. Every walk carries a
+  **declared depth/breadth budget and a cycle guard**; exceeding either yields a typed truncation
+  (consistent with the dead-end taxonomy). Reverse queries ("what cites this source") are full-corpus
+  scans and are **out of this cut**, stated. Slow-and-true over fast-and-cached, by design, within the
+  budget.
 
 ### Degraded behavior
 

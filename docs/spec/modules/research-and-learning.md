@@ -13,16 +13,23 @@ backlog, not knowledge. Enters in progress and settles by the operator's recorde
 
 ## Summary
 
-The **optional** module that closes the loop from **the world back to intent**: repository-native research
-evidence (sourced, dated, contradiction-honest answers to product questions), post-release observation
-intake (feedback, support signals, telemetry observations arriving as typed records), and **intent–reality
-reconciliation** — when observed reality and settled intent diverge, the divergence becomes an explicit
-operator decision (change the product, change the intent, investigate, or accept), never a silent rewrite
-of either side. Its hard rules are the oldest in the corpus: **no observation becomes authority by
-existing** (capture is triage-bound, promotion is a recorded decision), **no learning machinery edits
-governing surfaces** (proposals ride the normal change flow), and **research is evidence, not
-instruction** (a sourced answer carries its sources, freshness, and gaps — it informs the operator's
-choice, it never makes it).
+The **optional** module that closes the loop from **the world back to intent**. **What ships in this
+cut, plainly**: a manual observation inbox (operator-entered signals; telemetry/feedback integrations
+are later arrivals), repository-native research evidence, and **the plane's one reconciliation surface**
+— `reconciliation.v1`, which also receives [product-knowledge-graph](product-knowledge-graph.md)'s
+design-drift findings as a divergence class — where a divergence becomes an explicit operator decision
+(change the product, change the intent, investigate, or accept — **`accepted` leaves a persisted
+known-divergence record**, never a silent close). Its post-release value is contingent on deployed
+products existing — installable earlier, vacuously, stated. Hard rules with mechanical homes: **no
+observation becomes authority by existing** (promotion needs a decision reference *and* the promoted
+content **keeps its untrusted-external provenance marker** into whatever it becomes — laundering by
+approved promotion is the named risk); **no learning machinery edits governing surfaces** —
+`research.py` **has no write path to any governing surface or behavior file**, and a negative fixture
+proves a recorded correction pattern cannot reach one; and **research is evidence, not instruction** —
+`research.py` **records only**: the *session* fetches web sources with its own tools under its normal
+stances, and everything fetched is quarantined data. Quarantine-on-the-record protects later readers;
+**the reading session's own exposure at synthesis time is the named residual** no record field can
+close.
 
 ## Behavior
 
@@ -32,7 +39,7 @@ choice, it never makes it).
 |---|---|
 | `id` | `research-and-learning` |
 | `status` | `optional` |
-| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`research-record.v1` — a question, the sources consulted (each dated, each cited), the answer with its inference/observation lanes, named contradictions and gaps, and freshness bindings on any repository content it cites; `observation-record.v1` — a post-release signal (feedback, support case, telemetry observation) with source, date, and triage state (`captured`\|`promoted:<target>`\|`expired`\|`rejected`) — capture carries an expiry, so the inbox cannot become a durable dumping ground; `reconciliation.v1` — an observed-vs-settled divergence, the evidence on each side, and the operator's typed resolution (`change-product`\|`change-intent`\|`investigate`\|`accepted`)); the **[tool](../systems/surfaces/tools.md)** (`research.py` — record/triage/reconcile; web-reaching research runs under the deployment's own network rules and every fetched source is quarantined data, cited never obeyed); a hard **[check](../systems/surfaces/check.md)** (schema conformance; the **uncited-claim check** — a research record's answer asserting a sourced fact with no citation fails, negative-fixtured; the **silent-promotion check** — an observation in `promoted` state without a recorded decision reference fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`research-record.v1` — a question, the sources consulted (each dated, each cited, each carrying a **schema-borne quarantine/provenance field** — presence checked), the answer with its inference/observation lanes, named contradictions and gaps, and freshness bindings on repository content it cites — **web citations perish weaker**: date-only, no invalidation when a page later changes, the asymmetry stated; `observation-record.v1` — a signal with source, date, the same **quarantine/provenance field**, and triage state (`captured`\|`promoted:<target>`\|`expired`\|`rejected`) — expiry removes **authority**, not storage (the store accretes; the anti-hoard claim is about actionability, stated); `reconciliation.v1` — a divergence (observed-vs-settled, or a design-drift class from the graph), the evidence on each side, and the operator's typed resolution (`change-product`\|`change-intent`\|`investigate`\|`accepted` — persisted)); the **[tool](../systems/surfaces/tools.md)** (`research.py` — record/triage/reconcile **only**; it fetches nothing and writes no governing surface); hard **[checks](../systems/surfaces/check.md)** (schema conformance including provenance-field presence; the **uncited-claim check**; the **silent-promotion check** — promotion without a decision reference fails; the **no-write-path fixture** — a staged correction pattern reaching a behavior file fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
 | `migrations` | none |
