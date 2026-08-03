@@ -7,20 +7,24 @@ status: draft
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design for wave 6, not yet built; enters in progress and settles by the operator's
-recorded acceptance before wave 6's build begins.*
+recorded acceptance before wave 6's build begins. Revised in draft after the trio's four cold reviews;
+the largest changes: a `serve` stage so the first realization genuinely fits, the recheck's two honest
+tiers, and the secret-refusal check moving into the contract.*
 
 ## Summary
 
-The **optional** platform-profile contract: what any `platform-*` module must declare so that "build,
-package, test, distribute, and support this platform's products" is a **typed conformance surface** instead
-of a pile of per-platform conventions. [platform-web](platform-web.md) (wave 3) is the shape's first
-informal realization; this registry retrofits the contract under it and ahead of
-[platform-ios](platform-ios.md) — the same contract-before-second-realization move the engineering-quality
-family made. A platform profile declares its lifecycle stages by capability (which of build / package /
-sign / test / distribute / observe it provides, each optional and disclosed), and every platform-specific
-rule it depends on from the outside world (a store's submission requirements, a signing authority's
-constraints) is a **dated external input rechecked at release time** — never baked in as timeless engine
-policy.
+The **optional** platform-profile contract: what any `platform-*` module must declare so platform
+delivery is a **typed conformance surface**. A profile declares its lifecycle stages by capability —
+`build`\|`package`\|`sign`\|`test`\|`serve`\|`distribute`\|`observe`, each optional and disclosed
+(`serve` is the runtime-surface stage [platform-web](platform-web.md) actually realizes — the vocabulary
+fits the first realization honestly instead of forcing it); every **external rule** it depends on is a
+dated input with **two typed recheck tiers** — *fetch-and-fingerprint* where a source adapter exists
+(the snapshot-diff pattern), *date-staleness reminder* otherwise, a prompt to re-verify by hand, **never
+itself detection of change**; and the **secret-refusal check is contract grammar** — every profile
+inherits it, platform-web's retrofit included. The contract coins its own **enforced-vs-requested
+capability typing** (self-contained; mirrors the environment plane's vocabulary without depending on
+it), so a profile's honesty about what its platform can actually guarantee has a home in the base
+install.
 
 ## Behavior
 
@@ -30,37 +34,37 @@ policy.
 |---|---|
 | `id` | `profile-registry` |
 | `status` | `optional` |
-| `provides` | the **platform-profile contract [schema](../systems/surfaces/schemas.md)** (`platform-profile.v1` — declared lifecycle capabilities per stage (`build`\|`package`\|`sign`\|`test`\|`distribute`\|`observe`), each with its artifact-identity grammar (digest-based, feeding [deployment-core](deployment-core.md)'s artifact rule), its environment requirements (consumed as [execution-environment](execution-environment.md) manifest input), and its **external-rule dependencies** — each a named source, a retrieval date, and a recheck-at-release obligation); the **conformance fixture set** a platform profile must pass before installation (declared-capability probes; external-rule dating; degraded honesty per absent stage); a hard **[check](../systems/surfaces/check.md)** (schema conformance; the **undated-rule check** — a profile citing an external rule without source and date fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **platform-profile contract [schema](../systems/surfaces/schemas.md)** (`platform-profile.v1` — declared stages with per-stage capability typing (`enforced`\|`requested`\|`absent`, the contract's own vocabulary), artifact-identity grammar per stage (digest-based, feeding [deployment-core](deployment-core.md)'s artifact rule where installed), environment requirements (consumed as [execution-environment](execution-environment.md) manifest input where installed — a reference, not a dependency), and **external-rule dependencies** — named source, retrieval date **bound to retrieval evidence** (a content fingerprint of what was fetched, never a hand-entered date alone), recheck tier, and the recheck obligation **bound to the `distribute` stage** where one exists (not a nominal "release time" a flow can skip)); the **conformance fixture set** a profile must pass before installation; hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **undated-rule check** — an external rule without source + evidenced date fails; the **secret-refusal check** — a profile field carrying secret-shaped material (per the engine's secret-scanning vocabulary) fails — contract-owned, inherited by every profile; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
 | `migrations` | none |
 
 ### The registry model
 
-- **Capabilities declared, absences disclosed.** A platform without a signing stage declares it; nothing
-  infers a lifecycle from a platform's reputation. Every profile's declared surface is what conformance
-  probes — the enforced-vs-requested honesty the environment plane established, applied to platform
-  stages.
-- **External rules are dated inputs.** A store's requirements change outside the repository; a profile
-  records what rule set it was written against and *when*, and release-time work rechecks — a stale rule
-  set is a visible release-time finding, never silent policy.
-- **Artifact identity is the through-line.** Every stage consumes and emits digest-identified artifacts,
-  so build-to-distribute traceability is the contract's spine, not per-platform convention.
-- **platform-web is grandfathered deliberately.** On this module's build, platform-web's declaration is
-  authored against the contract and its conformance run recorded — the retrofit is explicit work, not an
-  assumed fit.
+- **Capabilities declared and typed, absences disclosed.** A platform without a signing stage declares
+  it; a stage the platform can only soft-provide types `requested`. Conformance probes what is declared.
+- **External rules: evidence-dated, two-tier rechecked, honestly inert without a flow.** The date is
+  what was fetched and when, fingerprinted; the recheck fires on the distribute stage where one exists —
+  in a base install with no distribution flow, the recheck obligation is dormant, stated.
+- **Artifact identity is the through-line** — every stage consumes and emits digest-identified
+  artifacts.
+- **The platform-web retrofit is scoped honestly.** platform-web **owns its declaration file** (its
+  module gains it in a coordinated change recorded at this module's build; the registry owns only the
+  contract and fixtures — no cross-module file ownership). The declaration is mostly honest absences
+  (sign/package/distribute `absent`; `build` mapping its consumed artifact identity; `serve` its real
+  ground; `test` browser-evidence's, referenced) with `web-surface.v1` becoming the serve-stage detail
+  under the declaration — the subsume mapping stated, not left to a builder to invent.
 
 ### Degraded behavior
 
-No profiles installed → the registry is inert grammar, disclosed. A profile whose external-rule recheck
-cannot run (source unreachable) reports the rule set as unverifiable-at-release — typed, never silently
-current. Both runtimes read the same declarations.
+No profiles installed → inert grammar, disclosed. A fetch-tier recheck whose source is unreachable →
+unverifiable-at-release, typed; a reminder-tier recheck is only ever a reminder, typed as such. Both
+runtimes read the same declarations.
 
 ### What stays out
 
-- **No platform mechanics** — profiles own their stages; the registry owns the grammar.
-- **No store/vendor policy as engine policy** — external rules stay dated inputs.
-- **No universal-platform claims** — the contract holds for declared stages only.
+- **No platform mechanics; no vendor policy as engine policy; no universal-platform claims.**
+- **No change detection where no adapter exists** — the reminder tier never pretends.
 
 ## Acceptance criteria
 
@@ -69,7 +73,7 @@ carries at least part of it.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Declarations validate; undated rules fail** — a profile instance conforms; an external rule without source+date fails the check. | Schema checks + negative fixture ride CI (hard). | engine |
-| **Absent stages are honest** — a staged profile without `sign` reports the absence in every consuming flow, never a guessed stage. | Fixture: staged partial profile. | operator |
-| **Recheck obligation fires** — a staged release-time flow over a profile with a stale-dated rule surfaces the recheck finding. | Fixture: staged stale rule set. | operator |
-| **platform-web retrofit lands** — platform-web's declaration validates against the contract and its conformance run is recorded. | The retrofit fixture, run at this module's build. | operator |
+| **Declarations validate; undated rules and secret-shaped fields fail** — both contract checks bite their negative fixtures. | Schema + both checks ride CI (hard). | engine |
+| **Absent and requested stages are honest** — a staged profile without `sign` and with a soft-`requested` stage reads correctly in every consuming flow. | Fixture: staged partial profile. | operator |
+| **Recheck tiers behave** — a fetch-tier rule diffs by fingerprint; a reminder-tier rule prompts and claims nothing more; a stale-dated rule surfaces on the staged distribute flow. | Fixture: all three staged. | operator |
+| **The retrofit lands as absorption** — platform-web's declaration (owned by platform-web) validates, declares all seven stages honestly, and maps `web-surface.v1` as its serve-stage detail. | The retrofit fixture at this module's build. | operator |

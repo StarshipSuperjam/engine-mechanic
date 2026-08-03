@@ -6,19 +6,25 @@ status: draft
 
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
-establishes. Intended design for wave 6, not yet built; enters in progress and settles by the operator's
-recorded acceptance before wave 6's build begins.*
+establishes. Intended design for wave 6, not yet built; enters in progress, settles by the operator's
+recorded acceptance before wave 6's build begins, and — as a **security surface** (vendor signing
+credentials flow here first, and store distribution is production-class) — takes the engine's full
+pre-settle design review then, per decision 0334. Revised in draft after the trio's four cold reviews.*
 
 ## Summary
 
 The **optional** iOS consumer-product profile realizing the [profile-registry](profile-registry.md)
-contract — deliberately the contract's most demanding realization: signed builds, simulator and device
-test evidence, store distribution, and platform rules that change outside the repository on a vendor's
-schedule. Every Apple-specific mechanic (build/signing toolchain, TestFlight-class distribution,
-store-submission requirements, privacy declarations) lives in **adapter fields of this profile** — dated
-external inputs rechecked at release time — never as engine policy; the engine's contract-side spine
-(digest-identified artifacts, declared capabilities, typed degraded states) is what this profile must keep
-while the vendor's side moves.
+contract — its most demanding realization. **What settles here is the typed profile and its staged
+conformance**: signed builds and simulator evidence, with real execution operator-local (the vendor
+toolchain cannot run in CI) and **device-class evidence a deferred declared expansion** — the summary
+says so because the body does. Store distribution is **production-class by definition**:
+[deployment-core](deployment-core.md)'s recorded-decision gate governs it, and this profile cannot
+exercise distribution until that decision exists. The signing seam is drawn: signing runs as a
+**broker-exercised operation on the toolchain host** — the [credential-broker](credential-broker.md)
+materializes the signing identity transiently under its own control for the operation and scrubs after;
+the worker session never reads it, and **the vendor toolchain host is inside the signing trust
+boundary** — a named residual (the toolchain is observed, never attested), not a hidden one. Scope is
+the store-distribution channel of consumer products; enterprise/MDM channels are out of scope, stated.
 
 ## Behavior
 
@@ -28,53 +34,51 @@ while the vendor's side moves.
 |---|---|
 | `id` | `platform-ios` |
 | `status` | `optional` |
-| `provides` | the **profile declaration** (a `platform-profile.v1` instance): `build` (the platform build toolchain invocation, its toolchain identity observed and recorded); `package`/`sign` (artifact and signing-identity handling — signing credentials live behind the [credential-broker](credential-broker.md), never in profile fields, never in the worker); `test` (simulator-run scenario evidence as the platform's rendered-behavior lane, device evidence a declared expansion); `distribute` (store/TestFlight-class distribution as typed [deployment-core](deployment-core.md) effects through a provider adapter); `observe` (crash/telemetry intake as operations-plane observations, when that plane is installed); with **every external-rule dependency dated** per the registry contract — store submission requirements, privacy-declaration formats, signing constraints; plus the profile's per-stage mappers and conformance fixture results |
+| `provides` | the **profile declaration** (a `platform-profile.v1` instance, per-stage typed): `build` (vendor toolchain invocation; toolchain identity observed and recorded — reproducibility typed `requested` where the platform cannot guarantee byte-stable output, which makes source→binary provenance **trusted, not verifiable**, stated); `package`/`sign` (broker-exercised per the seam above; signing capability `requested` until a signing-capable broker adapter exists — the signing conformance row is **disclosed not-applicable until then**); `test` (simulator-run scenario evidence, typed as simulator; device-class evidence the deferred expansion — and **store distribution requires device-class evidence unless the operator records a simulator-only acceptance**, typed and visible); `distribute` (typed deployment-core effects, production-class-gated); `observe` (crash/telemetry intake as operations-plane observations, when installed); every external rule evidence-dated per the registry's two recheck tiers, with the store-rule recheck bound to the distribute stage; the **`platform_ios.py` stage driver** (the thin execution surface: invokes the vendor toolchain, drives the per-stage mappers, routes sign/distribute through their owning modules); and the profile's conformance fixture results |
 | `wires` | **none** |
-| `depends` | `core`, `delivery-core`, `profile-registry` |
+| `depends` | `core`, `delivery-core`, `profile-registry`, `credential-broker`, `deployment-core` |
 | `migrations` | none |
 
 ### Profile behavior
 
-- **The vendor toolchain is observed reality, not a pin the engine can enforce.** The build stage records
-  the toolchain identity it found (the platform's build system versions itself outside the engine's
-  substrate); reproducibility claims are scoped to what that toolchain honestly provides, typed
-  `requested` where the platform cannot guarantee byte-stable output — the enforced-vs-requested honesty
-  the environment plane established.
-- **Signing is broker-ground.** Signing identities and store credentials are provider connections under
-  the authority chain; the profile declares *that* signing happens and *what* it needs — material never
-  appears in profile fields (the registry's undated-rule check has a sibling here: a profile field
-  carrying secret-shaped material is refused, the plane's standing rule).
-- **Store rules are dated and rechecked.** A release-time flow re-verifies the dated rule set against the
-  vendor's current requirements; changed rules surface as release findings. The profile never claims the
-  store will accept — it claims the declared, dated checks passed.
-- **Simulator evidence is typed as simulator evidence.** Rendered-behavior scenarios on a simulator carry
-  their profile identity; device-class evidence is a separate declared capability, absent until the
-  expansion is recorded. Nothing launders simulator green into device proof.
+- **The vendor toolchain is observed reality inside the trust boundary.** Identity recorded, honesty
+  typed — and the residual named: a compromised toolchain is both the artifact-injection and
+  key-exposure vector, and the engine records what it observes, never attests it.
+- **Signing is brokered on the host.** The broker's exercise record covers the materialize-sign-scrub
+  cycle; canary conformance probes the worker-observable channels; the toolchain-host residual stands
+  named.
+- **Store rules are evidence-dated and distribute-bound.** The recheck fires on the distribute stage;
+  privacy-declaration **format** currency rides the same machinery — the declaration's **truthfulness
+  about the product's data behavior is out of this profile's scope**, stated.
+- **Simulator is simulator.** Typed evidence; no laundering by label — and no laundering by
+  sufficiency either: distribution's device-evidence precondition (or the operator's recorded
+  simulator-only acceptance) closes the honest-label-wrong-conclusion path.
 
 ### Degraded behavior
 
-Vendor toolchain absent → the build stage reports unavailable with the observed reason; no stage guesses.
-Store/distribution endpoints unreachable → distribution effects read `unknown` per deployment-core's
-grammar. Rules source unreachable at release → the rule set is unverifiable-at-release, typed (the
-registry's rule). Both runtimes read the same declarations; stage execution happens where the vendor
-toolchain lives, disclosed.
+Vendor toolchain absent → `build` unavailable with observed reason. Broker or its signing adapter absent
+→ `sign` is **out of contract**, typed — never a keychain fallback. deployment-core's production
+decision absent → `distribute` refuses, naming the gate. Rules source unreachable →
+unverifiable-at-release, typed. Both runtimes read the same declarations; stage execution is
+operator-local, disclosed.
 
 ### What stays out
 
-- **No Apple mechanics as engine policy** — everything vendor-specific is a dated adapter field.
-- **No store-acceptance claims** — the engine proves its declared checks, never the vendor's decision.
-- **No credential custody** — broker-ground, enforced by the same secret-refusal discipline.
+- **No Apple mechanics as engine policy; no store-acceptance claims; no credential custody.**
+- **No enterprise/MDM distribution channels** — consumer store distribution only, this cut.
+- **No device-class evidence in this cut** — the deferred expansion, declared.
 
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation
-carries at least part of it. Vendor-toolchain rows are operator-local (the toolchain cannot run in CI) —
-stated, never a silent pass.*
+carries at least part of it. Vendor-toolchain rows are operator-local; the signing row is disclosed
+not-applicable until a signing-capable broker adapter exists.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Declaration validates** — the profile instance conforms to `platform-profile.v1`; every external rule dated; secret-shaped fields refused. | Schema + registry checks ride CI (hard). | engine |
-| **Toolchain honesty** — the build stage records observed toolchain identity; a reproducibility claim the platform cannot back is typed `requested`. | Fixture: staged build on the operator's toolchain. | operator |
-| **Signing stays brokered** — a staged signing flow exercises a broker grant; no signing material appears in any profile field, worker channel, or artifact record. | Fixture: staged signing with canary material. | operator |
-| **Rule recheck fires** — a staged release flow over a stale-dated rule set surfaces the recheck finding. | Fixture: staged stale rules. | operator |
-| **Simulator is not device** — simulator evidence carries its profile identity; a staged device-claim without the declared capability is refused. | Fixture: staged evidence typing. | operator |
+| **Declaration validates** — conforms to `platform-profile.v1`; every external rule evidence-dated; secret-shaped fields fail the contract's check; the dependency set carries the modules its stages ride. | Schema + registry checks ride CI (hard). | engine |
+| **Toolchain honesty** — observed identity recorded; unbackable reproducibility typed `requested`; the provenance residual reads trusted-not-verifiable. | Fixture: staged build on the operator's toolchain. | operator |
+| **Signing stays brokered (when exercisable)** — the staged signing flow is a broker exercise; canary material appears in no worker channel; the toolchain-host residual is named in the record. | Conformance fixture, not-applicable until the signing adapter exists. | operator |
+| **Distribution is gated twice** — staged distribution without the production-class recorded decision refuses; with it but without device evidence or the recorded simulator-only acceptance, refuses typed. | Fixture: both gates staged. | operator |
+| **Rule recheck fires on distribute** — the staged stale store-rule surfaces on the staged distribute flow. | Fixture: staged stale rules. | operator |
+| **Simulator typing holds** — simulator evidence carries its profile identity; a staged device claim without the declared capability is refused. | Fixture: staged evidence typing. | operator |

@@ -56,7 +56,7 @@ burden on every deployment — and every delivery module depends (directly or th
 | 5 | maintenance-ledger | The durable schedule ledger: due slots, leases, catch-up rules, attempt history, missed/duplicate states |
 | 5 | bounded-repair | Deterministic-first, budgeted repair with independent progress measurement; draft-PR-only output, never autonomous merge |
 | 6 | large-change-coordination | Dependency-linked slices for long refactors: ownership, overlap, invalidation, integration checkpoints, partial rollback |
-| 6 | profile-registry | The platform-profile contract registry: how platform-* profiles declare build, package, test, distribute, support |
+| 6 | profile-registry | The platform-profile contract registry: how platform-* profiles declare build, package, sign, test, serve, distribute, observe |
 | 6 | platform-ios | The iOS consumer-product profile realizing the profile-registry contract |
 | 7 | operator-cockpit | One derived, rebuildable operator view over intent, work, environment, evidence, deployed state, and pending decisions — never a second source of truth |
 | 7 | product-knowledge-graph | Derived, revision-bound structural map of the product a deployed engine builds — distinct from the engine's self-map |
@@ -100,9 +100,12 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
   code — the TypeScript profile's install layer more so), debugger-diagnosis (it executes product code
   and captures live memory), bounded-repair (it mutates product code unattended),
   authority-broker-contract, credential-broker, execution-environment, browser-evidence,
-  deployment-core, and deployment-adapter take the engine's full pre-settle design review when their
-  settle comes — their failure modes (credential exposure, authority escape, code execution, untrusted
-  content) are not observable casually.
+  deployment-core, deployment-adapter, platform-ios (vendor signing credentials flow there first, and
+  store distribution is production-class), product-knowledge-graph (it derives an index from
+  possibly-untrusted product content), and research-and-learning (the plane's one external-web intake)
+  take the engine's full pre-settle design review when their settle comes — their failure modes
+  (credential exposure, authority escape, code execution, untrusted content) are not observable
+  casually.
 - **clean-code retires.** The engineering-quality family absorbs the territory the `clean-code` stub
   reserved; the stub document and its index row are removed with this record as the trace.
   (engine-template issue #232, which the stub anticipated, is re-aimed at the engineering-quality
