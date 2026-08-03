@@ -37,7 +37,7 @@ burden on every deployment — and every delivery module depends (directly or th
 | Wave | Module | Responsibility (one line; the document owns the detail) |
 | --- | --- | --- |
 | 1 | delivery-core | Task and run identity, lifecycle, authority, budgets, stop conditions, typed outcomes, run receipts — the kernel every delivery module binds to |
-| 1 | delivery-evidence | Behavioral evidence, effect receipts, evidence freshness and invalidation, final-snapshot assurance, typed outcome records |
+| 1 | delivery-evidence | Behavioral evidence, effect receipts, evidence freshness and invalidation, final-snapshot divergence records, typed reconciliation outcomes |
 | 1 | code-intelligence-core | Product-code discovery, localization, symbol relationships, revision binding, impact analysis, explicit unsupported-language behavior |
 | 1 | structured-change | Versioned pending change sets, atomic apply, semantic preflight, rollback, Git linkage, evidence invalidation on mutation |
 | 1 | engineering-quality | The stack-declared quality contract: formatter, linter, types, build, tests, dependency checks; fast-loop vs clean-environment evidence; autofix authority — the family contract its per-stack profiles realize |
@@ -89,10 +89,11 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
 - **Draft, then settle at the gate.** Every document enters in progress. Settling is the operator's
   recorded acceptance, taken per wave before that wave's build starts, at the review depth the operator
   chooses then.
-- **Security surfaces settle thorough.** authority-broker-contract, credential-broker,
-  execution-environment, browser-evidence, deployment-core, and deployment-adapter take the engine's
-  full pre-settle design review when their settle comes — their failure modes (credential exposure,
-  authority escape, untrusted content) are not observable casually.
+- **Security surfaces settle thorough.** delivery-core (it coins the plane's authority vocabulary),
+  engineering-quality-python (its build/test kinds execute product code), authority-broker-contract,
+  credential-broker, execution-environment, browser-evidence, deployment-core, and deployment-adapter
+  take the engine's full pre-settle design review when their settle comes — their failure modes
+  (credential exposure, authority escape, code execution, untrusted content) are not observable casually.
 - **clean-code retires.** The engineering-quality family absorbs the territory the `clean-code` stub
   reserved; the stub document and its index row are removed with this record as the trace.
   (engine-template issue #232, which the stub anticipated, is re-aimed at the engineering-quality
