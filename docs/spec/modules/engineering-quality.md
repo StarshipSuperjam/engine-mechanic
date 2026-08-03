@@ -70,7 +70,7 @@ integrations, deliberately not dependencies; their absence degrades named behavi
   equivalence check (parse-normalized comparison); one that is not is caught, not trusted.
 - **Freshness and registration.** Where delivery-evidence is installed, results are recorded in its grammar
   (with the lane carried on the record) and perish by its derived-on-read freshness. Absent it, results
-  carry their own digests and the receipt disclosess that freshness is unguaranteed.
+  carry their own digests and the receipt discloses that freshness is unguaranteed.
 
 ### Degraded behavior
 

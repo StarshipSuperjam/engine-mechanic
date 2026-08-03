@@ -22,9 +22,10 @@ dated input with **two typed recheck tiers** — *fetch-and-fingerprint* where a
 (the snapshot-diff pattern), *date-staleness reminder* otherwise, a prompt to re-verify by hand, **never
 itself detection of change**; and the **secret-refusal check is contract grammar** — every profile
 inherits it, platform-web's retrofit included. The contract coins its own **enforced-vs-requested
-capability typing** (self-contained; mirrors the environment plane's vocabulary without depending on
-it), so a profile's honesty about what its platform can actually guarantee has a home in the base
-install.
+capability typing** (self-contained; it mirrors the *shape* of the environment plane's
+enforced-versus-requested distinction — that plane's strong-side token is `matches` — without depending
+on its schema), so a profile's honesty about what its platform can actually guarantee has a home in the
+base install.
 
 ## Behavior
 
