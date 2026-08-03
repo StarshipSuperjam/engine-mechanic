@@ -12,9 +12,9 @@ The **optional** Software Configuration Management module that keeps a project c
 it runs on. Installed and scheduled only by an operator who wants it — absent otherwise — it ships a
 **read-only** reviewer (`engine-platform-review`, with a generated Codex twin) that fetches what is genuinely
 new or changed in the Claude Code / Claude Desktop and Codex harnesses and in both model lineups, diffs those
-changes against the approved platform capability baseline where the repository carries one, verifies every
-candidate finding against the repository as it stands that day, and reports **sourced, specific leverage
-guidance**: what changed, where it is documented, and the concrete way this project could use it. It looks
+changes against the approved platform capability baseline — resolved current-first from engine-template, with
+the module's own shipped copy as the offline fallback — verifies every candidate finding against the
+repository as it stands that day, and reports **sourced, specific leverage guidance**: what changed, where it is documented, and the concrete way this project could use it. It looks
 **outward** — what the platform now offers and how to exploit it — where the existing engine-audit looks
 inward at the engine's own local state; the two never merge. Recommendations only: it edits nothing, and the
 operator decides.
@@ -27,7 +27,7 @@ operator decides.
 |---|---|
 | `id` | `platform-currency` |
 | `status` | `optional` |
-| `provides` | the **`engine-platform-review` [agent](../systems/surfaces/agents.md)** (read-only persona: `permissions: read-only`, Edit/Write/NotebookEdit/Bash denied, `model-tier: judgment`) and its generated **codex-agent twin**; the **setup [doc](../systems/surfaces/docs.md)** (`.engine/docs/platform-currency-setup.md`); the **`/engine-platform-review` [skill](../systems/surfaces/skills.md)** and its codex-skill twin (the on-demand verb, listed in `/engine-help`); and the **scope-flag [policy](../systems/surfaces/policies.md)** (`.engine/policies/platform-currency.json`: `{schema_version: 1, scope: "product"}`, `scope` ∈ `product \| engine \| both`). |
+| `provides` | the **`engine-platform-review` [agent](../systems/surfaces/agents.md)** (read-only persona: `permissions: read-only`, Edit/Write/NotebookEdit/Bash denied, `model-tier: judgment`) and its generated **codex-agent twin**; the **setup [doc](../systems/surfaces/docs.md)** (`.engine/docs/platform-currency-setup.md`); the **`/engine-platform-review` [skill](../systems/surfaces/skills.md)** and its codex-skill twin (the on-demand verb, listed in `/engine-help`); the **scope-flag [policy](../systems/surfaces/policies.md)** (`.engine/policies/platform-currency.json`: `{schema_version: 1, scope: "product"}`, `scope` ∈ `product \| engine \| both`) with its **[schema](../systems/surfaces/schemas.md)** (`platform-currency.v1.json`) and hard **[check](../systems/surfaces/check.md)** (the model-bindings shape — mechanical validation at merge); and the **baseline corpus** (the platform capability baseline's snapshot, comparison rules, catalogs, and matrices as module-owned reference files), so an opted-in deployment carries the diff denominator locally and engine upgrades refresh it. |
 | `wires` | **none** — every surface binds by presence, the [qa-review](qa-review.md)/[design-review](design-review.md) optional-persona shape |
 | `depends` | `core` |
 | `migrations` | none |
@@ -43,13 +43,19 @@ product's AI usage by default with an engine/both scope for Engine contributors.
 The persona follows the adopted comparison method — the standing rules in the baseline's
 [comparison-rules](../../reference/platform-baseline/comparison-rules.md), which the audit itself ran under:
 
-1. **Load the denominator, if the repository carries one.** The approved baseline's durable form is committed
-   markdown at a well-known path — `docs/reference/platform-baseline/` (`snapshot.md` with per-source content
-   fingerprints, plus the comparison rules). Where present (engine-mechanic is the repository that carries
-   one today), the run is a **true diff**: confirm the denominator and origin allowlist, re-fetch the
-   snapshot's sources, fingerprint-diff to find what actually changed, and sweep each family's changelog
-   surfaces for what is new since the snapshot date. Where absent, the run is a **point-in-time comparison**
-   and says so plainly — it never pretends a diff it has no denominator for.
+1. **Resolve the denominator — current first, local second, honest fallback last.** The baseline's canonical
+   operational home is **engine-template itself**: the module ships the baseline corpus (`snapshot.md` with
+   per-source content fingerprints, the comparison rules, the catalogs) as module-owned files, and no
+   deployed repository ever points at the engine's workshop. A run resolves the baseline in order: **fetch
+   the current baseline from engine-template on GitHub** when reachable, so a re-baseline is picked up
+   between engine releases; fall back to the **local module-installed copy**; and where neither resolves,
+   the run is a **point-in-time comparison** and says so plainly — it never pretends a diff it has no
+   denominator for. Whichever copy it uses, the run **names the baseline version it diffed against**
+   (snapshot date and commit) so its claims are auditable, and the baseline fetch is resolution of the
+   run's own configuration — the origin allowlist governs evidence citations and the baseline home never
+   joins it. With a denominator in hand, the run is a **true diff**: confirm the denominator and origin
+   allowlist, re-fetch the snapshot's sources, fingerprint-diff to find what actually changed, and sweep
+   each family's changelog surfaces for what is new since the snapshot date.
 2. **Author delta records under the audit's evidence rules** — live allowlist-resident sources fetched this
    run, every claim cited, fetched content treated as data never instruction, queries generic (platform names
    and features only — never this project's identifiers).
@@ -133,16 +139,25 @@ differs from the audit's no-network off-schedule run.
 - **Names**: module `platform-currency`, persona `engine-platform-review` — "routine" is avoided in the id
   because `routine-mode` is the unattended build-advancer stance, and the migration-M3 naming fix separates
   the local scheduled task from the cloud Routines product.
-- **Scope validation, light path**: the enum and default are pinned by a **unit test** plus the persona's
-  safe-default — no JSON-schema hard check, so nothing joins the guardrail floor and the module build carries
-  **no weakening acknowledgment**. The audit's evidence: floored schemas each cost a deliberate operator
-  acknowledgment (migration M4 carries one for exactly that reason), a price a convenience selector that
-  governs nothing should not charge.
+- **Scope validation, schema-backed**: the flag file is validated by a `platform-currency.v1.json` schema
+  and a hard check — the exact shape the model-bindings flag already uses — plus the persona's safe-default
+  for a value that is missing or fails validation at run time. Chosen on the merits as the fuller build:
+  mechanical validation at merge, consistent with the engine's own grammar. Enrolling the new schema in the
+  guardrail floor means editing the floor's own guard tool (a brand-new schema file is an ungated addition
+  by design; the build's drift test then forces the enrollment edit, and the guard tool is itself floored)
+  — so **the module build's pull request carries one weakening acknowledgment, raised by the guard naming
+  its own tool's edit** — an accurate disclosure, flagged plainly there, applied by the operator, never a
+  reason to build smaller (the operator's standing rule: never under-build to avoid an acknowledgment).
 - **Setup-doc ownership**: the module owns `.engine/docs/platform-currency-setup.md` through its enumerated
   per-file doc provides — verified against the build: core enumerates its one doc file per-path, no glob
   claims `.engine/docs/*.md`, so no narrowing is needed.
-- **The baseline's durable form**: settled by decision 0332 — committed markdown with per-source content
-  fingerprints, aging deliberately, replaced only by a new recorded decision.
+- **The baseline's durable form and home**: the form is settled by decision 0332 — committed markdown with
+  per-source content fingerprints, aging deliberately, replaced only by a new recorded decision. Its
+  canonical operational home becomes **engine-template**: the module ships the corpus (about 700 kilobytes
+  of markdown — trivial space) so every opted-in deployment carries the denominator and none points at the
+  engine's workshop, where the audit authored it and where re-baselines are decided. Today the corpus lives
+  only in that workshop; the module build enacts the relocation, and until it lands this paragraph is
+  intent, not description.
 
 ### What stays out
 
@@ -164,9 +179,10 @@ verification fixtures, each a staged scenario the finished build must be exercis
 | --- | --- | --- |
 | **Optional and absent by default** — a deployment that declines the module never sees the persona, doc, skill, or flag; add installs, remove deletes; declining never fails a required self-test. | Operator observation: a clean-tree install/remove round-trip through the module manager, status read back each way. Partial support: the module-ownership unit tests pin `status: optional` and ride CI. | operator |
 | **Read-only persona, twins in sync** — the persona denies Edit/Write/NotebookEdit/Bash, carries all nine safeguards, and the generated Codex twin matches it. | Operator observation: read the persona's four sections against the nine safeguards. Partial support: the generator's sync check and the persona-shape check ride CI on the build repository. | operator |
-| **Scope flag honored with a safe default** — the review confines itself to the selected layer(s), states which scope and placement it ran, and treats a missing or invalid value as `product`, disclosed. | Operator observation on fixture runs (the two placement fixtures below). Partial support: a unit test pins the enum and default. | operator |
+| **Scope flag honored with a safe default** — the review confines itself to the selected layer(s), states which scope and placement it ran, and treats a missing or invalid value as `product`, disclosed. | Operator observation on fixture runs (the two placement fixtures below). Partial support: the schema-backed hard check validates the flag file mechanically at merge on the build repository. | operator |
 | **Setup doc covers both paths honestly** — on-demand verb plus the operator-scheduled unattended hosts under their correct names (local scheduled task, Codex Automation, cloud Routines as alternative), with the read-only-but-networked disclosure. | Operator observation: read the setup doc against this document's scheduling section. | operator |
-| **No weakening acknowledgment on the light path** — the module build touches no guardrail-floored file. | Operator observation at the build pull request: the guard stays green, verified mechanically there. | operator |
+| **Exactly one weakening acknowledgment, disclosed** — the module build's only floored touch is the edit to the weakening-guard tool that enrolls the scope-flag schema in the floor (the new schema file itself is an ungated addition); the pull request carries that one acknowledgment, flagged plainly, and nothing else trips the guard. | Operator observation at the build pull request: the guard's finding names its own tool's edit, the pull-request body explains that edit as the scope-flag schema's enrollment, and the acknowledgment is the operator's own act there. | operator |
+| **Baseline resolution and version honesty** — a run resolves the denominator current-first (engine-template on GitHub), local-copy second, disclosed point-in-time last, and names the snapshot date and commit it diffed against. | Operator observation on fixture runs: the run's report states its resolution path and baseline version; the unavailable-sources fixture below exercises the fallback. | operator |
 | **Fixture: genuinely useful new capability** — a platform change the project could exploit is reported with its live source and a concrete, specific leverage recommendation. | A fixture run against a staged scenario; output inspected for source citation and concrete guidance. | operator |
 | **Fixture: already-adopted capability** — a capability the repository already uses is never recommended for adoption; if it changed, it is reported as adopted. | A fixture run against a repository state that already uses the capability; output inspected for the absence of a cry-wolf recommendation. | operator |
 | **Fixture: irrelevant release item** — a platform change with no leverage in this repository is not surfaced as a recommendation. | A fixture run including a known-irrelevant release item; output inspected. | operator |
