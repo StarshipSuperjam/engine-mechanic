@@ -24,8 +24,11 @@ crosses the boundary.
 **2. Five migrations are approved**, each a bounded engine-template build tracked as its own leaf issue
 under the platform-currency release milestone:
 
-- **M1 — audit-prep structured output.** Replace the emit-verdicts-in-prose plus shell-regex parse in the
-  `audit-prep` workflow with the CLI's native JSON/schema output. Workflow-internal.
+- **M1 — audit-prep structured output.** Today the audit persona embeds a fenced machine-readable
+  verdicts block inside its prose digest, and the promoting tool parses and schema-validates that block
+  after the fact — a model-discipline contract. M1 moves the contract to the CLI's native structured
+  output (`--json-schema`), so the shape is enforced at emission rather than relied on from the model.
+  Workflow-internal.
 - **M2 — SessionEnd: wire it or retract it.** The hook inventory declares `SessionEnd` hooks-owned while
   neither settings file registers a handler; the build either binds a real duty or retracts the claim.
 - **M3 — routine terminology fix.** engine-template's routine docs say "Claude Desktop routine" while
@@ -47,8 +50,10 @@ passage already describes the build truthfully:
 - `systems/infrastructure/hooks.md` — the `SessionEnd` empty binding is already recorded as the sanctioned
   state (the decision-0320 wave-5 ruling), and the fail-open posture is fully specified with its
   test-pinned proceed-on-crash rows. M2's outcome updates the inventory row when it lands.
-- `systems/guardrails/audits.md` — the doc does not pin the workflow's verdict-parse mechanism, so M1 is
-  workflow-internal; reconcile only if the built change touches a described behavior.
+- `systems/guardrails/audits.md` — the doc *does* describe the as-built verdict mechanism (the persona
+  appends a machine-readable verdicts block after its digest prose, which the promoting tool parses and
+  strips), and M1 replaces exactly that mechanism — so this is the one candidate site with a known
+  follow-on edit: the passage stays truthful today and is reconciled when M1's build lands.
 - `systems/lifecycle/modes.md` and `build-orchestration.md` — the local-vs-cloud routine naming is already
   disambiguated ("explicitly *not* the cloud Routines product"); M3 targets engine-template's own docs.
 - `systems/surfaces/agents.md` — persona `model`/`effort` are specified as platform-passthrough with no

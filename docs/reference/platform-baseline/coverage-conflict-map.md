@@ -14,8 +14,8 @@ dependencies), and what this run did and did not cover (the honest denominator).
 | Session orientation | boot.py briefing + assistant-narrated status block | /recap, statusLine | Engine keeps prose narration (runtime-neutral, operator-facing grounding proof). |
 | Code review | 9 review personas + audit persona, spec-referent acceptance, guardrail-ack, plan-stage review | Managed Code Review, /code-review, ultrareview, @codex review | Complementary strengths; natives become operator-enabled complements (OPTIONAL), never gates. |
 | Unattended runs | engine-routine skill + routine-entry gates + set-routine isolation proof | Local scheduled tasks (Claude), Automations (Codex), cloud Routines, background sessions | Engine layers on the two local hosts; cloud Routines named as alternative host (M3); background sessions rejected. |
-| Structured CI output | audit-prep emit-in-prose + shell parse | `--output-format json` / `--json-schema` | Native replaces hand-rolled (M1, approved). |
-| Packaging/distribution | module_manager + instantiator + release workflows | Plugins + marketplaces | Engine packaging recommended to stand; revisit only if marketplace distribution becomes a goal. |
+| Structured CI output | audit-prep persona embeds a fenced verdicts block in its prose digest; the promoting tool parses and schema-validates it after the fact | `--output-format json` / `--json-schema` | Native enforcement-at-emission replaces the model-discipline contract (M1, approved). |
+| Packaging/distribution | module_manager + instantiator + release workflows | Plugins + marketplaces | Engine packaging ratified to stand (decision 0333); revisit only if marketplace distribution becomes a goal. |
 | Instruction dedup across runtimes | Two hand-maintained floors + parity tooling | @AGENTS.md import / symlink | Deliberately declined: runtime-specific wording wins. Ratified to stand as-is (decision 0333). |
 | MCP availability | health probe tools + boot availability check + degrade-to-git | Platform connection-health reporting | Engine signalling stands (boot cannot see MCP routing); platform reporting is a bonus. |
 
