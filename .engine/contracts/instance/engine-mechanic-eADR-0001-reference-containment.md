@@ -12,13 +12,12 @@ A surface that travels from engine-template to a repository deployed from it mus
 repository holds engine-template's spec and its 319 decision records; that corpus stays here by
 design, because putting it in the template would push it into every generated repository.
 
-engine-template is distributed by "Use this template", which copies the **file tree** as one
-commit. Issues, pull requests and history do not travel, so the containment surface is exactly the
-committed file tree. One consequence is load-bearing and easy to get backwards: engine-template's
-own Issues **legitimately** cite `D-###` and must keep doing so — the build spec lives here, so an
-Issue with no reference to it could not point its build session at the spec that defines the build.
-Those never reach a deployed repository, and are not scanned. The traveling corners are the surface
-that matters, and they already carry the leak.
+engine-template is distributed by "Use this template", which copies the **file tree** as one commit.
+Issues, pull requests and history do not travel, so the containment surface is exactly that committed
+tree. One consequence is load-bearing and easy to get backwards: engine-template's own Issues
+**legitimately** cite `D-###` and must keep doing so — the build spec lives here, so an Issue without
+it could not point its build session at the spec. Those never reach a deployed repository or get
+scanned; the traveling corners are the surface that matters, and already carry the leak.
 
 The contained vocabulary: the decision numbering `D-###` (short `D-24` and padded `D-0024`), the
 `docs/adr/NNNN-slug.md` record paths, the alternate `ADR-####` spelling, and the retired workspace
@@ -31,12 +30,11 @@ Enforcement lives in product territory: `tools/reference-containment/` and
 
 ## Significance
 
-**What a green run does and does not mean.** It means no listed token was found. It does **not**
-mean the surface names its capabilities — prose naming neither passes, and no scanner can check the
-positive half of the rule. A literal token match narrows risk and never proves absence: split,
-encoded or homoglyph tokens pass, and paraphrase passes trivially. A file the scanner cannot read
-as text is named in the output and kept out of the clean tally rather than counted as examined. The
-review at merge stays the real wall.
+**What a green run does and does not mean.** It means no listed token was found — **not** that the
+surface names its capabilities: prose naming neither passes, and no scanner can check the positive
+half of the rule. A literal token match narrows risk, never proves absence: split, encoded or
+homoglyph tokens pass, and paraphrase trivially. A file the scanner cannot read as text is named in the
+output and kept out of the clean tally, not counted as examined — the review at merge stays the real wall.
 
 **What is enforced versus reported.** `surfaces` compares against a committed baseline recording
 each upstream-authored reference *and how many times it occurs*, and alarms only on something new.
@@ -60,11 +58,10 @@ pure *addition*, which is a strengthening.
 ## Rationale
 
 The leak is documented, not hypothetical. At the time of writing, ten sites in engine-template's own
-files carry a citation of this repository's decision log — three in `.engine/pyproject.toml`, three
-in `boot.py`, and one each in `hooks.py`, `test_boot.py`, `eADR-0037` and the root `.gitignore` —
-and every one ships to every repository generated from the template, where it names a decision log
-that repository cannot reach. Two further recorded entries are not defects at all but tokens used
-as test data, kept in the baseline rather than special-cased in the scanner.
+files cite this repository's decision log — three in `.engine/pyproject.toml`, three in `boot.py`, and
+one each in `hooks.py`, `test_boot.py`, `eADR-0037` and the root `.gitignore` — and every one ships to
+every generated repository, where it names a decision log that repository cannot reach. Two further
+recorded entries are not defects but test-data tokens, kept in the baseline, not special-cased in the scanner.
 
 The `.gitignore` site is fixed in the same change that adds this record — that file is carved out
 of the overlay, so the fix is durable here. It demonstrates the rule rather than reducing the harm,
@@ -93,12 +90,11 @@ is between scanning and gating, and the request conflated the two.
 Also rejected: an instance-local engine module, in or out of the packages map (permanently red, or
 permanently refused upgrades); a line-numbered baseline (re-cut every release as the overlay moves
 lines — churn with no signal); scanning engine-template Issue and pull-request text (it does not
-travel, and the references there are required); scanning commit messages (history does not travel
-either); an escape syntax letting a legitimate finding be silenced in-band (a hole the scanner
-would then have to defend, and the first thing anyone reaches for to quiet a finding they would
-rather not think about); and baking the rule into engine-template itself, meaningless in every
-deployed repository — though its *generic* form, a deployment-declared vocabulary the existing
-contribution pause points consult, is filed upstream.
+travel, and the references there are required) or commit messages (history does not travel either);
+an escape syntax letting a finding be silenced in-band (a hole the scanner must then defend, and the
+first thing anyone reaches for to quiet a finding they would rather not face); and baking the rule
+into engine-template itself, meaningless in every deployed repository — though its *generic* form, a
+deployment-declared vocabulary the existing contribution pause points consult, is filed upstream.
 
 ## Status
 
@@ -108,17 +104,15 @@ leg runs only where someone set it up. Second, the first landing of a guarded pa
 an acknowledgement (a pure addition is a strengthening), so this change's own correctness rests
 entirely on the review that merges it — the same wall named above.
 
-This identifier was issued once before at `b9dd58e`, for a narrower version of this decision, and
-removed by the revert at `229e1ee`. Reused deliberately rather than skipped, so history carries two
-records under it.
+This identifier was issued once before (a narrower version, at `b9dd58e`) and removed by the revert
+at `229e1ee`; reused deliberately rather than skipped, so history carries two records under it.
 
 This deployment carries one **local patch to an engine-owned file**, disclosed here because the
-overlay reverts it on every upgrade. `.engine/tools/test_seed.py` asserts the absent-declaration
-case by reading the *host* repository's own declaration, so it holds only while no deployment uses
-the mechanism — and this deployment uses it, for exactly the case the guard's own source documents.
-The patch asserts the same property against a path that cannot exist. Filed as engine-template
-issue 638. The recorded residue is engine-template issue 637; the generic form of this rule,
-offered upstream so every deployment gets it, is engine-template issue 639.
+overlay reverts it on every upgrade. `.engine/tools/test_seed.py` asserts the absent-declaration case
+by reading the *host* repository's own declaration, so it holds only while no deployment uses the
+mechanism — and this deployment does, for exactly the case the guard's own source documents; the patch
+asserts the same property against a path that cannot exist (engine-template issue 638). The recorded
+residue is issue 637, and the generic form of this rule, offered upstream, is issue 639.
 
 After every engine upgrade, confirm: the workflow and `tools/reference-containment/` are present
 and the workflow is green; `check.py surfaces` reports no new reference and the baseline has not
