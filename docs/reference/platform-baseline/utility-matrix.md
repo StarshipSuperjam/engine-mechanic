@@ -20,7 +20,8 @@ adapter layer (the generated Codex surfaces, the parity toolchain, the per-runti
 recorded per eADR-0034) were each substantiated as deliberate by the reconciliation — all four ADAPTER
 records describe machinery the Engine already runs, and none of the approved migrations (M1–M5) moves a
 capability between core, adapter, or host. The concept-first design #657 feared had drifted holds up under
-the full inventory; its ratification rides the migration decision record with the rest of the dispositions.
+the full inventory; it is ratified with the rest of the dispositions by
+[decision 0333](../../adr/0333-ratify-the-platform-baseline-dispositions-the-migration-set.md).
 
 | Family (provider) | What the Engine gets from it today | Candidate further use | Balance |
 | --- | --- | --- | --- |
@@ -51,5 +52,5 @@ the full inventory; its ratification rides the migration decision record with th
 **Reading the balance column.** REJECT here never means "bad capability" — it means the Engine's ground is
 held by a specific engine control (named per record in the catalogs) or the capability has no subject in a
 headless, file-based, PR-gated system. OPTIONAL INTEGRATION marks the genuine adoption candidates; the five
-approved migrations (M1–M5 — adopted as recommendations by decision 0332, to be ratified by the migration
-decision record that accompanies the migration spec) are the only dispositions that imply change.
+approved migrations (M1–M5 — adopted as recommendations by decision 0332 and ratified by
+[decision 0333](../../adr/0333-ratify-the-platform-baseline-dispositions-the-migration-set.md)) are the only dispositions that imply change.
