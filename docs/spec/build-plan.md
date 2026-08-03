@@ -24,7 +24,9 @@ Three phase groups:
   wave's documents **settle by the operator's recorded acceptance before that wave's build begins** — the
   program's settle gate — and wave 1 targets engine-template's existing "Local delivery core" release
   milestone (R5); later waves get their milestones when their builds are filed, names tunable until
-  created, the R7 convention.
+  created, the R7 convention. Within a wave, read the kernel or contract document first (wave 1:
+  delivery-core; wave 2: execution-environment; wave 4: authority-broker-contract; wave 6:
+  profile-registry) — the sibling documents speak its vocabulary.
 
 | Phase | Capability | Doc |
 | --- | --- | --- |
