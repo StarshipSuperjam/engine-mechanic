@@ -33,12 +33,12 @@ Supporting material sits alongside: the guiding principles in `../principles.md`
 | code-intelligence-core | in progress | [code-intelligence-core](modules/code-intelligence-core.md) |
 | core | settled | [core](modules/core.md) |
 | credential-broker | in progress | [credential-broker](modules/credential-broker.md) |
+| debugger-diagnosis | in progress | [debugger-diagnosis](modules/debugger-diagnosis.md) |
 | delivery-core | in progress | [delivery-core](modules/delivery-core.md) |
 | delivery-evidence | in progress | [delivery-evidence](modules/delivery-evidence.md) |
+| dependency-discipline | settled | [dependency-discipline](modules/dependency-discipline.md) |
 | deployment-adapter | in progress | [deployment-adapter](modules/deployment-adapter.md) |
 | deployment-core | in progress | [deployment-core](modules/deployment-core.md) |
-| debugger-diagnosis | in progress | [debugger-diagnosis](modules/debugger-diagnosis.md) |
-| dependency-discipline | settled | [dependency-discipline](modules/dependency-discipline.md) |
 | design-review | settled | [design-review](modules/design-review.md) |
 | engine-knowledge-graph | not yet described | [engine-knowledge-graph](modules/engine-knowledge-graph.md) |
 | engineering-quality | in progress | [engineering-quality](modules/engineering-quality.md) |
