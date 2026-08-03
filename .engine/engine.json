@@ -20,6 +20,7 @@
   "default_branch": "main",
   "home_repository": "StarshipSuperjam/engine-template",
   "product_repository": "StarshipSuperjam/engine-template",
+  "product_build_target": "StarshipSuperjam/engine-template",
   "control_plane": {
     "ruleset_mode": "created",
     "augmented_ruleset_id": null,
