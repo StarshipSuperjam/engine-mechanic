@@ -113,8 +113,10 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
   reserved; the stub document and its index row are removed with this record as the trace.
   (engine-template issue #232, which the stub anticipated, is re-aimed at the engineering-quality
   build when that wave's work is filed.)
-- **Milestones:** wave 1 targets engine-template's existing "Local delivery core" release milestone;
-  later waves get milestones when their build is filed, named then.
+- **Milestones:** wave 1 targets engine-template's existing "Local delivery core" release milestone
+  (R5); waves 2–7 have engine-template milestones R8–R13, one per wave in order. Each wave's milestone
+  holds one placeholder issue outlining the wave until its descriptions settle and the build breaks out
+  into individual issues there.
 
 ## Why
 

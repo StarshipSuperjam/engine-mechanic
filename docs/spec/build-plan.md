@@ -23,8 +23,8 @@ Three phase groups:
   seven dependency-ordered waves of forward-designed capabilities, every document entering in progress. A
   wave's documents **settle by the operator's recorded acceptance before that wave's build begins** — the
   program's settle gate — and wave 1 targets engine-template's existing "Local delivery core" release
-  milestone (R5); later waves get their milestones when their builds are filed, names tunable until
-  created, the R7 convention. Within a wave, read the kernel or contract document first (wave 1:
+  milestone (R5); waves 2–7 have their milestones created as R8–R13, one per wave, each holding a
+  placeholder issue that stands until the wave settles and breaks out into build issues. Within a wave, read the kernel or contract document first (wave 1:
   delivery-core; wave 2: execution-environment; wave 4: authority-broker-contract; wave 6:
   profile-registry) — the sibling documents speak its vocabulary.
 
@@ -87,23 +87,23 @@ Three phase groups:
 | Delivery wave 1 — local delivery kernel (engine-template milestone R5) | structured-change | [structured-change](modules/structured-change.md) |
 | Delivery wave 1 — local delivery kernel (engine-template milestone R5) | engineering-quality | [engineering-quality](modules/engineering-quality.md) |
 | Delivery wave 1 — local delivery kernel (engine-template milestone R5) | engineering-quality-python | [engineering-quality-python](modules/engineering-quality-python.md) |
-| Delivery wave 2 — the environment plane (milestone named at build) | execution-environment | [execution-environment](modules/execution-environment.md) |
-| Delivery wave 2 — the environment plane (milestone named at build) | runtime-backend-local-container | [runtime-backend-local-container](modules/runtime-backend-local-container.md) |
-| Delivery wave 3 — rendered web delivery (milestone named at build) | engineering-quality-typescript | [engineering-quality-typescript](modules/engineering-quality-typescript.md) |
-| Delivery wave 3 — rendered web delivery (milestone named at build) | platform-web | [platform-web](modules/platform-web.md) |
-| Delivery wave 3 — rendered web delivery (milestone named at build) | browser-evidence | [browser-evidence](modules/browser-evidence.md) |
-| Delivery wave 3 — rendered web delivery (milestone named at build) | debugger-diagnosis | [debugger-diagnosis](modules/debugger-diagnosis.md) |
-| Delivery wave 4 — authority and deployment (milestone named at build) | authority-broker-contract | [authority-broker-contract](modules/authority-broker-contract.md) |
-| Delivery wave 4 — authority and deployment (milestone named at build) | credential-broker | [credential-broker](modules/credential-broker.md) |
-| Delivery wave 4 — authority and deployment (milestone named at build) | deployment-core | [deployment-core](modules/deployment-core.md) |
-| Delivery wave 4 — authority and deployment (milestone named at build) | deployment-adapter | [deployment-adapter](modules/deployment-adapter.md) |
-| Delivery wave 5 — operations and bounded repair (milestone named at build) | operations-core | [operations-core](modules/operations-core.md) |
-| Delivery wave 5 — operations and bounded repair (milestone named at build) | maintenance-ledger | [maintenance-ledger](modules/maintenance-ledger.md) |
-| Delivery wave 5 — operations and bounded repair (milestone named at build) | bounded-repair | [bounded-repair](modules/bounded-repair.md) |
-| Delivery wave 6 — programs and platforms (milestone named at build) | large-change-coordination | [large-change-coordination](modules/large-change-coordination.md) |
-| Delivery wave 6 — programs and platforms (milestone named at build) | profile-registry | [profile-registry](modules/profile-registry.md) |
-| Delivery wave 6 — programs and platforms (milestone named at build) | platform-ios | [platform-ios](modules/platform-ios.md) |
-| Delivery wave 7 — views and learning (milestone named at build) | operator-cockpit | [operator-cockpit](modules/operator-cockpit.md) |
-| Delivery wave 7 — views and learning (milestone named at build) | product-knowledge-graph | [product-knowledge-graph](modules/product-knowledge-graph.md) |
-| Delivery wave 7 — views and learning (milestone named at build) | evidence-explorer | [evidence-explorer](modules/evidence-explorer.md) |
-| Delivery wave 7 — views and learning (milestone named at build) | research-and-learning | [research-and-learning](modules/research-and-learning.md) |
+| Delivery wave 2 — the environment plane (engine-template milestone R8) | execution-environment | [execution-environment](modules/execution-environment.md) |
+| Delivery wave 2 — the environment plane (engine-template milestone R8) | runtime-backend-local-container | [runtime-backend-local-container](modules/runtime-backend-local-container.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | engineering-quality-typescript | [engineering-quality-typescript](modules/engineering-quality-typescript.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | platform-web | [platform-web](modules/platform-web.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | browser-evidence | [browser-evidence](modules/browser-evidence.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | debugger-diagnosis | [debugger-diagnosis](modules/debugger-diagnosis.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | authority-broker-contract | [authority-broker-contract](modules/authority-broker-contract.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | credential-broker | [credential-broker](modules/credential-broker.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | deployment-core | [deployment-core](modules/deployment-core.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | deployment-adapter | [deployment-adapter](modules/deployment-adapter.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | operations-core | [operations-core](modules/operations-core.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | maintenance-ledger | [maintenance-ledger](modules/maintenance-ledger.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | bounded-repair | [bounded-repair](modules/bounded-repair.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | large-change-coordination | [large-change-coordination](modules/large-change-coordination.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | profile-registry | [profile-registry](modules/profile-registry.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | platform-ios | [platform-ios](modules/platform-ios.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | operator-cockpit | [operator-cockpit](modules/operator-cockpit.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | product-knowledge-graph | [product-knowledge-graph](modules/product-knowledge-graph.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | evidence-explorer | [evidence-explorer](modules/evidence-explorer.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | research-and-learning | [research-and-learning](modules/research-and-learning.md) |
