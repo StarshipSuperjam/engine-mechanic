@@ -7,15 +7,19 @@ status: draft
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design for wave 2, not yet built; enters in progress and settles by the operator's
-recorded acceptance before wave 2's build begins.*
+recorded acceptance before wave 2's build begins. Revised in draft with its contract after their four
+cold reviews.*
 
 ## Summary
 
 The **optional** first backend realizing [execution-environment](execution-environment.md)'s adapter
-contract, on **local containers**: provisioning a manifest's declared environment as a container (or
-container set, for declared services) on the operator's own machine, with image identities pinned by
-digest — never a mutable tag — and the contract's conformance fixtures passed before any manifest may name
-it. It exists to make the environment plane real on the hardware every deployment already has; remote and
+contract, on **local containers**: provisioning a manifest's declared environment on the operator's own
+machine, images pinned by digest — never a mutable tag — with the contract's conformance fixtures passed
+and committed before any manifest may name it (the admission check reads that evidence at merge). Its
+honesty work is platform truth-telling: which limits the local engine actually enforces versus merely
+accepts (proven **by violation**, not by flag acceptance), which network postures it can realize (a
+**named-route egress gateway** is real machinery this backend builds; default-closed is native), and
+which engine actually runs (self-reported identity — a named trust residual, stated). Remote and
 orchestrated backends come later, through the same conformance gate, as their own modules.
 
 ## Behavior
@@ -26,61 +30,62 @@ orchestrated backends come later, through the same conformance gate, as their ow
 |---|---|
 | `id` | `runtime-backend-local-container` |
 | `status` | `optional` |
-| `provides` | the **backend implementation [tool](../systems/surfaces/tools.md)** (`env_backend_container.py` — realizes `env-backend.v1`: provision from digest-pinned images, observe, stop, teardown; checkpoint/resume declared per the local engine's actual capability, honestly — a capability the container runtime cannot provide is declared absent, never simulated); the **capability declaration** (an `env-backend.v1` instance stating exactly which contract operations and observations this backend provides and which limits it can enforce vs only request); and the **conformance fixture results** as committed evidence (the contract's fixture set, passed, recorded) |
+| `provides` | the **backend implementation [tool](../systems/surfaces/tools.md)** (`env_backend_container.py` — realizes `env-backend.v1`: provision from digest-pinned images; observe; **lease-enforce** (the container is created with the TTL/lifetime deadline the engine's own mechanisms enforce where available, plus the label-sweep the controller's reconcile-orphans drives); stop; teardown by **label discovery** — every resource created carries the run's label, and teardown enumerates by label, catching create-but-unrecorded orphans; the **egress gateway component** for named routes — a filtering forward component on an isolated network, the real machinery behind closed-except-named); the **capability declaration** (an `env-backend.v1` instance: which operations and limits this backend provides, each enforcement claim backed by a violation probe — storage quotas, for example, commonly type `requested` on mac-hosted engines; checkpoint/resume declared absent, per the contract's deferral); and the **committed conformance evidence** the contract's admission check reads |
 | `wires` | **none** |
 | `depends` | `core`, `execution-environment` |
 | `migrations` | none |
 
-The container engine itself (which runtime, which version) is a per-deployment reality the backend
-**detects and reports** — its identity rides every observation; the backend never installs one. No engine
-present → the backend reports itself unavailable, plainly, and environment operations refuse per the
-contract's degraded rule.
+The container engine (which runtime, which version) is detected and reported — identity rides every
+observation as self-report, a **named trust residual**: nothing grounds it beyond the backend's own
+statement, and "default privilege" is defined against a confinement baseline (rootless where the host
+provides it; root-inside is declared and visible, never assumed harmless). The control path (CLI
+subprocess vs SDK socket) is a build-entry decision — the divergence axes (checkpoint, storage-opt,
+network calls across engines) are exactly where this backend's guarantees live, so the choice is recorded,
+not discovered.
 
 ### Backend behavior
 
-- **Digest-pinned images only.** A manifest naming a mutable tag is refused before provisioning; the
-  observation records the image digest actually running. Build-from-Dockerfile is out of scope for this
-  backend's first cut — images arrive built and pinned, or a manifest instantiation declares the build as
-  its own recorded step whose output digest is what runs.
-- **Limits: enforced vs requested, disclosed.** CPU/memory/process limits are enforced where the local
-  engine enforces them; a limit the engine only soft-requests is declared so in the capability record, and
-  observations type it `requested` — the operator sees which walls are real on their machine.
-- **Network posture via the engine's own controls.** Default-closed is realized with the container
-  engine's network isolation; named routes become explicit allowances. Where the local engine cannot
-  express a posture, the capability declaration says so up front — an environment demanding what this
-  backend cannot enforce fails at admission, not silently at runtime.
-- **Teardown observes.** Containers, networks, volumes, and mounts created for the environment are
-  enumerated at provision and re-checked at teardown; the receipt lists observed absence per resource.
-  Host-side residue the backend cannot see (an OS-level artifact outside its bookkeeping) is the declared
-  `unobservable` class, honest in the receipt.
+- **Digest-pinned images only.** A mutable tag refuses before provisioning; the observation records the
+  digest actually running. An image may arrive pre-built, or a manifest may declare a build step whose
+  output digest is what runs — both allowed, the build step recorded.
+- **Limits proven by violation.** A limit is declared `matches` only where the conformance probe exceeded
+  it and observed the kill/throttle; anything else types `requested`. The probe results ride the
+  committed conformance evidence and every isolation receipt derived from this backend.
+- **Named routes via the gateway.** The workload's network is isolated; the gateway is the only egress,
+  filtering to the manifest's named routes. No gateway installed → named-route manifests refuse at
+  admission. Bypass resistance is a conformance probe.
+- **Teardown discovers, then observes.** Label-sweep enumerates everything carrying the run's label —
+  bookkeeping is a hint, the label is the ground — and the receipt records observed absence per resource.
+  Host residue outside the engine's visibility (workload writes through declared mounts) is the declared
+  `unobservable` class, disclosed loudly as the teardown's known ceiling.
 
 ### Degraded behavior
 
-Container engine missing, incompatible, or refusing → `unavailable` with the observed reason; a container
-that dies mid-run surfaces as lease divergence through the contract's observation path; a teardown the
-engine cannot complete reports the failure per-resource, never a summary success. Both runtimes drive the
-same backend tool.
+Container engine missing/incompatible → `unavailable` with the observed reason; nothing provisions. A
+container dying under a live controller surfaces as observation divergence; a dead controller's containers
+are bounded by the engine-side deadline where enforceable and swept by label at the next controller act.
+A teardown failure reports per-resource. Both runtimes drive the same backend tool. Conformance is a
+live-daemon, operator-run test class — CI never runs it; the committed evidence is what the merge gate
+reads, stated.
 
 ### What stays out
 
-- **No remote execution** — a remote or cluster backend is its own later module through the same
-  conformance gate.
-- **No image authoring opinions** — what the product's environment image contains is the manifest author's
-  ground; the backend runs what is pinned.
-- **No privileged-by-default containers** — privilege beyond the default is a manifest declaration the
-  capability record must say it can honor, visible in observations.
+- **No remote execution** — later modules, same gate.
+- **No image authoring opinions** — the manifest's ground.
+- **No privilege beyond the declared baseline** — privileged manifests must be honorable by capability
+  declaration and are visible in every observation.
 
 ## Acceptance criteria
 
-*`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation
-carries at least part of it.*
+*`engine` rows gate shape and committed evidence; enforcement rows are operator-run conformance —
+stated, per the contract's governance-dependency rule.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Capability declaration validates and matches reality** — the declared operations/limits conform to `env-backend.v1`, and a probe run confirms each declared capability actually functions. | Schema check (hard) + capability probe fixture. | engine |
-| **Conformance fixtures pass** — the contract's fixture set (provision, observe, expiry-stop, divergence, closed-network, teardown-reconcile) passes against this backend before any manifest names it. | The committed conformance results, re-runnable by the operator. | operator |
-| **Mutable tags refused** — a manifest naming `:latest` (or any non-digest reference) is refused before provisioning. | Fixture: staged mutable-tag manifest. | engine |
-| **Real vs requested limits disclosed** — on a machine where a limit is soft, the observation types it `requested`; where hard, `matches`. | Fixture: both staged where the host allows. | operator |
-| **Dead-container honesty** — a container killed outside the controller surfaces as lease divergence, never a silent respawn. | Fixture: external kill; observation inspected. | operator |
-| **Teardown enumerates** — the receipt lists each created container/network/volume with observed absence; a seeded leftover fails the residue check. | Fixture: seeded leftover (negative fixture). | engine |
-| **Absent engine is honest** — with no container engine, the backend reports unavailable with the observed reason; nothing provisions. | Fixture: engine withheld. | operator |
+| **Declaration and evidence validate** — the capability instance conforms; committed conformance evidence is present and valid (the contract's admission check). | Schema + admission checks ride CI (hard). | engine |
+| **Violation probes bite** — each `matches` limit claim is backed by an observed kill/throttle; a staged soft limit types `requested`. | Operator-run conformance fixtures. | operator |
+| **Mutable tags refuse** — a staged `:latest` manifest refuses before provisioning. | Fixture (negative). | engine |
+| **Gateway is the only path** — with a named route, the route works, everything else stays blocked, and a staged bypass attempt fails; without the gateway, named-route manifests refuse. | Operator-run conformance fixtures. | operator |
+| **Label teardown catches orphans** — a staged create-but-unrecorded resource is found by label at teardown; a seeded leftover fails the residue check. | Operator-run fixture + negative fixture. | operator |
+| **Dead containers and dead controllers are honest** — external kill surfaces as divergence; a staged controller loss is bounded by the engine-side deadline where declared and swept at next act. | Operator-run fixtures. | operator |
+| **Absent engine is honest** — no container engine yields `unavailable` with the observed reason. | Fixture. | operator |
