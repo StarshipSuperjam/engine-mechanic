@@ -106,10 +106,10 @@ repo_usage: unused
 overlap: >
   Engine defines tools via standalone MCP servers, not the in-process SDK
   tool()/@tool decorator. .engine/tools/knowledge_mcp_server.py and
-  .engine/tools/memory/mcp_server.py use FastMCP (from mcp.server.fastmcp),
+  .engine/tools/memory/mcp_server.py use MCPServer (from mcp.server),
   registered in .mcp.json (Claude) and .codex/config.toml (Codex).
 note: >
-  The engine deliberately uses out-of-process FastMCP servers (the mcp>=1.28.1
+  The engine deliberately uses out-of-process MCPServer instances (the mcp>=2
   dependency) rather than the SDK's in-process createSdkMcpServer/create_sdk_mcp_server.
   This is exactly the "standalone MCP server" path the custom-tools record names as
   the way to get structuredContent the Python @tool decorator won't forward.
@@ -3699,7 +3699,7 @@ overlap: none
 note: >
   The auto-connected `ide` MCP server (getDiagnostics/executeCode) is host-provided
   and hidden from /mcp; the engine neither configures nor depends on it. Distinct
-  from the engine's own two FastMCP servers in .mcp.json.
+  from the engine's own two MCPServer-based servers in .mcp.json.
 ```
 
 **Assessment:** action mode n/a; enforcement none — not in use; failure mode n/a; portability provider-specific.
@@ -5171,7 +5171,7 @@ sources:
 repo_usage: unused
 overlap: none
 note: >
-  Both engine servers register only @server.tool handlers (FastMCP) — no resources are exposed, so no
+  Both engine servers register only @server.tool handlers (MCPServer) — no resources are exposed, so no
   @-mention resource references and no auto list/read tools. Knowledge/graph data is reached through
   tool calls (get-entity/find/neighbors/relate), not MCP resources.
 ```
@@ -5452,7 +5452,7 @@ sources:
 ```yaml
 repo_usage: >
   Only stdio is used. Both .mcp.json servers launch via `uv run --directory ... python tools/...`
-  (subprocess/stdio); server code calls FastMCP server.run() with "stdio transport by default"
+  (subprocess/stdio); server code calls MCPServer server.run() with "stdio transport by default"
   (.engine/tools/knowledge_mcp_server.py, .engine/tools/memory/mcp_server.py). HTTP (streamable-http),
   SSE, and WebSocket are entirely unused.
 overlap: none
