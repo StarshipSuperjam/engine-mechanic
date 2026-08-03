@@ -74,7 +74,10 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
 - **Family documents:** `credential-broker` and `deployment-adapter` are family-contract documents; a
   concrete provider adapter gets its own document only when a provider is chosen, by a recorded
   decision. `runtime-backend-local-container` is concrete now; the backend contract it realizes lives in
-  execution-environment.
+  execution-environment. **Choosing those providers is part of wave 4's settle gate**: wave 4 ships at
+  least one working credential broker and one working deployment adapter alongside the contracts (the
+  wave-2 pattern, where the environment contract arrived with its local-container backend), so the wave's
+  release adds a working path, never contract grammar alone.
 - **deployment-core vs operations-core on drift:** deployment-core owns effect-time reconciliation and
   the drift-record grammar; standing, periodic drift observation of an already-deployed product is
   operations-core's ground, consuming that grammar.
