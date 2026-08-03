@@ -142,10 +142,12 @@ differs from the audit's no-network off-schedule run.
 - **Scope validation, schema-backed**: the flag file is validated by a `platform-currency.v1.json` schema
   and a hard check — the exact shape the model-bindings flag already uses — plus the persona's safe-default
   for a value that is missing or fails validation at run time. Chosen on the merits as the fuller build:
-  mechanical validation at merge, consistent with the engine's own grammar. The new schema joins the
-  guardrail floor, so **the module build's pull request carries one weakening acknowledgment** — an
-  accurate disclosure, flagged plainly there, applied by the operator, never a reason to build smaller
-  (the operator's standing rule: never under-build to avoid an acknowledgment).
+  mechanical validation at merge, consistent with the engine's own grammar. Enrolling the new schema in the
+  guardrail floor means editing the floor's own guard tool (a brand-new schema file is an ungated addition
+  by design; the build's drift test then forces the enrollment edit, and the guard tool is itself floored)
+  — so **the module build's pull request carries one weakening acknowledgment, raised by the guard naming
+  its own tool's edit** — an accurate disclosure, flagged plainly there, applied by the operator, never a
+  reason to build smaller (the operator's standing rule: never under-build to avoid an acknowledgment).
 - **Setup-doc ownership**: the module owns `.engine/docs/platform-currency-setup.md` through its enumerated
   per-file doc provides — verified against the build: core enumerates its one doc file per-path, no glob
   claims `.engine/docs/*.md`, so no narrowing is needed.
@@ -179,7 +181,7 @@ verification fixtures, each a staged scenario the finished build must be exercis
 | **Read-only persona, twins in sync** — the persona denies Edit/Write/NotebookEdit/Bash, carries all nine safeguards, and the generated Codex twin matches it. | Operator observation: read the persona's four sections against the nine safeguards. Partial support: the generator's sync check and the persona-shape check ride CI on the build repository. | operator |
 | **Scope flag honored with a safe default** — the review confines itself to the selected layer(s), states which scope and placement it ran, and treats a missing or invalid value as `product`, disclosed. | Operator observation on fixture runs (the two placement fixtures below). Partial support: the schema-backed hard check validates the flag file mechanically at merge on the build repository. | operator |
 | **Setup doc covers both paths honestly** — on-demand verb plus the operator-scheduled unattended hosts under their correct names (local scheduled task, Codex Automation, cloud Routines as alternative), with the read-only-but-networked disclosure. | Operator observation: read the setup doc against this document's scheduling section. | operator |
-| **Exactly one weakening acknowledgment, disclosed** — the module build's only floored touch is the scope-flag schema joining the guardrail floor; its pull request carries that one acknowledgment, flagged plainly, and nothing else trips the guard. | Operator observation at the build pull request: the guard's finding names only the scope-flag schema, and the acknowledgment is the operator's own act there. | operator |
+| **Exactly one weakening acknowledgment, disclosed** — the module build's only floored touch is the edit to the weakening-guard tool that enrolls the scope-flag schema in the floor (the new schema file itself is an ungated addition); the pull request carries that one acknowledgment, flagged plainly, and nothing else trips the guard. | Operator observation at the build pull request: the guard's finding names its own tool's edit, the pull-request body explains that edit as the scope-flag schema's enrollment, and the acknowledgment is the operator's own act there. | operator |
 | **Baseline resolution and version honesty** — a run resolves the denominator current-first (engine-template on GitHub), local-copy second, disclosed point-in-time last, and names the snapshot date and commit it diffed against. | Operator observation on fixture runs: the run's report states its resolution path and baseline version; the unavailable-sources fixture below exercises the fallback. | operator |
 | **Fixture: genuinely useful new capability** — a platform change the project could exploit is reported with its live source and a concrete, specific leverage recommendation. | A fixture run against a staged scenario; output inspected for source citation and concrete guidance. | operator |
 | **Fixture: already-adopted capability** — a capability the repository already uses is never recommended for adoption; if it changed, it is reported as adopted. | A fixture run against a repository state that already uses the capability; output inspected for the absence of a cry-wolf recommendation. | operator |
