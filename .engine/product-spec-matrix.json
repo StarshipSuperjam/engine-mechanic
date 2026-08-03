@@ -1561,8 +1561,8 @@
       "who": "operator"
     },
     {
-      "criterion": "**Maturity is disclosed at install** — per [R14](../../../reference/risks.md), the cross-repo path ships **un-exercised end-to-end at v1**; the install disclosure states this in plain operator language (the [clean-code](../../modules/clean-code.md) disclosure precedent), so opting in is informed consent, never trust in a maturity the path has not earned.",
-      "digest": "sha256:8da8f5cad6fa0e1166c282236dbf221e5930cc740dded25247f28fdff327c616",
+      "criterion": "**Maturity is disclosed at install** — per [R14](../../../reference/risks.md), the cross-repo path ships **un-exercised end-to-end at v1**; the install disclosure states this in plain operator language (the [clean-code](../../../reference/module-catalog.md) disclosure precedent), so opting in is informed consent, never trust in a maturity the path has not earned.",
+      "digest": "sha256:90e887b3e6037cc7064d36aea456c9921124d725e2980f73d1fddc2ff5a45baf",
       "doc": "docs/spec/systems/lifecycle/external-contribution.md",
       "how_verified": "Your read of the install disclosure carries it — the module catalog's copy states the first contribution would be the live step's first run anywhere. Partial support: the `in-tool-demo-failure-path` check (hard, CI) keeps the nudge demo falsifiable and the `provisioning-catalog` check gates the catalog's well-formedness — neither asserts the disclosure's content.",
       "position": 6,
