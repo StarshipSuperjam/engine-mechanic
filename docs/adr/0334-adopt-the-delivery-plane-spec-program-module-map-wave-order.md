@@ -75,6 +75,12 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
   concrete provider adapter gets its own document only when a provider is chosen, by a recorded
   decision. `runtime-backend-local-container` is concrete now; the backend contract it realizes lives in
   execution-environment.
+- **deployment-core vs operations-core on drift:** deployment-core owns effect-time reconciliation and
+  the drift-record grammar; standing, periodic drift observation of an already-deployed product is
+  operations-core's ground, consuming that grammar.
+- **Toolchain installation:** execution-environment owns installing and materializing product toolchains
+  and confining install-time code execution; an engineering-quality profile *declares* its requirements
+  (pins, frozen modes, per-dependency script allowances) as manifest input — the profile never installs.
 
 ### Program rules
 
@@ -90,10 +96,13 @@ Boundary cuts the map fixes now, so no two documents claim the same ground:
   recorded acceptance, taken per wave before that wave's build starts, at the review depth the operator
   chooses then.
 - **Security surfaces settle thorough.** delivery-core (it coins the plane's authority vocabulary),
-  engineering-quality-python (its build/test kinds execute product code), authority-broker-contract,
-  credential-broker, execution-environment, browser-evidence, deployment-core, and deployment-adapter
-  take the engine's full pre-settle design review when their settle comes — their failure modes
-  (credential exposure, authority escape, code execution, untrusted content) are not observable casually.
+  engineering-quality-python and engineering-quality-typescript (their build/test kinds execute product
+  code — the TypeScript profile's install layer more so), debugger-diagnosis (it executes product code
+  and captures live memory), bounded-repair (it mutates product code unattended),
+  authority-broker-contract, credential-broker, execution-environment, browser-evidence,
+  deployment-core, and deployment-adapter take the engine's full pre-settle design review when their
+  settle comes — their failure modes (credential exposure, authority escape, code execution, untrusted
+  content) are not observable casually.
 - **clean-code retires.** The engineering-quality family absorbs the territory the `clean-code` stub
   reserved; the stub document and its index row are removed with this record as the trace.
   (engine-template issue #232, which the stub anticipated, is re-aimed at the engineering-quality

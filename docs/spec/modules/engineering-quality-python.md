@@ -61,7 +61,9 @@ never forced into a single-version fiction.
 ### Degraded behavior
 
 Missing tool → `unavailable`; version drift → `degraded/off-pin` naming the observed version; non-Python
-repository → a plain inapplicability report, no guessed runs.
+repository → a plain inapplicability report, no guessed runs. Installation follows the program's boundary
+cut: the profile declares its package/install layer as manifest input; [execution-environment](execution-environment.md)
+materializes it — the profile never installs.
 
 ### What stays out
 

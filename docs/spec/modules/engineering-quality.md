@@ -30,7 +30,7 @@ claim"** — the marker travels with the record into every consumer, so a green 
 |---|---|
 | `id` | `engineering-quality` |
 | `status` | `optional` |
-| `provides` | the **profile contract [schema](../systems/surfaces/schemas.md)** (`eq-profile.v1` — per kind (`format`, `lint`, `types`, `build`, `test`, `deps`): pinned tool identity, invocation, **version-probe invocation**, **config-locus declaration** (which in-repo files the tool reads), mapper reference, per-run budget, or an explicit `absent`); the **result [schema](../systems/surfaces/schemas.md)** (`eq-result.v1` — per-kind states `pass`, `fail` (with findings), `degraded/off-pin` (ran complete, version drifted — named), `unavailable` (missing or crashed), `not-run` (skipped by policy), `absent` (declared absent — emitted as a row, never silence); the lane; the **effective config** that governed the run; the exclusion scope applied, surfaced prominently; the revision/digests measured; and the standing not-correctness marker); the **mapper contract [schema](../systems/surfaces/schemas.md)** (`eq-mapper.v1` — what a profile's per-tool translator must consume and emit, including the per-tool exit-code interpretation table distinguishing findings from crash); the **runner [tool](../systems/surfaces/tools.md)** (`eq_run.py` — resolves the installed profile, invokes declared kinds through the profile's mappers, emits results); a hard **[check](../systems/surfaces/check.md)** (profile, mapper, and result schema conformance — profile instances live at a named location the check's glob covers, so any profile module's declaration is found); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
+| `provides` | the **profile contract [schema](../systems/surfaces/schemas.md)** (`eq-profile.v1` — per kind (`format`, `lint`, `types`, `build`, `test`, `deps`): pinned tool identity, invocation, **version-probe invocation**, **config-locus declaration** (which in-repo files the tool reads), mapper reference, per-run budget, **per-kind runtime identity** (which execution engine runs the kind — a stack may split them), or an explicit `absent`; plus the **profile-level fields** the cross-stack stress demanded: the **package/install layer** (install tool, lockfile format, the frozen-install requirement, and the per-dependency install-script allowance table) and the **scope declaration** — installed profiles' scopes must **partition** the repository's declared quality surface: no overlap (one fixer authority per path), and a gap reads as *uncovered*, visibly); the **result [schema](../systems/surfaces/schemas.md)** (`eq-result.v1` — per-kind states `pass`, `fail` (with findings), `degraded/off-pin` (ran complete, version drifted — named), `unavailable` (missing or crashed), `not-run` (skipped by policy), `absent` (declared absent — emitted as a row, never silence); the lane; the **runtime identity** that executed the kind; the **effective config** that governed the run; the exclusion scope applied, surfaced prominently; the revision/digests measured; and the standing not-correctness marker); the **mapper contract [schema](../systems/surfaces/schemas.md)** (`eq-mapper.v1` — what a profile's per-tool translator must consume and emit, including the per-tool exit-code interpretation table distinguishing findings from crash); the **runner [tool](../systems/surfaces/tools.md)** (`eq_run.py` — resolves the installed profile, invokes declared kinds through the profile's mappers, emits results); the **contract-conformance fixture set** — the shared, stack-agnostic staged scenarios every profile must run (conflict finding, effective config, exclusion visibility, fixer routing, lane honesty), with equivalence defined as *same typed states on equivalent staged scenarios*; a hard **[check](../systems/surfaces/check.md)** (profile, mapper, and result schema conformance — profile instances live at a named location the check's glob covers, so any profile module's declaration is found); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (results attach to runs) |
 | `migrations` | none |
@@ -40,13 +40,16 @@ integrations, deliberately not dependencies; their absence degrades named behavi
 
 ### The contract
 
-- **Profiles declare and translate; the contract types.** A profile module (first:
-  [engineering-quality-python](engineering-quality-python.md)) declares its stack's tools and ships the
-  mappers that translate each tool's output into `eq-result.v1`. A stack without a kind declares `absent`,
-  and that rides every result as a row. **Config conflicts are contract grammar**: when a product
-  repository's own configuration conflicts with the profile's declaration, every profile reports the
-  conflict as a finding and records the effective config that actually governed the run — identical
-  semantics across profiles, never a per-profile invention.
+- **Profiles declare and translate; the contract types; the environment installs.** A profile module
+  (first: [engineering-quality-python](engineering-quality-python.md)) declares its stack's tools and
+  ships the mappers that translate each tool's output into `eq-result.v1`. **Installation is
+  [execution-environment](execution-environment.md)'s ground** (the program's recorded boundary cut): a
+  profile's package/install-layer declaration is manifest *input* — the environment materializes the
+  toolchain and confines install-time code execution; no profile installs anything. A stack without a
+  kind declares `absent`, and that rides every result as a row. **Config conflicts are contract
+  grammar**: when a product repository's own configuration conflicts with the profile's declaration,
+  every profile reports the conflict as a finding and records the effective config that actually governed
+  the run — identical semantics across profiles, never a per-profile invention.
 - **Two evidence lanes, never conflated.** `fast-loop` results come from the working tree — cheap,
   advisory. `clean-environment` results come from a fresh, pinned checkout of the exact revision, and a
   clean-lane result is schema-valid **only with its isolation receipt** — the fresh-checkout digest and
