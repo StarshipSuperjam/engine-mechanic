@@ -3981,7 +3981,7 @@
       },
       "slug": "instance.engine-mechanic-eADR-0001-reference-containment",
       "source": {
-        "fingerprint": "sha256:49d1091d54543f05a9861a03f210be7088fd60431de03b26da5210094dc71bc4",
+        "fingerprint": "sha256:4395a71f66b2e1b368ff68dc003e8094437d22f430a046db1eb4e230a0374351",
         "path": ".engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md"
       },
       "status": "accepted",
