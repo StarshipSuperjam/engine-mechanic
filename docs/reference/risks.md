@@ -325,7 +325,7 @@ upstream's).
 **Mitigation direction.** (a) **Post-v1 dogfooding** before the engine-mechanic is trusted for foundational
 revision — stand it up and exercise the released-version-N → build-N+1 loop on a non-foundational change
 first; the acceptance benchmark ([D-152](../adr/0152-resolve-q15-author-the-pre-release-acceptance-benchmark-the.md)) is the natural home for an end-to-end
-mechanic exercise (its self-hosting observation, §3). (b) **Operator-facing maturity disclosure** at install (the [clean-code](../spec/modules/clean-code.md)
+mechanic exercise (its self-hosting observation, §3). (b) **Operator-facing maturity disclosure** at install (the [clean-code](module-catalog.md)
 disclosure precedent — the project README states what the module has and has not been exercised against),
 phrased in plain operator language with **no maintainer vocabulary leaking** ([§12](../principles.md)). Relates
 to R13 (the same cross-repo path's leak/trust surfaces) and to the

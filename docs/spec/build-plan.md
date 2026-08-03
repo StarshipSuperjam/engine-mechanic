@@ -5,7 +5,7 @@ and its ratified dispositions ([decision 0333](../adr/0333-ratify-the-platform-b
 produced the first forward work since the corpus settled. This lists, in order, where every settled
 capability and the forward work stand in the build sequence, so nothing settled is silently overlooked.*
 
-Two phases:
+Three phase groups:
 
 - **Shipped — engine-template as built.** Every settled capability is already built and reconciled at the
   pinned commit ([decision 0331](../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md)); these
@@ -19,6 +19,14 @@ Two phases:
   so the recurring review never measures a moving target. The migrations are engine-template builds, not
   spec capabilities of their own, so their rows schedule no capability document; the two whose builds carry
   a known spec reconciliation (M1 → Audits, M2 → Hooks) list those capabilities riding the R7 phase as well.
+- **The delivery-plane waves** ([decision 0334](../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)) —
+  seven dependency-ordered waves of forward-designed capabilities, every document entering in progress. A
+  wave's documents **settle by the operator's recorded acceptance before that wave's build begins** — the
+  program's settle gate — and wave 1 targets engine-template's existing "Local delivery core" release
+  milestone (R5); waves 2–7 have their milestones created as R8–R13, one per wave, each holding a
+  placeholder issue that stands until the wave settles and breaks out into build issues. Within a wave, read the kernel or contract document first (wave 1:
+  delivery-core; wave 2: execution-environment; wave 4: authority-broker-contract; wave 6:
+  profile-registry) — the sibling documents speak its vocabulary.
 
 | Phase | Capability | Doc |
 | --- | --- | --- |
@@ -73,3 +81,29 @@ Two phases:
 | R7 — platform capability baseline & currency | M4 — widen the effort vocabulary (engine-template build; carries its weakening acknowledgment) | — |
 | R7 — platform capability baseline & currency | M5 — host-hardening and dependency documentation (engine-template docs) | — |
 | R7 — platform capability baseline & currency | platform-currency | [platform-currency](modules/platform-currency.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | delivery-core | [delivery-core](modules/delivery-core.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | delivery-evidence | [delivery-evidence](modules/delivery-evidence.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | code-intelligence-core | [code-intelligence-core](modules/code-intelligence-core.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | structured-change | [structured-change](modules/structured-change.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | engineering-quality | [engineering-quality](modules/engineering-quality.md) |
+| Delivery wave 1 — local delivery kernel (engine-template milestone R5) | engineering-quality-python | [engineering-quality-python](modules/engineering-quality-python.md) |
+| Delivery wave 2 — the environment plane (engine-template milestone R8) | execution-environment | [execution-environment](modules/execution-environment.md) |
+| Delivery wave 2 — the environment plane (engine-template milestone R8) | runtime-backend-local-container | [runtime-backend-local-container](modules/runtime-backend-local-container.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | engineering-quality-typescript | [engineering-quality-typescript](modules/engineering-quality-typescript.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | platform-web | [platform-web](modules/platform-web.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | browser-evidence | [browser-evidence](modules/browser-evidence.md) |
+| Delivery wave 3 — rendered web delivery (engine-template milestone R9) | debugger-diagnosis | [debugger-diagnosis](modules/debugger-diagnosis.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | authority-broker-contract | [authority-broker-contract](modules/authority-broker-contract.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | credential-broker | [credential-broker](modules/credential-broker.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | deployment-core | [deployment-core](modules/deployment-core.md) |
+| Delivery wave 4 — authority and deployment (engine-template milestone R10) | deployment-adapter | [deployment-adapter](modules/deployment-adapter.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | operations-core | [operations-core](modules/operations-core.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | maintenance-ledger | [maintenance-ledger](modules/maintenance-ledger.md) |
+| Delivery wave 5 — operations and bounded repair (engine-template milestone R11) | bounded-repair | [bounded-repair](modules/bounded-repair.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | large-change-coordination | [large-change-coordination](modules/large-change-coordination.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | profile-registry | [profile-registry](modules/profile-registry.md) |
+| Delivery wave 6 — programs and platforms (engine-template milestone R12) | platform-ios | [platform-ios](modules/platform-ios.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | operator-cockpit | [operator-cockpit](modules/operator-cockpit.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | product-knowledge-graph | [product-knowledge-graph](modules/product-knowledge-graph.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | evidence-explorer | [evidence-explorer](modules/evidence-explorer.md) |
+| Delivery wave 7 — views and learning (engine-template milestone R13) | research-and-learning | [research-and-learning](modules/research-and-learning.md) |
