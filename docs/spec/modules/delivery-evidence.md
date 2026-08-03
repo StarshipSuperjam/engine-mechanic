@@ -7,18 +7,20 @@ status: draft
 *Forward-designed 2026-08-02 under the delivery-plane program ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)),
 through the plan-acceptance route [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)
 establishes. Intended design, not yet built; enters in progress and settles only by the operator's
-recorded acceptance before wave 1's build begins.*
+recorded acceptance before wave 1's build begins. Revised in draft after four cold design reviews; the
+largest change: freshness is **derived at read time**, never stored and swept.*
 
 ## Summary
 
 The **optional** module that makes a delivery claim **provable and perishable**: every "it works" produced
-by delivery work becomes an **evidence record** with a source, a revision it was measured against, and a
-freshness state — and every change to the thing measured **invalidates** the evidence that depended on it,
-visibly. Its second job is **final-snapshot assurance**: binding what was independently reviewed to the
-exact commit that merges, so a material repair made after review can never silently ride an earlier
-review's credibility. It extends the engine's existing evidence posture (demonstrations, checks, review
-records) with a typed grammar the whole delivery plane shares; it never grades evidence as sufficient —
-sufficiency stays with the review gates and the operator's merge.
+by delivery work becomes an **evidence record** with a source, a source lane, and a binding to the exact
+surfaces it measured — and freshness is **computed whenever the record is read or gated**, by comparing
+those bindings against the tree as it stands. There is no stored freshness flag, no sweep, and no hook to
+fail open: a stale record cannot read `current` because `current` is never stored, only derived. Its second
+job is **final-snapshot divergence recording**: a typed record binding the independently reviewed commit to
+the submitted head, carrying the orchestrator's divergence classification and whether a re-review ran — the
+record the build flow's Review prose renders from. This module records and derives; sufficiency stays with
+the review gates and the operator's merge.
 
 ## Behavior
 
@@ -28,51 +30,63 @@ sufficiency stays with the review gates and the operator's merge.
 |---|---|
 | `id` | `delivery-evidence` |
 | `status` | `optional` |
-| `provides` | the evidence **[schemas](../systems/surfaces/schemas.md)** (`evidence-record.v1` — kind, source, revision binding, freshness state; `effect-receipt.v1` — an external effect's target, actual observed result, and reconciliation state; `snapshot-assurance.v1` — reviewed commit, final commit, classified divergence); the **evidence [tool](../systems/surfaces/tools.md)** (`delivery_evidence.py` — record, invalidate, freshness-read; the invalidation sweep that marks dependents stale when their measured surface changes); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the stale-green check — no receipt may present invalidated evidence as current); and the **[doc](../systems/surfaces/docs.md)** explaining evidence kinds and freshness to the operator |
-| `wires` | **none** |
-| `depends` | `core`, `delivery-core` (records attach to runs; receipts cite evidence by identity) |
+| `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`evidence-record.v1` — kind, source, **source lane** (`declared`\|`observed`\|`derived`\|`unavailable`, a schema field), and the **surface bindings**: the content digests of the files/artifacts measured, plus the deriving revision; `effect-receipt.v1` — an external effect's target, the observation source, observed result, and reconciliation state (`confirmed`\|`partial`\|`contradicted`\|`unknown`) — the base contract later effect-producing modules (deployment, operations) specialize; `snapshot-divergence.v1` — reviewed commit, submitted head, the orchestrator's classification, re-review disposition); the **[tools](../systems/surfaces/tools.md)** (`delivery_evidence.py` — record and freshness-read; freshness is derived on read from bindings, never written) with the **redaction pass** every record's source/result fields run through before commit (secret-shaped content is refused, not stored); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **stale-green check** — a `custom/script` CI check that re-derives freshness itself: any receipt citing an evidence record whose bound digests no longer match the tree fails, regardless of what any earlier read claimed; the **material-divergence check** — a snapshot-divergence record classified material with no recorded re-review fails; the **dangling-citation check** — a receipt citing a nonexistent evidence record fails; each carries its negative fixture per the hard-check-bite discipline); the **[operation](../systems/surfaces/operations.md)** runbook (`.engine/operations/delivery-evidence.md`); and the operator **[doc](../systems/surfaces/docs.md)** (`.engine/docs/delivery-evidence.md`) |
+| `wires` | **none** — consistent with derived-on-read freshness: no mutation trigger exists to wire |
+| `depends` | `core`, `delivery-core` (records attach to runs; run receipts cite evidence by opaque identity) |
 | `migrations` | none |
 
 ### The evidence model
 
-- **Typed, source-bound records.** An evidence record names its kind (a check result, a test run, a
-  demonstration, an observed external effect, a review finding), the exact source it came from (command,
-  fixture, URL, artifact digest), and the revision(s) of the measured surface. Declared, observed, derived,
-  and unavailable are distinct source lanes — a record never presents a derivation or a claim as an
-  observation.
-- **Freshness is mechanical, sufficiency is not.** A record is `current` until the surface it measured
-  changes; the invalidation sweep then marks it `stale`, and the stale-green check makes presenting stale
-  evidence as current a hard failure. Whether *current* evidence is *enough* is never this module's call.
-- **Effect receipts reconcile claims with the world.** When delivery work causes an external effect (a
-  deployment, a provider operation), the receipt records the intended effect, the independently observed
-  actual state, and an explicit reconciliation outcome — `confirmed`, `partial`, `unknown` — so transport
-  success (an exit code, an accepted request) is never recorded as an outcome by itself.
-- **Final-snapshot assurance.** For work that passes independent review, the assurance record binds the
-  reviewed commit to the submitted/merged commit, classifies what changed between them, and records whether
-  a proportionate re-review ran. This realizes, in shared grammar, the divergence discipline the engine's
-  build orchestration already practices by hand.
+- **Typed, source-bound, lane-honest records.** A record names its kind (check result, test run,
+  demonstration, observed external effect, review finding), its exact source (command, fixture, artifact
+  digest), and its lane as a schema field. Lane honesty — that `observed` was genuinely observed — is not
+  mechanically provable; the record therefore also names *what makes the observation independent* (the
+  read-back source, distinct from the effect's actor) or takes the `declared` lane. A claimed observation
+  with no named independent source is schema-invalid as `observed`.
+- **Surface bindings, not builder trust.** A record binds the content digests of what it measured. For
+  file-sourced evidence the binding is the file set itself. For command/test-sourced evidence the binding
+  is the declared file set where an impact analysis supplies one, else **the whole deriving revision** —
+  conservative, honestly noisy, and disclosed in the record. A too-narrow self-declared binding is the
+  known residual risk: bindings are review-visible precisely so a reviewer can judge them, and the
+  conservative default exists so narrowing is always a visible, deliberate act.
+- **Freshness is derived, never stored.** `delivery_evidence.py` computes freshness at read: bindings
+  matching the tree → `current`; any bound digest changed → `stale`; bindings unreadable → `unknown`. The
+  stale-green CI check runs the same derivation itself at the merge gate — it trusts no prior read, no
+  flag, and no session-side state. There is no sweep; there is nothing to fail open.
+- **Effect receipts reconcile claims with the world.** The receipt records intended effect, observation
+  source, observed state, and a reconciliation outcome; `contradicted` exists so "we observed it and it is
+  wrong" is never softened into `partial` or `unknown`. Transport success with no observation is
+  `unknown`, always. In wave 1 no module produces external effects, so `confirmed`/`partial`/
+  `contradicted` ship as grammar with fixtures only; their first real producers arrive with deployment
+  (wave 4) — stated here so the untested-in-wave-1 status is explicit.
+- **Snapshot divergence is a record of a judgment, not a grader.** The orchestrator (the build flow's
+  single writer) authors the record: reviewed commit, submitted head, its divergence classification, and
+  whether a proportionate re-review ran. The classification is recorded judgment, never a mechanical
+  semantic diff. What *is* mechanical: the material-divergence check fails a record classified material
+  with no recorded re-review — so the one dangerous combination cannot ride silently. The build flow's
+  Review prose renders from this record; the record is the typed source, the prose the human surface.
+  This module's records serve the delivery plane's runs; the engine's own required build flow keeps its
+  existing practice and may adopt the record without depending on this optional module.
 
-### Verification instruments
+### Retention and privacy
 
-Engine-owned fixtures — staged scenarios a build is exercised against, including deliberately broken ones a
-control must catch — are this module's normal proof vocabulary, as they are the corpus's. External corpora
-or reference products may serve as evidence sources where a later document judges them useful. **No
-instrument gates adoption**: under the program's rules, evidence thresholds never decide whether something
-may be specified or built ([decision 0334](../../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)).
+Records live in the committed evidence store under delivery-core's state home. The redaction pass refuses
+secret-shaped source/result content at record time (the leak-guard posture, applied before anything is
+committed). Records accrete as history; pruning or archival is a recorded maintenance decision (the
+maintenance wave's ground), and erasure follows the engine's erasure grammar — named here so neither is an
+afterthought. No prompts or transcripts are ever captured.
 
 ### Degraded behavior
 
-An evidence store that cannot be read refuses freshness queries with a plain reason — an unreadable record
-is `unknown`, never `current`. If the invalidation sweep cannot run (a broken hook, an unhealthy runtime),
-that is a fail-open finding surfaced through the engine's existing telemetry path, and receipts disclose
-that freshness is unverified. Both runtimes share the committed store; renders never fork it.
+An unreadable store or unreadable bindings answer `unknown`, never `current`. Because freshness derives at
+read, there is no degraded sweep state to disclose — the failure surface is the read itself, and it fails
+closed. Both runtimes read the same committed store through the same tool.
 
 ### What stays out
 
-- **No sufficiency judgment, no scoring.** Records and freshness only; gates and the operator decide.
-- **No capture of prompts or transcripts.** Evidence records point at artifacts and results, never at
-  conversation.
-- **Not required**, and absent-by-default like the rest of the plane.
+- **No sufficiency judgment, no scoring.** Records and derivation only; gates and the operator decide.
+- **No stored freshness.** A cached freshness answer is never authoritative; the check re-derives.
+- **Not required**, absent-by-default like the rest of the plane.
 
 ## Acceptance criteria
 
@@ -81,9 +95,11 @@ carries at least part of it.*
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Records validate and lanes hold** — every evidence record conforms to schema, and no record's lane misstates derivation as observation. | Schema check rides CI (hard); lane honesty by operator read of staged records. | operator |
-| **Invalidation actually bites** — changing a measured surface marks dependent evidence stale on the next sweep. | Fixture: measure, mutate, sweep, read freshness back. | engine |
-| **Stale green is refused** — a receipt presenting invalidated evidence as current fails the stale-green check at merge. | Fixture: a staged stale-as-current receipt must be caught. | engine |
-| **Transport is not an outcome** — an effect receipt whose actual-state observation is absent reads `unknown`, even with exit-zero transport. | Fixture: staged effect with observation withheld; receipt inspected. | operator |
-| **Snapshot assurance is legible** — from one assurance record, a cold reader identifies the reviewed commit, the final commit, what changed between, and whether re-review ran. | Operator observation on a staged post-review-repair scenario. | operator |
-| **Loud degradation** — unreadable store refuses with plain reason; a sweep that cannot run surfaces as a fail-open finding, and receipts disclose unverified freshness. | Fixture: store made unreadable; sweep disabled; outputs inspected. | operator |
+| **Records validate; lanes and bindings are schema-borne** — every record conforms; `observed` without a named independent source is schema-invalid. | Schema check rides CI (hard). | engine |
+| **Freshness derives correctly** — mutate a bound surface, read: `stale`; unrelated mutation with narrow bindings: `current`; unreadable bindings: `unknown`. | Fixture: all three staged; reads inspected. | operator |
+| **Stale green is refused at the gate by re-derivation** — a receipt citing evidence whose bound digests no longer match fails CI even when a session-side read claimed `current`. | Fixture: the staged stale-as-current receipt; the check must catch it (negative fixture per hard-check-bite). | engine |
+| **Material divergence cannot ride silently** — a snapshot-divergence record classified material with no recorded re-review fails CI. | Fixture: the staged material-no-re-review record. | engine |
+| **Dangling citations fail** — a receipt citing a nonexistent evidence record fails CI. | Fixture: staged dangling citation. | engine |
+| **Transport is not an outcome** — an effect receipt with no observation reads `unknown`; a contradicting observation reads `contradicted`, never `partial`. | Fixture: observation withheld; contradicting observation staged; receipts inspected. | operator |
+| **Secrets never land** — a secret-shaped value in a staged record's source/result is refused at record time. | Fixture: seeded secret-shaped content; refusal inspected. | operator |
+| **Conservative binding is disclosed** — a command-sourced record with no impact set binds the whole revision and says so. | Fixture: staged command record; binding inspected. | operator |
