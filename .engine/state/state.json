@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "standing_situation": {
-    "milestone": null,
-    "phase": "Build the standing product-spec-conformance sweep in audits (issue #449)",
-    "as_of": "2026-07-12T09:21:38Z"
+    "milestone": [],
+    "phase": "Maintenance: update the Claude baseline catalog to the MCPServer as-built state (PR #52)",
+    "as_of": "2026-08-09T08:41:18Z"
   },
   "integration_debt": {
-    "open_count": 31,
-    "as_of": "2026-07-12T09:21:38Z",
-    "register": "https://github.com/StarshipSuperjam/engine-template/issues?q=is:open+label:engine"
+    "open_count": 3,
+    "as_of": "2026-08-09T08:41:18Z",
+    "register": "https://github.com/StarshipSuperjam/engine-mechanic/issues?q=is:open+is:issue+label:engine"
   }
 }
