@@ -4,11 +4,11 @@ status: locked
 
 # dependency-discipline
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the workflow-Actions license carve-out adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the workflow-Actions license carve-out adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md), with the module promoted to `required` distribution and the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-05-30 by [decision 0150](../../adr/0150-lock-dependency-discipline-the-dependency-governance-discipl.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
-The **optional** Software Configuration Management module that ships **domain dependency governance** —
+The **required** Software Configuration Management module that ships **domain dependency governance** —
 version **pinning**, a dependency-change **review gate**, and update-**cadence** posture — *beyond* the
 control-plane Dependabot floor ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md), [D-068](../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)). The
 *laws* it relies on live in the locked [check](../systems/surfaces/check.md),
@@ -19,8 +19,8 @@ as [validators-core](validators-core.md) is "the corpus" over `core`'s validatio
 **target axis**: its checks inspect the operator's **product** dependency manifests and presuppose **no**
 engine-self-validation corpus, so they need only `core`'s check engine (the kind dispatcher plus the
 read-only `custom/script` or a presence-discovered conforming kind), never the engine-self-validation rule
-corpus [validators-core](validators-core.md) consolidates. It is a **standalone** optional capability
-that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-module-seam-walk-the-demarcation-operationalized-glossa.md)).
+corpus [validators-core](validators-core.md) consolidates. It is a **standalone** capability
+that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-module-seam-walk-the-demarcation-operationalized-glossa.md)) — required in distribution, but **on-trigger** in activation: present in every Engine, acting only when the product has dependency changes to govern.
 
 ## Behavior
 
@@ -48,7 +48,9 @@ that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-m
 | Field | Value |
 |---|---|
 | `id` | `dependency-discipline` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` (acts when the product has dependency changes) |
 | `provides` | a **dependency-discipline [policy](../systems/surfaces/policies.md)** (the standing pinning/cadence/review-gate bar; the policy's own enforcement tier is **posture**); the **review-gate [check](../systems/surfaces/check.md) rule** (`tier: hard`, declaring the `CI`/`pre-commit`/`pre-close` suites), which relays GitHub's native dependency-review comparison; the **pinning check rule** (`tier: soft`, ecosystem-detected, a disclosed no-op when no pinnable manifest is present); and the **read-only detection logic** those checks invoke. Named by what it governs — the concrete files, the kind realization (a presence-discovered conforming check-kind or the `custom/script` read-only escape-hatch), `params`, and `message` text are build-spec leaves ([§2](../../principles.md)). |
 | `wires` | **none** |
 | `depends` | `core` |
@@ -130,8 +132,11 @@ relays to an existing seam rather than re-owning it):
   locked [control-plane](../systems/infrastructure/control-plane.md) PR-contract sections). The
   consent is thus **the operator's, deliberate, and visible — distinct from the AI silently passing**
   ([§6](../../principles.md)/[§15](../../principles.md)).
-- **Setup-time disclosure** that this package can block merges — a [provisioning](../systems/infrastructure/provisioning.md)
-  selection-UX requirement — so opting in is informed consent, not a later surprise.
+- **Setup-time disclosure** that this required governance ships in every Engine and its gate can block merges
+  on a dependency change — a [provisioning](../systems/infrastructure/provisioning.md)
+  disclosure requirement — so its presence and its teeth are known, not a later surprise. Consent is not an
+  install-time opt-in (the module is required); it lives at the gate — a firing hard finding is actionable or
+  carries the operator's own **§15 weakening-acknowledgment** for an accepted exception (below).
 - All operator-facing text explains domain terms (pinning, dependency, license) plainly; the
   unavailable-tier disclosure is a cost/benefit choice in plain language, never platform SKU jargon.
 
@@ -158,12 +163,16 @@ fail-closed guard.
 
 The module inspects and gates the **product's own** dependency manifests, which respects the
 [engine/product wall](../systems/infrastructure/repository-topology.md) and the
-[contributor-not-component](../../principles.md) principle: it is **optional**, so opting in is **consent,
-not imposed coupling** (§13); and every check is **read-only**, never editing product source ("no seam
-edits product source"). A CI gate on the product's dependencies is the engine acting as a **contributor**
-reviewing a contribution — the same shape as the control-plane PR-completeness gate — not the engine
-becoming part of the product. The removal test passes: the `dependabot.yml` floor is the control-plane's,
-so removing this module leaves the product's dependencies and its floor intact.
+[contributor-not-component](../../principles.md) principle. Now that it is **required** distribution the
+guarantee no longer rests on the module being removable — it rests on the **read-only discipline**: every
+check is **read-only**, never editing product source ("no seam edits product source"), so a CI gate on the
+product's dependencies is the engine acting as a **contributor** reviewing a contribution — the same shape as
+the control-plane PR-completeness gate — not the engine becoming part of the product (§13). What the operator
+consents to is not the module's *presence* (it ships in every Engine) but each firing of its gate: an
+individual dependency finding is dispositioned, and a durable exception rides the operator's own §15
+weakening-acknowledgment. The engine and product still stay separable: the `dependabot.yml` floor is the
+control-plane's, and the module edits no product source, so the engine remains a contributor to the
+product's dependencies, never a component of them.
 
 ## Acceptance criteria
 
@@ -176,4 +185,4 @@ so removing this module leaves the product's dependencies and its floor intact.
 | **Honest tiers** — review gate `hard` at CI, pinning `soft`, cadence and the policy itself posture; no posture dressed as enforced ([§7](../../principles.md)). | Operator observation: the review check declares `tier: hard` with the CI suite, the pinning check `tier: soft`, and the policy's own enforcement-tier section names cadence and itself as posture. The review gate carries a **disclosed not-applicable to the bite meta-check** — its aimed verdict comes from GitHub's live dependency-review data, so no seedable fixture can force it in CI; the gate's blocking behavior is exercised instead by its own demo and unit tests riding the CI unit-test step, never merge-gated on their own. | operator |
 | **Wires nothing** — policy, checks, and detection logic all bind by presence; the review gate rides the existing required CI check with no new ruleset binding; `depends` ≠ wiring. | Operator observation: the manifest carries `wires: []` and both checks self-declare their suites, so they ride the one ruleset-bound validation run. Partial support: module-manifest (hard, CI) validates the manifest's grammar without asserting the wires list is empty. | operator |
 | **Ecosystem-agnostic with disclosed no-ops** — the review gate relays GitHub's cross-ecosystem dependency-review data; the pinning check detects the ecosystem and discloses its inapplicability rather than passing silently. | Operator observation: the review tool relays the platform's cross-ecosystem comparison and discloses on every no-PR/unavailable/degraded branch, and the pinning inspector detects by root-manifest presence with a disclosed not-yet-applicable when none exists. The disclosed-no-op behavior is proven by the tools' own demo self-checks riding the CI unit-test step — never merge-gated on their own. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Operator observation: the provisioning catalog's entry discloses the can-block-merges consequence at opt-in, and the allow-lists live inside the review check's own definition. Partial support: the guardrail-weakening guard (hard, ruleset-bound) covers the check-definition prefix, so adding an allow-entry triggers the §15 acknowledgment gate — the consent and never-stranded legs remain your observation. | operator |
+| **Required, present-but-conditional, and the operator is never stranded** — the governance ships in every Engine and activates only on dependency changes (disclosed at setup, not an install opt-in), every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact. | Operator observation: the provisioning disclosure names the can-block-merges consequence at setup, and the allow-lists live inside the review check's own definition. Partial support: the guardrail-weakening guard (hard, ruleset-bound) covers the check-definition prefix, so adding an allow-entry triggers the §15 acknowledgment gate — the consent and never-stranded legs remain your observation. | operator |

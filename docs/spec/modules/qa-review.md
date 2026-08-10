@@ -4,7 +4,7 @@ status: locked
 
 # qa-review
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-11 by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the module promoted to `required` distribution and the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-11 by [decision 0292](../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -27,7 +27,9 @@ persona judges, a check gates — they complement, never duplicate ([honest enfo
 | Field | Value |
 |---|---|
 | `id` | `qa-review` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` (invoked at the pre-submission gate; how many lenses run is review-depth-governed) |
 | `provides` | five `role: pre-submission-review` agent personas (`.claude/agents/` files), one per lens below, **plus their five generated Codex renders** (`.codex/agents/` files, held to both-runtime presence by the fleet's hard parity check) — ten provided files in all |
 | `wires` | **none** (file-drop; roster derived from agent frontmatter) |
 | `depends` | `core` |
