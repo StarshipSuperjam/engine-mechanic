@@ -11,7 +11,7 @@ recorded acceptance before wave 7's build begins.*
 
 ## Summary
 
-The **optional** navigation surface over the evidence record itself: from any claim to its receipt, from
+The **required** navigation surface over the evidence record itself: from any claim to its receipt, from
 any receipt to its evidence records, from any record to its raw source and bindings — the walk a cold
 reviewer does by hand through the plane's committed files, made mechanical. Per decision 0334's boundary
 cut it renders **no operator dashboard** ([operator-cockpit](operator-cockpit.md) composes surfaces; this
@@ -27,7 +27,9 @@ dead-end the walk reports**, never a smoothed-over hop.
 | Field | Value |
 |---|---|
 | `id` | `evidence-explorer` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schema](../systems/surfaces/schemas.md)** (`evidence-walk.v1` — a navigation result: the chain of hops from the queried claim (a receipt, an outcome, a health claim) through its references to ground (evidence records, bindings, raw sources), each hop carrying its record reference, freshness (derived on read), source lane, and typed dead-ends (`missing`\|`unreadable`\|`unresolvable`)); the **[tool](../systems/surfaces/tools.md)** (`evidence_walk.py` — walk/trace queries over the plane's committed records; read-only, derivation-stamped); a hard **[check](../systems/surfaces/check.md)** (schema conformance; the **smoothed-hop check** — a walk result presenting an unresolvable reference as a completed hop fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (receipts are the entry points; other plane modules' records are walked when present, absence typed) |
@@ -53,9 +55,7 @@ dead-end the walk reports**, never a smoothed-over hop.
 
 ### Degraded behavior
 
-Records from absent modules are typed absent in the walk (a chain reaching an execution-environment lease
-with no module installed reports the reference and its uninterpretable status, honestly). Unreadable
-records are `unreadable` hops. Both runtimes drive the same tool.
+Records from an **absent** upstream module (an extension or profile not distributed here) are typed absent in the walk, and records a present-but-**inactive** module never produced read as their typed dead-end — a chain reaching, e.g., an execution-environment lease record that was never produced reports the reference and its uninterpretable status, honestly; the explorer renders what exists. **Degraded** records (present but unreadable) are `unreadable` hops. Both runtimes drive the same tool.
 
 ### What stays out
 

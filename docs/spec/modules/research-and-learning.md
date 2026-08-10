@@ -39,7 +39,9 @@ close.
 | Field | Value |
 |---|---|
 | `id` | `research-and-learning` |
-| `status` | `optional` |
+| `distribution` | `extension` |
+| `applicability` | `detected` (research/feedback intake in use) |
+| `activation` | `explicit` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`research-record.v1` — a question, the sources consulted (each dated, each cited, each carrying a **schema-borne quarantine/provenance field** — presence checked), the answer with its inference/observation lanes, named contradictions and gaps, and freshness bindings on repository content it cites — **web citations perish weaker**: date-only, no invalidation when a page later changes, the asymmetry stated; `observation-record.v1` — a signal with source, date, the same **quarantine/provenance field**, and triage state (`captured`\|`promoted:<target>`\|`expired`\|`rejected`) — expiry removes **authority**, not storage (the store accretes; the anti-hoard claim is about actionability, stated); `reconciliation.v1` — a divergence (observed-vs-settled, or a design-drift class from the graph), the evidence on each side, and the operator's typed resolution (`change-product`\|`change-intent`\|`investigate`\|`accepted` — persisted)); the **[tool](../systems/surfaces/tools.md)** (`research.py` — record/triage/reconcile **only**; it fetches nothing and writes no governing surface); hard **[checks](../systems/surfaces/check.md)** (schema conformance including provenance-field presence; the **uncited-claim check**; the **silent-promotion check** — promotion without a decision reference fails; the **no-write-path fixture** — a staged correction pattern reaching a behavior file fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -64,8 +66,8 @@ close.
 
 ### Degraded behavior
 
-No network → research records over repository content only, disclosed; web questions refuse plainly.
-Absent telemetry/feedback integrations → the intake accepts operator-entered observations only, stated.
+**Degraded** with no network → research records over repository content only, disclosed; web questions refuse plainly.
+**Absent** telemetry/feedback integrations (not distributed in this cut) → the intake accepts operator-entered observations only, stated.
 Both runtimes drive the same tool.
 
 ### What stays out

@@ -15,7 +15,7 @@ default when unconfined, and the verdict is marked as recorded judgment.*
 
 ## Summary
 
-The **optional** module that makes runtime inspection a **hypothesis instrument, never a wandering
+The **debug-adapter profile** that makes runtime inspection a **hypothesis instrument, never a wandering
 ground**: a debug-adapter session (Python first — the first profile of a family; other languages are
 deferred, stated) opens only against a **stable reproduction** and a **falsifiable hypothesis**, captures
 only the planned frames and variables within declared bounds, and closes with a verdict — `supported`,
@@ -26,7 +26,8 @@ session's authored inference, marked as such, never a machine-proven state. Its 
 a hypothesis names, so it **masks and records** (with a redaction record and an `unclassifiable`
 fail-closed state) instead of refusing — and because shape-heuristics under-cover arbitrary object
 graphs, **capture is disabled by default when unconfined**: enabling unconfined capture is an explicit
-per-deployment declaration, visible in every session record.
+per-deployment declaration, visible in every session record — presence of the module confers no
+unconfined-capture authority; the machinery ships, the grant does not, until that declaration exists.
 
 ## Behavior
 
@@ -35,7 +36,9 @@ per-deployment declaration, visible in every session record.
 | Field | Value |
 |---|---|
 | `id` | `debugger-diagnosis` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a debug adapter for the stack) |
+| `activation` | `explicit` · `authority-gated` (unconfined capture needs an explicit per-deployment declaration) |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`diagnosis-session.v1` — the reproduction (the plane's owned reproduction grammar: command + expected failing observation + content bindings, scoped per the command-sourced binding convention), the hypothesis (statement + the named observations that would support or refute it — the schema checks presence and shape; **semantic falsifiability is the operator's read**, stated), the **bounded capture plan** (named frames/variables, depth limit, child-count limit, byte ceiling — `evaluate`-style expression execution is **unrepresentable in the plan**; passive variable reads only), and the split **session observation**: reproduced?, outcome type, cleanup state; `debug-adapter.v1` — the adapter profile/pin home: identity + version + artifact digest, the **pure-package offline-after-sync obligation** (a runtime-downloading adapter is disqualified), declared DAP capabilities — a second-language profile conforms to this contract); the **[tool](../systems/surfaces/tools.md)** (`debug_session.py` — the module's dominant build item, named honestly: a framed DAP protocol client with event dispatch and child-process lifecycle, new to this substrate; it enforces the budget — **wall-clock + capture count + byte ceiling**, wall-clock guarding hangs with external termination — and runs the module's **own capture-time masking pass**, reusing the engine's existing secret-scan machinery, writing the redaction record (that/where, never the value)); a hard **[check](../systems/surfaces/check.md)** (schema conformance — including hypothesis-shape presence, verdict-requires-rerun (`if/then`), and plan-bounds presence; negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (sessions are runs; session count is bounded by the task's attempt budget — the anti-wandering ceiling that holds even unattended) |
@@ -69,11 +72,11 @@ moves); absences degrade as stated below.
 
 ### Degraded behavior
 
-Missing/broken adapter → refusal with observed reason. Capability gaps → typed `uninspectable`. Budget
-exhaustion → `inconclusive`, captures preserved under the rules above. Unconfined → capture disabled
-unless the deployment's explicit declaration enables it, visible per session. A session's debuggee
-attachment is pinned to one runtime's process; both runtimes use the same tool, never the same live
-session.
+**Faulted** — missing/broken adapter → refusal with observed reason. **Degraded** — capability gaps →
+typed `uninspectable`. **Degraded** — budget exhaustion → `inconclusive`, captures preserved under the
+rules above. **Authority-disabled** — unconfined → capture disabled unless the deployment's explicit
+declaration enables it, visible per session. A session's debuggee attachment is pinned to one runtime's
+process; both runtimes use the same tool, never the same live session.
 
 ### What stays out
 

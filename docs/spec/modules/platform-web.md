@@ -14,7 +14,7 @@ stated as mechanics, not verbs.*
 
 ## Summary
 
-The **optional** web platform profile: the dev server as a declared service, the build artifact as an
+The **web platform profile**: the dev server as a declared service, the build artifact as an
 identified output, and — its load-bearing export — **`page-identity.v1`**, the owned schema binding
 route + source revision + served-artifact identity, which [browser-evidence](browser-evidence.md)
 references opaquely and asserts staleness against. It is deliberately thin glue: engineering-quality owns
@@ -33,7 +33,9 @@ hosts can produce differing bytes under one identity) is stated, not hidden.
 | Field | Value |
 |---|---|
 | `id` | `platform-web` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a web product) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`web-surface.v1` — the declared web product: its build-artifact identity source (the engineering-quality `build` kind's output it consumes), its dev-server service declaration (command, port, **loopback-only bind by default** — a non-loopback bind is a disclosed, explicit opt-in — environment fields that **refuse secret-shaped values** by the tool's redaction pass, and a **readiness probe** defined as an HTTP check: URL, expected status/body match, and a probe budget); **`page-identity.v1`** — the owned identity schema: route + source revision + served-artifact identity, with the digest field's absence (degraded topologies) a typed state consumers must handle); the **[tool](../systems/surfaces/tools.md)** (`web_surface.py` — start/await-ready/identify/stop; under execution-environment it *injects* the service into the run's environment manifest and calls the controller — one environment holds server and browser for a scenario run, leased to that run; without it, a plain local process, loopback-bound, disclosed); the **[operation](../systems/surfaces/operations.md)** runbook; a hard **[check](../systems/surfaces/check.md)** (schema conformance); and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -59,10 +61,10 @@ hosts can produce differing bytes under one identity) is stated, not hidden.
 
 ### Degraded behavior
 
-Absent execution-environment: plain-process serving, loopback-bound, disclosed. Absent
-engineering-quality-typescript: the artifact-identity source degrades to a declared local build command,
-its identity carrying that provenance, disclosed. Readiness-budget failure reports the probe observation.
-Both runtimes drive the same tool.
+**Degraded** absent execution-environment: plain-process serving, loopback-bound, disclosed. **Degraded**
+absent engineering-quality-typescript: the artifact-identity source degrades to a declared local build
+command, its identity carrying that provenance, disclosed. **Faulted** readiness-budget failure reports the
+probe observation. Both runtimes drive the same tool.
 
 ### What stays out
 

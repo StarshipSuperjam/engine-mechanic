@@ -10,4 +10,6 @@ Status: not yet designed. This slot is held so the system has a home; its build 
 
 Its catalogued dependency edge is **not settled**: at its design session it is re-derived under the target-axis discriminator ([D-129](../../adr/0129-reconcile-dependency-discipline-to-depends-core-l2-the-targe.md)) — it may belong on `core` like the product-inspecting [dependency-discipline](dependency-discipline.md) and [migration-discipline](migration-discipline.md), or genuinely rest on the engine-self-validation corpus [validators-core](validators-core.md) consolidates (its graph representation runs over engine-internal memory, unlike those product-facing peers).
 
+Its **distribution class is likewise not settled here** ([D-335](../../adr/0335-separate-module-distribution-applicability-and-activation.md)): the three-axis grammar applies to it like any module, but its design session must **rerun the strict extension test** — *does removing it leave every core Engine governance, evidence, safety, and operator-legibility claim true?* — and set its distribution, applicability, and activation from that finding, rather than inheriting a class by default.
+
 See [the architecture overview](../../architecture.md) for its role and [open-questions.md](../../reference/open-questions.md) for what remains undecided.

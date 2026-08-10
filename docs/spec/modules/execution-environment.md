@@ -14,7 +14,7 @@ trust provenance, and checkpoint/resume deferred out of this cut.*
 
 ## Summary
 
-The **optional** module that makes a delivery run's environment a **declared, leased, reconciled
+The **required** module that makes a delivery run's environment a **declared, leased, reconciled
 resource**: the desired state (source revision, toolchain identity, services, data seeds, resource limits,
 network posture) written as a manifest; the observed state reported against it field by field; the whole
 bound to one run by a **lease the backend itself enforces**; and teardown that **reconciles by
@@ -34,7 +34,9 @@ real assurance, a governance dependency stated plainly.
 | Field | Value |
 |---|---|
 | `id` | `execution-environment` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (work needing a reproducible environment) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`environment-manifest.v1` — desired state: source revision/digests, toolchain/image identity by digest, services with ports and health probes, data seeds, CPU/memory/process/storage/time limits, network posture (default **no egress**; named routes only), `confinement: required\|preferred`, the lease TTL, and a **hard maximum lifetime**; `environment-observation.v1` — observed state per desired field, typed `matches`\|`requested`\|`diverges`\|`unobservable`, **content-bound to the manifest digest and lease id** (no swap or replay); `teardown-receipt.v1` — per-labeled-resource observed absence or disclosed intentional residue); the **backend adapter contract [schema](../systems/surfaces/schemas.md)** (`env-backend.v1` — operations: provision, observe, **lease-enforce** (the backend receives the TTL and maximum lifetime at provision and terminates the workload at expiry itself — controller refresh extends the backend-side deadline; a backend that cannot enforce declares it, and the lease is then a signal, disclosed), stop, teardown, **reconcile-orphans** (label-sweep of resources from environments lost without teardown); per-operation capability declaration; the conformance fixture set, whose enforcement probes are **demonstrated-by-violation** — a limit is `matches` only if exceeding it was observed to bite); the **[tool](../systems/surfaces/tools.md)** (`environment.py` — the controller: create/observe/refresh/stop/teardown/reconcile-orphans; refresh policy is controller-side and budget-driven, **never keyed to workload liveness** — a workload cannot keep itself alive by not exiting; the tool runs a **redaction pass** refusing secret-shaped manifest values, per the engine's secret-scanning vocabulary); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **residue check** — a teardown receipt claiming completion with unreconciled labeled resources fails; the **admission check** — a manifest naming a backend without committed, valid conformance evidence fails; each negative-fixtured) — noting honestly that these engine rows gate **shape**: real-world enforcement is operator-verified; the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (leases bind to runs; environment identity rides run records as the opaque reference delivery-core holds — the run lease remains delivery-core's own and drives its `unknown` projection; the environment lease bounds the environment's lifetime, and its expiry surfaces as divergence and stop) |
@@ -75,8 +77,9 @@ real assurance, a governance dependency stated plainly.
 
 ### Degraded behavior
 
-No backend → environment operations refuse plainly; runs proceed with plain worktree identity and every
-wave-1 disclosed posture intact — except `confinement: required` work, which refuses. A dead environment
+**Absent** — no backend (a profile not distributed here) → environment operations refuse plainly; runs
+proceed with plain worktree identity and every wave-1 disclosed posture intact — except `confinement:
+required` work, which refuses. **Faulted** — a dead environment
 under a live controller is caught by observation divergence; a dead controller's environments are caught
 by backend lease enforcement and the orphan sweep — the two detectors and their owners named. Teardown the
 backend cannot fully observe reports per-resource, never a summary success. Both runtimes drive the same

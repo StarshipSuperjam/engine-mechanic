@@ -4,7 +4,7 @@ status: locked
 
 # memory-semantic-recall
 
-*Authored from engine-template@`cdbbc33` as built (2026-08-02) — written during the reconciliation under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), **not carried from the design workspace**: the module shipped unspecced, and its governing design record is the upstream transcript-first memory contract (its eADR-0038), which this document describes rather than re-derives. Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Authored from engine-template@`cdbbc33` as built (2026-08-02) — written during the reconciliation under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), **not carried from the design workspace**: the module shipped unspecced, and its governing design record is the upstream transcript-first memory contract (its eADR-0038), which this document describes rather than re-derives, with the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -29,7 +29,9 @@ graph-enrichment stubs ([engine-knowledge-graph](engine-knowledge-graph.md),
 | Field | Value |
 |---|---|
 | `id` | `memory-semantic-recall` |
-| `status` | `default-on` — offered on at setup, genuinely declinable and removable |
+| `distribution` | `extension` — offered on at setup, genuinely declinable and removable |
+| `applicability` | `detected` (the semantic-recall substrate probe succeeds) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **semantic library code** (a [tool](../systems/surfaces/tools.md) glob: the embedder, the vector store, and a standard-library WordPiece tokenizer written by hand so no tokenizer framework rides along) and **four committed assets** — the vendored, int8-quantized embedding table (32,555,454 bytes — nearly all of the module's ~33 MB footprint; derived from a published MIT-licensed retrieval model), its WordPiece vocabulary, a checksums manifest verified at load, and the third-party attribution notice |
 | `wires` | **none** — the module adds no shared-state edits; its capability surfaces through the substrate's own MCP server (below), and its derived store lands inside the substrate's already-gitignored memory directory |
 | `depends` | `core` **and** [memory-substrate-sqlite-fts5](memory-substrate-sqlite-fts5.md) — the ledger it reads and the server that exposes it |

@@ -15,7 +15,7 @@ draft-only gate is pinned to an acknowledgment artifact.*
 
 ## Summary
 
-The **optional** module that lets the engine attempt a repair **without an operator watching — and
+The **required** module — present in every Engine, though its **presence confers no repair authority** (unattended repair is **authority-gated**, enabled only by an explicit operator grant, the standing maintenance Issue) — that lets the engine attempt a repair **without an operator watching — and
 without ever holding the authority an operator has**: a qualifying, reproducible defect enters as a
 repair task whose **route provenance is mechanically checked** (a repair task must cite a resolving
 [operations-core](operations-core.md) route record whose class qualified as repair-eligible — a task
@@ -37,7 +37,9 @@ named residual of any reproduction-based measure.
 | Field | Value |
 |---|---|
 | `id` | `bounded-repair` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a repairable product) |
+| `activation` | `explicit` · `authority-gated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`repair-task.v1` — the defect's reproduction (referencing [delivery-core](delivery-core.md)'s owned reproduction grammar), the qualifying route reference, and the immutable envelope: attempt budget, mutation scope, **per-attempt re-derivation cost bound** (repair eligibility is restricted to cheaply-re-derivable reproductions; the bound is declared here), and the forbidden-surface set — **static** (the ledger slots that scheduled it, the repair checks and validators, this module's files) **plus per-task: the reproduction's acceptance files from its content bindings** — so weakening the failing test is mechanically in the forbidden set, not just morally; `repair-attempt.v1` — lane (`playbook`\|`generative`), run reference, the supervisor's re-derived reproduction state, and outcome in delivery-core's vocabulary plus a repair-layer classification (`non-reproducing` is a typed classification on a refused task, reconciled with the kernel's outcomes, not a new one); `escalation.v1` — what stopped, what was tried, what the operator decides); the **[tool](../systems/surfaces/tools.md)** (`repair.py` — the supervisor: routes lanes, re-derives, enforces budgets, opens the draft PR through the engine's normal flow; **the worker consumes reproduction content bindings as quarantined data, never instructions** — restated here, at the generative consumption point, per the plane's rule); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **orphan-route check** — a repair task whose route reference does not resolve to a qualifying operations-core record fails; the **forbidden-surface check** — a repair diff touching the envelope's full forbidden set (static + per-task acceptance) fails; the **collateral-test guard** — a repair diff touching any test or fixture file outside the change's stated scope is flagged on the draft PR, and deletion/assertion-removal patterns fail (a heuristic with a named residual); the **draft-only check** — a ready repair PR without the operator's acknowledgment artifact fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `structured-change`, `operations-core` |
@@ -46,8 +48,8 @@ named residual of any reproduction-based measure.
 [debugger-diagnosis](debugger-diagnosis.md) verdicts inform hypotheses;
 [engineering-quality](engineering-quality.md) is the regression gate when installed;
 [execution-environment](execution-environment.md) confines attempts — each when-installed, degraded
-plainly. Unattended entry is the standing maintenance Issue's scope (operations-core's ground);
-absent it, repair tasks enter only by explicit operator creation.
+plainly. Unattended entry is **authority-gated** — the standing maintenance Issue's scope (operations-core's ground) is the operator's grant;
+absent that grant (**authority-disabled**), repair tasks enter only by explicit operator creation.
 
 ### The repair model
 
@@ -71,8 +73,8 @@ absent it, repair tasks enter only by explicit operator creation.
 
 ### Degraded behavior
 
-Absent structured-change: not installable (mutation path is a dependency). Absent operations-core
-routing: operator-created tasks only. Supervisor state unreadable → attempts stop at their next
+**Inactive** without structured-change: not installable (the mutation path is a required dependency). **Inactive** without operations-core
+routing: operator-created tasks only. **Degraded** when supervisor state is present but unreadable → attempts stop at their next
 checkpoint, typed. Both runtimes drive the same supervisor.
 
 ### What stays out

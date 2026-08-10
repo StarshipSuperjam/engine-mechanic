@@ -4,7 +4,7 @@ status: locked
 
 # Docs
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-18 by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the "default-on self-audit" phrasing corrected under the three-axis grammar (the self-audit is `required`) by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-06-18 by [decision 0216](../../../adr/0216-resolve-the-d-215-operator-prose-register-re-litigation-land.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -63,7 +63,7 @@ deliverable* (not deferred membership), covering:
 - what the engine is and how the operator directs it;
 - how to **discover what commands exist** — the orientation doc itself is a self-sufficient
   command-discovery path, independent of whether any `/engine-help`-style index command also ships;
-- that **default-on self-audit proposing retirements is normal hygiene** — so the first
+- that the **required self-audit proposing retirements is normal hygiene** — so the first
   [audit](../guardrails/audits.md) Issue recommending the engine remove part of itself reads as
   routine upkeep, not the engine breaking or attacking itself.
 
