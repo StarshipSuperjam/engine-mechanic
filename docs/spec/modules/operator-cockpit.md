@@ -13,7 +13,7 @@ comprehension criterion the module exists for is finally a criterion.*
 
 ## Summary
 
-The **optional** composed operator surface over the delivery plane — a **static Markdown/HTML artifact
+The **required** composed operator surface over the delivery plane — a **static Markdown/HTML artifact
 rendered with the standard library** (the substrate's existing digest-render precedent; no daemon, no
 served app), derived on demand so a non-engineer can answer **what is being built, what is running, what
 changed, and what needs me** — where "what changed" means **the state-delta of the plane's records
@@ -35,7 +35,9 @@ on the engine's plain-language surfaces (the pull-request page, the boot/status 
 | Field | Value |
 |---|---|
 | `id` | `operator-cockpit` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[tool](../systems/surfaces/tools.md)** (`cockpit.py` — derive-and-render to the static artifact; a **declared derive budget** with typed degradation (the derive is O(plane), stated — a budget-exceeded derive renders what it covered and types the remainder); link resolution **consumes evidence-explorer's walk when installed** (a stated dependency-for-check), one-hop resolution otherwise); the **view [schema](../systems/surfaces/schemas.md)** (`cockpit-view.v1` — per-panel facts with canonical references, freshness, derivation time, absent-source disclosures, **carried quarantine framing**, and the state-delta panel's predecessor references; panels include the **product-structure panel** (PKG-fed, absent-typed) alongside intent, work, environments, evidence, deployed state, health, and decisions); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **orphan-fact check** — an unresolvable rendered reference fails; the **completeness check** — a `custom/script` coverage check over the decision-bearing record types: a pending decision present in records and absent from the view without a typed omission fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -57,7 +59,7 @@ on the engine's plain-language surfaces (the pull-request page, the boot/status 
 
 ### Degraded behavior
 
-Unreadable sources render typed unreadable panels; budget exhaustion types the uncovered remainder; the
+A panel over an **absent** upstream module — an extension (e.g. [product-knowledge-graph](product-knowledge-graph.md)) or profile not distributed here — renders that absence typed, and the cockpit renders what exists. **Degraded** sources (present but unreadable) render typed unreadable panels; **degraded** budget exhaustion types the uncovered remainder; the
 derived model is producible as data wherever the artifact is unwanted. Both runtimes drive the same
 tool.
 

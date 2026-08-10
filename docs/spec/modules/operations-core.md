@@ -13,7 +13,7 @@ and the honest wording — never authority to land a change.*
 
 ## Summary
 
-The **optional** module that owns the delivery plane's **operational states**: what is deployed
+The **required** module that owns the delivery plane's **operational states**: what is deployed
 (consuming [deployment-core](deployment-core.md)'s drift grammar for **standing, periodic observation** —
 its side of decision 0334's cut), whether it is healthy, what maintenance **conditions** stand (the
 concern/condition model), what is broken (incident state), and where a qualifying problem routes. The
@@ -33,7 +33,9 @@ aspiration; interactive paths work now — stated.)
 | Field | Value |
 |---|---|
 | `id` | `operations-core` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a deployed/operated product) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`maintenance-concern.v1` — the **durable subject**: kind (dependency freshness, certificate expiry, health observation — **backup verification is deferred until deployment adapters give it a subject**, stated), its due condition, and its stable identity the ledger references; `condition-standing.v1` — the volatile read-time standing (`due`\|`current`\|`overdue`\|`unknown`) derived from the concern's own condition — **distinct from the ledger's schedule facts**: `overdue` here means the observed condition passed its threshold (a cert inside its expiry window); a *missed occurrence* is the ledger's schedule fact — two lateness facts, named apart; `incident.v1` — observation, reproduction state (referencing [delivery-core](delivery-core.md)'s owned reproduction grammar), hypothesis references, typed resolution (`repaired`\|`mitigated`\|`accepted`\|`open`); `repair-route.v1` — deterministic playbook \| bounded-repair \| operator, with the routing reason, the qualifying class, and the route's identity that [bounded-repair](bounded-repair.md)'s provenance check resolves); the **[tool](../systems/surfaces/tools.md)** (`operations.py` — observe/derive/route; read-and-derive only); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **stale-deployed-state check** — unresolvable deploy-effect references fail; the **observation-only check** — a `custom/script` negative-fixtured check proving the observe/derive fixture paths perform no mutation, the mechanizable slice of the no-execution promise); the **[operation](../systems/surfaces/operations.md)** runbook (including authoring the standing maintenance Issue); and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -59,9 +61,9 @@ aspiration; interactive paths work now — stated.)
 
 ### Degraded behavior
 
-Without deployment-core: no deployed-state or standing-drift derivation; **repo-local kinds only**
+**Inactive** without deployment-core (present but not activated until a product is deployed): no deployed-state or standing-drift derivation; **repo-local kinds only**
 (dependency freshness of the repository's own manifests) — the narrow honest slice, named, not implied
-general. Without maintenance-ledger: standings derive on read, nothing schedules. Unreadable state
+general. **Inactive** without maintenance-ledger: standings derive on read, nothing schedules. **Degraded** state (present but unreadable)
 refuses derivation. Both runtimes drive the same tool.
 
 ### What stays out
