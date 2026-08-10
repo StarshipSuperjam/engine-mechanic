@@ -4,7 +4,7 @@ status: locked
 
 # routine-mode
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the routine-entry actor ratified by [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), with the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-05-30 by [decision 0140](../../adr/0140-lock-routine-mode-the-unattended-routine-entry-the-fourth-mo.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -27,7 +27,9 @@ protection present in every generated repo, never an install choice.
 | Field | Value |
 |---|---|
 | `id` | `routine-mode` |
-| `status` | `required` |
+| `distribution` | `required` — never an install choice |
+| `applicability` | `universal` |
+| `activation` | `always` · `ungated` |
 | `provides` | the **`/engine-routine`** [skill](../systems/surfaces/skills.md) (`invocation: operator-typed`, engine-prefixed) — the thin entry command embedded in a scheduled fire's Instructions, a single delegating pointer with no procedure of its own ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md)/[D-088](../../adr/0088-justified-re-litigation-name-the-routine-entry-command-engin.md)); its **generated Codex mirror** (`$engine-routine`, carrying the same no-self-invocation flag); and the **routine-entry [operation](../systems/surfaces/operations.md)** the command delegates to — the procedure home that confirms the unattended posture, reads the frozen scope-locked build Issue, **enters the Routine write-stance through the engine's `set-routine` verb** (the ratified actor, [decision 0322](../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md), which writes the stance only after a positive worktree-isolation proof), echoes the locked-on Issue on first fire, files a durable Issue on a misfire, and enters the build-orchestration routine workflow |
 | `wires` | **none** |
 | `depends` | `core` |

@@ -4,7 +4,7 @@ status: locked
 
 # audit-library
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the three-step setup and the dual-runtime walkthrough adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-06-23 by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the three-step setup and the dual-runtime walkthrough adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md), with the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-06-23 by [decision 0242](../../adr/0242-resolve-the-d-241-audit-memory-read-enablement-the-landed-fo.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -25,7 +25,9 @@ sits on top of them as core that travels and runs by default.)
 | Field | Value |
 |---|---|
 | `id` | `audit-library` |
-| `status` | `required` |
+| `distribution` | `required` — never an install choice |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | **manifest-declared**: the audit persona ([agent](../systems/surfaces/agents.md) file in `.claude/agents/`, with its generated Codex render) and the three `audits`-surface documents — the seed **concern-list**, the **setup walkthrough**, and the committed **audit digest**. The capability's companion artifacts ride other homes as built: the **concern-entry schema** and the **audit-digest generator** tool live in the engine's schema and code homes (manifest-tracked by no module, like all tools and schemas here); the **digest-staleness check** and the hard **audit-digest-fingerprint** tamper gate are rules in the [validators-core](validators-core.md) corpus — the mechanical floor this module `depends` on, not its own provides; and the `audit-prep` cron workflow (a `.github/workflows/` file — the default scheduled substrate) is declared by no manifest and absent from the self-map: an ownership gap tracked as [engine-template issue 798](https://github.com/StarshipSuperjam/engine-template/issues/798) |
 | `wires` | **none** |
 | `depends` | `validators-core` — the semantic self-audit assumes the mechanical self-validation floor holds (the [validators-core](validators-core.md) corpus), a real presence assertion, not merely a catalog edge; rests on the always-present [telemetry](../systems/guardrails/telemetry.md) and [agents](../systems/surfaces/agents.md) foundations |
