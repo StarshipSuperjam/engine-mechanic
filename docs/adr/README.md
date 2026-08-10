@@ -346,3 +346,4 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0332 | [Adopt the platform capability baseline — the snapshot and comparison rules become the platform-currency denominator](0332-adopt-the-platform-capability-baseline-snapshot-and-comparis.md) | 2026-08-02 |
 | 0333 | [Ratify the platform-baseline dispositions — the migration set, the boundary as-is, and a settled corpus that changes only as each migration is built](0333-ratify-the-platform-baseline-dispositions-the-migration-set.md) | 2026-08-02 |
 | 0334 | [Adopt the delivery-plane spec program: module map, wave order, and program rules](0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md) | 2026-08-02 |
+| 0335 | [Separate module distribution, applicability, and activation into independent axes](0335-separate-module-distribution-applicability-and-activation.md) | 2026-08-10 |
