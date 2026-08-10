@@ -12,7 +12,7 @@ family contract absorbs the territory the retired `clean-code` stub reserved, pe
 
 ## Summary
 
-The **optional** family contract for **stack-declared engineering feedback**: what it means, for a given
+The **required** family contract for **stack-declared engineering feedback**: what it means, for a given
 product stack, to run the formatter, the linter, the type checker, the build, the tests, and the dependency
 checks — declared once per stack as a **profile module** realizing this contract. The contract fixes the
 grammar every profile speaks: the check kinds, the typed result states, the two evidence lanes, generated-
@@ -29,7 +29,9 @@ claim"** — the marker travels with the record into every consumer, so a green 
 | Field | Value |
 |---|---|
 | `id` | `engineering-quality` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a declared product stack) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **profile contract [schema](../systems/surfaces/schemas.md)** (`eq-profile.v1` — per kind (`format`, `lint`, `types`, `build`, `test`, `deps`): pinned tool identity, invocation, **version-probe invocation**, **config-locus declaration** (which in-repo files the tool reads), mapper reference, per-run budget, **per-kind runtime identity** (which execution engine runs the kind — a stack may split them), or an explicit `absent`; plus the **profile-level fields** the cross-stack stress demanded: the **package/install layer** (install tool, lockfile format, the frozen-install requirement, and the per-dependency install-script allowance table) and the **scope declaration** — installed profiles' scopes must **partition** the repository's declared quality surface: no overlap (one fixer authority per path), and a gap reads as *uncovered*, visibly); the **result [schema](../systems/surfaces/schemas.md)** (`eq-result.v1` — per-kind states `pass`, `fail` (with findings), `degraded/off-pin` (ran complete, version drifted — named), `unavailable` (missing or crashed), `not-run` (skipped by policy), `absent` (declared absent — emitted as a row, never silence); the lane; the **runtime identity** that executed the kind; the **effective config** that governed the run; the exclusion scope applied, surfaced prominently; the revision/digests measured; and the standing not-correctness marker); the **mapper contract [schema](../systems/surfaces/schemas.md)** (`eq-mapper.v1` — what a profile's per-tool translator must consume and emit, including the per-tool exit-code interpretation table distinguishing findings from crash); the **runner [tool](../systems/surfaces/tools.md)** (`eq_run.py` — resolves the installed profile, invokes declared kinds through the profile's mappers, emits results); the **contract-conformance fixture set** — the shared, stack-agnostic staged scenarios every profile must run (conflict finding, effective config, exclusion visibility, fixer routing, lane honesty), with equivalence defined as *same typed states on equivalent staged scenarios*; a hard **[check](../systems/surfaces/check.md)** (profile, mapper, and result schema conformance — profile instances live at a named location the check's glob covers, so any profile module's declaration is found); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (results attach to runs) |
@@ -74,8 +76,9 @@ integrations, deliberately not dependencies; their absence degrades named behavi
 
 ### Degraded behavior
 
-No profile installed → the runner reports `unavailable` for every kind, plainly. A declared tool missing or
-crashing → `unavailable` for that kind; version drift → `degraded/off-pin` with the observed version named.
+**Absent** — no profile installed (a profile not distributed here) → the runner reports `unavailable` for
+every kind, plainly. **Faulted** — a declared tool missing or crashing → `unavailable` for that kind;
+version drift → `degraded/off-pin` with the observed version named.
 Nothing guesses a toolchain; nothing silently skips. Both runtimes invoke the same runner.
 
 ### What stays out

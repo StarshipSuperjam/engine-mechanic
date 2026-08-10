@@ -13,7 +13,7 @@ Revised in draft after four cold design reviews.*
 
 ## Summary
 
-The **optional** first profile realizing the [engineering-quality](engineering-quality.md) contract, for
+The **Python quality profile** — the first profile realizing the [engineering-quality](engineering-quality.md) contract, for
 **Python/backend product stacks**: one pinned toolset — formatter, linter, type checker, build, test
 runner, dependency checks — declared in the contract's grammar, with the per-tool mappers that translate
 each tool's real output into typed results. It is the demonstration profile: the contract's first proof
@@ -27,7 +27,9 @@ must meet; the pins themselves are the named decision cluster the operator recor
 | Field | Value |
 |---|---|
 | `id` | `engineering-quality-python` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a Python/backend stack) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **profile declaration** (an `eq-profile.v1` instance at the contract's named location): per kind, the pinned tool identity, version, **and artifact digest** (a version pin alone does not verify which bytes run); the version-probe invocation and config-locus declaration; per-run budgets; the Python exclusion declaration (virtual environments, build artifacts, lockfile-generated content, declared generated files); and the **fixer authority table at per-fix-class granularity** — the import sorter is classified behavior-affecting (Python import order carries side effects); the per-tool **mapper [tools](../systems/surfaces/tools.md)** (each with its exit-code interpretation table distinguishing findings from crash) |
 | `wires` | **none** |
 | `depends` | `core`, `engineering-quality` |
@@ -60,8 +62,8 @@ never forced into a single-version fiction.
 
 ### Degraded behavior
 
-Missing tool → `unavailable`; version drift → `degraded/off-pin` naming the observed version; non-Python
-repository → a plain inapplicability report, no guessed runs. Installation follows the program's boundary
+**Faulted** — a missing tool → `unavailable`; **degraded** — version drift → `degraded/off-pin` naming the
+observed version; **inapplicable** — a non-Python repository → a plain inapplicability report, no guessed runs. Installation follows the program's boundary
 cut: the profile declares its package/install layer as manifest input; [execution-environment](execution-environment.md)
 materializes it — the profile never installs.
 

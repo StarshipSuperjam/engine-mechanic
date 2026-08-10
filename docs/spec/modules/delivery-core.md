@@ -15,7 +15,7 @@ declaration, not an enforcement boundary.*
 
 ## Summary
 
-The **optional** kernel of the delivery plane: the module that gives every piece of product-delivery work a
+The **required** kernel of the delivery plane: the module that gives every piece of product-delivery work a
 **durable, typed identity** — what was asked, under what declared authority, with what budgets, ending in
 which outcome — so no delivery claim rests on transcript reconstruction. Every other delivery module speaks
 its vocabulary: runs of tasks, typed outcomes, receipts. Two honesty rules anchor it. First, the **authority
@@ -34,7 +34,9 @@ it cannot verify.
 | Field | Value |
 |---|---|
 | `id` | `delivery-core` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a product with delivery/runnable work) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the delivery **[schemas](../systems/surfaces/schemas.md)** (`delivery-task.v1`, `delivery-run.v1`, `delivery-outcome.v1`, `delivery-receipt.v1`; `reproduction.v1` — the plane's **owned reproduction grammar**: command + expected failing observation + content bindings, referenced by incident, diagnosis, and repair records rather than re-defined by each; and the **shared reconciliation vocabulary** — `confirmed`\|`partial`\|`contradicted`\|`unknown` — the base grammar effect-producing modules reference, so it has one home); the **ledger [tool](../systems/surfaces/tools.md)** (`delivery_ledger.py` — create/read/transition/close; the **intended** writer of ledger state — authorship is not authenticated, and the checks below catch only what shape and transition legality can see); hard **[checks](../systems/surfaces/check.md)** (`delivery-ledger-schema` — record conformance; `delivery-transition-legality` — a `custom/script` check running diff-aware from the trusted branch, the guardrail-weakening precedent, catching terminal-run resurrection and envelope edits; `delivery-orphan-run` — a `custom/script` cross-record check: a run whose task is absent, or a `running` record past its lease at merge, must be resolved before merge; each carries its negative fixture per the hard-check-bite discipline); the **[operation](../systems/surfaces/operations.md)** runbook (`.engine/operations/delivery-task.md`); and the operator **[doc](../systems/surfaces/docs.md)** (`.engine/docs/delivery-plane.md`) |
 | `wires` | **none** at rest; whether non-prompting tool invocation needs a `permission` wire is a build-time decision, recorded then |
 | `depends` | `core` |
@@ -86,9 +88,10 @@ recorded maintenance decision for the maintenance wave, never a silent prune.
 
 ### Degraded behavior
 
-Absent optional modules are named plainly in receipts. An unreadable state home refuses delivery
-operations with a plain reason; **partial corruption fails loud** — an unreadable individual record refuses
-every operation touching it and flags it, never a silent skip. Both runtimes drive the same tool over the
+**Absent** modules (an extension not distributed here) are named plainly in receipts. A **faulted** store
+fails loud: an unreadable state home refuses delivery operations with a plain reason, and **partial
+corruption fails loud** — an unreadable individual record refuses every operation touching it and flags it,
+never a silent skip. Both runtimes drive the same tool over the
 same committed state; a runtime-specific surface is a render, never a second store.
 
 ### What stays out
@@ -96,7 +99,8 @@ same committed state; a runtime-specific surface is a render, never a second sto
 - **No scheduler, no continuation authority, no consent surface.** Outcomes are records; the merge gate and
   the engine's stances are untouched.
 - **No authorization semantics.** The envelope may never be cited by any module as permission.
-- **Not required.** A deployment without the plane never sees any of this.
+- **Present but dormant until it applies.** delivery-core ships in every Engine; a deployment that never
+  does delivery work never *activates* it — inactive and inapplicable, never a burden, but not absent either.
 
 ## Acceptance criteria
 
