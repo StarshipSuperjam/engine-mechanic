@@ -26,9 +26,11 @@ operator decides.
 | Field | Value |
 |---|---|
 | `id` | `platform-currency` |
-| `status` | `optional` |
+| `distribution` | `extension` |
+| `applicability` | `declared` (an operator who wants platform-currency tracking) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **`engine-platform-review` [agent](../systems/surfaces/agents.md)** (read-only persona: `permissions: read-only`, Edit/Write/NotebookEdit/Bash denied, `model-tier: judgment`) and its generated **codex-agent twin**; the **setup [doc](../systems/surfaces/docs.md)** (`.engine/docs/platform-currency-setup.md`); the **`/engine-platform-review` [skill](../systems/surfaces/skills.md)** and its codex-skill twin (the on-demand verb, listed in `/engine-help`); the **scope-flag [policy](../systems/surfaces/policies.md)** (`.engine/policies/platform-currency.json`: `{schema_version: 1, scope: "product"}`, `scope` ∈ `product \| engine \| both`) with its **[schema](../systems/surfaces/schemas.md)** (`platform-currency.v1.json`) and hard **[check](../systems/surfaces/check.md)** (the model-bindings shape — mechanical validation at merge); and the **baseline corpus** (the platform capability baseline's snapshot, comparison rules, catalogs, and matrices as module-owned reference files), so an opted-in deployment carries the diff denominator locally and engine upgrades refresh it. |
-| `wires` | **none** — every surface binds by presence, the [qa-review](qa-review.md)/[design-review](design-review.md) optional-persona shape |
+| `wires` | **none** — every surface binds by presence, the [qa-review](qa-review.md)/[design-review](design-review.md) presence-bound persona shape |
 | `depends` | `core` |
 | `migrations` | none |
 
