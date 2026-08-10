@@ -129,10 +129,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Optional means consent, and the operator is never stranded** — opt-in is informed, every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact.",
-      "digest": "sha256:81563cedf19ff5318a4b762aea39d327b246ae1564e73eff9bba4834c449fc16",
+      "criterion": "**Required, present-but-conditional, and the operator is never stranded** — the governance ships in every Engine and activates only on dependency changes (disclosed at setup, not an install opt-in), every hard finding is actionable or carries an accepted-exception path **gated by the §15 weakening-acknowledgment** (a durable allow-list entry is a guardrail weakening, never a silent pass), and read-only inspection keeps the §13 wall intact.",
+      "digest": "sha256:72e7f9917d1decf26244218843e60da65b2db9c5bccb0c1dfa296e557e09aa93",
       "doc": "docs/spec/modules/dependency-discipline.md",
-      "how_verified": "Operator observation: the provisioning catalog's entry discloses the can-block-merges consequence at opt-in, and the allow-lists live inside the review check's own definition. Partial support: the guardrail-weakening guard (hard, ruleset-bound) covers the check-definition prefix, so adding an allow-entry triggers the §15 acknowledgment gate — the consent and never-stranded legs remain your observation.",
+      "how_verified": "Operator observation: the provisioning disclosure names the can-block-merges consequence at setup, and the allow-lists live inside the review check's own definition. Partial support: the guardrail-weakening guard (hard, ruleset-bound) covers the check-definition prefix, so adding an allow-entry triggers the §15 acknowledgment gate — the consent and never-stranded legs remain your observation.",
       "position": 5,
       "who": "operator"
     },
@@ -433,10 +433,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact.",
-      "digest": "sha256:be22e4a1f3d95359e2c829352dedb21d6c41bcaab0ea06b691d3674a0a735e3a",
+      "criterion": "**Required, present-but-conditional, and the operator is never stranded** — the module ships in every Engine and acts only when the product has migrations (disclosed at setup, not an install opt-in), escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact.",
+      "digest": "sha256:2a47ab611e2e435ca143c896d7f5bcc130a8f72b21a9745d9f39228b609a98c4",
       "doc": "docs/spec/modules/migration-discipline.md",
-      "how_verified": "Operator observation: the manifest declares `status: optional`, the script reads names only, and the policy's rationale commits every escalation to a plain-language account plus a safer path. No mechanical check; verify by reading the policy and manifest.",
+      "how_verified": "Operator observation: the manifest declares `distribution: required` with `on-trigger` activation, the script reads names only, and the policy's rationale commits every escalation to a plain-language account plus a safer path. No mechanical check; verify by reading the policy and manifest.",
       "position": 6,
       "who": "operator"
     },
@@ -860,7 +860,7 @@
       "criterion": "**Locking this system fixes the laws' change-control, not their content forever** — the manifest grammar, seam vocabulary, registry model, and coherence scope change only by a governed decision, never silently; the module set was always resolved separately ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)/[D-068](../../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)).",
       "digest": "sha256:9cd7498409811c99ce2b34f9a67da7badc1ac3c8ef672a9fb5611d7e16f34498",
       "doc": "docs/spec/systems/grammar/module-system.md",
-      "how_verified": "Observed in the record: the vocabulary's growth to seven seams, the manifest's eighth field, and the coherence scope's two added legs each trace to the engine's own decision canon, and their adoption here is ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). No mechanical check asserts change-control.",
+      "how_verified": "Observed in the record: the vocabulary's growth to seven seams, the manifest's eighth field, the later separation of the single `status` field into the independent deployment axes, and the coherence scope's two added legs each trace to the engine's own decision canon, and their adoption here is ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md) and [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md). No mechanical check asserts change-control.",
       "position": 3,
       "who": "operator"
     },
@@ -1185,10 +1185,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Installed means present.** First-run deselection deletes the module's code; re-adding runs the updater path, not a flip-on.",
-      "digest": "sha256:a10d4e0afe1530825ab68d237df34d91dbbc1221feee4a55e79df829b7a37ab8",
+      "criterion": "**Installed means present.** First-run deselection deletes an `extension`'s code; re-adding runs the updater path, not a flip-on. Required modules are never offered or deleted; a newly-required module converges at upgrade.",
+      "digest": "sha256:56fd67fd136642a457e7a5edb1cfa9ebb1f6bb94dc7747e34bdca3def53be745",
       "doc": "docs/spec/systems/infrastructure/provisioning.md",
-      "how_verified": "The `uv-group-drift` check (hard, CI suite) asserts the dependency half — a deselected module ships no live dependency group — as partial support; the delete-on-deselect and re-add paths are exercised by the instantiator and module-manager tests.",
+      "how_verified": "The `uv-group-drift` check (hard, CI suite) asserts the dependency half — a deselected extension ships no live dependency group — as partial support; the delete-on-deselect and re-add paths are exercised by the instantiator and module-manager tests.",
       "position": 2,
       "who": "operator"
     },
