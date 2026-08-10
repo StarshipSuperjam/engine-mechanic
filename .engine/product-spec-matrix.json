@@ -12,7 +12,7 @@
       "criterion": "**required core, not one of the eleven foundations** — deployed-repo self-audit hygiene ships in every generated repo and is not an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)).",
       "digest": "sha256:b414d3182034c90218eafb8b69e6477fff35ed27100e33bdad1acad6d04af3a1",
       "doc": "docs/spec/modules/audit-library.md",
-      "how_verified": "Operator observation: the module manifest declares `status: required` and the module is absent from the optional-add catalog. The module-manifest check (hard, CI) asserts only that the manifest is schema-valid — it does not pin the value to `required` — so the always-present claim is your read of the manifest.",
+      "how_verified": "Operator observation: the module manifest declares `distribution: required` and the module is absent from the extension-add catalog. The module-manifest check (hard, CI) asserts only that the manifest is schema-valid — it does not pin the distribution to `required` — so the always-present claim is your read of the manifest.",
       "position": 1,
       "who": "operator"
     },
@@ -188,7 +188,7 @@
       "criterion": "**Optional, not core** — [§12](../../principles.md); the cross-repo machinery is an extension an own-product deployment never needs.",
       "digest": "sha256:8100a14c6c0d7d3e7804ad6fd1af715676bee480ae7321b0e17ac1e46d43ef44",
       "doc": "docs/spec/modules/external-contribution.md",
-      "how_verified": "Operator observation: the manifest declares `status: optional` and no other module depends on it. Partial support: module-manifest (hard, CI) holds the status field schema-valid, and self-map-drift (hard, CI) keeps the rendered optional marking true — the never-needed-by-own-product judgment is yours.",
+      "how_verified": "Operator observation: the manifest declares `distribution: extension` and no other module depends on it. Partial support: module-manifest (hard, CI) holds the distribution field schema-valid, and self-map-drift (hard, CI) keeps the rendered extension marking true — the never-needed-by-own-product judgment is yours.",
       "position": 1,
       "who": "operator"
     },
@@ -348,7 +348,7 @@
       "criterion": "**Its own required package, decisively on the ledger** — the only floor with non-regenerable per-instance data, so it gets an owned, legible migration unit instead of burying ledger migrations in `core`.",
       "digest": "sha256:ed2cda7f35f795fb27f4ce32a89eda0884d85ffe805c11767b78ec3151aa1c75",
       "doc": "docs/spec/modules/memory-substrate-sqlite-fts5.md",
-      "how_verified": "Operator observation: the manifest declares `status: required` as a distinct module, with ledger migrations housed in the module's own migration tooling. Partial support: module-manifest (hard, CI) holds the manifest schema-valid — it does not assert the rationale or the owned-unit claim.",
+      "how_verified": "Operator observation: the manifest declares `distribution: required` as a distinct module, with ledger migrations housed in the module's own migration tooling. Partial support: module-manifest (hard, CI) holds the manifest schema-valid — it does not assert the rationale or the owned-unit claim.",
       "position": 1,
       "who": "operator"
     },
@@ -556,7 +556,7 @@
       "criterion": "**`required` core, not a foundation** — the routine stance ships in every generated repo and is never an install choice ([D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)); the eleven foundations stay minimal beneath it.",
       "digest": "sha256:0350d34a5a76f8d4242abd76062717db015cc44da0bfad0a380fdc118289428b",
       "doc": "docs/spec/modules/routine-mode.md",
-      "how_verified": "Operator observation: the manifest declares `status: required`, the self-map renders it required, and the module is absent from the optional-add catalog so it is never offered as a choice. Partial support: module-manifest (hard, CI) holds the status field schema-valid without pinning its value; provisioning-catalog (hard, CI) governs the catalog it is correctly missing from.",
+      "how_verified": "Operator observation: the manifest declares `distribution: required`, the self-map renders it required, and the module is absent from the extension-add catalog so it is never offered as a choice. Partial support: module-manifest (hard, CI) holds the status field schema-valid without pinning its value; provisioning-catalog (hard, CI) governs the catalog it is correctly missing from.",
       "position": 2,
       "who": "operator"
     },
@@ -1636,7 +1636,7 @@
       "criterion": "**Template is core; personas are additive** — the routing-field grammar is the critical-path piece; which suites ship is settled ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)), and operators extend it.",
       "digest": "sha256:5113df78c06daf4a1c9179a9488ebc3ad82556f1ac32dfd10f3a37fc7e158f31",
       "doc": "docs/spec/systems/surfaces/agents.md",
-      "how_verified": "Operator observation via the self-map and module manifests: the persona template ships with core while every persona instance is provided by a separate optional module, core shipping none; the template-shape check asserts the template's form, not its core ownership.",
+      "how_verified": "Operator observation via the self-map and module manifests: the persona template ships with core while every persona instance is provided by a separate module (the review suites are now `required` distribution), core shipping none; the template-shape check asserts the template's form, not its core ownership.",
       "position": 0,
       "who": "operator"
     },

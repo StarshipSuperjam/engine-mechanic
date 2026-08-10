@@ -94,8 +94,9 @@ own required modules (`memory-substrate-sqlite-fts5`, `validators-core`). Everyt
 top — including two required *non-foundation* modules that ship in every repo but are deliberately not
 counted among the foundations ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)): the routine stance
 (`routine-mode`) and self-checkups (`audit-library`, which delivers the
-[audits](spec/systems/guardrails/audits.md) guardrail rung). This is a microkernel-*inspired* shape — a small trusted core plus optional
-extensions — but the containment that keeps one extension's failure from spreading is earned by the
+[audits](spec/systems/guardrails/audits.md) guardrail rung). This is a microkernel-*inspired* shape — a small trusted core plus a required governance-and-delivery spine
+and a set of profile and extension modules (required distribution does not mean always-active,
+[D-335](adr/0335-separate-module-distribution-applicability-and-activation.md)) — but the containment that keeps one module's failure from spreading is earned by the
 wiring discipline at the shared seams, not granted by the shape (see [principles §12](principles.md));
 the core stays minimal precisely because a defect in it reaches every generated project.
 
@@ -204,15 +205,11 @@ one matrix: build-orchestration's per-merge gate, and a **standing, report-only 
 [audits](spec/systems/guardrails/audits.md) cron** ([D-296](adr/0296-litigate-engine-template-427-residual-three-l1-l2-l3-audits.md)) that catches conformance drift
 after merge — so the guardrail rung, not only the design→build→QA axis, carries the floor's standing half.
 
-The optional-module roster is resolved ([D-068](adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)): four prototype bundles were cut and two
-kept as `optional` Software Configuration Management modules (`dependency-discipline`, `migration-discipline`),
-joined in the built set by `external-contribution`, `github-projects-sync`, and the `default-on`
-find-by-meaning layer `memory-semantic-recall`.
-The operator-facing **packaging model** ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)) presents only the declinable
-packages — the seven opt-out-able optionals plus the one `default-on` module, an eight-entry menu — grouped
+The module roster is resolved ([D-068](adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md), reclassified by [D-335](adr/0335-separate-module-distribution-applicability-and-activation.md)): decision 0068's Q1 *cut* roster stands (four prototype bundles cut), but `dependency-discipline` and `migration-discipline` — once kept as optional — are now **`required`** distribution, present in every Engine and activating only on dependency/migration changes. Under the three-axis grammar the only **declinable** class is `extension`: `github-projects-sync`, `external-contribution`, and the offered-on `memory-semantic-recall` find-by-meaning layer.
+The operator-facing **packaging model** ([D-067](adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)) presents only those **three `extension` modules** — grouped
 under three recognized SDLC discipline categories: **Product Management, Software
-Configuration Management, Verification & Validation**; the required spine (the core packages, plus the
-routine stance and self-checkups) is never an install choice and is disclosed in the project README.
+Configuration Management, Verification & Validation** (the category model D-067 fixes stands); the required spine (the core packages, the promoted governance modules, the
+routine stance, and self-checkups) is never an install choice and is disclosed in the project README.
 
 ## How it behaves at runtime
 
@@ -320,7 +317,7 @@ sequenceDiagram
   never annexing or governing the product. A structured, validated spec is what a non-engineer can weigh — the
   validator does the checking the operator cannot ([D-244](adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)).
 - **The lock is operator-governed.** The operator's recorded acceptance locks the spec (on validation green
-  plus, when installed, the design-review lenses *advising*); the engine never vetoes what the product
+  plus, when the spec-lock ceremony invokes them, the design-review lenses *advising* — present in every Engine, but advisory); the engine never vetoes what the product
   becomes. Only a `locked` spec drives a build, and a locked spec is settled, don't-churn ground with teeth.
 - **Issues are pointers; Milestones are the legible map.** The `locked` spec decomposes into a committed
   build-plan and **ordinary un-labeled work Issues** that point at their spec doc; build-orchestration emits
@@ -514,7 +511,7 @@ sequenceDiagram
     CP-->>NE: green checks; merge is informed consent
 ```
 
-- **The whole engine is versioned packages** ([module-system](spec/systems/grammar/module-system.md)): foundations are `required` packages, features the others; all carry `migrations`. So core and features upgrade by one mechanism, driven by the committed **engine manifest**. ([D-024](adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md).)
+- **The whole engine is versioned packages** ([module-system](spec/systems/grammar/module-system.md)): the foundations and the governance-and-delivery spine are `required`-distribution packages, and profiles and extensions are the rest; all carry `migrations`. So core and features upgrade by one mechanism, driven by the committed **engine manifest**. ([D-024](adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md).)
 - **Only engine-namespaced paths are overlaid** ([repository-topology](spec/systems/infrastructure/repository-topology.md) wall): engine *code* is replaced wholesale; operator-owned engine *config* and gitignored *data* (experiential [memory](spec/systems/cognitive/memory.md)) are preserved; product paths are never touched.
 - **The tool-runtime re-syncs between overlay and migrations.** The committed `.engine/pyproject.toml` + `.engine/uv.lock` are engine *code*, replaced wholesale by the overlay; `uv sync` then rebuilds `.engine/.venv/` (group-scoped) from the new lock so the migrations — themselves Python that runs *in* the runtime — execute against the target dependency set. `uv sync` materializes the venv only and **never mutates a gitignored data store**; a dependency bump that would reshape a store rides a normal **backup-first** `migrations` entry (below), keeping the reversibility guarantee intact ([D-156](adr/0156-name-the-engine-s-execution-substrate-a-group-scoped-uv-mana.md), Risk [R18](reference/risks.md)).
 - **The update source is the engine's home repository's GitHub releases**, pinned to a tag — never a merge of an upstream branch, which a non-engineer could not resolve. **Which** repository that is resolves from the engine manifest's recorded **home** (the same coordinate the escalate-upstream audit uses), **never the deployed repo's own `origin`** — a detached repo's origin is its own release-less repo. Resolution is three-state: a recorded, resolvable home fetches; a recorded-but-release-less home refuses **loudly, naming the home**; an **absent** home refuses cleanly with a plain-language reason and next step, never a dead end ([provisioning](spec/systems/infrastructure/provisioning.md) *Upgrading the engine*).
@@ -524,7 +521,7 @@ sequenceDiagram
 - **An operator [policy-override](spec/systems/surfaces/policies.md) is preserved like any operator config** ([D-167](adr/0167-take-up-q17-component-a-authorize-a-five-foundation-re-litig.md)): the overlay never overwrites it. Because it is a *committed* file it reverts with the PR (no backup-first migration), and a value-schema change that strands an override key falls back to the shipped default and is surfaced by [boot](spec/systems/lifecycle/boot.md) — per-key, no reshaping.
 - **The seeded `SECURITY.md` is preserved as a product path.** Seeded once at the repo **root** (operator-owned vulnerability-disclosure file, [security floor](reference/glossary.md)), it sits in product territory — so the "product paths are never touched" rule above preserves it on every overlay with **no engine carve-out** needed (unlike the engine-namespaced conduct override). The operator's edits to it survive an upgrade like any product file ([control-plane](spec/systems/infrastructure/control-plane.md), [D-212](adr/0212-resolve-the-d-211-security-floor-re-litigation-landed-text-c.md)).
 - **The required-check status name is frozen across versions** — GitHub does not rebind on rename (a renamed job "waits forever"), so a migration may never rename the engine CI check; with the name stable, derived suite rosters change what runs inside it without re-binding.
-- Same machinery as the [first-run](architecture.md#first-run-provisioning) instantiator and [add-a-module](architecture.md#adding-a-module-to-a-live-repo), applied to `required` packages as well as optional ones — via [provisioning](spec/systems/infrastructure/provisioning.md)'s permanent module manager.
+- Same machinery as the [first-run](architecture.md#first-run-provisioning) instantiator and [add-a-module](architecture.md#adding-a-module-to-a-live-repo), applied to `required` packages as well as `extension` ones — via [provisioning](spec/systems/infrastructure/provisioning.md)'s permanent module manager.
 
 ### The detect to remediate loop
 
@@ -619,7 +616,7 @@ sequenceDiagram
   the building instance never self-upgrades to its own output.
 - Reuses the [brownfield](spec/systems/infrastructure/provisioning.md) install, namespaced confinement,
   and file-precise CODEOWNERS; designed in
-  [external-contribution](spec/systems/lifecycle/external-contribution.md), packaged as an optional
+  [external-contribution](spec/systems/lifecycle/external-contribution.md), packaged as an `extension`
   [module](spec/modules/external-contribution.md) ([D-102](adr/0102-cross-repo-external-contribution-as-a-first-class-v1-operati.md)).
 
 ### Genesis build-conformance

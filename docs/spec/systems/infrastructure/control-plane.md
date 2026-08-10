@@ -4,7 +4,7 @@ status: locked
 
 # Control plane
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the CI exemption classes sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) and actionlint admitted by [decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md); ratified as intended design on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the product-design reference corrected to `required` distribution by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md), with the CI exemption classes sanctioned by [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-label-exemption-and-the-wi.md) and actionlint admitted by [decision 0324](../../../adr/0324-admit-actionlint-as-an-advisory-member-of-the-security-floor.md); ratified as intended design on 2026-06-27 by [decision 0253](../../../adr/0253-resolve-re-lock-control-plane-the-review-record-carries-the.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -322,8 +322,8 @@ concrete label strings and the mechanism that applies them are deferred build-sp
   referent its `product-intent` and `spec-conformance` lenses check against; a build with no spec to resolve
   is build-orchestration's **disclosed no-op**, never a silent green — Build never depends on a spec
   existing. That resolution — and the precise condition under which it is a no-op — is a path read
-  [build-orchestration](../lifecycle/build-orchestration.md) owns, not a label this scheme defines, and it holds whether or not the optional
-  [product-design](../../modules/product-design.md) module is installed. **product-design's
+  [build-orchestration](../lifecycle/build-orchestration.md) owns, not a label this scheme defines, and it holds whether or not a `locked`
+  [product-design](../../modules/product-design.md) spec exists (product-design is `required` distribution — present in every Engine — locking a spec only when that work is done). **product-design's
   decomposed work Issues are ordinary product backlog**, the human-legible pointers grouped under the build's
   Milestones and authored by ordinary `gh` — they carry **no** engine-domain label (the label is
   engine-internal, [D-244](../../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)), so they sit entirely outside the engine's own

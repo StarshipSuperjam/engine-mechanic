@@ -85,7 +85,8 @@ the build/close capture gate already deliver it, and `core`'s contracts surface 
 canon** (engine-owned) and thereafter **accumulates the deployment's per-instance eADR stream** (preserved
 across upgrade) — both committed content on the one surface, so no separate `adr-discipline` package is
 warranted ([D-093](../../adr/0093-cut-the-adr-discipline-module-vestigial-its-content-already.md), [D-169](../../adr/0169-add-the-foundational-eadr-canon-the-engine-ships-its-own-why.md)). The [conduct](../systems/surfaces/conduct.md) surface likewise rides `core`: its universal-default *codes of conduct* — the operator's standing behavioral stance — must be present in every repo from cold boot (it cannot be optional) and are loaded by the core/topology-owned `CLAUDE.md` floor, so coupling them to a separable package would make the floor depend on a non-core path. It earns its place by the *cannot-be-an-extension* rule, not by size: the [§12](../../principles.md) addition is minimal — a committed defaults file, the floor's two `@import` directives, and the conduct-authoring verb — while the per-deployment operator override stays operator config preserved across upgrade ([D-192](../../adr/0192-authorize-the-conduct-surface-codes-of-conduct-a-tier-3-pros.md)). `core`'s plan-review gate is a
-[Slot](../../reference/glossary.md) — it runs as a disclosed no-op when no `design-review`/`qa-review` lens is installed
+[Slot](../../reference/glossary.md) — it runs as a disclosed no-op when no `design-review`/`qa-review` lens is activated
+(those modules are `required` distribution — present in every Engine — but their lenses run at review-depth, so the gate no-ops when none is invoked, [D-335](../../adr/0335-separate-module-distribution-applicability-and-activation.md))
 ([D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)); the gate is core, the lenses are modules.
 
 ### Deferral seams — core integrates, the owners detect
