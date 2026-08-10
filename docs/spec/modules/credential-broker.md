@@ -16,7 +16,7 @@ deliberately-vulnerable reference adapter.*
 
 ## Summary
 
-The **optional** family contract for broker implementations: the component that **holds credential
+The **required** family contract for broker implementations: the component that **holds credential
 material so workers never do**, and exercises [authority-broker-contract](authority-broker-contract.md)
 grants on their behalf. A worker presents its identity — **proven by possession**: a signature over the
 exercise request and its nonce with the workload identity's key, required by this contract, so a
@@ -34,7 +34,9 @@ call** — so a crash between effect and record cannot orphan an external effect
 | Field | Value |
 |---|---|
 | `id` | `credential-broker` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (credential custody needed) |
+| `activation` | `explicit` · `authority-gated` |
 | `provides` | the **broker implementation contract [schema](../systems/surfaces/schemas.md)** (`broker-impl.v1` — what any adapter must realize: **credential custody** (encrypted at rest — an adapter **self-declaration the conformance set does not confirm**, stated; the key-encryption key must live outside the worker's trust boundary); **the six-check exercise gate** — identity proven by possession, connection unrevoked, identity unrevoked, grant unexpired and unrevoked, operation within the grant, request digest matching the approved digest — every check unavailable → refuse; the **declared callable surface** (adapters enumerate every callable path; the export probes derive their roster from the declaration, and an undeclared surface is a conformance failure); the **no-export invariant** over that surface; **record-intent-before-effect** ordering with a crash-safe spool; rotation semantics (grants minted against rotated-out credentials fail closed, typed) and the recovery floor (loss of custody = revocation-equivalent, documented per adapter, never silent)); the **net-new runtime infrastructure, enumerated**: the broker-runtime state store (gitignored, crash-safe; live revocation reads, the spent-nonce store with its retention window, the write-ahead audit spool — the store [authority-broker-contract](authority-broker-contract.md)'s live state rides), the crypto/custody layer (cipher dependency, KEK custody, root of trust — the substrate's first), and the **canary conformance harness** with its **bundled deliberately-vulnerable reference adapter** (leaks a planted canary, exposes an export route, fails open, accepts a replay — the harness's own negative fixture, proving every probe bites at build time, no provider needed); hard **[checks](../systems/surfaces/check.md)** (schema conformance of `broker-impl.v1` declarations and exercise records — the latter credential-free by schema; the **dangling-ambiguous-effect check** — an ambiguous-effect record with no settling reconciliation at merge fails, negative-fixtured — owned here, with the record); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `authority-broker-contract` |
@@ -43,6 +45,13 @@ call** — so a crash between effect and record cannot orphan an external effect
 **Honest shape of this wave:** contract + proven harness + reference adapters, **zero real custody**
 until a provider adapter is chosen by recorded decision. The runbook and doc are realized in both
 provider corners (the parity gate's ordinary obligation).
+
+**Invariant of the required contract.** Because this module is **required** distribution — present in
+every Engine, not only deploying ones — presence ships the contract and never a live custody path: the
+credential-custody substrate and its cipher/crypto dependency **do not materialize or load absent an
+installed provider adapter** (zero real custody until a provider adapter is chosen), and the bundled
+**deliberately-vulnerable reference adapter can never be wired as a live adapter** — it exists only as the
+conformance harness's negative fixture. Presence and applicability confer no custody and no authority.
 
 ### The broker model
 
@@ -70,8 +79,9 @@ provider corners (the parity gate's ordinary obligation).
 
 ### Degraded behavior
 
-No adapter installed → grants exist, nothing exercises them. Provider unreachable → typed refusals, no
-retry storms. Every control degradation is fail-closed by the implementation contract.
+**Inactive** — no adapter installed → grants exist, nothing exercises them. **Degraded/faulted** —
+provider unreachable → typed refusals, no retry storms. Every control degradation is fail-closed by the
+implementation contract.
 
 ### What stays out
 

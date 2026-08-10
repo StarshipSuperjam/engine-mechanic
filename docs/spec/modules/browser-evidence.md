@@ -15,7 +15,7 @@ redaction ceiling is stated instead of promised away.*
 
 ## Summary
 
-The **optional** module that makes **rendered behavior** first-class delivery evidence: driving a real,
+The **rendered-web profile** that makes **rendered behavior** first-class delivery evidence: driving a real,
 pinned browser through **semantic actions** against pages whose identity
 [platform-web](platform-web.md)'s `page-identity.v1` binds, asserting **explicit postconditions**, and
 capturing evidence **channels** — DOM/accessibility, console, network, visual — recorded through
@@ -33,7 +33,9 @@ action's success is never the workflow's success — only postconditions on a fr
 | Field | Value |
 |---|---|
 | `id` | `browser-evidence` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a rendered web product) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`browser-scenario.v1` — semantic steps (roles/names/test-ids) with event-driven waits, declared postconditions, mock/interception declarations, the referenced `page-identity.v1`, and structural rules the schema itself enforces: no coordinates, no fixed sleeps, no observed-content parameters, **no secret-shaped values** (authenticated scenarios are **out of scope until the wave-4 broker exists** — stated, not smuggled); `browser-evidence.v1` — per-step results across the channels, each channel separate, the **heal channel structurally unable to read as plain green** (a healed step's original failure is a required field), quarantine framing on all captured content, and the redaction record — naming that and where redaction occurred, never the value); the **[tool](../systems/surfaces/tools.md)** (`browser_run.py` — drives one pinned browser profile; the browser **materializes through [execution-environment](execution-environment.md)'s digest-pinned image** (a runtime-downloading driver distribution is disqualified by the substrate contract; a bare-host operator-supplied browser is the disclosed host-runtime mode, its observed identity recorded); scenario execution, capture, and **capture-time redaction — this module's own named security-critical pass**: structural field-stripping for auth material (cookies, authorization headers — always, not heuristically) plus the heuristic secret-shape pass for bodies, its ceiling stated); hard **[checks](../systems/surfaces/check.md)** (schema conformance — which carries the structural rules, the heal-channel invariant, quarantine-framing presence, and mock-declaration presence; the **stale-page check** — at CI it verifies record-internal identity consistency and that the cited revision is tree-derivable; **served-digest verification requires the artifact, a stated residual** — and absent platform-web the check's reduced strength (no digest to bind) is disclosed at the gate; negative-fixtured throughout); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -65,10 +67,11 @@ action's success is never the workflow's success — only postconditions on a fr
 
 ### Degraded behavior
 
-No browser available → refusal with the observed reason. Browser crash mid-scenario → failed run with
-partial channels preserved and typed. Absent platform-web → page identity degrades per its schema (digest
-absent, typed), and the stale-page check's reduced strength is disclosed. Absent delivery-evidence →
-results carry their own bindings, the plane's pattern. Both runtimes drive the same runner.
+**Faulted** — no browser available → refusal with the observed reason. **Faulted** — browser crash
+mid-scenario → failed run with partial channels preserved and typed. **Degraded** absent platform-web →
+page identity degrades per its schema (digest absent, typed), and the stale-page check's reduced strength
+is disclosed. **Degraded** absent delivery-evidence → results carry their own bindings, the plane's
+pattern. Both runtimes drive the same runner.
 
 ### What stays out
 

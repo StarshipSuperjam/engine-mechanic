@@ -14,7 +14,7 @@ after its four cold reviews.*
 
 ## Summary
 
-The **optional** family contract for concrete deployment providers: what any adapter must realize so
+The **required** family contract for concrete deployment providers: what any adapter must realize so
 [deployment-core](deployment-core.md)'s contract holds against a real provider. The execution seam is
 drawn: **the adapter builds the provider request; the [credential-broker](credential-broker.md) attaches
 the credential and transmits; the adapter interprets the response** — an adapter never holds credential
@@ -32,7 +32,9 @@ digest** — an edited adapter carries no prior admission.
 | Field | Value |
 |---|---|
 | `id` | `deployment-adapter` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a chosen deployment provider) |
+| `activation` | `explicit` · `authority-gated` |
 | `provides` | the **adapter implementation contract [schema](../systems/surfaces/schemas.md)** (`deploy-adapter.v1` — operations: resolve-target (alias → immutable identity with resolution proof), apply-artifact (carrying the **idempotency key** — with a declared capability for whether the provider natively honors it; non-honoring providers type their duplicate-safety as record-dedup only), observe-state (the independent read-back — a provider path distinct from apply's response, schema-enforced per deployment-core), **report-health** and the **endpoint/address output** (feeding the provider-reported and endpoint-probe lanes — the two lanes an adapter must source), rollback-apply (with capability honesty: no native rollback primitive → declared, and deployment-core types rollback as anchored redeploy), enumerate-drift (**observe-state generalized across the target's declared set** — same vocabulary, target scope); per-operation and **per-class** capability declaration; broker-exercised only); the **conformance fixture set** (fault rows through the disclosed shim: accepted-but-wrong-state, partial application, duplicate invocation, rollback failure, drift injection; live rows against the disposable provider: resolve/apply/observe happy paths and mid-operation revocation — which maps to the broker's ambiguous-effect record and thence `unknown` reconciliation with its cause); the **admission [operation](../systems/surfaces/operations.md)** runbook (the recorded provider decision, the conformance run — an **operator-local gate, not CI**: the standing disposable account and its recurring cost belong to that recorded decision, and the provider SDK enters through the adapter module's own dependency group); hard **[checks](../systems/surfaces/check.md)** (schema conformance of `deploy-adapter.v1` declarations — raw-credential surfaces unrepresentable; the **admission-digest check** — a target naming an adapter without committed, valid admission evidence bound to that adapter's current content digest fails, negative-fixtured — the execution-environment admission pattern, owned here with the family contract); and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `deployment-core`, `credential-broker` |
@@ -52,10 +54,10 @@ digest** — an edited adapter carries no prior admission.
 
 ### Degraded behavior
 
-Provider unreachable → typed refusals through deployment-core's states. Provider API deprecation →
-capability drift at the next conformance re-run; re-admission is the operator's recorded call. The
-conformance run's home (operator-local), owner, and cost sit with the provider decision — stated, never
-implicit.
+**Degraded/faulted** — provider unreachable → typed refusals through deployment-core's states.
+**Degraded** — provider API deprecation → capability drift at the next conformance re-run; re-admission is
+the operator's recorded call. The conformance run's home (operator-local), owner, and cost sit with the
+provider decision — stated, never implicit.
 
 ### What stays out
 

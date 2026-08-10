@@ -15,7 +15,7 @@ gates but **zero exercisable capability** until a provider adapter exists.*
 
 ## Summary
 
-The **optional** contract that separates, as independently visible and revocable links, the chain every
+The **required** contract that separates, as independently visible and revocable links, the chain every
 external effect must travel: **the human's provider consent** (a connection the operator creates and
 owns, carrying a **typed consent scope** — enumerated operation classes and resource patterns in the
 provider vocabulary its adapter supplies), **workload identity** (a separately keyed identity per worker,
@@ -32,7 +32,9 @@ what it asked for*; prior consent is never perpetual authorization.
 | Field | Value |
 |---|---|
 | `id` | `authority-broker-contract` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (external operational effects in scope) |
+| `activation` | `explicit` · `authority-gated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`provider-connection.v1` — the operator-owned consent record: provider, the **typed consent scope**, creation and revocation state — never credential material; `workload-identity.v1` — a worker's keyed identity and its acceptance state, with acceptance and revocation as decision records (symmetric with grants); `grant-request.v1` — **the digested object**: operation, resource, expiry, identity, and bound run — the digest provably covers all five; `task-grant.v1` — the minted authorization with expiry and revocation state; `grant-decision.v1` — request → approved/refused/expired/revoked, binding the request digest; all decision and exercise-facing records **append-only and content-chained** — post-hoc mutation is detectable); the **writer [tool](../systems/surfaces/tools.md)** (`authority_ledger.py` — create-connection/accept-identity/mint-grant/revoke/decide: the lifecycle's intended writer, the delivery-core honesty tier); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **credential-absence check** — secret-shaped material in any record is invalid, catching fixtured shapes, not all secrets — the witnessed-negative ceiling, stated; the **scope-containment check** — a `custom/script` cross-record check: a committed grant whose operation/resource falls outside its connection's recorded consent fails at merge; the **transition-legality check** — revocation independence and record-chain integrity; each negative-fixtured); the **approval policy** (which grant classes require per-use operator approval: destructive and production-class always; repeatable non-production may take a standing approval bounded by the connection's TTL — **approval fatigue is a named risk** this policy exists to manage, not a solved one); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (grants bind to runs; exercisability tracks the run — see the model) |
@@ -67,10 +69,11 @@ broker's document carries its requirements.
 
 ### Degraded behavior
 
-No broker implementation installed → records exist, **nothing can be exercised** — every operation
-requiring external authority refuses naming the missing implementation. This is the honest shape of
-wave 4 as authored: contract + gates, capability arriving with the first provider adapter. Both runtimes
-read the same committed records; live state is the broker's.
+**Inactive** — no broker implementation installed → records exist, **nothing can be exercised** — every
+operation requiring external authority refuses naming the missing implementation. This is the honest shape
+of wave 4 as authored: present in every Engine as contract + gates, its capability arriving with the first
+provider adapter; presence confers no authority of its own. Both runtimes read the same committed records;
+live state is the broker's.
 
 ### What stays out
 
