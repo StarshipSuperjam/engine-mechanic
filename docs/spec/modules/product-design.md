@@ -4,7 +4,7 @@ status: locked
 
 # product-design
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the authoring-gate routing ruled by [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) and two kept-intent legs annotated below; ratified as intended design on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the authoring-gate routing ruled by [decision 0327](../../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md) and two kept-intent legs annotated below, with the module promoted to `required` distribution and the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-11 by [decision 0294](../../adr/0294-resolve-re-lock-product-design-a-coupled-carrier-surfaced-by.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -13,9 +13,9 @@ The operator's **design front door** — the module by which a non-engineer says
 structured, validated spec corpus** with acceptance criteria, decomposes it into a legible **build-plan** and
 ordinary product-work Issues, and authors the product's own design documentation. Everything it produces is
 **product-owned output**, authored by the Engine as a [contributor, not a component](../../principles.md)
-([D-026](../../adr/0026-the-engine-is-an-embedded-team-member-contributor-not-compon.md)): the dependency arrow runs Engine → product only, so removing the module
-leaves the product's specs, docs, and Issues standing on their own — the engine validates their **form** while
-present; on removal the validation simply stops and the product-owned content stands
+([D-026](../../adr/0026-the-engine-is-an-embedded-team-member-contributor-not-compon.md)): the dependency arrow runs Engine → product only, so the product's specs, docs, and Issues stand on their own —
+the engine validates their **form**, and on **whole-engine removal** the validation simply stops while the
+product-owned content stands
 ([engine/product wall](../systems/infrastructure/repository-topology.md)/[R9](../../reference/risks.md)).
 
 This is the front half of the **design → build → QA axis**. It ships **no review lenses** — those are the
@@ -32,10 +32,12 @@ spec-lock (below) — never a hard dependency in either direction ([D-066](../..
 | Field | Value |
 |---|---|
 | `id` | `product-design` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` (the design front door, invoked when the operator does product/spec work — not every build) |
 | `provides` | one intent-shaped [skill](../systems/surfaces/skills.md) (`engine-design`, `operator-typed`) **with its generated Codex mirror**; the `product-intake` [operation](../systems/surfaces/operations.md); one operator orientation [doc](../systems/surfaces/docs.md); a **spec-structure-integrity [policy](../systems/surfaces/policies.md)**; the **authoring scaffold set** — ten templates as built: the spec index/capability/build-plan trio plus principles, architecture, ADR, and the four Diátaxis shapes (product-authoring scaffolds, **not** catalogued engine-surface [templates](../systems/guardrails/templates.md)); and the **spec [check](../systems/surfaces/check.md) rules** — the corpus form check (presence/shape/index-coherence folded into one rule as built), the **fuller-documents form check** (when recorded depth is full, principles + architecture must exist and be well-formed), the **product-ADR form check** (the rejected-options presence leg, hard and merge-gated), the **[spec-obligation matrix](../../reference/glossary.md)** — a derived-committed coverage artifact (one row per `locked` criterion, keyed by criterion-cell digest at its `shape`-validated table position), shipped as a committed foundation file with a regenerate-and-compare drift gate — the **coverage check** (as built, a capability-granularity floor: every settled capability has a place in the committed build plan; the criterion-granular tracing this design names is kept as the ruled intent, with the recorded build-owe tracked as [engine-template issue 803](https://github.com/StarshipSuperjam/engine-template/issues/803)) — and the **lock-integrity re-acceptance check** (below) |
 | `wires` | **two `PreToolUse` hooks** (Claude and its Codex mirror), each regenerating the committed obligation matrix at the commit boundary so the derived artifact can never silently lag its sources — the module's one shared-state seam; everything else is file-drop + derived binding (the spec checks join their suites by presence; work Issues + Milestones via native `gh`/`gh api`) |
-| `depends` | `core` (the universal required root); **no hard edge to any optional/feature module** — the spec checks are the [migration-discipline](migration-discipline.md) product-targeting precedent (`depends: core`, read-only, not `validators-core`), and the design-review advisory invocation is *consumed-by*, never *depended-on-by* |
+| `depends` | `core` (the universal required root); **no hard edge to any other module** — the spec checks are the [migration-discipline](migration-discipline.md) product-targeting precedent (`depends: core`, read-only, not `validators-core`), and the design-review advisory invocation is *consumed-by*, never *depended-on-by* |
 | `migrations` | none |
 
 ### One intent-shaped front door
@@ -98,7 +100,7 @@ burden of proof backwards on the operator.
   + a well-formed criteria table), `coverage`/`coherence` across the tree (every doc reachable from the index;
   no orphan) — the [migration-discipline](migration-discipline.md) product-targeting precedent
   ([D-129](../../adr/0129-reconcile-dependency-discipline-to-depends-core-l2-the-targe.md)/[D-142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md): a check that inspects product artifacts,
-  read-only, the removal test *strengthened*). The operator-facing readout is plain language and **states its
+  read-only, product-targeting, the §13 wall preserved). The operator-facing readout is plain language and **states its
   own bound**: the engine checked that every part is present and well-formed; it did **not** check that the
   design is *right* — that is the operator's call and the review lenses'. Semantic quality and freshness stay
   **unmonitored by design** ([R9](../../reference/risks.md)) — form is checked, correctness is not.
@@ -106,14 +108,15 @@ burden of proof backwards on the operator.
 ### The lock — operator-governed, with real gravity
 
 A `locked` spec is **settled, don't-churn ground**, the product analogue of a locked design doc here. The
-**gate is the operator's recorded acceptance**, earned on **validation green** plus — *when
-[design-review](design-review.md) is installed* — the **four lenses advising on the spec** (the
+**gate is the operator's recorded acceptance**, earned on **validation green** plus — *when the spec-lock
+ceremony invokes [design-review](design-review.md)'s quartet* (present in every Engine, but advisory —
+invoked or not) — the **four lenses advising on the spec** (the
 product analogue of the cold-session design audit). The lenses **advise; they never gate**: their findings
 are evidence the operator weighs; the **engine never *vetoes* what the product may become** (it validates form
 and advises on content; the operator governs it — the
 [wall](../systems/infrastructure/repository-topology.md) re-scope, [D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)).
-product-design therefore takes **no hard `depends` edge** to design-review — absent the suite a spec locks on
-validation + the operator's acceptance alone — and its **spec-lock ceremony is recorded as the second,
+product-design therefore takes **no hard `depends` edge** to design-review — when the ceremony does not invoke
+the quartet, a spec locks on validation + the operator's acceptance alone — and its **spec-lock ceremony is recorded as the second,
 advisory consumer of the four plan-review personas** (build-orchestration's plan-review gate being the first),
 so the consumed-by record is symmetric across both docs and no installed lens dangles. **Only a `locked` spec
 drives a build.**
@@ -254,8 +257,8 @@ runs them at the merge. The three mechanisms deepen the persona-judges / check-g
   criterion asserting a behavior is backed by a demonstration the operator can watch, not an AI verdict
   alone.
 
-The judgment and demonstration legs ride qa-review's optional install (the design's as-installed model — a
-deployed repo without qa-review still gets the mechanical matrix leg, disclosed); all three bite **only
+The judgment and demonstration legs ride qa-review's presence (now `required` distribution, so they are always
+available; a build that runs no qa-review lens still gets the mechanical matrix leg, disclosed); all three bite **only
 against a `locked` `docs/spec/`**: with none locked the floor is the [disclosed no-op](../../reference/glossary.md),
 never a silent green and never a block on the unspecced or MVP scope the operator deliberately leaves open
 ([§20](../../principles.md)) — rendered in the honest two tiers, never one "all green".

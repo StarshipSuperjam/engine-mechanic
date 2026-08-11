@@ -41,7 +41,9 @@ never a re-litigation of the locked knowledge foundation.
 | Field | Value |
 |---|---|
 | `id` | `product-knowledge-graph` |
-| `status` | `optional` |
+| `distribution` | `extension` |
+| `applicability` | `detected` (product code in a supported language) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`product-graph-node.v1`/`product-graph-edge.v1` — typed nodes (file, module, symbol, test, artifact, design-element) and edges (contains, references, depends, tests, builds-to, realizes-design), every node carrying content-digest bindings, every edge its derivation lane (`symbol`\|`structure`\|`lexical`\|`declared`\|`designed`) — **quarantine framing extends to identifiers and labels**, not only excerpts: a hostile symbol name is data everywhere it appears; `graph-query-result.v1` — per-item freshness, lanes, coverage disclosure; `design-drift.v1` — an as-built element diverging from its as-designed counterpart, **emitted into [research-and-learning](research-and-learning.md)'s reconciliation record as a divergence class** (one reconciliation surface, not two; absent that module the finding parks typed); the **`realizes-design` correspondence is operator-declared** — explicit annotations in the design model bind design-elements to code; unbound elements type `unmapped`, no heuristic matching); the **[tool](../systems/surfaces/tools.md)** (`product_graph.py` — build/refresh/query over the gitignored index, fed by [code-intelligence-core](code-intelligence-core.md)'s `structure-walk` enumeration surface; the design source is [product-design](product-design.md)'s C4 model — the stable mermaid-flowchart subset in the arc42 document, a **when-installed integration**: absent it, the `designed` lane and drift are typed absent; refresh is incremental by changed bindings **plus re-resolution of known referrers from the graph's own reverse edges** (cross-file reference invalidation is not local — stated, over-approximated where unknown, the cost disclosed); a **declared build/refresh budget with typed degradation** (a hostile-scale repository is a denial surface, bounded like the feeder's); **containment**: derivation resolves within the checkout root and refuses symlink/`..` escape — the subject wall's discriminator is **ownership** (the *operating engine's own tree* is refused; a product checkout's engine surfaces are product subject, the engine-mechanic case handled correctly); representation behind the module's **own retrieval interface instance** — the R8 swap-seam *pattern* mirrored, deliberately not the locked knowledge surface, so no coupling to the engine self-map; the seam defers hub-explosion, the budget bounds the first store — both stated); a hard **[check](../systems/surfaces/check.md)** (schema conformance of the committed result surfaces; the index is uncommitted, validated at build/refresh); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** (which restates the D-105 cost signal as the adoption criterion: install when cold-session live-read strains the attention budget — and notes `depends` edges are **systematically partial by default** where the product's installed closure is invisible, per the feeder's disclosure) |
 | `wires` | a **`gitignore` wire** for the index home (the one wiring this module needs) |
 | `depends` | `core`, `delivery-core`, `code-intelligence-core` |
@@ -70,7 +72,7 @@ never a re-litigation of the locked knowledge foundation.
 
 ### Degraded behavior
 
-Absent adapters for a language → lexical/structure/designed lanes only, disclosed per result. Index
+**Inapplicable** where no adapter exists for a language → lexical/structure/designed lanes only, disclosed per result. **Degraded** when the index is
 corrupt or missing → queries refuse with rebuild guidance. Both runtimes drive the same tool; the index is
 per-machine, never synced.
 

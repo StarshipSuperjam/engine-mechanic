@@ -4,11 +4,11 @@ status: locked
 
 # migration-discipline
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the check's single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md); ratified as intended design on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the check's single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md), with the module promoted to `required` distribution and the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-05-30 by [decision 0142](../../adr/0142-lock-migration-discipline-product-migration-governance-the-s.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
-The **optional** Software Configuration Management module that governs the **product's own data/schema
+The **required** Software Configuration Management module that governs the **product's own data/schema
 migrations** — the operator's application schema changes (Rails/ActiveRecord, Django/Alembic, Prisma,
 Flyway, Liquibase, golang-migrate, raw SQL). It ships a standing discipline bar, recognition guidance that
 routes a destructive or irreversible product migration into the engine's escalation channel, and one soft
@@ -22,7 +22,7 @@ It `depends: core` on the **target axis**: this module's check inspects the oper
 migration artifacts and presupposes **no** engine-self-validation corpus, so it needs only `core`'s check
 engine — the kind dispatcher plus the read-only `custom/script` (or a presence-discovered conforming) kind
 — never the self-validation rule corpus [validators-core](validators-core.md) consolidates. It is
-a **standalone** optional capability that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-module-seam-walk-the-demarcation-operationalized-glossa.md)).
+a **standalone** capability that fills no [Slot](../../reference/glossary.md) ([D-069](../../adr/0069-core-module-seam-walk-the-demarcation-operationalized-glossa.md)) — required in distribution, but **on-trigger** in activation: present in every Engine, acting only when the product has migrations to govern.
 
 ## Behavior
 
@@ -48,7 +48,9 @@ routes a finding, never editing product source ("no seam edits product source"; 
 | Field | Value |
 |---|---|
 | `id` | `migration-discipline` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` (acts when the product has migrations) |
 | `provides` | a **migration-discipline [policy](../systems/surfaces/policies.md)** (the standing bar — review-before-apply, reversibility / expand-contract, backup-before-destructive; the policy's own enforcement tier is **posture**) whose stop-and-ask commitment realizes the locked, always-present Escalation policy's standing irreversibility trigger for product-schema migrations (the built policy states that posture in its own plain words rather than naming the Escalation record); a **`soft` ecosystem-detected presence [check](../systems/surfaces/check.md) rule** with **one assertion** — *a migration carries a rollback where the framework has the concept* — declaring the `CI`/`pre-commit`/`pre-close` suites; and the **read-only detection logic** it invokes (a `custom/script` tool reading only file and directory names). The check **deliberately does not** assert that a schema-changing PR carries a migration at all — its own message and the policy both disclaim that half, leaving it to pull-request review and the standing posture (the single-assertion scope adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md), resolving this document's earlier internal contradiction in its own Enforcement section's favor). Remaining `params` and `message` text are build-spec leaves ([§2](../../principles.md)). |
 | `wires` | **none** |
 | `depends` | `core` |
@@ -115,9 +117,10 @@ them enough to decide, not a bare menu (wording deferred to build, each relayed 
   migration needs a human, what the migration would do, and the recommended safe path — surfaced at the
   next boot via the finding-disposition / attention channel, never buried as an issue to hunt for. The
   routine path gives the operator no less than the interactive one.
-- **Setup-time disclosure:** because this package pauses an in-progress build to ask and halts an
-  unattended routine before destructive schema changes, the provisioning selection-UX states that plainly,
-  so opting in is informed consent.
+- **Setup-time disclosure:** because this required governance pauses an in-progress build to ask and halts an
+  unattended routine before destructive schema changes, the provisioning disclosure states that plainly —
+  so its presence and its halting behavior are known, not a later surprise (the module ships in every Engine;
+  consent lives at each escalation, not at an install opt-in).
 - All operator-facing text explains domain terms (migration, schema, rollback, expand-contract) per the
   check `message` standard — "explain, never dumb down" — including the not-applicable / no-op disclosures.
 
@@ -137,13 +140,15 @@ Standing discipline versus gate-judgment: different layers, no duplication.
 
 The module inspects and routes on the **product's own** migration artifacts, which respects the
 [engine/product wall](../systems/infrastructure/repository-topology.md) and the
-[contributor-not-component](../../principles.md) principle: it is **optional**, so opting in is **consent,
-not imposed coupling** (§13); it is **read-only** (it inspects migration code in pull requests and
-escalates — it never runs a product migration or edits product source); and the **removal test passes and
-is in fact strengthened** — because the core Escalation policy already escalates irreversibility, removing
-this module leaves destructive product migrations *still escalating*, losing only the standing bar, the
-recognition guidance, the recommendation/safe-path shaping, and the hygiene check. The dependency arrow
-stays Engine→product.
+[contributor-not-component](../../principles.md) principle. Now that it is **required** distribution the
+guarantee rests not on removability but on the **read-only discipline**: it inspects migration code in pull
+requests and escalates — it never runs a product migration or edits product source — so it acts as a
+contributor, never a component (§13). What the operator consents to is not the module's presence (it ships in
+every Engine) but each escalation it raises. And the core safety claim never depended on this module: the
+core Escalation policy already escalates irreversibility, so **absent or inactive** this module leaves
+destructive product migrations *still escalating*, losing only the standing bar, the recognition guidance,
+the recommendation/safe-path shaping, and the hygiene check — the property the removal test used to name, now
+read as activation-independence. The dependency arrow stays Engine→product.
 
 ## Acceptance criteria
 
@@ -157,4 +162,4 @@ stays Engine→product.
 | **Honest tiers** — the bar and the escalation are posture (human-gated), the presence check is `soft`; nothing is dressed as enforced ([§7](../../principles.md)). | Operator observation: the check declares `tier: soft` and its script asserts no finding is ever hard, so it never blocks even in CI's blocking context; the posture legs are the policy's own words. Partial support: the check's declared tier carries the soft sub-claim; the full multi-leg claim is your read. | operator |
 | **Wires nothing** — policy and check bind by presence; the escalation relays into an always-present locked policy; `depends` ≠ wiring. | Operator observation: the manifest carries `wires: []`, and the policy and check are file-drop artifacts discovered by presence. Partial support: module-manifest (hard, CI) validates the manifest grammar without asserting the wires list is empty. | operator |
 | **`depends: core`, deliberately** — the check inspects product artifacts and presupposes no engine-self-validation corpus, so `core`'s engine suffices. | Operator observation: the manifest's depends carries `core` alone and the check's kind is the read-only script core's dispatcher owns. No check asserts the dependency's rationale. | operator |
-| **Optional means consent, and the operator is never stranded** — opt-in is disclosed, escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Operator observation: the manifest declares `status: optional`, the script reads names only, and the policy's rationale commits every escalation to a plain-language account plus a safer path. No mechanical check; verify by reading the policy and manifest. | operator |
+| **Required, present-but-conditional, and the operator is never stranded** — the module ships in every Engine and acts only when the product has migrations (disclosed at setup, not an install opt-in), escalations carry a recommendation and a safe path, and read-only inspection keeps the §13 wall intact. | Operator observation: the manifest declares `distribution: required` with `on-trigger` activation, the script reads names only, and the policy's rationale commits every escalation to a plain-language account plus a safer path. No mechanical check; verify by reading the policy and manifest. | operator |

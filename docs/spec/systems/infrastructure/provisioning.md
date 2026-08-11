@@ -4,7 +4,7 @@ status: locked
 
 # Provisioning
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-12 by [decision 0305](../../../adr/0305-resolve-re-lock-provisioning-build-owe-5-the-designed-standi.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with first-run selection scoped to `extension` distribution and newly-required modules converged at upgrade by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-12 by [decision 0305](../../../adr/0305-resolve-re-lock-provisioning-build-owe-5-the-designed-standi.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -19,9 +19,9 @@ generated from the template (**greenfield**) and a live product repo the engine 
 ### Two subsystems, one grammar
 
 - **Instantiator** — one-time, self-deleting. On first run it derives identity, takes the
-  operator's module selection, applies it (deleting unselected modules so *installed means
-  present*), initializes substrates, attempts the [control-plane](control-plane.md)
-  bootstrap, verifies, and retires.
+  operator's **extension** selection (the only distribution class an operator declines), applies it
+  (deleting unselected extensions so *installed means present*), initializes substrates, attempts the
+  [control-plane](control-plane.md) bootstrap, verifies, and retires.
 - **Module manager** — permanent. Over the repo's life it adds and removes modules, **upgrades
   the engine itself**, runs migrations, and cleanly removes the engine.
 
@@ -103,21 +103,24 @@ commit point — the **engine manifest** ([module system](../grammar/module-syst
 
 1. **Gather** (non-destructive, fully re-offerable) — derive identity tokens, prompt the one
    choice that is not derivable (the identity tier), and present module selection with its
-   dependency closure. Per [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) the selection presents **only the
-   opt-out-able optional packages**, grouped under the three recognized SDLC discipline categories
-   (Product Management, Software Configuration Management, Verification & Validation); the
-   core/`required` spine is never offered as a choice (it is disclosed in the project README, not the
-   walkthrough). The closure still surfaces any optional→optional dependency at confirm; it does not
-   surface always-present `required` dependencies. Nothing is written or deleted yet.
+   dependency closure. Per [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) and
+   [D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md) the selection presents
+   **only the opt-out-able `extension` modules** — the sole distribution class an operator declines — grouped
+   under the three recognized SDLC discipline categories (Product Management, Software Configuration Management,
+   Verification & Validation, the category-presentation model D-067 fixes, which stands); the `required` spine
+   (core plus the governance-and-delivery modules) is never offered as a choice (it is disclosed in the project
+   README, not the walkthrough), and a `profile` module's presence follows its platform/stack match, not a
+   prompt. The closure still surfaces any extension→extension dependency at confirm; it does not surface
+   always-present `required` dependencies. Nothing is written or deleted yet.
 2. **Confirm** — the operator confirms, which **writes the engine manifest** (selected modules +
    tier + derived identity + the engine's **home repository**, carried forward from the template's committed
    manifest — the seed the updater and the escalate-upstream audit both resolve the template repository from;
    *Upgrading the engine* below). The confirm step states, in plain outcome-language, that unselected
-   modules are **not installed** (their code is removed) and that adding one back later is a
+   **extensions** are **not installed** (their code is removed) and that adding one back later is a
    **separate action the engine performs on request**, not a toggle — so a selection list's
    "reversible checkbox" intuition does not mislead.
 3. **Apply** (idempotent, driven entirely by the manifest) — in the built order: delete unselected
-   modules and lay the foundation ignores; render the CODEOWNERS block; **set the native
+   extensions and lay the foundation ignores; render the CODEOWNERS block; **set the native
    permission-mode default** when adopted (*The native permission-mode default* below);
    **materialize the tool-runtime** (bootstrap uv behind consent, then group-scoped `uv sync` —
    *Tool-runtime bootstrap* below) — a failure here **halts the phase**, and the resume lands every
@@ -324,7 +327,7 @@ provisioning *mechanism*; the [control-plane](control-plane.md) locks no part of
   Python dependencies declares no group. The mapping **reuses the `id` the manifest already carries — it
   adds no manifest field** (the [module-system](../grammar/module-system.md)
   derived-not-registered shape). So `.engine/.venv/` carries only selected capabilities' dependencies and a
-  deselected module ships no live dependency surface (*installed means present*). A deselected module's
+  deselected extension ships no live dependency surface (*installed means present*). A deselected extension's
   dependencies remain *resolved and named* in the committed `uv.lock` (one resolution, universal across
   platforms and all groups) but are **never installed** into `.engine/.venv/`, so the residual is a static
   lockfile listing, never a live or importable surface. A standing **hard CI check** (`uv-group-drift`)
@@ -685,10 +688,14 @@ The operator sees **one engine version**; every module ships from a single tagge
 follow from that:
 
 - **add** (per-module) — fetch the module at the current release, copy its `provides` into their surface
-  homes, apply its `wires`, run coherence. Re-adding a module deselected at first run is this same path
+  homes, apply its `wires`, run coherence. Re-adding an extension deselected at first run is this same path
   (its files were deleted), not a toggle.
 - **remove** (per-module) — manifest-derived reversal: reverse `wires`, delete the engine-identified
-  files, run coherence. **Reverse-dependency-aware** — it refuses, in plain language, to remove a module
+  files, run coherence. **Distribution-aware** — it refuses, in plain language, to remove a
+  `required`-distribution module (the governance-and-delivery spine is never an individual choice; only
+  `extension` modules are individually removable, and whole-engine removal is its own path below —
+  [D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md)).
+  **Reverse-dependency-aware** — it also refuses to remove a module
   another present module still `depends` on. Reversal removes only the engine-keyed entry; where a shared
   entry cannot be safely keyed to the engine alone (e.g., a `permission` the operator also holds), the
   [module system](../grammar/module-system.md)'s reversal firewall **conservatively leaves it** —
@@ -720,8 +727,10 @@ arrive by `git pull`. (This "detached" is the *engine-update* channel; a fork-na
 **product-project upstream** — the repo it contributes to — used only for contribution, never for engine
 updates.) The permanent module manager is therefore the **engine updater**, and the whole
 engine is upgradeable because every unit is a **versioned package** ([D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md)):
-foundations carry `status: required`, features carry the other statuses, and all declare `migrations`.
-The committed engine manifest records the engine release and each installed package's version.
+the foundations and the governance-and-delivery spine are `distribution: required`, and every unit carries
+the [module-system](../grammar/module-system.md) deployment axes (distribution/applicability/activation)
+and declares `migrations`. The committed engine manifest records the engine release and each installed
+package's version.
 
 On an operator's request to update (to latest or a pinned version):
 
@@ -740,7 +749,14 @@ On an operator's request to update (to latest or a pinned version):
    gate catch a malicious swap at review, but a non-engineer cannot themselves distinguish a right home from a
    look-alike, so the bound is named, not hidden ([§7](../../../principles.md)/[§17](../../../principles.md)).
 2. **Overlay only the engine-namespaced paths of the installed packages**
-   ([topology](repository-topology.md) wall), never resurrecting a deselected module. Engine
+   ([topology](repository-topology.md) wall), never resurrecting a deselected `extension`. **Converge to the
+   required set**: a release that makes modules newly `required` — including one an operator once declined
+   while it was an `extension` — installs those modules **if absent** in the same upgrade, because declining a
+   required module was never a valid state ([D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md)).
+   The required target set is derived from the release manifest, so convergence adds exactly that set with no
+   per-previous-selection migration branches and no rewrite of product-owned content; that an operator who
+   declined a now-required governance module gains it here is a deliberate consequence, disclosed in the
+   upgrade's pull request. Engine
    **code** is replaced wholesale; operator-owned engine **config** and gitignored **data** are
    preserved (configuration is not code). Product paths are never touched. The overlaid
    `.engine/pyproject.toml` + `.engine/uv.lock` are engine *code* (replaced wholesale). A per-deployment
@@ -931,14 +947,14 @@ here is the law each leaf must satisfy:
   machine and affirms the isolation; the degraded banner is plain-language-only (maintainer terms — uv,
   venv, sync, lockfile, pyproject — forbidden on the surface) and offers a retry, never a dead-end.
 - **The deselection-confirm wording** — leads with the destructive outcome (confirming *deletes* an
-  unselected module's code; re-adding is a separate install, not a toggle), so a checkbox's "reversible"
+  unselected **extension's** code; re-adding is a separate install, not a toggle), so a checkbox's "reversible"
   intuition cannot mislead.
 - **The standing degraded-state banner** — its copy and where it renders, naming the concrete risk and one
   concrete next action. Law: degraded protection is surfaced continuously in plain language, never a silent
   unprotected run.
 - **The module-selection walkthrough copy** — the per-category and per-module glosses. The *structure* is
-  fixed by [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) (only opt-out-able optional packages, grouped under the three
-  SDLC discipline categories, core never offered); only the glosses are a leaf. Law: each gloss answers, in
+  fixed by [D-067](../../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md) as scoped by [D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md) (only opt-out-able `extension` modules, grouped under the three
+  SDLC discipline categories, the required spine never offered); only the glosses are a leaf. Law: each gloss answers, in
   one non-engineer sentence, what the module does and who it is for.
 - **The memory-backup setup UX** — destination create/select, shared-vs-per-project, cadence, and the
   back-up-now/restore command wording, over the mechanism [memory](../cognitive/memory.md) owns.
@@ -966,7 +982,7 @@ here is the law each leaf must satisfy:
   [memory](../cognitive/memory.md) backup it **consumes and does not widen**
   ([§16](../../../principles.md)/[D-048](../../../adr/0048-provisioning-delivery-designed-end-state-brownfield-capable.md)/[D-241](../../../adr/0241-authorize-completing-the-audit-s-off-repo-memory-read-enable.md)).
 - **The reactive add-module offer** — when an operator's request maps to a capability in an uninstalled
-  optional package, the engine may **offer** to install it via the settled `add` path. The trigger wording
+  `extension`, the engine may **offer** to install it via the settled `add` path. The trigger wording
   and threshold are leaves; the law is that it is an *offer* over the existing mechanism, never a silent install.
 - **The security-floor toggles, the `SECURITY.md` seed, and the tier disclosure** — the concrete
   operator-privileged `gh` calls that enable native secret scanning / push protection, **CodeQL code scanning**
@@ -1037,7 +1053,7 @@ manifest, idempotent) never reaches these surfaces.
 | --- | --- | --- |
 | **Modules declare files + wiring; provisioning applies and reverses both**, so install is mechanical, not surgery ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), Risk [R5](../../../reference/risks.md)). | The `module-manifest` schema check (hard, CI suite) asserts the declared shape and the `block-coherence` check the declared-versus-applied wiring — partial support; the apply/reverse round trip itself is exercised by the module-manager tests, not one named check. | operator |
 | **The shared wiring library** uses the [module system](../grammar/module-system.md)'s closed seam vocabulary and engine-namespaced-identity keying; reversal removes only the engine-identified entry, and no directive edits product source. | The wiring-coherence legs of the validator and the `operator-guarded-paths` check (hard, CI suite) carry the keyed-edit and never-product-source halves in part; the remove-only-its-own-entry property is test-pinned, so the row stays with you. | operator |
-| **Installed means present.** First-run deselection deletes the module's code; re-adding runs the updater path, not a flip-on. | The `uv-group-drift` check (hard, CI suite) asserts the dependency half — a deselected module ships no live dependency group — as partial support; the delete-on-deselect and re-add paths are exercised by the instantiator and module-manager tests. | operator |
+| **Installed means present.** First-run deselection deletes an `extension`'s code; re-adding runs the updater path, not a flip-on. Required modules are never offered or deleted; a newly-required module converges at upgrade. | The `uv-group-drift` check (hard, CI suite) asserts the dependency half — a deselected extension ships no live dependency group — as partial support; the delete-on-deselect and re-add paths are exercised by the instantiator and module-manager tests. | operator |
 | **Provisioning is brownfield-capable by grammar.** A live product can adopt the engine via the overlay path; coexistence is the keyed, additive discipline applied to every platform-shared path (`.mcp.json`, `.gitignore`, CODEOWNERS, root `CLAUDE.md`, `.claude/` contents). | The arrival verb's collision-check and the keyed-edit round trip are exercised by the instantiator's arrival and collision tests — test-pinned rather than a named check; end-to-end adoption of a live product is your observation at a real brownfield arrival. | operator |
 | **The instantiator is thin and resumable**; the engine manifest is its checkpoint, and the permanent primitives (wiring library, bootstrap operation, coherence) outlive its retirement. | The `first-run-reference-closure` check (hard, CI suite) asserts the retirement's travel-safety half — no surviving file imports a retired first-run asset or names its path literally, with one disclosed limit (an indirectly-built name can slip past); resumability from the manifest checkpoint is exercised by the instantiator's resume tests, so the row stays with you. | operator |
 | **Clean removal** reverses all wiring, deletes the engine-namespaced files, and **de-bootstraps the control-plane** (drops the engine's required-check binding — an operator-privileged step, since a stale binding to a deleted engine check would deadlock the product's own pull requests), leaving an operable, engine-free product. | The module-manager removal tests and the de-bootstrap primitive's tests exercise each leg — test-pinned; that the remaining product is operable engine-free is your observation. | operator |

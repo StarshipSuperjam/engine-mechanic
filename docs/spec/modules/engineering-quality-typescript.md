@@ -15,7 +15,7 @@ draft after four cold reviews; the grammar its stress-test exposed as missing no
 
 ## Summary
 
-The **optional** TypeScript/web profile realizing the [engineering-quality](engineering-quality.md)
+The **TypeScript/web profile** realizing the [engineering-quality](engineering-quality.md)
 contract: pinned formatter, linter, type checker, build, test runner, and dependency audit, each with its
 mapper. It is the contract's **first cross-stack stress**, and the stress found real grammar gaps — the
 package/install layer, per-kind **runtime identity**, scope partitioning — which were fed back into the
@@ -32,7 +32,9 @@ install-time lifecycle scripts default off with **per-dependency** allowances.
 | Field | Value |
 |---|---|
 | `id` | `engineering-quality-typescript` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a TypeScript/web stack) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **profile declaration** (`eq-profile.v1` instance at the contract's named location): per kind, pinned tool identity + version + artifact digest (the tool package itself), version-probe invocation, config-locus declaration (`tsconfig.json`, linter/formatter configs, the package manifest), per-kind **runtime identity**, per-run budgets; the **package/install layer** (contract grammar): install tool + lockfile format, the **frozen-install requirement** (`npm ci`-class — an install that would mutate the lockfile refuses; the lockfile's per-package integrity hashes are the **closure anchor**, and the per-tool digest covers the tool package, not its closure — the honest split, stated), and the **per-dependency lifecycle-script allowance table** (install-time scripts default off for the whole closure; a dependency needing a build step is allowed *by name* — which constrains the install-tool choice to managers supporting per-dependency allowances, a recorded build-entry constraint); the TypeScript exclusion declaration (`node_modules`, build output, lockfile-generated content, declared generated files); the fixer authority table at per-fix-class granularity; the per-tool **mapper [tools](../systems/surfaces/tools.md)** with exit-code interpretation tables; and the profile's scope declaration under the contract's partition rule |
 | `wires` | **none** |
 | `depends` | `core`, `engineering-quality` |
@@ -63,8 +65,9 @@ not-applicable class.
 
 ### Degraded behavior
 
-Per the contract: missing tool `unavailable`; drift `degraded/off-pin` with observed version; a drifted
-lockfile **refuses the install** (frozen rule); non-TypeScript repository a plain inapplicability report.
+Per the contract: **degraded/faulted** — a missing tool reports `unavailable`, drift reports
+`degraded/off-pin` with observed version, and a drifted lockfile **refuses the install** (frozen rule);
+**inapplicable** — a non-TypeScript repository yields a plain inapplicability report.
 
 ### What stays out
 

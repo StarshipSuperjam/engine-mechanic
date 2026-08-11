@@ -13,7 +13,7 @@ wording on the writer path.*
 
 ## Summary
 
-The **optional** module that separates **deciding a change from applying it**: reasoning produces a
+The **required** module that separates **deciding a change from applying it**: reasoning produces a
 **versioned pending change set** — a staged, revision-bound candidate of multi-file edits that can be
 inspected, diffed against other versions, revised, or rejected — and a conformant applier then lands it
 **atomically or not at all**, journaled so a crash can always be resolved, with a typed receipt either way.
@@ -30,7 +30,9 @@ authorization gate for any change remains the human at the merge.
 | Field | Value |
 |---|---|
 | `id` | `structured-change` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a product with mutable code) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`pending-change-set.v1` — versioned candidate: per-file edits with **raw-byte** base-content digests (no normalization; one meaning of "matches"), the expected-impact reference (optional, and valid only when it shares the change set's base digests), and the reserved ordered-operation grammar — representable so the refusal fixture can stage it, **never executed in wave 1**; `apply-receipt.v1` — applied/refused/rolled-back, per-file result, the touched files' post-apply digests, preflight validation states, and — appended at the session's later explicit commit — the resulting commit identity); the **[tools](../systems/surfaces/tools.md)** (`change_set.py` — stage/diff/compare/revise/apply/rollback); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **foreign-work fixture check** — a committed negative fixture proving the applier refuses a set that would touch unowned dirty work; the **orphan-mutation check** — a `custom/script` CI check flagging a delivery run whose diff contains product mutations no apply-receipt covers; each hard check carries its negative fixture per the hard-check-bite discipline); the **[operation](../systems/surfaces/operations.md)** runbook (`.engine/operations/structured-change.md`); and the operator **[doc](../systems/surfaces/docs.md)** (`.engine/docs/structured-change.md`) |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (change sets bind to runs of open tasks; retry ceilings come from the task's recorded attempt budget) |
@@ -78,10 +80,11 @@ grammar has no soft-dependency channel; `depends` asserts presence, so optional 
 
 ### Degraded behavior
 
-Without code-intelligence-core: no impact comparison, disclosed. Without engineering-quality: preflight
-`unavailable`, typed, policy-decided. Without delivery-evidence: the receipt still records touched digests;
-the evidence-staleness criterion is a disclosed non-run, never a vacuous pass. An unreadable journal or
-candidate store refuses apply/rollback with a plain reason. Both runtimes use the same tool; concurrent
+**Inactive** where a sibling is not present: without code-intelligence-core, no impact comparison,
+disclosed; without engineering-quality, preflight `unavailable`, typed, policy-decided; without
+delivery-evidence, the receipt still records touched digests and the evidence-staleness criterion is a
+disclosed non-run, never a vacuous pass. **Faulted** — an unreadable journal or candidate store refuses
+apply/rollback with a plain reason. Both runtimes use the same tool; concurrent
 worktrees resolve at the git merge like any committed state.
 
 ### What stays out

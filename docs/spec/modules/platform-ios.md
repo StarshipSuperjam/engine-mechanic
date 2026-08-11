@@ -13,13 +13,16 @@ pre-settle design review then, per decision 0334. Revised in draft after the tri
 
 ## Summary
 
-The **optional** iOS consumer-product profile realizing the [profile-registry](profile-registry.md)
+The **iOS consumer-product profile** realizing the [profile-registry](profile-registry.md)
 contract — its most demanding realization. **What settles here is the typed profile and its staged
 conformance**: signed builds and simulator evidence, with real execution operator-local (the vendor
 toolchain cannot run in CI) and **device-class evidence a deferred declared expansion** — the summary
 says so because the body does. Store distribution is **production-class by definition**:
 [deployment-core](deployment-core.md)'s recorded-decision gate governs it, and this profile cannot
-exercise distribution until that decision exists. The signing seam is drawn: signing runs as a
+exercise distribution until that decision exists. Signing and store distribution are **authority-gated** —
+the profile's **presence confers no signing or release authority**, and it grants none until a
+signing-capable broker grant and the recorded production decision exist; the `build` and simulator `test`
+stages are ungated. The signing seam is drawn: signing runs as a
 **broker-exercised operation on the toolchain host** — the [credential-broker](credential-broker.md)
 materializes the signing identity transiently under its own control for the operation and scrubs after;
 the worker session never reads it, and **the vendor toolchain host is inside the signing trust
@@ -33,7 +36,9 @@ the store-distribution channel of consumer products; enterprise/MDM channels are
 | Field | Value |
 |---|---|
 | `id` | `platform-ios` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (an iOS consumer product) |
+| `activation` | `on-trigger` · `authority-gated` |
 | `provides` | the **profile declaration** (a `platform-profile.v1` instance, per-stage typed): `build` (vendor toolchain invocation; toolchain identity observed and recorded — reproducibility typed `requested` where the platform cannot guarantee byte-stable output, which makes source→binary provenance **trusted, not verifiable**, stated); `package`/`sign` (broker-exercised per the seam above; signing capability `requested` until a signing-capable broker adapter exists — the signing conformance row is **disclosed not-applicable until then**); `test` (simulator-run scenario evidence, typed as simulator; device-class evidence the deferred expansion — and **store distribution requires device-class evidence unless the operator records a simulator-only acceptance**, typed and visible); `distribute` (typed deployment-core effects, production-class-gated); `observe` (crash/telemetry intake as operations-plane observations, when installed); every external rule evidence-dated per the registry's two recheck tiers, with the store-rule recheck bound to the distribute stage; the **`platform_ios.py` stage driver** (the thin execution surface: invokes the vendor toolchain, drives the per-stage mappers, routes sign/distribute through their owning modules); and the profile's conformance fixture results |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `profile-registry`, `credential-broker`, `deployment-core` |
@@ -56,9 +61,9 @@ the store-distribution channel of consumer products; enterprise/MDM channels are
 
 ### Degraded behavior
 
-Vendor toolchain absent → `build` unavailable with observed reason. Broker or its signing adapter absent
+**Degraded** when the vendor toolchain is absent → `build` unavailable with observed reason. **Authority-disabled** when the broker or its signing-capable adapter is absent
 → `sign` is **out of contract**, typed — never a keychain fallback. deployment-core's production
-decision absent → `distribute` refuses, naming the gate. Rules source unreachable →
+decision absent (**authority-disabled**) → `distribute` refuses, naming the gate. **Degraded** when the rules source is unreachable →
 unverifiable-at-release, typed. Both runtimes read the same declarations; stage execution is
 operator-local, disclosed.
 

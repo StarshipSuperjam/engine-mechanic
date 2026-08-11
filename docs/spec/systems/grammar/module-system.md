@@ -4,7 +4,7 @@ status: locked
 
 # Module system
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-27 by [decision 0261](../../../adr/0261-establish-the-artifact-warrant-discipline-a-7-17-application.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the single module-`status` field separated into independent distribution, applicability, and activation axes by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-06-27 by [decision 0261](../../../adr/0261-establish-the-artifact-warrant-discipline-a-7-17-application.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -13,8 +13,10 @@ manifest grammar, how the installed set is known, the dependency graph and build
 library that keeps install and uninstall **mechanical** rather than hand-surgery. It is what makes the
 engine configurable per project and **upgradeable** in the field.
 
-The engine is a small trusted core (the foundations) plus optional extensions (the modules) — a
-microkernel-*inspired* shape. But the containment that keeps one module's failure from spreading is a
+The engine is a small trusted core (the foundations) plus a required governance-and-delivery spine and a set
+of profile and extension modules — a microkernel-*inspired* shape, where *required distribution does not mean
+always-active* (see *The deployment axes* below). But the containment that keeps one module's failure from
+spreading is a
 property of the **wiring discipline at the shared seams**, not of the shape ([principles §12](../../../principles.md)).
 The whole of this system's reversibility design exists to earn that containment and to kill the
 "every feature is a refactor" failure that sank the prototype (Risk [R5](../../../reference/risks.md)).
@@ -35,7 +37,17 @@ A manifest declares:
 
 - **`id`** — stable module identifier.
 - **`version`** — semver. Internal migration bookkeeping (see versioning below), not an operator-facing number.
-- **`status`** — `required` · `default-on` · `optional` · `experimental` · `retired`.
+- **the deployment axes** — three independent fields, never one overloaded `status`, so no field silently
+  carries two meanings ([D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md);
+  the axis grammar is stated in full under *The deployment axes* below): **`distribution`**
+  (`required · profile · extension` — is the module physically here), **`applicability`**
+  (`universal · detected · declared` — is it relevant to this repository/host), and **`activation`** (is
+  present-and-applicable behaviour running and authorized — carried as two sub-fields, an invocation mode
+  `always · on-trigger · explicit` and an authorization gate `ungated · authority-gated`). Two orthogonal
+  markers sit outside the axes: a **`maturity`** flag (`experimental`) and a **`lifecycle`** state
+  (`retired`), each its own field, never a distribution class. Whether an *extension* is offered opt-out or
+  opt-in at first-run is **not** a manifest field — it is provisioning selection-UX data keyed by module id
+  (see [provisioning](../infrastructure/provisioning.md)).
 - **`provides`** — the files the module owns, as **file-precise** paths/globs, non-overlapping, grouped by
   category — usually a surface name, plus foundation-style groups (`foundation`, `state`, `knowledge`, …)
   for engine files that are not surface instances.
@@ -52,14 +64,67 @@ A manifest declares:
   went away (surfaced in the upgrade pull request and its preview), and are permanent once shipped — a
   release-cut guard refuses to drop one a lagging upgrader has not yet seen.
 
+### The deployment axes — distribution, applicability, activation
+
+A single `status` field once carried a module's deployment inclusion, applicability, consent, runtime
+activation, authority, stack specialization, maturity, and lifecycle all at once. That overload is what let
+governance machinery a universal Engine claim depends on be described as "optional," and what turned every
+conditional capability into install-time configuration ([D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md)).
+The manifest carries three **independent** axes instead — and **implementation modularity is not deployment
+optionality**: the axes govern deployment only; a module's internal boundaries (`depends`, `provides`, tests,
+ownership, fault containment) are untouched, and nothing here flattens a package into `core`.
+
+- **`distribution`** — is this module physically part of this installation?
+  - **`required`** — ships and upgrades with **every** Engine. Required is **not** monolithic, universally
+    applicable, or always active: a required module may wire nothing, cost nothing until invoked, no-op when
+    its subject matter is absent, or refuse all action until an authority artifact exists. As built, five
+    foundation packages are required — `core`, `validators-core`, `audit-library`, `routine-mode`, and the
+    `memory-substrate-sqlite-fts5` foundation — joined by the governance and delivery spine that decision
+    0335 promotes.
+  - **`profile`** — physically present when its platform/stack/environment profile **matches**, that
+    membership fixed at provisioning from objective facts, not offered as an arbitrary setup preference.
+  - **`extension`** — genuinely expands Engine behaviour and may reasonably remain absent forever. It must
+    pass the **strict extension test**: *removing it leaves the truth of every core Engine governance,
+    evidence, safety, and operator-legibility claim unchanged.* (This is the exact complement of `core`'s
+    *cannot-be-an-extension* membership rule — see [core](../../modules/core.md).) The profile-vs-extension
+    tie-break: presence **fact-driven** by a platform/stack match → `profile`; presence a **genuine standing
+    choice** that never weakens a universal claim → `extension`.
+- **`applicability`** — is this module relevant to **this** repository/product/host/environment?
+  `universal` · `detected` (read from objective repository/host facts) · `declared` (used only where facts
+  are insufficient). Applicability is **re-evaluated per run** and is distinct from presence: a module
+  present by profile can still report *inapplicable* on a given repository (a Python quality profile is
+  present on the Python profile yet reports inapplicable on a repository with no Python). **Applicable is not
+  active.**
+- **`activation`** — given a module present and applicable, is its behaviour running and authorized? Two
+  **independent** sub-fields, because invocation and authorization are different questions:
+  - *invocation mode* — `always` (runs continuously) · `on-trigger` (fires when its trigger occurs) ·
+    `explicit` (waits to be invoked).
+  - *authorization gate* — `ungated` · `authority-gated` (an explicit grant/consent artifact, named by the
+    module, must exist before any effect). A module may be `on-trigger` **and** `authority-gated` at once —
+    `bounded-repair` and the deployment family are — which one activation token could not express.
+  - **Presence and applicability confer no authority.** A security-sensitive required module ships its
+    machinery and grants nothing by being present; effect waits on the authorization gate.
+
+Two markers sit **outside** the axes, each its own field, so neither stands in for a distribution class:
+a **`maturity`** flag (`experimental` — opt-in, not yet stable) and a **`lifecycle`** state (`retired` —
+kept for migration history, no longer active). A module carries a distribution class plus, where they apply,
+a maturity or lifecycle marker; a retired module keeps the distribution class it had, flagged retired.
+
+**Offered-on-at-setup is provisioning data, not a manifest axis.** Whether an *extension* is presented
+opt-out (on by default) or opt-in at first-run is selection-UX presentation data keyed by module id — the
+same kind of data as the SDLC-discipline grouping — never an activation or distribution token. This is the
+home of what the old grammar called `default-on`; it never rides the manifest.
+
+**State reporting.** A status surface must distinguish, and never conflate: **absent** because an
+extension/profile is not distributed here (naming which distribution class, so the remedy is legible) ·
+present but **inapplicable** · present and applicable but **inactive** · present and applicable but
+**authority-disabled** · **active** · **degraded/faulted**.
+
 ### The engine is versioned packages; the installed set is known, not registered
 
-Every engine unit is a **versioned package**: the foundations carry `status: required` (always present, never
-optional, but versioned and migratable), features carry the other statuses. This is what makes the engine
+Every engine unit is a **versioned package**: the foundations are `distribution: required` (always present,
+never declinable, but versioned and migratable), the rest carry the axes above. This is what makes the engine
 **upgradeable**, not merely configurable ([D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md)).
-As built, five packages are `required` — `core`, `validators-core`, `audit-library`, `routine-mode`, and
-the `memory-substrate-sqlite-fts5` foundation — and one ships `default-on` (`memory-semantic-recall`),
-the status's first live use.
 
 There is **no separate, hand-authored registry**. The two stores are both derive-or-record, never a duplicate to
 drift ([principles §2, §3](../../../principles.md)):
@@ -67,7 +132,10 @@ drift ([principles §2, §3](../../../principles.md)):
 - The **available/installed set** is the module manifests **present** in `.engine/modules/` — a directory listing,
   not an authored list. **Installed means present**: first-run instantiation *deletes* the modules the operator did
   not select, so an absent capability ships no code and can carry no defect, and re-adding one later goes through the
-  updater (the same path as an upgrade), not a flip-on.
+  updater (the same path as an upgrade), not a flip-on. **Selection reaches only `extension` distribution**: a
+  `required` module is never offered and never deleted, and a `profile` module's presence follows its
+  profile match, not a choice — so "deselected" is only ever a valid state for an extension (see upgrade
+  convergence below).
 - The **[engine manifest](../../../reference/glossary.md)** is the committed config file ([D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md);
   [topology](../infrastructure/repository-topology.md) law 5) recording the **engine release** and **each
   installed package's version** — a lockfile. The per-package versions are the non-derivable upgrade state (the
@@ -91,7 +159,7 @@ leaf). Two similarly-named things sit above that baseline and must not be confla
 the knowledge foundation's **structural graph-query server** — which as built carries the name
 `engine-knowledge-graph` — is a required `core` `mcp` wire, part of the baseline. The semantic-recall
 role that decision 0086 once sketched for an optional module of the same name is, as built, filled by
-the **default-on `memory-semantic-recall` module** named above; the carried
+the **`memory-semantic-recall` extension** (offered on at setup) named above; the carried
 [engine-knowledge-graph](../../modules/engine-knowledge-graph.md) **module** page describes the unbuilt
 remainder of that sketch (graph-representation enrichment over memory), stays not yet described, and
 nothing in the baseline depends on it.
@@ -237,9 +305,19 @@ per the [hooks](../infrastructure/hooks.md) fail-open-and-flag pattern) — neve
   coherence kind confirms no orphaned settings.json/`.mcp.json` entries remain.
 - **Upgrade vX→vY** — the module manager reads each installed package's current version from the engine manifest,
   pulls the tagged release ([D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md)), **overlays only the engine-namespaced paths of the
-  installed packages** (never resurrecting a module the operator deselected), runs `migrations` in dependency order,
+  installed packages**, runs `migrations` in dependency order,
   runs coherence, and lands a reviewed pull request through the [control-plane](../infrastructure/control-plane.md)
   gate; it degrades to the current version when the release source is unreachable.
+  **Convergence to the required set.** A release that makes modules newly `required` — including a module an
+  operator once **declined** while it was an `extension` — installs those modules **if absent** as part of
+  the upgrade, because declining a required module was never a valid state
+  ([D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md)). This does **not**
+  resurrect a deselected `extension`: the "never resurrect a deselected module" rule holds in full for
+  `extension` (and `profile`-unmatched) modules, and is reconciled with convergence by one rule — the required
+  target set is derived from the **release manifest**, so convergence installs exactly the required set with no
+  per-previous-selection migration branches and no combinatorial paths, and it overlays only engine-namespaced
+  paths, so **no product-owned content is rewritten**. That an operator who declined a now-required governance
+  module gains it at upgrade is a deliberate consequence, disclosed in the upgrade's pull request.
 - **Clean removal** — reversing all wiring and deleting all engine-namespaced files is **not** sufficient on its own:
   the branch **ruleset is a GitHub setting, not a file**, so a removal must also **de-bootstrap the control-plane**
   (drop the engine's required-check binding) or a stale binding to a now-deleted engine check would deadlock the
@@ -259,4 +337,4 @@ per the [hooks](../infrastructure/hooks.md) fail-open-and-flag pattern) — neve
 | **Modules declare files + wiring; provisioning applies/reverses both**, so install is mechanical ([D-012](../../../adr/0012-provisioning-is-two-subsystems-on-one-manifest-grammar-modul.md), [R5](../../../reference/risks.md)). | The declaration half is merge-gated: `module-manifest` (hard, `CI`) validates every manifest's `provides`/`wires` against the module schema. The apply/reverse half lives in the wiring library's paired appliers and reversers, confirmed by the bidirectional coherence legs — which run at install/uninstall/upgrade, not per-merge; observe a module operation to see it. | operator |
 | **The closed seam vocabulary and engine-namespaced-identity keying** are the structural firewall: a module can only touch shared state in ways the system can guaranteed-reverse without disturbing the operator's or product's own entries. | The closed vocabulary is merge-gated: `module-manifest` (hard, `CI`) rejects a `wires` entry outside the seven-type enum, and the wiring library dispatches reject-by-default. The keying and never-mis-remove discipline live in the appliers/reversers and the orphan-wire coherence leg, exercised at module operations — partial mechanical support; no per-merge check asserts the keying itself. | operator |
 | **Installed means present; the engine is single-versioned to the operator**; the engine manifest carries per-package versions for migration and for the operator-readable inventory. | The manifest's shape is merge-gated: `engine-manifest` (hard, `CI`) requires the engine release and the per-package versions. Installed-means-present is how discovery works as built — the module directory listing *is* the installed set — and the operator readout is the self-map; observed, with no check asserting the single-version presentation itself. | operator |
-| **Locking this system fixes the laws' change-control, not their content forever** — the manifest grammar, seam vocabulary, registry model, and coherence scope change only by a governed decision, never silently; the module set was always resolved separately ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)/[D-068](../../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)). | Observed in the record: the vocabulary's growth to seven seams, the manifest's eighth field, and the coherence scope's two added legs each trace to the engine's own decision canon, and their adoption here is ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md). No mechanical check asserts change-control. | operator |
+| **Locking this system fixes the laws' change-control, not their content forever** — the manifest grammar, seam vocabulary, registry model, and coherence scope change only by a governed decision, never silently; the module set was always resolved separately ([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)/[D-068](../../../adr/0068-q1-resolved-the-v1-optional-module-roster-4-cut-2-kept.md)). | Observed in the record: the vocabulary's growth to seven seams, the manifest's eighth field, the later separation of the single `status` field into the independent deployment axes, and the coherence scope's two added legs each trace to the engine's own decision canon, and their adoption here is ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md) and [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md). No mechanical check asserts change-control. | operator |

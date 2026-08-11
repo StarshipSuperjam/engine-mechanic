@@ -14,7 +14,7 @@ gains its ceiling disclosure, and the marquee invariants gain merge-gated checks
 
 ## Summary
 
-The **optional** deployment contract: putting an **identified immutable artifact** onto a **named,
+The **required** deployment contract: putting an **identified immutable artifact** onto a **named,
 resolved target**, verifying the product is actually healthy there, rolling back when it is not, and
 recording drift between declared and actual. Its effect records live in **their own store under
 delivery-core's state home** (recorded through [delivery-evidence](delivery-evidence.md) when installed;
@@ -32,7 +32,9 @@ rollback that did not verify is not a rollback.
 | Field | Value |
 |---|---|
 | `id` | `deployment-core` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a deployable product) |
+| `activation` | `explicit` · `authority-gated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`deploy-target.v1` — a named target with its **resolution proof** (`resolution: {method, at-revision}` — an alias-only target is unrepresentable), immutable provider identity, environment class (with the **class-vs-resolved-identity residual named**: the class attestation rides the resolved identity the operator sees, and a lying resolver is the stated residual admission probes), and its rollback anchor (with typed **anchor-absent** and **anchor-unretrievable** states — first deploys and pruned artifacts cannot pretend to a rollback they lack); `deploy-effect.v1` — artifact digest, target, provider operation identity, the **independently observed** post-state (an `observed` claim without a named source distinct from the operation's own response is **schema-invalid** — the plane's rule, carried as a hard check), and reconciliation in the shared vocabulary; `deploy-health.v1` — three lanes (provider-reported, endpoint-probed, behavior-verified), never merged, cross-module references opaque; `rollback-record.v1` — the rollback as its own verified effect, with **rollback-partial-failure** a named state; `drift-record.v1` — declared vs observed per target in the shared vocabulary — **this module owns effect-time reconciliation and the drift grammar; standing periodic drift observation is [operations-core](operations-core.md)'s ground**, per decision 0334's cut); the **[tool](../systems/surfaces/tools.md)** (`deploy.py` — plan/execute/verify/rollback through the installed adapter (which carries the broker path); **deterministic idempotency keys** derived from artifact digest + target identity + run — a retry re-derives the same key; the **per-target lease** taken in the broker-runtime store before any effect); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **unresolved-target check** — a `custom/script` check over the resolution proof; the **class-boundary check** — a deploy effect whose target class is outside the admitted set fails; the **unobserved-success check** — an effect claiming success with no observation reads `unknown`, and a staged success-without-observation fails; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `authority-broker-contract` |
@@ -61,11 +63,11 @@ rollback that did not verify is not a rollback.
 
 ### Degraded behavior
 
-No adapter → refuse plainly (the adapter carries the broker path, so "no broker" arrives as "no
-usable adapter" — stated). Observation unavailable → `unknown`, with what could not be observed named.
-Absent delivery-evidence → effects persist in this module's store; the recording seam degrades disclosed.
-Both runtimes drive the same tool. Stub-adapter fixtures ride CI; live-provider conformance is
-operator-local — the split stated.
+**Inactive** — no adapter → refuse plainly (the adapter carries the broker path, so "no broker" arrives
+as "no usable adapter" — stated). **Degraded/faulted** — observation unavailable → `unknown`, with what
+could not be observed named. **Degraded** — absent delivery-evidence → effects persist in this module's
+store; the recording seam degrades disclosed. Both runtimes drive the same tool. Stub-adapter fixtures
+ride CI; live-provider conformance is operator-local — the split stated.
 
 ### What stays out
 

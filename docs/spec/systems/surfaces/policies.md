@@ -4,7 +4,7 @@ status: locked
 
 # Policies
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-04 by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the reference to the discipline modules as optional corrected to their `required` distribution by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-06-04 by [decision 0168](../../../adr/0168-resolve-the-d-167-operator-policy-override-re-litigation-lan.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -36,8 +36,8 @@ all from layer one and non-removable — the four below, plus the
 and the model-routing pair (the execution-posture rules and their data file). The four detailed here
 are the trust-model three plus the **Triage-threshold policy**, which is foundational instead to
 **telemetry's operation**: the legible home for the promotion thresholds telemetry reads, not a trust-model
-peer. (Optional modules ship further policies alongside — dependency and migration discipline,
-upstream-contribution honesty, and the like — outside the core set.)
+peer. (Modules ship further policies alongside — the now-`required` dependency and migration discipline,
+the `external-contribution` extension's upstream-contribution honesty, and the like — outside the core set.)
 
 #### Contract-threshold
 

@@ -13,7 +13,7 @@ forbidden-surface check.*
 
 ## Summary
 
-The **optional** durable schedule record for maintenance work: **slots** (a cadence over a durable
+The **required** durable schedule record for maintenance work: **slots** (a cadence over a durable
 [operations-core](operations-core.md) concern — cadence says when to *look*; the concern's condition
 standing says whether work is *warranted*; **eligibility is both**), **occurrences** with exact identity,
 **leases**, **catch-up rules**, and **attempt history** — append-only in mechanism, not spirit:
@@ -34,7 +34,9 @@ nothing here fires anything.
 | Field | Value |
 |---|---|
 | `id` | `maintenance-ledger` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (scheduled maintenance in use) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`maintenance-slot.v1` — the concern reference (durable identity), cadence, catch-up rule (`skip`\|`latest-only`\|`all`\|`operator`) declared per slot, and the slot's side-effect class (observation-only \| effectful — the unattended-safety discriminator); `slot-lease.v1` — one attempt's hold on one occurrence, TTL ≥ the run lease's TTL, **succession gated on the prior run reading terminal or `unknown`** — never on slot-lease expiry alone, so a live first runner is not succeeded; `attempt-record.v1` — occurrence, run reference, outcome in delivery-core's vocabulary plus cause lineage, content-chained to its predecessor); the **[tool](../systems/surfaces/tools.md)** (`maintenance_ledger.py` — declare/read/occupy/record; the intended writer, the plane's honesty tier); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **double-work check** — two attempts on one occurrence without recorded, run-state-gated succession fail; the **chain-integrity check** — a rewritten or deleted past attempt record breaks the chain and fails; the **forbidden-surface check** — a maintenance run's diff touching the ledger's own checks, schemas, or the slots that scheduled it fails — the ledger's own guard, since the task envelope *declares* and never enforces; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `operations-core` |
@@ -58,7 +60,7 @@ nothing here fires anything.
 
 ### Degraded behavior
 
-Unreadable ledger state refuses occupy/record; partially corrupt history refuses the affected
+**Degraded** when ledger state is present but unreadable, it refuses occupy/record; **degraded** on partially corrupt history, it refuses the affected
 occurrences and flags them. Both runtimes drive the same tool.
 
 ### What stays out

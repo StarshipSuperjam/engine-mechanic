@@ -26,9 +26,11 @@ operator decides.
 | Field | Value |
 |---|---|
 | `id` | `platform-currency` |
-| `status` | `optional` |
+| `distribution` | `extension` |
+| `applicability` | `declared` (an operator who wants platform-currency tracking) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **`engine-platform-review` [agent](../systems/surfaces/agents.md)** (read-only persona: `permissions: read-only`, Edit/Write/NotebookEdit/Bash denied, `model-tier: judgment`) and its generated **codex-agent twin**; the **setup [doc](../systems/surfaces/docs.md)** (`.engine/docs/platform-currency-setup.md`); the **`/engine-platform-review` [skill](../systems/surfaces/skills.md)** and its codex-skill twin (the on-demand verb, listed in `/engine-help`); the **scope-flag [policy](../systems/surfaces/policies.md)** (`.engine/policies/platform-currency.json`: `{schema_version: 1, scope: "product"}`, `scope` ∈ `product \| engine \| both`) with its **[schema](../systems/surfaces/schemas.md)** (`platform-currency.v1.json`) and hard **[check](../systems/surfaces/check.md)** (the model-bindings shape — mechanical validation at merge); and the **baseline corpus** (the platform capability baseline's snapshot, comparison rules, catalogs, and matrices as module-owned reference files), so an opted-in deployment carries the diff denominator locally and engine upgrades refresh it. |
-| `wires` | **none** — every surface binds by presence, the [qa-review](qa-review.md)/[design-review](design-review.md) optional-persona shape |
+| `wires` | **none** — every surface binds by presence, the [qa-review](qa-review.md)/[design-review](design-review.md) presence-bound persona shape |
 | `depends` | `core` |
 | `migrations` | none |
 
@@ -177,7 +179,7 @@ verification fixtures, each a staged scenario the finished build must be exercis
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Optional and absent by default** — a deployment that declines the module never sees the persona, doc, skill, or flag; add installs, remove deletes; declining never fails a required self-test. | Operator observation: a clean-tree install/remove round-trip through the module manager, status read back each way. Partial support: the module-ownership unit tests pin `status: optional` and ride CI. | operator |
+| **Optional and absent by default** — a deployment that declines the module never sees the persona, doc, skill, or flag; add installs, remove deletes; declining never fails a required self-test. | Operator observation: a clean-tree install/remove round-trip through the module manager, status read back each way. Partial support: the module-ownership unit tests pin `distribution: extension` and ride CI. | operator |
 | **Read-only persona, twins in sync** — the persona denies Edit/Write/NotebookEdit/Bash, carries all nine safeguards, and the generated Codex twin matches it. | Operator observation: read the persona's four sections against the nine safeguards. Partial support: the generator's sync check and the persona-shape check ride CI on the build repository. | operator |
 | **Scope flag honored with a safe default** — the review confines itself to the selected layer(s), states which scope and placement it ran, and treats a missing or invalid value as `product`, disclosed. | Operator observation on fixture runs (the two placement fixtures below). Partial support: the schema-backed hard check validates the flag file mechanically at merge on the build repository. | operator |
 | **Setup doc covers both paths honestly** — on-demand verb plus the operator-scheduled unattended hosts under their correct names (local scheduled task, Codex Automation, cloud Routines as alternative), with the read-only-but-networked disclosure. | Operator observation: read the setup doc against this document's scheduling section. | operator |

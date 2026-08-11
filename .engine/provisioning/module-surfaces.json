@@ -198,6 +198,9 @@
   ".engine/check/block-coherence.json": [
    "validators-core"
   ],
+  ".engine/check/catalog-completeness.json": [
+   "validators-core"
+  ],
   ".engine/check/catalog-coverage.json": [
    "validators-core"
   ],
@@ -249,9 +252,6 @@
   ".engine/check/dependency-review.json": [
    "dependency-discipline"
   ],
-  ".engine/check/disposition-issue-resolution.json": [
-   "validators-core"
-  ],
   ".engine/check/doc-frontmatter.json": [
    "validators-core"
   ],
@@ -298,6 +298,9 @@
    "validators-core"
   ],
   ".engine/check/link-integrity.json": [
+   "validators-core"
+  ],
+  ".engine/check/manifest-write-funnel.json": [
    "validators-core"
   ],
   ".engine/check/memory-pointer-public-safety.json": [
@@ -376,6 +379,9 @@
    "validators-core"
   ],
   ".engine/check/self-map-drift.json": [
+   "validators-core"
+  ],
+  ".engine/check/shipped-issue-references.json": [
    "validators-core"
   ],
   ".engine/check/skill-coherence.json": [
@@ -516,6 +522,12 @@
   ".engine/contracts/eADR-0038-memory-transcript-first-recall.md": [
    "core"
   ],
+  ".engine/contracts/eADR-0039-whole-module-removal-reconcile.md": [
+   "core"
+  ],
+  ".engine/contracts/eADR-0040-guardrail-ack-two-tier.md": [
+   "core"
+  ],
   ".engine/docs/getting-started.md": [
    "core"
   ],
@@ -648,6 +660,9 @@
   ".engine/policies/attention.md": [
    "core"
   ],
+  ".engine/policies/briefing-budget.md": [
+   "core"
+  ],
   ".engine/policies/contract-threshold.md": [
    "core"
   ],
@@ -677,6 +692,9 @@
   ],
   ".engine/policies/spec-structure-integrity.md": [
    "product-design"
+  ],
+  ".engine/policies/supported-upgrade-matrix.md": [
+   "core"
   ],
   ".engine/policies/triage-threshold.md": [
    "core"
@@ -897,6 +915,9 @@
   ".engine/tools/build_readiness.py": [
    "core"
   ],
+  ".engine/tools/catalog_completeness_check.py": [
+   "core"
+  ],
   ".engine/tools/census_completeness_check.py": [
    "core"
   ],
@@ -952,6 +973,18 @@
    "core"
   ],
   ".engine/tools/demo_664_release_gate.py": [
+   "core"
+  ],
+  ".engine/tools/demo_753_ledger_dir_hermeticity.py": [
+   "core"
+  ],
+  ".engine/tools/demo_757_upgrade_reconciles_default_groups.py": [
+   "core"
+  ],
+  ".engine/tools/demo_759_upgrade_installs_new_modules.py": [
+   "core"
+  ],
+  ".engine/tools/demo_760_add_release_tag.py": [
    "core"
   ],
   ".engine/tools/demo_actionlint.py": [
@@ -1086,7 +1119,7 @@
   ".engine/tools/dependency_discipline/test_review.py": [
    "dependency-discipline"
   ],
-  ".engine/tools/disposition_issue_resolution_check.py": [
+  ".engine/tools/engine_fixture.py": [
    "core"
   ],
   ".engine/tools/engine_help.py": [
@@ -1099,6 +1132,9 @@
    "core"
   ],
   ".engine/tools/engine_todo_form_check.py": [
+   "core"
+  ],
+  ".engine/tools/engine_write.py": [
    "core"
   ],
   ".engine/tools/execution_environment.py": [
@@ -1146,6 +1182,9 @@
   ".engine/tools/hooks.py": [
    "core"
   ],
+  ".engine/tools/hooks_path_health.py": [
+   "core"
+  ],
   ".engine/tools/in_tool_demo_failure_path_check.py": [
    "core"
   ],
@@ -1162,6 +1201,12 @@
    "core"
   ],
   ".engine/tools/issue_gate.py": [
+   "core"
+  ],
+  ".engine/tools/issue_kind_label.py": [
+   "core"
+  ],
+  ".engine/tools/issue_label_client.py": [
    "core"
   ],
   ".engine/tools/knowledge_gen.py": [
@@ -1189,6 +1234,12 @@
    "core"
   ],
   ".engine/tools/local_references.py": [
+   "core"
+  ],
+  ".engine/tools/manifest_write_funnel_check.py": [
+   "core"
+  ],
+  ".engine/tools/mcp_test_support.py": [
    "core"
   ],
   ".engine/tools/mechanic_build.py": [
@@ -1503,6 +1554,9 @@
   ".engine/tools/selftest.py": [
    "core"
   ],
+  ".engine/tools/shipped_issue_references_check.py": [
+   "core"
+  ],
   ".engine/tools/skill_coherence_check.py": [
    "core"
   ],
@@ -1596,10 +1650,10 @@
   ".engine/tools/test_design_review.py": [
    "core"
   ],
-  ".engine/tools/test_disposition_issue_resolution.py": [
+  ".engine/tools/test_doc.py": [
    "core"
   ],
-  ".engine/tools/test_doc.py": [
+  ".engine/tools/test_engine_fixture.py": [
    "core"
   ],
   ".engine/tools/test_engine_help.py": [
@@ -1612,6 +1666,9 @@
    "core"
   ],
   ".engine/tools/test_engine_todo.py": [
+   "core"
+  ],
+  ".engine/tools/test_engine_write.py": [
    "core"
   ],
   ".engine/tools/test_execution_environment.py": [
@@ -1635,6 +1692,9 @@
   ".engine/tools/test_hooks.py": [
    "core"
   ],
+  ".engine/tools/test_hooks_path_health.py": [
+   "core"
+  ],
   ".engine/tools/test_in_tool_demo_failure_path.py": [
    "core"
   ],
@@ -1656,6 +1716,9 @@
   ".engine/tools/test_issue_gate.py": [
    "core"
   ],
+  ".engine/tools/test_issue_kind_label.py": [
+   "core"
+  ],
   ".engine/tools/test_knowledge.py": [
    "core"
   ],
@@ -1675,6 +1738,9 @@
    "core"
   ],
   ".engine/tools/test_local_references.py": [
+   "core"
+  ],
+  ".engine/tools/test_manifest_write_funnel_check.py": [
    "core"
   ],
   ".engine/tools/test_mechanic_build.py": [
@@ -1786,6 +1852,12 @@
    "core"
   ],
   ".engine/tools/test_selftest.py": [
+   "core"
+  ],
+  ".engine/tools/test_selftest_hermeticity.py": [
+   "core"
+  ],
+  ".engine/tools/test_shipped_issue_references_check.py": [
    "core"
   ],
   ".engine/tools/test_skill.py": [

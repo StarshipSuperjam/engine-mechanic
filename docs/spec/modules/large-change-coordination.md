@@ -13,7 +13,7 @@ authority, and the module gains an apply-time scope gate.*
 
 ## Summary
 
-The **optional** module for changes too large for one run: a refactor or cross-system capability becomes
+The **required** module for changes too large for one run: a refactor or cross-system capability becomes
 a **program of stable slices**, each slice *referencing* a delivery task (a slice's identity survives
 replanning; its task may be re-minted), landing through **normal pull-request merges to trunk** — a
 checkpoint is a **labeled fresh-evidence run over trunk at that point**, not a parallel integration
@@ -31,7 +31,9 @@ every slice's own merge carries its own consent.
 | Field | Value |
 |---|---|
 | `id` | `large-change-coordination` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a long multi-slice change) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`change-program.v1` — objective link, slices with stable identities, declared dependency edges (advisory routing — bindings are the authority), declared integration checkpoints with a defined **advance** operation shape, and the program envelope (a ceiling: path-scope union, budget bounds — explicitly never authorization); `program-slice.v1` — scope (owned paths), task reference, staleness state (`current`\|`invalidated-by:<slice>`\|`retracted`) — plan-half invalidation is **revision/edge-granular** for unexecuted slices (their plans bind base revisions, not surfaces) and surface-precise for digest-bound halves (staged sets, recorded evidence), stated; `overlap-record.v1` — declared-scope collisions at planning time, surfaced never auto-resolved); the **[tool](../systems/surfaces/tools.md)** (`change_program.py` — plan/read/advance/invalidate/retract, single-flight per program (the serial-first enforcement); `invalidate` is the **manual override** for causes derivation cannot see, stated; checkpoint verification is **delegated** — the checkpoint requires fresh evidence records from the normal quality machinery over trunk, this tool verifies their presence and freshness, it runs nothing); the **apply-time scope gate** — the module hands [structured-change](structured-change.md)'s preflight the slice's owned-path set (like an impact set); an apply touching paths outside the slice's scope refuses — the enforcement the plan-time overlap records advise around; hard **[checks](../systems/surfaces/check.md)** (schema conformance, including malformed programs — empty scopes, edges to nonexistent slices — refused; the **stale-dependent check** — a program advance past a checkpoint while any slice reads invalidated fails, negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core`, `structured-change` |
@@ -65,8 +67,8 @@ does not pretend).
 
 ### Degraded behavior
 
-Absent structured-change: not installable. Absent delivery-evidence: checkpoints refuse advancement,
-disclosed. Broken task references read `unknown` and block advancement. Both runtimes drive the same
+**Inactive** without structured-change: not installable. **Inactive** without delivery-evidence: checkpoints refuse advancement,
+disclosed. **Degraded** on broken task references — read `unknown` and block advancement. Both runtimes drive the same
 tool. Beyond the two hard checks, the module's guarantees are operator-vigilance-backed — stated in the
 acceptance preamble.
 

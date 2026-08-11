@@ -4,7 +4,7 @@ status: locked
 
 # Audits
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-07-11 by [decision 0297](../../../adr/0297-resolve-re-lock-audits-installs-the-standing-conditional-pro.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-07-29) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with references to product-design/qa-review as optional corrected to their `required` distribution and the retire-candidate probe scoped to extensions by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-11 by [decision 0297](../../../adr/0297-resolve-re-lock-audits-installs-the-standing-conditional-pro.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -102,8 +102,8 @@ trio re-runs.
 **The adversarial read is the audit persona's own, and it is the forward arm only.** The persona carries the
 divergence-hunt posture **itself** (its standing adversarial law 1 below), never by invoking
 [qa-review](../../modules/qa-review.md)'s `divergence-hunter` lens — so the standing adversarial leg
-is present whenever the matrix and locked spec are committed, **regardless of whether qa-review is installed**,
-and adds no qa-review `depends`. It runs the **forward** direction only — *does each `locked` criterion's built
+is present whenever the matrix and locked spec are committed, **regardless of whether the qa-review lens is invoked**
+(qa-review is `required` distribution — always present — so this leg never turned on its installation), and adds no qa-review `depends`. It runs the **forward** direction only — *does each `locked` criterion's built
 code still meet it?* — over the whole committed tree, not a diff. The lens's **diff-introduced over-build** arm
 ([qa-review](../../modules/qa-review.md), [D-292](../../../adr/0292-resolve-re-lock-qa-review-the-8-pair-split-across-two-lenses.md)) is **inapplicable**: it
 is defined against a **PR diff**, which a standing cron has none of, so the sweep never renders a whole-repo
@@ -124,7 +124,8 @@ Three properties bound it, and keep it from becoming the product-*quality* revie
   ([§13](../../../principles.md) governs dependency *direction*, not whether the Engine may review its own
   output). What *counts* as met is the operator's frozen criterion, not an audit opinion.
 - **Conditional and per-locked-row.** It bites only on criteria whose `docs/spec/` row is `locked`. **With no
-  locked spec — the default, and every repo without the product-design module — there is simply nothing here to
+  locked spec — the default until the operator locks one (product-design is present in every Engine but locks a
+  spec only when that work is done) — there is simply nothing here to
   check: the sweep is silent, an inapplicable capability, never a recurring notice that reads as pressure to
   freeze a spec** (a staged or MVP product is a first-class operator choice, [§20](../../../principles.md)).
   Degradation is the *distinct* case — a spec **is** locked but its matrix is absent or unreadable — and
@@ -301,7 +302,7 @@ What an audit examines is **hybrid**:
   part in adjudication — operator-ruled in the cognitive-wave reconciliation, closing this document's
   end of that seam),
   **stale debt** (engine-labeled issues that no longer reproduce; triage-pressure backlog health),
-  **module fit** (an optional module for which a fresh probe finds **no evidence of exercise** and **no
+  **module fit** (an `extension` for which a fresh probe finds **no evidence of exercise** and **no
   affirmative case** — *what does this do that nothing else does?* — → retire-candidate, with the
   absence-of-evidence the trigger to ask for that case, never by itself the proof of disuse, and digest-history
   persistence corroborating rather than deciding the call; recurring operator friction that maps to an

@@ -4,7 +4,7 @@ status: locked
 
 # Build orchestration
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-01) — AI-compared and operator-ruled under [decision 0320](../../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the cost-estimate mandate reversed by [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md) and the re-audit passage aligned to the orchestrator's proportional judgment (2026-08-02) by [decision 0330](../../../adr/0330-adopt-the-built-semantic-recall-seat-and-the-canon-s-revised.md), with the review modules' distribution corrected to `required` under the three-axis grammar by [decision 0335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-11 by [decision 0293](../../../adr/0293-resolve-re-lock-build-orchestration-roster-divergence-hunter.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -97,8 +97,8 @@ round — [decision 0323](../../../adr/0323-sanction-the-built-engine-erasure-la
 sanctions the label-keyed erasure class and the widened author set, with the
 [control-plane](../infrastructure/control-plane.md) document now carrying the boundary's full
 disclosure. The orchestration workflow
-itself is a **required core package**; the lenses are **optional modules**
-([D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)). Everything bracketed — which lenses, whether to parallelize — is
+itself is a **required core package**; the lenses are **required-distribution modules** (`design-review`
+and `qa-review` ship in every Engine but are invoked at review-depth, [D-335](../../../adr/0335-separate-module-distribution-applicability-and-activation.md); their roster is [D-066](../../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md)). Everything bracketed — which lenses, whether to parallelize — is
 depth-scaled; the shape is not.
 
 ### The plan gate — consent before the spend, synthesis after
@@ -182,8 +182,9 @@ criteria** at Plan — a **path read** it owns
 riding the derived lens `output-contract`, **not** any new field on the control-plane PR contract. A build
 that resolves **no committed `locked` spec** — none exists, or the pointer reaches only a `draft` — makes
 those two a **disclosed no-op** ("I could not check this against a spec — none is locked"), never a silent
-green; Build never depends on a spec existing, and the resolution holds whether or not the optional
-product-design module is installed. The spec is **un-skippable** — but not by a mechanical block on the
+green; Build never depends on a spec existing, and the resolution holds whether or not a `locked`
+product-design spec exists (product-design is `required` distribution — always present — but it produces a
+locked spec only when the operator has done that work). The spec is **un-skippable** — but not by a mechanical block on the
 agentic `spec-conformance` verdict ([validation](../guardrails/validation.md): "a persona judges,
 a check gates — never duplicate"). The [conformance-enforcement floor](../../../reference/glossary.md) carries it — the same rigor that built the Engine
 (build-conformance), re-homed to point at the product's own `locked`

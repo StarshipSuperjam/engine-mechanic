@@ -12,7 +12,7 @@ largest change: freshness is **derived at read time**, never stored and swept.*
 
 ## Summary
 
-The **optional** module that makes a delivery claim **provable and perishable**: every "it works" produced
+The **required** module that makes a delivery claim **provable and perishable**: every "it works" produced
 by delivery work becomes an **evidence record** with a source, a source lane, and a binding to the exact
 surfaces it measured — and freshness is **computed whenever the record is read or gated**, by comparing
 those bindings against the tree as it stands. There is no stored freshness flag, no sweep, and no hook to
@@ -29,7 +29,9 @@ the review gates and the operator's merge.
 | Field | Value |
 |---|---|
 | `id` | `delivery-evidence` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (a product producing behavioral evidence) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`evidence-record.v1` — kind, source, **source lane** (`declared`\|`observed`\|`derived`\|`unavailable`, a schema field), an optional **producer lane** carried through from producers whose grammar distinguishes evidence tiers (engineering-quality's fast-loop vs clean-environment rides here, with its isolation receipt), and the **surface bindings**: the content digests of the files/artifacts measured, plus the deriving revision; `effect-receipt.v1` — an external effect's target, the observation source, observed result, and reconciliation state in [delivery-core](delivery-core.md)'s shared vocabulary (`confirmed`\|`partial`\|`contradicted`\|`unknown` — referenced, not redefined) — the base contract later effect-producing modules (deployment, operations) specialize; `snapshot-divergence.v1` — reviewed commit, submitted head, the orchestrator's classification, re-review disposition); the **[tools](../systems/surfaces/tools.md)** (`delivery_evidence.py` — record and freshness-read; freshness is derived on read from bindings, never written) with the **redaction pass** every record's source/result fields run through before commit (secret-shaped content is refused, not stored); hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **stale-green check** — a `custom/script` CI check that re-derives freshness itself: any receipt citing an evidence record whose bound digests no longer match the tree fails, regardless of what any earlier read claimed; the **material-divergence check** — a snapshot-divergence record classified material with no recorded re-review fails; the **dangling-citation check** — a receipt citing a nonexistent evidence record fails; each carries its negative fixture per the hard-check-bite discipline); the **[operation](../systems/surfaces/operations.md)** runbook (`.engine/operations/delivery-evidence.md`); and the operator **[doc](../systems/surfaces/docs.md)** (`.engine/docs/delivery-evidence.md`) |
 | `wires` | **none** — consistent with derived-on-read freshness: no mutation trigger exists to wire |
 | `depends` | `core`, `delivery-core` (records attach to runs; run receipts cite evidence by opaque identity) |
@@ -78,15 +80,16 @@ afterthought. No prompts or transcripts are ever captured.
 
 ### Degraded behavior
 
-An unreadable store or unreadable bindings answer `unknown`, never `current`. Because freshness derives at
-read, there is no degraded sweep state to disclose — the failure surface is the read itself, and it fails
+**Faulted** — an unreadable store or unreadable bindings answer `unknown`, never `current`. Because
+freshness derives at read, there is no degraded sweep state to disclose — the failure surface is the read itself, and it fails
 closed. Both runtimes read the same committed store through the same tool.
 
 ### What stays out
 
 - **No sufficiency judgment, no scoring.** Records and derivation only; gates and the operator decide.
 - **No stored freshness.** A cached freshness answer is never authoritative; the check re-derives.
-- **Not required**, absent-by-default like the rest of the plane.
+- **Present, not absent-by-default.** delivery-evidence ships in every Engine; it stays inactive until
+  delivery work produces evidence — no burden on a project that produces none.
 
 ## Acceptance criteria
 

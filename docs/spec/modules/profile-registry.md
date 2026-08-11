@@ -13,7 +13,7 @@ tiers, and the secret-refusal check moving into the contract.*
 
 ## Summary
 
-The **optional** platform-profile contract: what any `platform-*` module must declare so platform
+The **required** platform-profile contract — present in every Engine but **inert/dormant until a `platform-*` profile is installed** (disclosed): what any `platform-*` module must declare so platform
 delivery is a **typed conformance surface**. A profile declares its lifecycle stages by capability —
 `build`\|`package`\|`sign`\|`test`\|`serve`\|`distribute`\|`observe`, each optional and disclosed
 (`serve` is the runtime-surface stage [platform-web](platform-web.md) actually realizes — the vocabulary
@@ -34,7 +34,9 @@ base install.
 | Field | Value |
 |---|---|
 | `id` | `profile-registry` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **platform-profile contract [schema](../systems/surfaces/schemas.md)** (`platform-profile.v1` — declared stages with per-stage capability typing (`enforced`\|`requested`\|`absent`, the contract's own vocabulary), artifact-identity grammar per stage (digest-based, feeding [deployment-core](deployment-core.md)'s artifact rule where installed), environment requirements (consumed as [execution-environment](execution-environment.md) manifest input where installed — a reference, not a dependency), and **external-rule dependencies** — named source, retrieval date **bound to retrieval evidence** (a content fingerprint of what was fetched, never a hand-entered date alone), recheck tier, and the recheck obligation **bound to the `distribute` stage** where one exists (not a nominal "release time" a flow can skip)); the **conformance fixture set** a profile must pass before installation; hard **[checks](../systems/surfaces/check.md)** (schema conformance; the **undated-rule check** — an external rule without source + evidenced date fails; the **secret-refusal check** — a profile field carrying secret-shaped material (per the engine's secret-scanning vocabulary) fails — contract-owned, inherited by every profile; each negative-fixtured); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` |
@@ -58,7 +60,7 @@ base install.
 
 ### Degraded behavior
 
-No profiles installed → inert grammar, disclosed. A fetch-tier recheck whose source is unreachable →
+**Inactive** with no profiles installed → inert grammar, disclosed (present and universal, nothing to check until a profile arrives). **Degraded** when a fetch-tier recheck's source is unreachable →
 unverifiable-at-release, typed; a reminder-tier recheck is only ever a reminder, typed as such. Both
 runtimes read the same declarations.
 

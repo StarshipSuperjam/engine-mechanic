@@ -13,7 +13,7 @@ rank, and file-digest freshness aligned with the plane's derived-on-read model.*
 
 ## Summary
 
-The **optional** module that lets a deployed engine **understand the product's code before changing it**:
+The **required** module that lets a deployed engine **understand the product's code before changing it**:
 finding where a behavior lives (localization), what a symbol touches and what touches it (impact), every
 claim bound to the content it was read from. It is a **contract over replaceable adapters** — one pinned
 language-server adapter (Python first) plus lexical, syntax-tree, and history evidence — producing a
@@ -29,7 +29,9 @@ data, quarantined as such** — provenance-tagged excerpts, never instructions t
 | Field | Value |
 |---|---|
 | `id` | `code-intelligence-core` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `detected` (product code in a supported language) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **[schemas](../systems/surfaces/schemas.md)** (`localization-dossier.v1` — per-mode lead lists with corroboration markers, queries run, exclusions, the per-mode attempt record (`ran`\|`timed-out`\|`unsupported`\|`degraded` — an absent lead is never silent), the quarantine framing for every quoted excerpt, and the content-digest bindings of files referenced and searched; `impact-set.v1` — **input: a plain seed set of files/symbols/spans** (never structured-change's candidate grammar — no dependency cycle; the consumer derives seeds and calls), output: affected symbols/files with per-item derivation lane (`lexical`\|`symbol`\|`structure`\|`history`); `orient` emits a dossier with no query — the repository-shape summary, same schema; and `structure-walk` — the **enumeration surface**: a whole-repository node/edge stream (files, symbols, references) within the adapter's declared capabilities, bounded and resumable, the bulk-extraction feed [product-knowledge-graph](product-knowledge-graph.md) later persists — per-symbol query fan-out is not a substitute and is disqualified as its build path); the **adapter contract [schema](../systems/surfaces/schemas.md)** (`code-intel-adapter.v1` — declared capabilities, all optional and disclosed; integrity requirements below); the **[tools](../systems/surfaces/tools.md)** (`code_intel.py` — orient/localize/impact/structure-walk; the adapter host); hard **[checks](../systems/surfaces/check.md)** (dossier **and impact-set** schema conformance — the boundary-crossing artifact is machine-gated); the **[operation](../systems/surfaces/operations.md)** runbook; and the operator **[doc](../systems/surfaces/docs.md)** |
 | `wires` | **none** |
 | `depends` | `core`, `delivery-core` (dossiers attach to runs) |
@@ -82,8 +84,8 @@ these adapters, not duplicated here.
 
 ### Degraded behavior
 
-No adapter → lexical/history-only, disclosed. Crash, timeout, or unsupported language → typed per-mode
-attempt states, disclosed, never silent absence. **The local-only posture is stated honestly**: no network
+**Degraded** — no adapter → lexical/history-only, disclosed. **Faulted** on crash or timeout, and
+**inapplicable** on an unsupported language → typed per-mode attempt states, disclosed, never silent absence. **The local-only posture is stated honestly**: no network
 egress by design (local subprocess, offline-installable adapter, no upload of source anywhere); the egress
 fixture demonstrates it on staged runs — an existence demonstration, with the enforced boundary being the
 adapter constraints above, not the fixture.

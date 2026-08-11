@@ -12,7 +12,7 @@ cold reviews.*
 
 ## Summary
 
-The **optional** first backend realizing [execution-environment](execution-environment.md)'s adapter
+The **local-container backend profile** — the first backend realizing [execution-environment](execution-environment.md)'s adapter
 contract, on **local containers**: provisioning a manifest's declared environment on the operator's own
 machine, images pinned by digest — never a mutable tag — with the contract's conformance fixtures passed
 and committed before any manifest may name it (the admission check reads that evidence at merge). Its
@@ -29,7 +29,9 @@ orchestrated backends come later, through the same conformance gate, as their ow
 | Field | Value |
 |---|---|
 | `id` | `runtime-backend-local-container` |
-| `status` | `optional` |
+| `distribution` | `profile` |
+| `applicability` | `detected` (a local container engine, chosen as backend) |
+| `activation` | `on-trigger` · `ungated` |
 | `provides` | the **backend implementation [tool](../systems/surfaces/tools.md)** (`env_backend_container.py` — realizes `env-backend.v1`: provision from digest-pinned images; observe; **lease-enforce** (the container is created with the TTL/lifetime deadline the engine's own mechanisms enforce where available, plus the label-sweep the controller's reconcile-orphans drives); stop; teardown by **label discovery** — every resource created carries the run's label, and teardown enumerates by label, catching create-but-unrecorded orphans; the **egress gateway component** for named routes — a filtering forward component on an isolated network, the real machinery behind closed-except-named); the **capability declaration** (an `env-backend.v1` instance: which operations and limits this backend provides, each enforcement claim backed by a violation probe — storage quotas, for example, commonly type `requested` on mac-hosted engines; checkpoint/resume declared absent, per the contract's deferral); and the **committed conformance evidence** the contract's admission check reads |
 | `wires` | **none** |
 | `depends` | `core`, `execution-environment` |
@@ -61,7 +63,8 @@ not discovered.
 
 ### Degraded behavior
 
-Container engine missing/incompatible → `unavailable` with the observed reason; nothing provisions. A
+**Inapplicable** — a missing or incompatible container engine → `unavailable` with the observed reason;
+nothing provisions. **Faulted** — a
 container dying under a live controller surfaces as observation divergence; a dead controller's containers
 are bounded by the engine-side deadline where enforceable and swept by label at the next controller act.
 A teardown failure reports per-resource. Both runtimes drive the same backend tool. Conformance is a

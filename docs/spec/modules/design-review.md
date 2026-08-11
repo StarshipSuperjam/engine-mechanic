@@ -4,7 +4,7 @@ status: locked
 
 # design-review
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md); ratified as intended design on 2026-06-23 by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the module promoted to `required` distribution and the manifest's `status` field separated into the distribution, applicability, and activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-06-23 by [decision 0249](../../adr/0249-resolve-re-lock-design-review-the-optional-advisory-spec-loc.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
 
 ## Summary
 
@@ -26,7 +26,9 @@ gate its own irreversible decisions.
 | Field | Value |
 |---|---|
 | `id` | `design-review` |
-| `status` | `optional` |
+| `distribution` | `required` |
+| `applicability` | `universal` |
+| `activation` | `on-trigger` · `ungated` (invoked at the plan-review gate; how many lenses run is review-depth-governed) |
 | `provides` | four `role: plan-review` agent personas (`.claude/agents/` files), one per lens below, **plus their four generated Codex renders** (`.codex/agents/` files, held to both-runtime presence by the fleet's hard parity check) — eight provided files in all |
 | `wires` | **none** (file-drop; the roster is derived from agent frontmatter) |
 | `depends` | `core` |
@@ -62,8 +64,9 @@ gate consumes all four.
 
 ### Depth is proportionate
 
-The suite is installable and individually composable, but **how many lenses run is risk-proportionate and
-operator-gated** at the plan-gate risk assessment ([build orchestration](../systems/lifecycle/build-orchestration.md)):
+The suite ships in every Engine (`required` distribution) and is individually composable, but **how many
+lenses run is risk-proportionate and operator-gated** — its **activation**, not its presence — at the
+plan-gate risk assessment ([build orchestration](../systems/lifecycle/build-orchestration.md)):
 a trivial change runs none; a schema or guardrail change runs the full quartet. A change with no `locked`
 spec to check against — none exists, or the pointer reaches only a `draft` — makes `product-intent` a
 **disclosed no-op** ("I could not check this against a spec — none is locked"), never a silent green pass
@@ -72,17 +75,17 @@ spec to check against — none exists, or the pointer reaches only a `draft` —
 ### A second, optional invocation — advising a spec-lock
 
 [build orchestration](../systems/lifecycle/build-orchestration.md) invokes the quartet at the
-plan-review gate (above), reviewing a **build plan**. When this suite is installed it gains a **second,
-optional invocation point**: [product-design](product-design.md)'s **spec-lock ceremony**
+plan-review gate (above), reviewing a **build plan**. It also gains a **second, optional invocation point**:
+[product-design](product-design.md)'s **spec-lock ceremony**
 ([D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) may invoke the quartet to **advise on the spec itself** (referent = the
 spec, not a build plan) — the product analogue of this workspace's cold-session design audit before a lock.
 The lenses **advise; they never gate**: their findings are evidence the **operator** weighs, and the
 **operator's recorded acceptance** is what locks the spec — the engine never *vetoes* what the product may
 become (the engine validates **form** and advises on content per the
 [engine/product wall](../systems/infrastructure/repository-topology.md) re-scope,
-[D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md); the operator governs it). It is **optional enrichment bound by
-presence** — a repo without this suite locks a spec on validation green plus the operator's acceptance
-alone — so [product-design](product-design.md) takes **no hard `depends` edge** to this module:
+[D-244](../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md); the operator governs it). It is **optional enrichment at the spec-lock** —
+the ceremony may invoke the quartet or not, and when it does not, a spec locks on validation green plus the
+operator's acceptance alone — so [product-design](product-design.md) takes **no hard `depends` edge** to this module:
 the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring-the-en.md) referent-producer↔lens-roster separation holds (the suite is *consumed
 by*, never *depended on by*, product-design). Two referents, two moments — the spec at lock, the build plan
 at plan-review — distinct, not redundant.
