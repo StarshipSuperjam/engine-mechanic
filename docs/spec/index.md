@@ -6,6 +6,9 @@ spec_depth: full
 
 This describes **engine-template** — the product this repository builds — as it is **actually built**: every row marked **settled** carries that promise, and the rows marked otherwise are the disclosed exceptions. First written in a separate design workspace, carried here as intended design, and reconciled document by document against the build, the corpus is now **settled**: on 2026-08-02 the operator accepted every reconciled capability document as the ratified baseline ([decision 0331](../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md)) — the ground future builds are measured against and future design work diffs from. One stub remains **not yet described** (engine-knowledge-graph), and the **in progress** rows are forward-designed documents describing intended work not yet built, authored after the settling through the plan-acceptance route ([decision 0327](../adr/0327-route-product-spec-authoring-through-plan-acceptance-into-b.md)): [platform-currency](modules/platform-currency.md), and the twenty-six documents of the **delivery-plane program** ([decision 0334](../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md)) — each entering as a draft, settling per wave by the operator's recorded acceptance before that wave's build begins. The former `clean-code` stub is **retired** by that same decision: the engineering-quality family absorbs its territory, with the decision record and git history as the trace.
 
+The **draft** [Company layer](systems/infrastructure/company-layer.md) is a different kind of forward document:
+an exploratory post-v1 target map, not yet an accepted program, release commitment, or build wave.
+
 **Where to start with the delivery plane:** the program's ground is
 [decision 0334](../adr/0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md) (the module map, the
 boundary cuts, and the program rules), and the [build order](build-plan.md) shows which of the "in
@@ -77,6 +80,7 @@ Supporting material sits alongside: the guiding principles in `../principles.md`
 | Telemetry | settled | [Telemetry](systems/guardrails/telemetry.md) |
 | Templates | settled | [Templates](systems/guardrails/templates.md) |
 | Validation | settled | [Validation](systems/guardrails/validation.md) |
+| Company layer | draft | [Company layer](systems/infrastructure/company-layer.md) |
 | Control plane | settled | [Control plane](systems/infrastructure/control-plane.md) |
 | Hooks | settled | [Hooks](systems/infrastructure/hooks.md) |
 | Provisioning | settled | [Provisioning](systems/infrastructure/provisioning.md) |
