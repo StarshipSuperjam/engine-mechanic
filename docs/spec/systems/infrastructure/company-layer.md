@@ -121,7 +121,8 @@ flowchart TB
     AB["Provider-specific action adapter<br/>request builder · response interpreter"]
     CR["Credential broker and custody<br/>v1 exercise gate · transmission"]
     EG["Independent provider or egress gate<br/>one digest · one use · bounded resource"]
-    OB["Independent observation custody<br/>read-only provider evidence"]
+    OA["Independent observation adapter<br/>read request · response interpretation"]
+    OC["Independent observation custody<br/>read-only credential · transmission"]
     EX["External systems<br/>deploy · publish · spend · send · delete"]
     PA["Project A Engine<br/>repository-authoritative"]
     PB["Project B Engine<br/>repository-authoritative"]
@@ -140,16 +141,21 @@ flowchart TB
     PB -- "signed project intent + v1 run grant" --> AB
     PC -- "signed project intent + v1 run grant" --> AB
     ID -- "narrowing constraint" --> AB
-    AP -- "protected-action approval" --> AB
+    ID -- "same narrowing constraint" --> CR
+    ID -- "same narrowing constraint" --> EG
+    ID -- "same narrowing constraint" --> AP
+    AP -- "protected-action approval" --> PA
     AB -- "credential-free provider request" --> CR
-    AB -- "original digest-bound authority bundle" --> EG
     CR -- "credential-attached exact action" --> EG
     EG -- "authorized one-use request" --> EX
     EX -- "effect response" --> CR
     CR -- "credential-free effect response" --> AB
-    OB -- "independent read-only observation" --> EX
-    EX -- "provider-authenticated evidence" --> OB
-    OB -- "observation receipt" --> PA
+    PA -- "canonical read scope" --> OA
+    OA -- "credential-free observation request" --> OC
+    OC -- "read-only provider request" --> EX
+    EX -- "provider-authenticated evidence" --> OC
+    OC -- "credential-free evidence" --> OA
+    OA -- "observation receipt" --> PA
     AB -- "action receipt" --> PA
     AB -- "action receipt" --> PB
     AB -- "action receipt" --> PC
@@ -247,8 +253,9 @@ solver choose a different set at install time.
 The external catalog envelope is the v2 schema extension; once materialized, its contained module manifest
 uses the unchanged v1 grammar rather than inventing new fields or a second wiring system. The envelope carries
 source, digest, Engine compatibility, and organization namespace. The v1 manifest carries `id`, `version`,
-`distribution`, `applicability`, `activation`, `provides`, `wires`, `depends`, `migrations`, and any applicable
-retirement record. Ownership derives from `provides`; removal derives from the module manager's reversal of
+`distribution`, `applicability`, `activation`, the independent `maturity` and `lifecycle` markers where
+applicable, `provides`, `wires`, `depends`, `migrations`, and any applicable retirement record. Ownership
+derives from `provides`; removal derives from the module manager's reversal of
 owned files and wires. A rollback is a reviewed project change that restores the prior lock and bytes, then
 uses v1 uninstall, install or upgrade and forward migrations as applicable—it is not a nonexistent v1 manifest
 field or an assumed reverse migration. Installation refuses module-id, file-provider, wiring, dependency,
@@ -401,7 +408,7 @@ service resumes; live grants and private signing or provider keys do not cross t
 | --- | --- | --- |
 | Project-private | Raw transcripts, scratch state, source content, secrets, product data, private tuning inputs | Never exported merely by fleet membership |
 | Project receipt | Engine and pack versions, validation result, evidence freshness, adoption state, broker action outcome, aggregate approved metric | Export only fields declared by adopted collection policy; minimize and retain by class |
-| Broker action protocol | The project sends canonical intent and original authority references directly to approval, broker, and egress domains; the adapter receives only the fields needed to build the provider request; effect custody receives that request plus the authority bundle; independent observation custody receives only the read scope and reconciliation identifiers; the provider receives only its request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations; no intermediary may silently widen or relay the bundle |
+| Broker action protocol | The project sends canonical intent and its original project authorities directly to approval, broker, and egress domains; company policy independently sends the same narrowing constraint to each; the adapter receives only the fields needed to build the provider request; effect custody receives that request; an admitted observation adapter builds a credential-free read request and separate read-only custody transmits it; the provider receives only each exact request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations; each enforcement domain assembles and verifies the company-plus-project authority set from its independent inputs, and no intermediary may silently widen or relay it |
 | Company authority data | Identity mapping, policy decision, approval, grant metadata, revocation state | Company-managed; project receives the minimum decision and receipt needed for audit |
 | Promoted shared artifact | Policy pack, module, profile, eval case, pattern, redacted incident lesson | Versioned, reviewed, attributable, and adopted by projects explicitly |
 
@@ -452,17 +459,21 @@ sequenceDiagram
     participant B as Provider-family adapter
     participant C as Effect credential custody
     participant G as Independent provider or egress gate
-    participant O as Independent observation custody
+    participant A as Independent observation adapter
+    participant O as Independent read-only custody
     participant X as External system
     E->>H: Canonical signed intent and original authority references
+    P-->>H: Independently signed narrowing constraint
     H->>H: Derive human-readable effect and recovery from canonical schema
     H-->>E: Authenticated expiring approval or rejection over canonical digest
     E->>B: Canonical request, approved digest, local-policy attestation
     P-->>B: Independently signed narrowing constraint
     B->>E: Pre-exercise challenge for mandatory local gate
     E-->>B: Fresh project approval over the same digest
-    E->>C: Canonical request + original digest-bound authority bundle
-    E->>G: Canonical request + original digest-bound authority bundle
+    E->>C: Canonical request + original project authorities
+    P-->>C: Same independently signed narrowing constraint
+    E->>G: Canonical request + original project authorities
+    P-->>G: Same independently signed narrowing constraint
     B->>C: Credential-free exact provider request
     C->>C: Verify full v1 and company chain; verify mapping; attach bounded credential
     C->>G: Credential-attached request
@@ -470,11 +481,13 @@ sequenceDiagram
     G->>X: Transmit exact admitted action
     X-->>C: Outcome
     C-->>B: Credential-free response and reconciliation anchor
-    E->>O: Canonical read scope and reconciliation identifiers
-    O->>X: Independently credentialed read-only observation
+    E->>A: Canonical read scope and reconciliation identifiers
+    A->>O: Credential-free provider observation request
+    O->>X: Attach read-only credential and transmit
     X-->>O: Provider-authenticated evidence
-    O-->>E: Signed observation receipt or detectable omission
-    O-->>B: Signed observation receipt
+    O-->>A: Credential-free evidence or detectable omission
+    A-->>E: Signed observation receipt
+    A-->>B: Signed observation receipt
     B-->>E: Attributable action and recovery receipt
 ```
 
@@ -576,6 +589,7 @@ program must assign each such row to a concrete check before settling it.
 | A company pack cannot collide with Engine or project ownership | Exercise duplicate module-id, file-provider, wiring, dependency, incompatible-release, and removal-order fixtures | engine |
 | A project can strengthen an adopted company rule | Apply a stricter local constraint and verify effective-policy resolution | engine |
 | Weakening a mandatory company rule requires a valid waiver | Test absent, unauthorized, expired, and valid waiver cases | engine |
+| Current, pending, rejected, and waived states remain distinct for the same pack or rule | Hold a current version while proposing its replacement, then merge, reject, and waive separate proposal fixtures; verify version/proposal-addressed states and the matching receipt type without overwriting the current record | engine |
 | A policy conflict leaves the project on its last coherent approved set | Introduce incompatible pack and project rules and inspect the blocked state | engine |
 | Refusing or missing a mandatory-policy deadline has a visible, reversible organizational consequence without silently merging it | Miss a deadline, observe broker suspension, then adopt or waive and verify restored eligibility | operator |
 | One organizational identity receives consistent constraints across projects while each project can narrow them | Exercise one identity against two projects with common company policy and different stricter local policies | engine |
@@ -602,6 +616,7 @@ program must assign each such row to a concrete check before settling it.
 | Compromise recovery does not depend on the compromised signing authority | Suspend a signer and use the separately held recovery root and out-of-band project procedure to rotate it without accepting rollback | operator |
 | Company authority and evidence state can be restored to a declared recovery point | Restore a backup containing identity, policy, waiver, revocation, receipt, and reconciliation fixtures and compare continuity | engine |
 | The company control plane can be replaced without losing authority or receipt continuity | Freeze actions, export and import the declared state, rotate roots, re-enroll instances, reconcile spools and cursors, re-provision provider consent and custody, verify old grants fail, then complete one freshly granted brokered action with continuous receipts | engine |
+| A company replacement export excludes project-private memory and raw provider credentials | Seed both excluded classes, run export and import, inspect every exported field and recipient, and verify the replacement obtains neither class | engine |
 | A mixed-version fleet can roll forward and back without partition or silent data loss | Exercise schema negotiation, compatibility window, receipt backfill, datastore migration, downgrade, offline-project return, and signing-key rotation | engine |
 | Central data access is purpose- and project-scoped, retained, deleted, exported, and audited as declared | Exercise cross-project access denial, administrator access logging, retention expiry, legal hold, export, identity revocation, and breach segmentation | engine |
 | Fleet aggregates do not reveal project-private facts through small cohorts or linked fields | Exercise single-project, differencing, sparse-attribute, and cross-field linkage attacks and verify suppression, generalization, or refusal | engine |
