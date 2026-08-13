@@ -123,6 +123,7 @@ flowchart TB
     EG["Independent provider or egress gate<br/>one digest · one use · bounded resource"]
     OA["Independent observation adapter<br/>read request · response interpretation"]
     OC["Independent observation custody<br/>read-only credential · transmission"]
+    RG["Independent read-egress gate<br/>one scope · one use · bounded fields"]
     EX["External systems<br/>deploy · publish · spend · send · delete"]
     PA["Project A Engine<br/>repository-authoritative"]
     PB["Project B Engine<br/>repository-authoritative"]
@@ -152,10 +153,15 @@ flowchart TB
     CR -- "credential-free effect response" --> AB
     PA -- "canonical read scope" --> OA
     PA -- "canonical read scope + authorities" --> OC
+    PA -- "canonical read scope + authorities" --> RG
     ID -- "observation constraint" --> OC
+    ID -- "same observation constraint" --> RG
     OA -- "credential-free observation request" --> OC
-    OC -- "read-only provider request" --> EX
-    EX -- "provider-authenticated evidence" --> OC
+    OC -- "credential-attached read request" --> RG
+    RG -- "authorized one-use read" --> EX
+    EX -- "provider-authenticated evidence" --> RG
+    RG -- "provider-authenticated evidence" --> OC
+    RG -- "provider-authenticated evidence" --> PA
     OC -- "credential-free evidence" --> OA
     OC -- "provider-authenticated evidence" --> PA
     OA -- "interpreted observation" --> PA
@@ -415,7 +421,7 @@ service resumes; live grants and private signing or provider keys do not cross t
 | --- | --- | --- |
 | Project-private | Raw transcripts, scratch state, source content, secrets, product data, private tuning inputs | Never exported merely by fleet membership |
 | Project receipt | Engine and pack versions, validation result, evidence freshness, adoption state, broker action outcome, aggregate approved metric | Export only fields declared by adopted collection policy; minimize and retain by class |
-| Broker action protocol | The project sends canonical intent, original project authorities, and the independent human approval receipt directly to effect custody and egress; company policy independently sends the same narrowing constraint to approval, effect custody, and egress; the effect adapter receives only the fields needed to build the provider request. For observation, the project sends canonical read scope and applicable authorities directly to read-only custody while an admitted observation adapter separately builds the credential-free provider read; company policy sends the observation constraint directly to custody. The provider receives only each exact request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations. Each enforcement domain assembles and verifies its complete authority set from independent inputs and checks adapter output against the canonical request. Provider-authenticated observation evidence returns directly to the project as well as to the interpreting adapter; no intermediary may silently widen or relay authority or become the sole evidence source |
+| Broker action protocol | The project sends canonical intent, original project authorities, and the independent human approval receipt directly to effect custody and effect egress; company policy independently sends the same narrowing constraint to approval, custody, and egress; the effect adapter receives only the fields needed to build the provider request. For observation, the project sends canonical read scope and applicable authorities directly to read-only custody and an independently administered read-egress gate, while an admitted observation adapter separately builds the credential-free provider read; company policy sends the same observation constraint directly to custody and read egress. Custody has no unrestricted provider route. The provider receives only each exact request after its egress gate admits it | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations. Each enforcement domain assembles and verifies its complete authority set from independent inputs and checks adapter output against the canonical request. Provider-authenticated observation evidence returns through read egress to the project as well as to the interpreting adapter; no intermediary may silently widen or relay authority or become the sole evidence source |
 | Company authority data | Identity mapping, policy decision, approval, grant metadata, revocation state | Company-managed; project receives the minimum decision and receipt needed for audit |
 | Promoted shared artifact | Policy pack, module, profile, eval case, pattern, redacted incident lesson | Versioned, reviewed, attributable, and adopted by projects explicitly |
 
@@ -468,6 +474,7 @@ sequenceDiagram
     participant G as Independent provider or egress gate
     participant A as Independent observation adapter
     participant O as Independent read-only custody
+    participant R as Independent read-egress gate
     participant X as External system
     E->>H: Canonical signed intent and original authority references
     P-->>H: Independently signed narrowing constraint
@@ -491,10 +498,16 @@ sequenceDiagram
     E->>A: Canonical read scope and reconciliation identifiers
     E->>O: Canonical read scope + applicable project authorities
     P-->>O: Independently signed observation constraint
+    E->>R: Canonical read scope + applicable project authorities
+    P-->>R: Same independently signed observation constraint
     A->>O: Credential-free provider observation request
     O->>O: Verify authorities and adapter request mapping
-    O->>X: Attach read-only credential and transmit exact request
-    X-->>O: Provider-authenticated evidence
+    O->>R: Credential-attached exact read request
+    R->>R: Independently verify authorities, scope, fields, nonce, and expiry
+    R->>X: Transmit authorized one-use read
+    X-->>R: Provider-authenticated evidence
+    R-->>E: Provider-authenticated evidence + egress receipt
+    R-->>O: Provider-authenticated evidence
     O-->>E: Provider-authenticated evidence + custody receipt or detectable omission
     O-->>A: Same credential-free provider evidence
     A-->>E: Interpreted observation bound to provider evidence
@@ -527,6 +540,7 @@ sequenceDiagram
 | Company control-plane compromise | Independent approval, project intent, local exercise gate, and credential custody prevent that plane alone from acting; recovery authority suspends it and rotates the signing root out of band |
 | Approval compromise | Project intent, the local exercise gate, credential custody, and the independent provider or egress gate refuse an approval that does not match the complete request digest |
 | Credential-custody compromise | The independent provider or egress gate refuses requests without valid original authorities; provider limits bound the declared residual, independent observation exposes effects or detectable omissions, and recovery revokes and rotates custody |
+| Read-custody compromise | The independent read-egress gate refuses wider, replayed, or directly routed reads; provider field and resource limits bound the declared residual; recovery revokes and rotates read custody |
 | Provider-adapter compromise | An adapter has no credential or provider route; altered effect requests fail the digest-bound broker and egress gates; altered observation requests fail read-custody mapping; provider evidence reaches the project without relying on adapter interpretation; and the adapter loses admission until re-proven |
 | Project compromise | The project's grants are revoked; its receipts are quarantined; no authority crosses to another project |
 | Identity-provider outage | Protected and fresh-authority actions fail closed; only explicitly offline-safe unexpired grants remain usable within their maximum lifetime |
@@ -616,7 +630,7 @@ program must assign each such row to a concrete check before settling it.
 | Compromise of the adapter or credential custody cannot bypass the independently enforced action decision | Give each domain attacker-level control in isolation; attempt altered digests, resources, routes, replay, and direct provider use; verify refusal or fail broker admission and record any provider-bounded residual | engine |
 | Every action-protocol recipient receives only its declared fields and retains them only as declared | Trace canonical intent, authority references, provider request, effect response, and observation evidence across approval, adapter, effect custody, egress, observation custody, and provider domains | engine |
 | Provider observation remains trustworthy when effect custody is compromised | Exercise suppressed, fabricated, delayed, and contradictory outcomes from effect custody and verify independent read-only observation or a detectable evidence gap | engine |
-| Observation adapter or read-custody compromise cannot widen collection or forge evidence silently | Give each domain attacker-level control in isolation; attempt wider reads, altered mappings, suppression, fabrication, and replay; verify custody refusal, project verification of provider-authenticated evidence, detectable omission, or loss of adapter admission | engine |
+| Observation adapter or read-custody compromise cannot widen collection or forge evidence silently | Give each domain attacker-level control in isolation; attempt wider reads, altered mappings, suppression, fabrication, replay, and direct provider use; verify read-egress refusal, project verification of provider-authenticated evidence, detectable omission, or loss of adapter admission, and record any provider-bounded residual | engine |
 | A brokered action receipt identifies request, policies, grants, approval, execution, independent provider observation, outcome, time, and recovery | Complete successful, rejected, failed, disputed, and recovered fixtures and inspect receipts | engine |
 | An uncertain broker retry cannot duplicate an action silently | Exercise timeout and retry fixtures with the same and different idempotency keys | engine |
 | A company outage leaves ordinary local Engine work available | Remove company connectivity and complete a local read, edit, validation, and review cycle | operator |
