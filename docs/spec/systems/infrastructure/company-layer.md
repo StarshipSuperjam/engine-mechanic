@@ -121,6 +121,7 @@ flowchart TB
     AB["Provider-specific action adapter<br/>request builder · response interpreter"]
     CR["Credential broker and custody<br/>v1 exercise gate · transmission"]
     EG["Independent provider or egress gate<br/>one digest · one use · bounded resource"]
+    OB["Independent observation custody<br/>read-only provider evidence"]
     EX["External systems<br/>deploy · publish · spend · send · delete"]
     PA["Project A Engine<br/>repository-authoritative"]
     PB["Project B Engine<br/>repository-authoritative"]
@@ -133,6 +134,9 @@ flowchart TB
     PB -- "bounded receipts" --> CL
     PC -- "bounded receipts" --> CL
     PA -- "signed project intent + v1 run grant" --> AB
+    PA -- "canonical request + original authorities" --> CR
+    PA -- "canonical request + original authorities" --> EG
+    PA -- "canonical request for human rendering" --> AP
     PB -- "signed project intent + v1 run grant" --> AB
     PC -- "signed project intent + v1 run grant" --> AB
     ID -- "narrowing constraint" --> AB
@@ -141,8 +145,11 @@ flowchart TB
     AB -- "original digest-bound authority bundle" --> EG
     CR -- "credential-attached exact action" --> EG
     EG -- "authorized one-use request" --> EX
-    EX -- "outcome and observation" --> CR
-    CR -- "credential-free response" --> AB
+    EX -- "effect response" --> CR
+    CR -- "credential-free effect response" --> AB
+    OB -- "independent read-only observation" --> EX
+    EX -- "provider-authenticated evidence" --> OB
+    OB -- "observation receipt" --> PA
     AB -- "action receipt" --> PA
     AB -- "action receipt" --> PB
     AB -- "action receipt" --> PC
@@ -237,14 +244,19 @@ records one exact pack version, source, content digest, compatible Engine releas
 proposal materializes that exact set into the project tree; it never follows an ambient `latest` tag or lets a
 solver choose a different set at install time.
 
-Once materialized, company packs use the v1 module grammar rather than a second wiring system. Their ids and
-owned paths live in an organization namespace; every file still has one provider, wiring uses the v1 closed
-vocabulary, and the manifest declares dependencies, ownership, migration, rollback, and removal. Installation
-refuses module-id, file-provider, wiring, dependency, digest, release-compatibility, or version collisions.
-Company pack owners cannot claim Engine-owned paths or bypass the project's normal ownership and
-protected-review treatment. The company pack owner publishes migrations and compatibility; the project owns
-the adopted lock and proposal; the Engine module operation owns coherent apply, rollback, and dependency-safe
-removal. Stage C must settle this source-and-lock extension before any pack is admitted.
+The external catalog envelope is the v2 schema extension; once materialized, its contained module manifest
+uses the unchanged v1 grammar rather than inventing new fields or a second wiring system. The envelope carries
+source, digest, Engine compatibility, and organization namespace. The v1 manifest carries `id`, `version`,
+`distribution`, `applicability`, `activation`, `provides`, `wires`, `depends`, `migrations`, and any applicable
+retirement record. Ownership derives from `provides`; removal derives from the module manager's reversal of
+owned files and wires. A rollback is a reviewed project change that restores the prior lock and bytes, then
+uses v1 uninstall, install or upgrade and forward migrations as applicable—it is not a nonexistent v1 manifest
+field or an assumed reverse migration. Installation refuses module-id, file-provider, wiring, dependency,
+digest, release-compatibility, or version collisions. Company pack owners cannot claim Engine-owned paths or
+bypass the project's normal ownership and protected-review treatment. The company pack owner publishes the
+catalog envelope, compatible bytes, and forward migrations; the project owns the adopted lock and proposal;
+the Engine module operation owns coherent apply and dependency-safe removal. Stage C must settle this
+source-and-lock extension and rollback limits before any pack is admitted.
 
 A project connector compares the offered pack with the locally adopted version and opens or prepares a
 project proposal. Normal project validation and review then decide whether it lands. Urgent revocation may
@@ -342,7 +354,7 @@ Fleet state uses independent axes rather than one lossy lifecycle value:
 | Enrollment | `unmanaged`, `invited`, `enrolled`, `departed` |
 | Connectivity | `online`, `offline`, `unknown` |
 | Policy-set coherence | `coherent`, `stale`, `conflicted` |
-| Policy-item status | A map keyed by pack and rule: `current`, `pending`, `waived`, `expired`, or `rejected` |
+| Policy-item status | A map keyed by pack/rule plus version or proposal id: `current`, `pending`, `waived`, `expired`, or `rejected` |
 | Health | `healthy`, `degraded`, `unknown` |
 | Company authority | `eligible`, `restricted`, `suspended` |
 
@@ -379,8 +391,9 @@ public signing and recovery-root bindings, receipt replay and acknowledgement po
 cursors, retention and legal-hold metadata, promoted artifacts, and broker receipts without exporting private
 project memory that was never in scope or raw provider credentials. Replacement freezes new broker actions,
 verifies and imports the export, rotates signing roots through the separately held recovery path, re-enrolls
-each project instance, reconciles every spool and acknowledgement cursor, and issues fresh grants; live grants
-and private signing or provider keys do not cross the replacement boundary.
+each project instance, reconciles every spool and acknowledgement cursor, and issues fresh grants. Provider
+consent and credential custody are re-provisioned or rotated through their independent owners before action
+service resumes; live grants and private signing or provider keys do not cross the replacement boundary.
 
 ### Boundary data
 
@@ -388,7 +401,7 @@ and private signing or provider keys do not cross the replacement boundary.
 | --- | --- | --- |
 | Project-private | Raw transcripts, scratch state, source content, secrets, product data, private tuning inputs | Never exported merely by fleet membership |
 | Project receipt | Engine and pack versions, validation result, evidence freshness, adoption state, broker action outcome, aggregate approved metric | Export only fields declared by adopted collection policy; minimize and retain by class |
-| Broker action request | Exact intent, request digest and nonce, identity and instance, resource, environment, data classification, effective-policy attestation, and approval references | Export only to the admitted adapter for the named action; minimize fields, bind purpose and expiry, and retain under the adopted action policy |
+| Broker action protocol | The project sends canonical intent and original authority references directly to approval, broker, and egress domains; the adapter receives only the fields needed to build the provider request; effect custody receives that request plus the authority bundle; independent observation custody receives only the read scope and reconciliation identifiers; the provider receives only its request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations; no intermediary may silently widen or relay the bundle |
 | Company authority data | Identity mapping, policy decision, approval, grant metadata, revocation state | Company-managed; project receives the minimum decision and receipt needed for audit |
 | Promoted shared artifact | Policy pack, module, profile, eval case, pattern, redacted incident lesson | Versioned, reviewed, attributable, and adopted by projects explicitly |
 
@@ -417,8 +430,16 @@ sequenceDiagram
     P->>P: Verify signature, compatibility, and diff
     P->>V: Open or prepare project change
     V-->>O: Checks and evidence
-    O->>P: Merge, reject, or record waiver
-    P-->>C: Adoption receipt with accepted version
+    alt Merge
+        O->>P: Merge exact locked proposal
+        P-->>C: Adoption receipt with accepted version
+    else Reject
+        O->>P: Reject proposal
+        P-->>C: Rejection receipt with proposal id
+    else Waive
+        O->>P: Record authorized expiring waiver
+        P-->>C: Waiver receipt with rule, proposal id, and expiry
+    end
 ```
 
 #### Consequential external action
@@ -429,25 +450,31 @@ sequenceDiagram
     participant P as Company policy authority
     participant H as Independent human approver
     participant B as Provider-family adapter
-    participant C as Credential custody
+    participant C as Effect credential custody
     participant G as Independent provider or egress gate
+    participant O as Independent observation custody
     participant X as External system
-    E->>B: Signed intent, live-run grant, digest, local-policy attestation
+    E->>H: Canonical signed intent and original authority references
+    H->>H: Derive human-readable effect and recovery from canonical schema
+    H-->>E: Authenticated expiring approval or rejection over canonical digest
+    E->>B: Canonical request, approved digest, local-policy attestation
     P-->>B: Independently signed narrowing constraint
-    B->>H: Protected request digest, impact, and recovery evidence
-    H-->>B: Authenticated expiring approval or rejection
     B->>E: Pre-exercise challenge for mandatory local gate
     E-->>B: Fresh project approval over the same digest
+    E->>C: Canonical request + original digest-bound authority bundle
+    E->>G: Canonical request + original digest-bound authority bundle
     B->>C: Credential-free exact provider request
-    B->>G: Original digest-bound authority bundle
-    C->>C: Verify exercise gate and attach bounded credential
+    C->>C: Verify full v1 and company chain; verify mapping; attach bounded credential
     C->>G: Credential-attached request
-    G->>G: Verify original authorities; match digest, resource, nonce, limits, and expiry
+    G->>G: Independently verify original authorities and request mapping
     G->>X: Transmit exact admitted action
     X-->>C: Outcome
-    C->>X: Independent observation or reconciliation request
-    X-->>C: Observation
     C-->>B: Credential-free response and reconciliation anchor
+    E->>O: Canonical read scope and reconciliation identifiers
+    O->>X: Independently credentialed read-only observation
+    X-->>O: Provider-authenticated evidence
+    O-->>E: Signed observation receipt or detectable omission
+    O-->>B: Signed observation receipt
     B-->>E: Attributable action and recovery receipt
 ```
 
@@ -475,7 +502,7 @@ sequenceDiagram
 | Stale or incompatible policy pack | Project remains on its last coherent version and surfaces the blocked upgrade |
 | Company control-plane compromise | Independent approval, project intent, local exercise gate, and credential custody prevent that plane alone from acting; recovery authority suspends it and rotates the signing root out of band |
 | Approval compromise | Project intent, the local exercise gate, credential custody, and the independent provider or egress gate refuse an approval that does not match the complete request digest |
-| Credential-custody compromise | The independent provider or egress gate refuses requests without a valid one-use exercise decision; provider limits bound the declared residual, reconciliation identifies effects, and recovery revokes and rotates custody |
+| Credential-custody compromise | The independent provider or egress gate refuses requests without valid original authorities; provider limits bound the declared residual, independent observation exposes effects or detectable omissions, and recovery revokes and rotates custody |
 | Provider-adapter compromise | The adapter has no credential or provider route; altered requests fail the digest-bound broker and egress gates, and the adapter loses admission until re-proven |
 | Project compromise | The project's grants are revoked; its receipts are quarantined; no authority crosses to another project |
 | Identity-provider outage | Protected and fresh-authority actions fail closed; only explicitly offline-safe unexpired grants remain usable within their maximum lifetime |
@@ -533,6 +560,7 @@ program must assign each such row to a concrete check before settling it.
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
 | A connected project remains authoritative for its product intent and accepted Engine state | Disconnect the company layer, cold-start the project, and inspect the resulting orientation and policy provenance | operator |
+| Company integration cannot mutate or replace the project's experiential memory ledger | Attempt company-originated memory writes, replacement, and restore operations and verify that only the project's local memory substrate can authorize them | engine |
 | A company operator can find fleet health, receipt freshness, locally attested evidence freshness, drift, and pending decisions across several projects in one provenance-linked view | Seed a mixed fleet with one exception of each class and use only the fleet cockpit to identify each project and source receipt | operator |
 | Fleet membership never exports project-private memory by default | Run privacy fixtures containing marked transcripts, scratch state, source content, secrets, and product data; inspect all emitted payloads | engine |
 | Every emitted receipt field is authorized by an adopted collection policy | Compare receipt schemas and payloads with the project's effective collection manifest | engine |
@@ -540,9 +568,11 @@ program must assign each such row to a concrete check before settling it.
 | The bootstrap receipt plane authenticates instances and survives bounded disruption | Exercise enrollment, clone, key rotation, backpressure, replay, deduplication, long disconnection, reconnect, and reconciliation fixtures | engine |
 | A copied repository manifest cannot impersonate an enrolled Engine instance | Clone an enrolled repository without its local key and attempt receipt submission and an action request | engine |
 | A copied or stolen instance key cannot remain an undetected second identity | Attempt simultaneous and sequential use from a second runtime, then exercise suspension, rotation, revocation, and re-enrollment with hardware-bound and exportable-key fixtures | engine |
+| Project-level fleet facts preserve conflicting instance evidence | Enroll multiple active instances on compatible and divergent source bindings, then revoke one; verify compatible roll-up, visible conflict, and revoked-instance exclusion | engine |
 | Transport freshness and locally attested evidence freshness cannot be confused | Change a project tree after a current attestation and inspect the fleet view before and after re-attestation | engine |
 | A company policy pack reaches a project as an inspectable reviewed proposal | Publish a test pack and observe the project-side diff and protection path | operator |
 | A company policy pack cannot silently activate in a project repository | Attempt out-of-band activation and verify that effective durable policy remains unchanged | engine |
+| Materialized company-pack bytes equal the reviewed lock and signed catalog source | Exercise substituted bytes, digest mismatch, wrong version, dependency drift, stale catalog signature, and an exact valid materialization | engine |
 | A company pack cannot collide with Engine or project ownership | Exercise duplicate module-id, file-provider, wiring, dependency, incompatible-release, and removal-order fixtures | engine |
 | A project can strengthen an adopted company rule | Apply a stricter local constraint and verify effective-policy resolution | engine |
 | Weakening a mandatory company rule requires a valid waiver | Test absent, unauthorized, expired, and valid waiver cases | engine |
@@ -552,13 +582,15 @@ program must assign each such row to a concrete check before settling it.
 | Company authorization only narrows the complete v1 authority chain | Omit or mismatch provider consent, workload identity, live-run grant, request digest, nonce, company constraint, approval, and local exercise gate one at a time | engine |
 | Every company constraint is bound to one identity and project and has expiry and revocation | Inspect and exercise multi-identity, multi-project, expiry, and revocation fixtures | engine |
 | A stale or forged local-policy attestation cannot authorize an action | Change project policy after attestation and submit mismatched and attacker-authored contexts | engine |
-| A protected action always requires an independent human decision over the complete request digest | Attempt deletion, spending, publication, communication, privilege escalation, and irreversible-action fixtures without, with self-, with stale-, and with valid approval | engine |
+| A protected action always requires an independent human decision over the canonical project request | Deliver the project-signed canonical request directly to approval, independently derive its effect, and attempt each protected class without, with self-, with stale-, with adapter-rewritten, and with valid approval | engine |
 | A capable non-engineer can understand and decide a protected action | Give representative approvers pending requests and verify they can identify the real-world effect, consequence, evidence, expiry, recovery path, and whether approval is being requested, using the supported accessibility modes | operator |
 | The approval path is authenticated, replay-resistant, expiring, and fail-closed | Exercise rejection, replay, timeout, unavailable channel, requester-as-approver, and valid independent approval | engine |
 | A provider family is described as brokered only after its adapter passes admission | Verify request schema, credential confinement, provider limits, idempotency, independent observation, reconciliation, recovery, and conformance fixtures | engine |
 | Direct provider access cannot bypass an admitted broker adapter | Attempt credential, API, network, and runtime bypasses and verify every path is refused | engine |
 | A provider integration with any successful bypass fails broker admission | Exercise a deliberately unconfined candidate and verify it is labeled partial, excluded from broker claims, and blocked from protected company actions | engine |
 | Compromise of the adapter or credential custody cannot bypass the independently enforced action decision | Give each domain attacker-level control in isolation; attempt altered digests, resources, routes, replay, and direct provider use; verify refusal or fail broker admission and record any provider-bounded residual | engine |
+| Every action-protocol recipient receives only its declared fields and retains them only as declared | Trace canonical intent, authority references, provider request, effect response, and observation evidence across approval, adapter, effect custody, egress, observation custody, and provider domains | engine |
+| Provider observation remains trustworthy when effect custody is compromised | Exercise suppressed, fabricated, delayed, and contradictory outcomes from effect custody and verify independent read-only observation or a detectable evidence gap | engine |
 | A brokered action receipt identifies request, policies, grants, approval, execution, independent provider observation, outcome, time, and recovery | Complete successful, rejected, failed, disputed, and recovered fixtures and inspect receipts | engine |
 | An uncertain broker retry cannot duplicate an action silently | Exercise timeout and retry fixtures with the same and different idempotency keys | engine |
 | A company outage leaves ordinary local Engine work available | Remove company connectivity and complete a local read, edit, validation, and review cycle | operator |
@@ -569,7 +601,7 @@ program must assign each such row to a concrete check before settling it.
 | Company-layer access cannot bypass project merge protection | Attempt direct company-originated repository mutation and inspect protection evidence | engine |
 | Compromise recovery does not depend on the compromised signing authority | Suspend a signer and use the separately held recovery root and out-of-band project procedure to rotate it without accepting rollback | operator |
 | Company authority and evidence state can be restored to a declared recovery point | Restore a backup containing identity, policy, waiver, revocation, receipt, and reconciliation fixtures and compare continuity | engine |
-| The company control plane can be replaced without losing authority or receipt continuity | Freeze actions, export and import the declared state, rotate roots, re-enroll instances, reconcile spools and cursors, and verify that old grants fail while receipts remain continuous | engine |
+| The company control plane can be replaced without losing authority or receipt continuity | Freeze actions, export and import the declared state, rotate roots, re-enroll instances, reconcile spools and cursors, re-provision provider consent and custody, verify old grants fail, then complete one freshly granted brokered action with continuous receipts | engine |
 | A mixed-version fleet can roll forward and back without partition or silent data loss | Exercise schema negotiation, compatibility window, receipt backfill, datastore migration, downgrade, offline-project return, and signing-key rotation | engine |
 | Central data access is purpose- and project-scoped, retained, deleted, exported, and audited as declared | Exercise cross-project access denial, administrator access logging, retention expiry, legal hold, export, identity revocation, and breach segmentation | engine |
 | Fleet aggregates do not reveal project-private facts through small cohorts or linked fields | Exercise single-project, differencing, sparse-attribute, and cross-field linkage attacks and verify suppression, generalization, or refusal | engine |
@@ -577,6 +609,6 @@ program must assign each such row to a concrete check before settling it.
 | Every promoted artifact links to evidence, scope, owner, privacy review, and reconsideration trigger | Inspect accepted and deliberately incomplete promotion fixtures | engine |
 | Cross-project analysis distinguishes a local anecdote from a supported pattern | Compare one-project, contradictory-project, and declared-cohort evidence and inspect confidence, coverage, and promotion eligibility | operator |
 | Later-discredited evidence invalidates dependent conclusions | Admit a signed false receipt, promote a dependent test artifact, then quarantine the source and trace the invalidation | engine |
-| Removing the company integration revokes company identity while leaving the product runnable | Perform the documented exit flow, verify post-departure receipt and action requests are rejected, then run the project's ordinary product and Engine smoke checks | operator |
+| Removing the company integration revokes company identity while leaving the product runnable | Perform the documented exit flow; verify grants, enrollment, transport credentials, and company access are revoked before removal; confirm later receipt/action requests are rejected and recorded; then run the project's ordinary product and Engine smoke checks | operator |
 | Runtime adapters enforce equivalent company authority semantics | Run the conformance suite against every supported runtime adapter | engine |
 | The v2 program has a weighable minimum operating envelope before implementation is accepted | Inspect the accepted design for project scale, traffic, retention, evaluation, availability, recovery, provider testing, staffing, ownership, and budget bounds | operator |
