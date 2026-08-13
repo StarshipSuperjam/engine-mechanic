@@ -138,28 +138,35 @@ flowchart TB
     PA -- "canonical request + original authorities" --> CR
     PA -- "canonical request + original authorities" --> EG
     PA -- "canonical request for human rendering" --> AP
+    AP -- "approval receipt over canonical digest" --> PA
     PB -- "signed project intent + v1 run grant" --> AB
     PC -- "signed project intent + v1 run grant" --> AB
     ID -- "narrowing constraint" --> AB
     ID -- "same narrowing constraint" --> CR
     ID -- "same narrowing constraint" --> EG
     ID -- "same narrowing constraint" --> AP
-    AP -- "protected-action approval" --> PA
     AB -- "credential-free provider request" --> CR
     CR -- "credential-attached exact action" --> EG
     EG -- "authorized one-use request" --> EX
     EX -- "effect response" --> CR
     CR -- "credential-free effect response" --> AB
     PA -- "canonical read scope" --> OA
+    PA -- "canonical read scope + authorities" --> OC
+    ID -- "observation constraint" --> OC
     OA -- "credential-free observation request" --> OC
     OC -- "read-only provider request" --> EX
     EX -- "provider-authenticated evidence" --> OC
     OC -- "credential-free evidence" --> OA
-    OA -- "observation receipt" --> PA
+    OC -- "provider-authenticated evidence" --> PA
+    OA -- "interpreted observation" --> PA
     AB -- "action receipt" --> PA
     AB -- "action receipt" --> PB
     AB -- "action receipt" --> PC
 ```
+
+Project A is the representative action and observation path in this fleet diagram; Projects B and C use the
+same direct approval, broker, egress, and observation edges. Those repeated edges are omitted only to keep the
+diagram readable, not because their authority path differs.
 
 The project-to-company connection is an installed integration with a declared manifest. The manifest names
 the company endpoint, pinned recovery and signing-root identifiers, receipt classes, adopted policy-pack
@@ -408,7 +415,7 @@ service resumes; live grants and private signing or provider keys do not cross t
 | --- | --- | --- |
 | Project-private | Raw transcripts, scratch state, source content, secrets, product data, private tuning inputs | Never exported merely by fleet membership |
 | Project receipt | Engine and pack versions, validation result, evidence freshness, adoption state, broker action outcome, aggregate approved metric | Export only fields declared by adopted collection policy; minimize and retain by class |
-| Broker action protocol | The project sends canonical intent and its original project authorities directly to approval, broker, and egress domains; company policy independently sends the same narrowing constraint to each; the adapter receives only the fields needed to build the provider request; effect custody receives that request; an admitted observation adapter builds a credential-free read request and separate read-only custody transmits it; the provider receives only each exact request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations; each enforcement domain assembles and verifies the company-plus-project authority set from its independent inputs, and no intermediary may silently widen or relay it |
+| Broker action protocol | The project sends canonical intent, original project authorities, and the independent human approval receipt directly to effect custody and egress; company policy independently sends the same narrowing constraint to approval, effect custody, and egress; the effect adapter receives only the fields needed to build the provider request. For observation, the project sends canonical read scope and applicable authorities directly to read-only custody while an admitted observation adapter separately builds the credential-free provider read; company policy sends the observation constraint directly to custody. The provider receives only each exact request | The adopted action policy enumerates every recipient and its minimized fields, purpose, expiry, retention, and audit obligations. Each enforcement domain assembles and verifies its complete authority set from independent inputs and checks adapter output against the canonical request. Provider-authenticated observation evidence returns directly to the project as well as to the interpreting adapter; no intermediary may silently widen or relay authority or become the sole evidence source |
 | Company authority data | Identity mapping, policy decision, approval, grant metadata, revocation state | Company-managed; project receives the minimum decision and receipt needed for audit |
 | Promoted shared artifact | Policy pack, module, profile, eval case, pattern, redacted incident lesson | Versioned, reviewed, attributable, and adopted by projects explicitly |
 
@@ -470,9 +477,9 @@ sequenceDiagram
     P-->>B: Independently signed narrowing constraint
     B->>E: Pre-exercise challenge for mandatory local gate
     E-->>B: Fresh project approval over the same digest
-    E->>C: Canonical request + original project authorities
+    E->>C: Canonical request + project authorities + human approval receipt
     P-->>C: Same independently signed narrowing constraint
-    E->>G: Canonical request + original project authorities
+    E->>G: Canonical request + project authorities + human approval receipt
     P-->>G: Same independently signed narrowing constraint
     B->>C: Credential-free exact provider request
     C->>C: Verify full v1 and company chain; verify mapping; attach bounded credential
@@ -482,12 +489,16 @@ sequenceDiagram
     X-->>C: Outcome
     C-->>B: Credential-free response and reconciliation anchor
     E->>A: Canonical read scope and reconciliation identifiers
+    E->>O: Canonical read scope + applicable project authorities
+    P-->>O: Independently signed observation constraint
     A->>O: Credential-free provider observation request
-    O->>X: Attach read-only credential and transmit
+    O->>O: Verify authorities and adapter request mapping
+    O->>X: Attach read-only credential and transmit exact request
     X-->>O: Provider-authenticated evidence
-    O-->>A: Credential-free evidence or detectable omission
-    A-->>E: Signed observation receipt
-    A-->>B: Signed observation receipt
+    O-->>E: Provider-authenticated evidence + custody receipt or detectable omission
+    O-->>A: Same credential-free provider evidence
+    A-->>E: Interpreted observation bound to provider evidence
+    A-->>B: Interpreted observation bound to provider evidence
     B-->>E: Attributable action and recovery receipt
 ```
 
@@ -516,7 +527,7 @@ sequenceDiagram
 | Company control-plane compromise | Independent approval, project intent, local exercise gate, and credential custody prevent that plane alone from acting; recovery authority suspends it and rotates the signing root out of band |
 | Approval compromise | Project intent, the local exercise gate, credential custody, and the independent provider or egress gate refuse an approval that does not match the complete request digest |
 | Credential-custody compromise | The independent provider or egress gate refuses requests without valid original authorities; provider limits bound the declared residual, independent observation exposes effects or detectable omissions, and recovery revokes and rotates custody |
-| Provider-adapter compromise | The adapter has no credential or provider route; altered requests fail the digest-bound broker and egress gates, and the adapter loses admission until re-proven |
+| Provider-adapter compromise | An adapter has no credential or provider route; altered effect requests fail the digest-bound broker and egress gates; altered observation requests fail read-custody mapping; provider evidence reaches the project without relying on adapter interpretation; and the adapter loses admission until re-proven |
 | Project compromise | The project's grants are revoked; its receipts are quarantined; no authority crosses to another project |
 | Identity-provider outage | Protected and fresh-authority actions fail closed; only explicitly offline-safe unexpired grants remain usable within their maximum lifetime |
 | Receipt loss or tampering | Sequence, signature, and reconciliation checks expose the gap; the fleet view marks coverage incomplete |
@@ -605,6 +616,7 @@ program must assign each such row to a concrete check before settling it.
 | Compromise of the adapter or credential custody cannot bypass the independently enforced action decision | Give each domain attacker-level control in isolation; attempt altered digests, resources, routes, replay, and direct provider use; verify refusal or fail broker admission and record any provider-bounded residual | engine |
 | Every action-protocol recipient receives only its declared fields and retains them only as declared | Trace canonical intent, authority references, provider request, effect response, and observation evidence across approval, adapter, effect custody, egress, observation custody, and provider domains | engine |
 | Provider observation remains trustworthy when effect custody is compromised | Exercise suppressed, fabricated, delayed, and contradictory outcomes from effect custody and verify independent read-only observation or a detectable evidence gap | engine |
+| Observation adapter or read-custody compromise cannot widen collection or forge evidence silently | Give each domain attacker-level control in isolation; attempt wider reads, altered mappings, suppression, fabrication, and replay; verify custody refusal, project verification of provider-authenticated evidence, detectable omission, or loss of adapter admission | engine |
 | A brokered action receipt identifies request, policies, grants, approval, execution, independent provider observation, outcome, time, and recovery | Complete successful, rejected, failed, disputed, and recovered fixtures and inspect receipts | engine |
 | An uncertain broker retry cannot duplicate an action silently | Exercise timeout and retry fixtures with the same and different idempotency keys | engine |
 | A company outage leaves ordinary local Engine work available | Remove company connectivity and complete a local read, edit, validation, and review cycle | operator |
