@@ -104,6 +104,13 @@ burden of proof backwards on the operator.
   own bound**: the engine checked that every part is present and well-formed; it did **not** check that the
   design is *right* — that is the operator's call and the review lenses'. Semantic quality and freshness stay
   **unmonitored by design** ([R9](../../reference/risks.md)) — form is checked, correctness is not.
+- **Workflow-routing disposition is required structure.** The capability scaffold and form check require an
+  **Operator and automatic workflow routing** section on every written-up module specification. It must state
+  an operator command, an automatic model route, or `none` with rationale. The field records a decision
+  before implementation but does not manufacture a route; delivery-plane drafts may correctly say `none`
+  until their breakout Build issues choose otherwise. Those issues must copy or link the recorded
+  disposition, as [decision 0336](../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md)
+  requires.
 
 ### The lock — operator-governed, with real gravity
 

@@ -59,6 +59,10 @@ A manifest declares:
 - **`depends`** — module ids, each with an optional semver range. A presence-and-range *assertion*, not a problem
   for a version solver (see dependency resolution).
 - **`migrations`** — version-keyed data/schema transforms, run in dependency order on upgrade.
+- **`presentation`** — the single canonical presentation object: operator description, category,
+  concise automatic setup trigger, and an optional setup-operation path. It is source metadata, not a
+  second registry: generators derive setup-route names from the module id, module-catalog rows, help's
+  add-on descriptions, and self-map presentation from it.
 - **`retired_capabilities`** — version-keyed, **announcement-only** records of capabilities a version
   removed: they run and reshape nothing, exist so an upgrading operator is told in plain language what
   went away (surfaced in the upgrade pull request and its preview), and are permanent once shipped — a
@@ -126,8 +130,9 @@ Every engine unit is a **versioned package**: the foundations are `distribution:
 never declinable, but versioned and migratable), the rest carry the axes above. This is what makes the engine
 **upgradeable**, not merely configurable ([D-024](../../../adr/0024-the-engine-is-upgradeable-versioned-packages-upgraded-by-ove.md)).
 
-There is **no separate, hand-authored registry**. The two stores are both derive-or-record, never a duplicate to
-drift ([principles §2, §3](../../../principles.md)):
+There is **no separate, hand-authored registry**. The source manifests and the engine manifest are the
+authorities; presentation catalogs are deterministic derived-committed artifacts, never a competing
+configuration store ([principles §2, §3](../../../principles.md)):
 
 - The **available/installed set** is the module manifests **present** in `.engine/modules/` — a directory listing,
   not an authored list. **Installed means present**: first-run instantiation *deletes* the modules the operator did
@@ -145,6 +150,10 @@ drift ([principles §2, §3](../../../principles.md)):
   **upgrade floor** (`min_upgradeable_from`, refusing a too-old jump cleanly instead of mis-migrating),
   and the engine's coordinates (`home_repository`; for a deployed mechanic, the product repository it
   builds) — the identity-and-versions record of what this engine is.
+- The **module catalog** is generated from the complete template manifest set, preserving its compatible
+  array shape and entries for extensions a deployment declined. It travels unchanged with deployment so
+  a later upgrade can remember that choice, but it has no manually maintained `verb` field and cannot
+  override a source manifest. A generator, not a merge author, reconciles it with the tree.
 
 The operator sees **one engine version** (vX → vY); per-package versions are internal bookkeeping. The baseline
 "what is my engine made of" readout is the [ontology](ontology.md) **self-map** (foundation-level,

@@ -78,6 +78,12 @@ reads, stated.
 - **No privilege beyond the declared baseline** — privileged manifests must be honorable by capability
   declaration and are visible in every observation.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This runtime backend draft has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` rows gate shape and committed evidence; enforcement rows are operator-run conformance —

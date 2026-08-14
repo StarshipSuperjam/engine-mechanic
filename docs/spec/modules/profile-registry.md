@@ -69,6 +69,12 @@ runtimes read the same declarations.
 - **No platform mechanics; no vendor policy as engine policy; no universal-platform claims.**
 - **No change detection where no adapter exists** — the reminder tier never pretends.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This profile-registry draft has no current operator
+command or automatic route. Its breakout Build issue must choose and record its routing disposition under
+decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

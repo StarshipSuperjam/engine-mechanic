@@ -21,7 +21,10 @@ generated from the template (**greenfield**) and a live product repo the engine 
 - **Instantiator** — one-time, self-deleting. On first run it derives identity, takes the
   operator's **extension** selection (the only distribution class an operator declines), applies it
   (deleting unselected extensions so *installed means present*), initializes substrates, attempts the
-  [control-plane](control-plane.md) bootstrap, verifies, and retires.
+  [control-plane](control-plane.md) bootstrap, verifies, and retires. Its operator entry is the
+  permanent `engine-setup` dispatcher: its first branch invokes this first-run work, and its later
+  branches manage add-ons, conduct, tuning, reviewer mode, protection, memory backup, and installed
+  module configuration.
 - **Module manager** — permanent. Over the repo's life it adds and removes modules, **upgrades
   the engine itself**, runs migrations, and cleanly removes the engine.
 
@@ -149,7 +152,9 @@ commit point — the **engine manifest** ([module system](../grammar/module-syst
    never made the silent operating baseline ([principle §5](../../../principles.md): degrade loud and
    consented, never silently inert). Validation owns the coherence kind and its message; provisioning owns
    this first-run pause-and-resume UX and its plain-language framing.
-5. **Retire** — self-delete the orchestrator and first-run assets. **First-run retirement is
+5. **Retire** — self-delete the orchestrator and genuinely first-run-only assets. The `engine-setup`
+   skill and permanent setup dispatcher are expressly **not** retirement assets: they are the durable
+   operator path for later configuration. **First-run retirement is
    reference-closed** (the *travel-safety* invariant): no file that *survives* this step may
    statically reference a **retired** first-run asset — by `import`, `importlib`, a subprocess
    invocation of its path, or a hard-coded read of a retired file's path. A surviving file that

@@ -79,6 +79,12 @@ pattern. Both runtimes drive the same runner.
 - **No heal generation, no test authoring opinions, no remote browser services.**
 - **No authenticated scenarios in this cut** — the broker's arrival is the gate, stated.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This browser-evidence draft has no current operator
+command or automatic route. Its breakout Build issue must choose and record its routing disposition under
+decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

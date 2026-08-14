@@ -98,6 +98,12 @@ worktrees resolve at the git merge like any committed state.
   deployment wanting stricter posture may deny the runtimes' native edit tools for delivery runs so the
   applier is the only available writer — a build-time hardening option, not a wave-1 claim.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This draft does not establish a current operator command
+or automatic route. Its breakout Build issue must choose and record one under decision 0336, or renew this
+`none` rationale; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

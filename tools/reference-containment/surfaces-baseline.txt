@@ -31,3 +31,7 @@
 
 .engine/tools/test_contract.py	ADR-0001	1
 .engine/tools/test_unresolved_conversation_notice.py	d-134	1
+
+# Released by engine-template v0.5.0 and tracked upstream in issue 943.
+.engine/contracts/eADR-0040-guardrail-ack-two-tier.md	D-268	2
+.engine/tools/weakening_guard.py	D-268	1

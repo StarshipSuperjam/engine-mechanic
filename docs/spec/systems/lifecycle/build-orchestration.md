@@ -8,50 +8,49 @@ status: locked
 
 ## Summary
 
-How [Build](modes.md) work happens: an **orchestrating session** opens a draft pull
-request, plans the work as an ordered commit sequence recorded in the build Issue, has the plan and
-then the result reviewed by cold-context [agent](../surfaces/agents.md) lenses at a depth
-the operator approves, integrates the work as the single writer of final commits, and submits the PR
-for human review. The **draft PR is the claim**; the **submitted PR is the close**; the **build
-Issue carries the forward plan**. There is no separate claim artifact, no slot number, and no close
-ritual — which is what dissolves the prototype's close-friction spiral (no reserved-subject commits
-or close-shape allowlists to police).
+How [Build](modes.md) work happens: PR #964's **single coordinator** binds an exact accepted Plan and
+review depth to one PR-shaped build, then an **orchestrating session** opens a draft pull request, has
+the plan and then the result reviewed by cold-context [agent](../surfaces/agents.md) lenses at that
+depth, integrates the work as the single writer of final commits, and submits the PR for human review.
+The **draft PR is the claim**; the **submitted PR is the close**; the coordinator carries the exact
+forward plan. A Build Issue is a scope-locked cold-continuation promotion only when the Plan artifact
+cannot travel to the next session. There is no separate claim artifact, no slot number, and no close
+ritual — which is what dissolves the prototype's close-friction spiral (no reserved-subject commits or
+close-shape allowlists to police).
 
 ## Behavior
 
-### Two surfaces, two jobs — the change and the plan
+### Coordinator binding — one state model
 
-The accountable state is native git/GitHub records, divided cleanly:
+`build_coordinator.py` is the durable Build state model. It records the exact Plan artifact/digest,
+accepted depth, findings and dispositions, preflight and submission evidence, and cold-continuation
+handoff. An accepted Plan enters this coordinator without a second start prompt. If a later session cannot
+read the same exact Plan artifact, the plan is promoted verbatim to one scope-locked conformant Build Issue
+and the coordinator records that URL and digest; it never reconstructs a plan from a summary. The coordinator
+does not merge and no route creates a parallel workflow state.
 
-- **The pull request is the change surface.** It holds what *has been built*: the claim (draft), the
-  integrated commits, the human gate (submitted → merged), and the narrative (the
-  [control-plane](../infrastructure/control-plane.md) PR contract).
-- **The build Issue is the forward-plan surface.** It holds what is *not yet built*: the ordered
-  commit sequence as a machine-readable checklist authored at Plan, so progress is "N of M done"
-  (closed/total) and the next chunk is the next unchecked item.
+### Three records, three jobs — coordinator, change, and cold continuation
 
-This operationalizes the locked [state](../cognitive/state.md) division without expanding
-it: **the Milestone is the plan; the build Issue is that plan's machine-readable decomposition** —
-not a new "deferral/backlog" Issue semantics, and never a committed work-inventory (state forbids
-that). **build-orchestration produces the Milestones** (native GitHub Milestones, via `gh api`): when a
-build realizes product work it **consumes [product-design](../../modules/product-design.md)'s
-committed *build-plan*** — the doc that groups the `locked` spec's capabilities into ordered phases
-([D-244](../../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md)) — as the **grouping input** that names and orders those Milestones, so a
-large build reads as legible phases with native progress rather than an issue dump; absent a build-plan it
-plans the Milestone itself. Those emitted Milestones are what [state](../cognitive/state.md) reads
-for the **milestone half** of its standing-situation projection (the phase half derives from the merge
-record — "what merged last" — and state owns none of it). So the PR is **not** the only durable state:
-the forward plan lives in the build Issue, which is what lets an unattended session resume a build whose
-authoring session is gone. The **build Issue is the engine-labeled build Issue the Plan step opens** —
-engine-labeled, so the [engine/product wall](../infrastructure/repository-topology.md) holds; when
-the build realizes a [product-design](../../modules/product-design.md) **work Issue** (ordinary
-product backlog, un-labeled — [control-plane](../infrastructure/control-plane.md)/[D-244](../../../adr/0244-re-litigate-product-design-into-a-first-class-spec-driven-de.md))
-it **references** that work Issue and the committed spec it points at, rather than being it. This resume capability is **bounded by GitHub availability**: the checklist is GitHub-derived,
-so an offline routine session has no plan to read and simply does not proceed (fail-safe) — the same
-honest-degradation bound [state](../cognitive/state.md) and [boot](boot.md)
-already carry. Writing the checklist is **proportionate**: required when the build will be routine-
-distributed, an offered progress view for an interactive multi-commit build (the orchestrator
-otherwise holds the sequence in-session), and skipped on the fast path below.
+The accountable records have distinct responsibilities:
+
+- **The coordinator snapshot is the forward-plan state.** It binds the exact Plan, review depth,
+  findings dispositions, checkpoints, preflight, and submission evidence. It makes same-session work
+  resumable without substituting a paraphrase for an approved Plan.
+- **The pull request is the change surface.** It holds what *has been built*: the draft claim,
+  integrated commits, human gate (submitted → merged), and narrative required by the
+  [control-plane](../infrastructure/control-plane.md) contract.
+- **A Build Issue is a cold-continuation surface only.** When exact-plan access is lost, it holds the
+  verbatim Plan plus digest and coordinator binding. It is engine-labeled, so the
+  [engine/product wall](../infrastructure/repository-topology.md) holds; it is not a second plan,
+  an ordinary product backlog Item, or a source from which a continuation may reconstruct details.
+
+This preserves the locked [state](../cognitive/state.md) division. Build orchestration still produces
+native GitHub Milestones when a committed [product-design](../../modules/product-design.md) build-plan
+groups a large change into phases; State reads those Milestones for its standing situation. A product
+work Issue remains an ordinary, un-labeled pointer to the relevant settled specification. The coordinator
+records the relation without turning either Issue type into a competing workflow state. A cold continuation
+is bounded by the availability of its exact Plan artifact or promoted Issue; if neither is readable, it
+does not proceed.
 
 ### The gate skeleton — fixed shape, derived lenses, honest tier
 
@@ -60,8 +59,8 @@ derived** from the installed [agent](../surfaces/agents.md) suites (mirroring ho
 check-suite's roster is derived). An empty lens-set is a valid **no-op pass** the risk assessment has
 already disclosed.
 
-1. **Plan** — the orchestrator opens a **draft PR** (the claim), plans the **commit sequence** (and
-   records it in the build Issue when the build will be routine-distributed), and produces the
+1. **Plan** — the orchestrator opens a **draft PR** (the claim), binds the **exact plan artifact** in
+   the coordinator (promoting it verbatim only for a cold continuation), and produces the
    **risk assessment** with a **suggested depth** (below). The operator iterates the plan to solid
    and **approves the plan and the depth**. *Always runs*, even with zero review modules.
 2. **Plan-review** — the installed plan-review lenses run cold-context **at the approved depth,
@@ -606,7 +605,7 @@ the design:
 
 | Criterion | How verified | Who checks it |
 | --- | --- | --- |
-| **Two surfaces, two jobs** — the PR is the change/accountability surface; the build Issue (a Milestone's decomposition) is the forward-plan surface that lets an unattended session resume cold, bounded by GitHub availability. **build-orchestration produces the Milestones**, consuming product-design's build-plan as the grouping input when one drives the build. The PR is not the only durable state. | No merge-gated check asserts the two-surface division; your observation of a build's draft PR and its build-Issue checklist carries it. Partial support: the built operation authors both surfaces at Plan, and the Milestone emitter derives Milestones from the build-plan idempotently via `gh api`. | operator |
+| **Coordinator, change, and cold-continuation records stay distinct** — the coordinator binds the exact forward Plan and review state; the PR is the change/accountability surface; a Build Issue is only the verbatim, digest-bound cold-continuation promotion. **build-orchestration produces Milestones**, consuming product-design's build-plan as grouping input when one drives a large change. | No merge-gated check asserts the complete division; coordinator tests prove Plan/depth binding, checkpoints, and cold handoff, while the Milestone emitter is tested idempotently through the supported GitHub boundary. | operator |
 | **Fixed shape, derived lenses, posture tier with one mechanical hook** — the gate skeleton is the orchestrator's workflow, honestly named as a nudge; the one mechanical hook is the PR contract's presence-gated (not truthfulness-gated) Review section; the only wall is the merge. Coverage is module-supplied and risk-scaled. | The one hook is merge-gated: the `pr-body-completeness` check (hard, CI) asserts the Review section's presence — subject to the as-built author and label exemptions disclosed above. The shape and posture halves are yours, with the `lens-consumption` check (CI) flagging a dangling installed lens as partial support. | operator |
 | **Consent before the spend, synthesis after, with a floor** — the risk assessment is the pre-audit consent and coverage surface with a consequence-named depth choice (never a time or cost figure, [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md)); lens findings are synthesized into one call afterward, re-engaging the operator on material findings and *always* on an unresolved blocking finding, with every disposition surfaced. | Your observation carries it — the risk-assessment relay is in-chat posture whose template instances are ephemeral, reachable by no validator; the fixed template copy itself bans the fabricated figure. | operator |
 | **Cold-context review is the quality spine** — independent lenses, dispositioned between gates; more valuable, not less, when work is unattended. | Your observation carries it. Partial support: the finding-disposition Stop gate ([close](close.md)) holds raised findings to a disposition, the `disposition-issue-resolution` check (hard, CI) asserts cited follow-up issues are real, and the `lens-consumption` check flags an installed lens nothing consumed. | operator |

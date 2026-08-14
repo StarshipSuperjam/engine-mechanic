@@ -76,6 +76,12 @@ Per the contract: **degraded/faulted** — a missing tool reports `unavailable`,
   them.
 - **No installs by the profile** — the environment installs; the profile declares.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This profile-specific draft has no current operator
+command or automatic route. Its breakout Build issue must choose and record its routing disposition under
+decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation
