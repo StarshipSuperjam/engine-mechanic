@@ -91,6 +91,12 @@ closed. Both runtimes read the same committed store through the same tool.
 - **Present, not absent-by-default.** delivery-evidence ships in every Engine; it stays inactive until
   delivery work produces evidence — no burden on a project that produces none.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This delivery-plane evidence draft creates no current
+operator command or automatic route. Its breakout Build issue must record its chosen routing disposition
+under decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

@@ -96,6 +96,12 @@ adapter constraints above, not the fixture.
 - **No correctness verdicts, no cross-mode rank** — locating, never certifying.
 - **No repository content leaves the machine** by design, as bounded above.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This core delivery capability is not yet an operator
+command or automatic route. Its breakout Build issue must choose and record its routing disposition under
+decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

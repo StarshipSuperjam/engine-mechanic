@@ -84,6 +84,12 @@ checkpoint, typed. Both runtimes drive the same supervisor.
   the mechanizable slice; the residuals are named.
 - **No unbounded lanes, no free retries, no invented progress.**
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This safety-sensitive repair draft has no current
+operator command or automatic route. Its breakout Build issue must choose and record its routing
+disposition under decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

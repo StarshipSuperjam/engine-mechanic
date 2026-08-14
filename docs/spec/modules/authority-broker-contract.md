@@ -82,6 +82,12 @@ live state is the broker's.
   supplies algebra.
 - **No standing authority** — every exercise path traces to an unexpired, unrevoked grant on a live run.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This authority contract has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

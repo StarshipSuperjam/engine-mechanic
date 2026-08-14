@@ -73,6 +73,12 @@ operator-local, disclosed.
 - **No enterprise/MDM distribution channels** — consumer store distribution only, this cut.
 - **No device-class evidence in this cut** — the deferred expansion, declared.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This platform draft has no current operator command or
+automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

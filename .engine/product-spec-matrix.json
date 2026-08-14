@@ -649,11 +649,19 @@
       "who": "operator"
     },
     {
+      "criterion": "**Route targets are explicit.** Skill-to-operation/tool/sub-skill routing and conditional availability come from structured frontmatter, never a prose guess.",
+      "digest": "sha256:cd9daea61993cb231c0f33ba6c1262759e52d462c205fa545b7c1cae39dd1ae8",
+      "doc": "docs/spec/systems/cognitive/knowledge.md",
+      "how_verified": "Route-generation tests require a target for every automatic route and require each target to exist or be explicitly conditional/home-only; regenerated graph bytes are fingerprint-gated.",
+      "position": 1,
+      "who": "engine"
+    },
+    {
       "criterion": "**Canonical entities committed; index derived.** The committed JSON is the source of truth for structure and gives reviewable structural diffs in PRs and offline cold-start truth; the index and boot slice are caches that rebuild. (See [principle §2](../../../principles.md).)",
       "digest": "sha256:1a34fe2eb274dbab0ae9334e5bc2c5de2568a365fd8f599e5f526bf1cbe5a7fa",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support: the fingerprint gate forces the committed file to exist and match the sources; the query-index and boot-slice unit tests prove the caches rebuild from the committed entities. No single check asserts the whole committed-truth-plus-regenerable-caches claim.",
-      "position": 1,
+      "position": 2,
       "who": "operator"
     },
     {
@@ -661,7 +669,7 @@
       "digest": "sha256:dbfb4ad7326d8adff29039718e2fb16cb98c1e647d2c58bc4691c848bf741138",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support: the fingerprint gate (byte-comparison against a fresh regeneration, every CI run) plus the named regenerate-twice unit test, which asserts byte-identical output across hash seeds — a regression guard whose own docstring concedes it cannot prove nondeterminism absent. The regenerate-on-reconcile machinery is orchestration procedure, exercised by its own demo, not a merge gate.",
-      "position": 2,
+      "position": 3,
       "who": "operator"
     },
     {
@@ -669,7 +677,7 @@
       "digest": "sha256:6ab8387ea8a8fc281f62338c1aa13a41005dbe5fecbdbbcd58604325b3e8c6b2",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "No built check grounds the overlay-then-heal sequence end to end — it spans an engine release and an adopter repo, which the construction repo cannot stage. The self-correcting leg is indirectly supported by the fingerprint gate forcing any post-overlay regen to be captured. Your observation on a real upgrade carries the row.",
-      "position": 3,
+      "position": 4,
       "who": "operator"
     },
     {
@@ -677,7 +685,7 @@
       "digest": "sha256:43262e383790da5693013054b275a9d8657f620199936f97cbf3cc00b6cd2a1a",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support: the fingerprint coverage check surfaces coverage gaps and orphan entities by construction. The *missing-enforcement* half (a surface no check governs) is not that gate's concern and stays your read of the audit surface.",
-      "position": 4,
+      "position": 5,
       "who": "operator"
     },
     {
@@ -685,7 +693,7 @@
       "digest": "sha256:0f845ad88921c1d6a58f983bf6410c78fe6d38bf4af4093a8ae7a116553094ea",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support: the retrieval interface declares outgoing-edges-only storage with reverse traversal derived at query time, exercised by the query unit tests. That knowledge *exposes no memory operation* is a design property of the interface no mechanical check asserts — your read.",
-      "position": 5,
+      "position": 6,
       "who": "operator"
     },
     {
@@ -693,7 +701,7 @@
       "digest": "sha256:8c8bd604aaf5ba22bd2bbc7f96a248524d82ca98f821286e7b55c753394eb1f3",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support: the generator's gated harvest discipline is exercised by the knowledge unit tests. \"Never holds belief\" is a universal negative no check can fully assert — a judgment call, carried by your read of what the generator harvests.",
-      "position": 6,
+      "position": 7,
       "who": "operator"
     },
     {
@@ -701,7 +709,7 @@
       "digest": "sha256:374a3a17a7808c89bcc578ba91a3589b58b1fd3020b956c693c6e97cf5f1edf4",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "The swappable-leaf leg is realized by the declared retrieval interface, with the interface-declaration checks as partial support. The deferred-not-mitigated stance is design narrative no check can assert — your read.",
-      "position": 7,
+      "position": 8,
       "who": "operator"
     },
     {
@@ -709,7 +717,7 @@
       "digest": "sha256:515643514ccd1a7b3a77f892f7d6b7f42374adac74c558d047347f63e6119385",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "Partial support from named unit tests: the boot-slice and query tests exercise the four-rung ladder exactly as stated, including the fail-open read. No CI-suite rule asserts the degrade behaviour — it is unit-tested, not merge-gated.",
-      "position": 8,
+      "position": 9,
       "who": "operator"
     },
     {
@@ -717,7 +725,7 @@
       "digest": "sha256:e87b162be2095925b9c7f1d49e84f79c2af59d3e11d80566bfe935f0065da92f",
       "doc": "docs/spec/systems/cognitive/knowledge.md",
       "how_verified": "A scoping statement no check can assert; the schema and generator exist as build artifacts (the leaves were in fact built), which your read confirms.",
-      "position": 9,
+      "position": 10,
       "who": "operator"
     },
     {
@@ -1417,10 +1425,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Two surfaces, two jobs** — the PR is the change/accountability surface; the build Issue (a Milestone's decomposition) is the forward-plan surface that lets an unattended session resume cold, bounded by GitHub availability. **build-orchestration produces the Milestones**, consuming product-design's build-plan as the grouping input when one drives the build. The PR is not the only durable state.",
-      "digest": "sha256:5cde6c34f7d2372d67ff00ae36798894eea8a69a53c2935f9af36b7c1953b3bf",
+      "criterion": "**Coordinator, change, and cold-continuation records stay distinct** — the coordinator binds the exact forward Plan and review state; the PR is the change/accountability surface; a Build Issue is only the verbatim, digest-bound cold-continuation promotion. **build-orchestration produces Milestones**, consuming product-design's build-plan as grouping input when one drives a large change.",
+      "digest": "sha256:87c5a23d745123c2972c1bdd82b9b080e435c593c4bcbc6213b07d1854aead14",
       "doc": "docs/spec/systems/lifecycle/build-orchestration.md",
-      "how_verified": "No merge-gated check asserts the two-surface division; your observation of a build's draft PR and its build-Issue checklist carries it. Partial support: the built operation authors both surfaces at Plan, and the Milestone emitter derives Milestones from the build-plan idempotently via `gh api`.",
+      "how_verified": "No merge-gated check asserts the complete division; coordinator tests prove Plan/depth binding, checkpoints, and cold handoff, while the Milestone emitter is tested idempotently through the supported GitHub boundary.",
       "position": 0,
       "who": "operator"
     },
@@ -1601,10 +1609,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Entry is a deliberate operator act for both write stances** — Build via an operator-typed verb the model cannot self-invoke **or by accepting a plan** (the model cannot accept its own plan), both interactive; Routine via the operator-authored scheduled fire that invokes `/engine-routine`, whose authority is the schedule + the frozen scope-locked build Issue and whose `set-routine` write is isolation-gated ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible.",
-      "digest": "sha256:3a59ca5afbf4dd3a655fdb6b4790fe5a684c13391ca3d15bf365439a8fd9220b",
+      "criterion": "**Entry is a deliberate operator act for both write stances** — Build follows an explicit `engine-start`, accepting the exact Plan, or unambiguous natural-language implementation instruction; planning-only language stays Explore. Routine still requires the operator-authored scheduled fire that invokes `/engine-routine`, with a frozen scope-locked Build Issue for unattended continuation and an isolation-gated `set-routine` write ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible.",
+      "digest": "sha256:7e46b002f96841253eb54a7b3d831b84b3e3929368cc647e40f9af1cddc9572d",
       "doc": "docs/spec/systems/lifecycle/modes.md",
-      "how_verified": "No check asserts non-self-election; your observation carries it. Partial support: the modes tests (CI) pin accepting-a-plan-enters-Build; the entry skills carry the operator-only invocation flags; `set-routine` declines without positive proof of worktree isolation.",
+      "how_verified": "No check asserts non-self-election; your observation carries it. Partial support: modes tests pin Plan acceptance, command, and direct-instruction entry versus planning-only non-entry; `set-routine` declines without positive proof of worktree isolation.",
       "position": 3,
       "who": "operator"
     },
@@ -1865,10 +1873,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Few and sharp where model-invocable** — always-resident descriptions are an attention cost; ship a small set with precise trigger language, not a zoo.",
-      "digest": "sha256:e342a3ea4d6a220aed7fdee2466cca7bf7a065f0989a622317540bac626d8508",
+      "criterion": "**Bounded and sharp where model-invocable** — automatic routes name recurring intent and a canonical target without exhausting session context.",
+      "digest": "sha256:3c5f542cd67af474e8ed8892726777d82a355006a13958b9ac69a658cf552fb4",
       "doc": "docs/spec/systems/surfaces/skills.md",
-      "how_verified": "Operator and audit observation: count the model-invocable set (one at the pin — the memory-consultation verb) and read its description for trigger precision; the shape check disclaims judging substance, so no check asserts few-or-sharp.",
+      "how_verified": "The generated projection check enforces the 6,000-character catalog ceiling, 120-character description ceiling, target presence, and Codex-render coverage; operator review judges whether a trigger remains genuinely precise.",
       "position": 1,
       "who": "operator"
     },

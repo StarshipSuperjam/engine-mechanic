@@ -95,6 +95,12 @@ shape only, and the capability probes run operator-local — stated.
   the operator's reviewed ground.
 - **No backend bundled** — admission requires committed conformance evidence, checked at merge.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This environment contract creates no current operator
+command or automatic route. Its breakout Build issue must choose and record its routing disposition under
+decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion — here, shape only; enforcement

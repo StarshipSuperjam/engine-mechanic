@@ -4,15 +4,16 @@ status: locked
 
 # core
 
-*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with the built verb roster adopted by [decision 0329](../../adr/0329-adopt-the-built-letter-where-locked-module-documents-lag-the.md) and the model-auto consultation verb admitted by [decision 0326](../../adr/0326-admit-engine-recall-as-the-single-model-auto-skill.md), and the manifest's `status` field separated into the distribution/applicability/activation axes by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md); ratified as intended design on 2026-07-12 by [decision 0304](../../adr/0304-resolve-re-lock-modules-core-the-foreign-license-seed-detect.md). Now **settled** — accepted by the operator on 2026-08-02 as the build baseline under [decision 0331](../../adr/0331-settle-the-reconciled-corpus-as-the-build-baseline.md); a later change to this document requires the operator's recorded re-acceptance at its merge.*
+*Reconciled with engine-template@`cdbbc33` as built (2026-08-02) — AI-compared and operator-ruled under [decision 0320](../../adr/0320-reconcile-the-spec-to-engine-template-as-built-sync-policy.md), with manifest axes settled by [decision 0335](../../adr/0335-separate-module-distribution-applicability-and-activation.md). [Decision 0336](../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md) now governs the operator catalog, automatic routes, generated artifacts, permanent setup, and Issue-helper routing, superseding incompatible roster details. This amendment is authorized by the operator's accepted routing plan and requires recorded re-acceptance when its implementing PR merges.*
 
 ## Summary
 
 The **engine itself** — the universal `required` root every other package depends on. `core` bundles the
 non-removable machinery a cold-booting session needs before any other module exists: the
 [grammar](../systems/grammar/ontology.md), the cognitive floors, the guardrail foundations, the
-infrastructure that stands the engine up and keeps it enforceable, the lifecycle spine, and the operator's verb set — at the pin, eight typed commands plus the one
-model-invoked consultation verb. Apply the operational test in the [glossary](../../reference/glossary.md): *remove every module —
+infrastructure that stands the engine up and keeps it enforceable, the lifecycle spine, the small stable
+operator command catalog, and the generated automatic routes that get a session to an existing canonical
+workflow before it improvises one. Apply the operational test in the [glossary](../../reference/glossary.md): *remove every module —
 what survives is `core`.* This is the microkernel-*inspired* trusted core ([§12](../../principles.md),
 [D-025](../../adr/0025-fault-containment-is-earned-at-the-seams-not-conferred-by-mo.md)); the adjective is an analogy with its limit stated (the modules share mutable
 files, so containment is earned at the seams, not granted by the shape), and it stays maintainer-layer
@@ -24,6 +25,39 @@ sibling package is — the cognitive store with per-instance data, the validator
 discipline, the routine stance, the self-audit — leaving `core` the irreducible minimum.
 
 ## Behavior
+
+### Operator commands and automatic workflow routing
+
+The command catalog below is the entire operator-facing surface. `engine-help` derives and presents this
+catalog from canonical Claude skill sources; automatic routes are deliberately absent from that menu.
+`engine-parts` is the detailed generated system map, including automatic-route targets and availability.
+
+| Command | Availability | Purpose |
+| --- | --- | --- |
+| `engine-help` | core | Show commands the operator can type and setup-available add-ons. |
+| `engine-status` | core | Show Engine health and safety state. |
+| `engine-parts` | core | Show the full generated system layout. |
+| `engine-setup` | core, permanent | First setup and later configuration management. |
+| `engine-start` | core | Explicit Build recovery entry when another Build authority is absent. |
+| `engine-recall` | core | Explicit memory consultation, also automatically invocable. |
+| `engine-release` | core | Preview and conduct the release procedure. |
+| `engine-upgrade` | core | Consume a published Engine release. |
+| `engine-routine` | required module | Configure or explicitly fire Routine. |
+| `engine-design` | product-design add-on | Enter product-design intake when installed. |
+
+`engine-conduct`, `engine-tune`, and `engine-board-setup` are retired, with upgrade notices pointing to
+the relevant `engine-setup` section and no compatibility aliases. The exact automatic route roster,
+targeting rules, and consent boundaries are [decision 0336](../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md)'s
+normative catalog. `core` owns the route-generation pipeline and the core-owned provisioning surfaces
+for offerable modules, so a route can describe an absent add-on without leaving a stale route behind when
+that module is declined or removed.
+
+The core Issue helper takes only `engine-issue-input.v1`: repository, title, `what_this_is`, `whats_next`,
+optional labeled references, and optional governed urgency. Its preview is non-writing; create requires
+`--confirm`, renders through the shared renderer, applies `engine` by construction, and uses the supported
+GitHub boundary. The core pre-tool gate reroutes every direct engine-labeled Issue creation — command-line,
+API, or connector — to that helper, while the existing Issue workflow remains a fail-loud backstop. An
+upstream project Issue is expressly excluded and follows the target project's process.
 
 ### Manifest shape
 
@@ -48,6 +82,14 @@ belongs to this set too but is **rendered at provisioning**, not shipped as a co
 `provides` set by coherence and by the file-precise CODEOWNERS wall, so no foundational artifact is left
 unowned. `core` is the package they conceptually belong to, but the locked grammar keeps them off the `provides`
 list by construction.
+
+**Routing supersession for the pinned inventory.** The historical `provides` cell above describes the
+then-built nine-skill roster and the self-retiring first-run setup. Its catalog and setup-retirement clauses
+are superseded by the current operator table and [decision 0336](../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md):
+the implementation supplies the exact command catalog, automatic model-route catalog, permanent setup
+dispatcher, structured target metadata, generated Codex render/policy, and derived maps described there.
+The cell continues to establish that these artifacts are owned by `core`; it is not a second authority for
+their current membership.
 
 ### The kernel partition
 
@@ -187,27 +229,20 @@ Its discovery contract is pinned in the build-spec-leaves section below.
 Two presence-discovery mechanisms `core` ships are pinned to their **form**, with concrete values deferred
 (the laws-not-leaves form/contract convention, [D-113](../../adr/0113-core-lock-closure-phase-0-the-build-spec-leaf-form-contract.md)).
 
-**The `/engine-help` verb index** ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md); the [§14](../../principles.md) discovery
-axis) — a degradation-proof listing of the engine's operator-typed verbs, in two parts:
+**The `/engine-help` command index** ([D-087](../../adr/0087-resolve-q7-v1-skill-membership-close-deviation-d2-the-wbs-de.md); the [§14](../../principles.md)
+discovery axis) is a degradation-proof, generated listing from canonical Claude `SKILL.md` frontmatter —
+never from Codex renders, whose visibility cannot redefine the operator catalog. It has two parts:
 
-- *Installed verbs* — parsed from the committed verb files present (`.claude/skills/*/SKILL.md` and the legacy
-  `.claude/commands/*.md`) by **real YAML frontmatter parsing** (not line position). The verb is the skill
-  `name` (fallback: its directory) or the command filename; its line is the frontmatter `description`. All
-  the engine's verbs but one are `operator-typed`, typeable from a cold session start; the one exception is
-  the `model-auto` consultation verb ([decision 0326](../../adr/0326-admit-engine-recall-as-the-single-model-auto-skill.md)),
-  which the predicate still lists; the predicate is the engine's **operator-invocable** verbs — it **defers to the
-  [skills](../systems/surfaces/skills.md) invocation axis** (`operator-typed` and `model-auto` — the operator-invocable values; `model-only` is hidden from the menu) rather
-  than hardcoding a frontmatter flag, so every operator verb is listed. Engine skills carry a `description` by schema
-  (enforced by `validators-core` schema-conformance), so the index never shows a blank for an engine verb.
-- *Available-if-installed verbs* — an uninstalled **extension**'s engine verb is shown as "available if you install
-  X", read from the **committed module catalog provisioning maintains** (the [D-067](../../adr/0067-operator-facing-module-packaging-industry-discipline-categor.md)
-  selection-UX data, which survives deselection and drives re-add — extensions are the only distribution class an
-  operator declines, [D-335](../../adr/0335-separate-module-distribution-applicability-and-activation.md)) — a [§16](../../principles.md) relay
-  (provisioning owns the catalog, `/engine-help` reads it). The catalog carrying each extension's verb +
-  one-line description is the deferred value.
-- The listing closes with a plain-language pointer to the operator orientation [doc](../systems/surfaces/docs.md),
-  so it is an exit to deeper help, not just a directory.
-- Deferred values: rendering strings, listing order, and the catalog's exact fields.
+- *Active commands* — canonical skills with the operator-command invocation policy, plus the explicitly
+  invocable memory consultation command. The generator validates the exact catalog above and schema-required
+  descriptions. `model-only` automatic routes are never listed.
+- *Available through `engine-setup`* — offerable module presentation rows from the generated module catalog.
+  This is an add-on explanation, not a second menu of per-module commands. It survives a declined module
+  because the generated catalog travels with that deployment.
+
+The listing closes with a plain-language pointer to the operator orientation [doc](../systems/surfaces/docs.md),
+so it is an exit to deeper help, not just a directory. Rendering strings and order are generator leaves;
+the exact catalog and its visibility boundary are not.
 
 **Module-provided check-kind discovery** — the validation **dispatcher** discovers a module-provided
 check-kind callable by **presence** (the locked [validation](../systems/guardrails/validation.md)

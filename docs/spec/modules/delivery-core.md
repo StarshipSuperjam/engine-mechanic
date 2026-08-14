@@ -102,6 +102,12 @@ same committed state; a runtime-specific surface is a render, never a second sto
 - **Present but dormant until it applies.** delivery-core ships in every Engine; a deployment that never
   does delivery work never *activates* it — inactive and inapplicable, never a burden, but not absent either.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This delivery-plane kernel defines substrate behavior,
+not a current operator command or automatic route. Its breakout Build issue must choose a command, an
+automatic route, or a renewed `none` rationale under decision 0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

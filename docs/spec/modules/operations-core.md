@@ -74,6 +74,12 @@ refuses derivation. Both runtimes drive the same tool.
   are the entry.
 - **No auto-escalating authority.**
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This operations substrate has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

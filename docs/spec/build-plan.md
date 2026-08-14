@@ -28,6 +28,13 @@ Three phase groups:
   delivery-core; wave 2: execution-environment; wave 4: authority-broker-contract; wave 6:
   profile-registry) — the sibling documents speak its vocabulary.
 
+**Routing disposition is a settle-gate input.** Every delivery-plane module document must carry an
+“Operator and automatic workflow routing” section that states one of: an operator command, an automatic
+model route, or `none` with rationale. A wave cannot break into implementation Issues until each of its
+documents has that disposition; each breakout Issue copies or links it. This records future delivery-plane
+routing before build without emitting a route for an unbuilt module, per
+[decision 0336](../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md).
+
 | Phase | Capability | Doc |
 | --- | --- | --- |
 | Shipped — engine-template as built | audit-library | [audit-library](modules/audit-library.md) |

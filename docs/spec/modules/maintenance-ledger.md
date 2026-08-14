@@ -69,6 +69,12 @@ occurrences and flags them. Both runtimes drive the same tool.
 - **No self-modification** — the ledger's own forbidden-surface check enforces the mechanizable slice;
   the envelope's scope declaration remains a declaration, per the kernel's rule.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This maintenance draft has no current operator command or
+automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

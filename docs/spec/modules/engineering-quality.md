@@ -88,6 +88,12 @@ Nothing guesses a toolchain; nothing silently skips. Both runtimes invoke the sa
   marker field makes the same refusal travel into consumers.
 - **No gate ownership** — whether a `fail` blocks anything belongs to the consuming workflow.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This quality substrate has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

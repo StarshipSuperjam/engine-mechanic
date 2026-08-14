@@ -75,6 +75,12 @@ ride CI; live-provider conformance is operator-local — the split stated.
   classes arrive by recorded decision — the class-boundary check is that decision's mechanical arm.
 - **No provider mechanics, no credentials, no auto-deploy.**
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This deployment substrate has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

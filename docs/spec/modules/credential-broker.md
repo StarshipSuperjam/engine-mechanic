@@ -90,6 +90,12 @@ implementation contract.
 - **No provider specifics** — adapters own protocol and their own documents.
 - **No policy invention** — what may be granted is the authority contract's ground.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This credential contract has no current operator command
+or automatic route. Its breakout Build issue must choose and record its routing disposition under decision
+0336; no speculative route ships first.
+
 ## Acceptance criteria
 
 *`engine` means a named merge-gated check fully asserts the criterion; `operator` means your observation

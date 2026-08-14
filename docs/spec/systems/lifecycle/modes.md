@@ -161,7 +161,8 @@ copy are [provisioning](../infrastructure/provisioning.md)'s; modes owns only th
 default is **recommended, operator-config, and yields**.
 
 **The native mode is not a stance and not a Build-entry trigger.** Booting in plan mode does not enter
-Build; the only Build entries remain the operator-typed verb and **accepting a plan** (below). Changing the
+Build; Build authority comes from the accepted Plan, an explicit `engine-start`, or unambiguous
+natural-language instruction to implement/change (below). Changing the
 mode is a normal operator preference (native `/config`) — **not** a [§15](../../../principles.md) guardrail
 weakening, because no enforcement value moves and the Explore gate and merge wall are untouched — so it
 carries no alarm. The current mode stays operator-legible through the platform's own mode indicator and
@@ -170,18 +171,19 @@ boot's stance line, so the operator is never left guessing why a session is prop
 ### Entering Build — a deliberate, announced operator act
 
 Leaving Explore is a deliberate human act, and the engine never flips its own stance silently or by
-default. There are **two interactive entry paths, and neither is something the model can do for itself**:
+default. There are **three authorities, and none is something the model can manufacture for itself**:
 
-- **An operator-typed verb** — a [skill](../surfaces/skills.md) whose `invocation` is
+- **An explicit `engine-start` command** — an [operator command](../surfaces/skills.md) whose `invocation` is
   operator-only, so the **model cannot invoke it itself**; the operator types it and the session stance
-  signal flips to Build. This is the path for work that did **not** go through plan mode (a direct
-  "build this").
-- **Accepting a plan** — when the operator approves a plan, the platform's **plan-exit completion is
-  observable to a hook**, and the engine flips the stance signal to Build on that acceptance. A
-  **rejected** plan produces no such completion, so it never enters Build; a hook that never fires (or
-  fails) simply leaves the signal absent → Explore, **the fail-safe floor**; and the **model cannot accept
-  its own plan** — acceptance is the operator's act. This is the ergonomic path for planned work:
-  *approving the plan is "build it,"* with no extra verb to type.
+  signal flips to Build. This is the explicit recovery path when no accepted Plan or direct
+  implementation instruction already authorizes Build.
+- **Accepting the exact Plan** — acceptance binds the Plan artifact and approved review depth to the
+  coordinator and enters Build. A rejected Plan does not. This is the ergonomic path for planned work:
+  *approving the plan is "build it,"* with no extra command to type. A provider hook may carry this
+  signal, but no runtime may demand a second `engine-start` where the acceptance artifact is available.
+- **An unambiguous natural-language implementation instruction** — “build,” “implement,” or “change”
+  with a concrete subject is direct Build authority. Planning, discussing, reviewing, or drafting alone
+  is not implementation language and remains Explore.
 
 The acceptance path **sets the stance signal and injects a terse assistant-internal stance directive** —
 a system reminder that names the new Build stance and directs the next turn into the
@@ -215,7 +217,7 @@ gate, which still runs (proportionate — a trivial change collapses it to a one
 
 This keeps self-election — the leak that let the prototype's stances bleed together — **visible and
 effortful**, not a claim of impossibility the design cannot keep ([principles §6](../../../principles.md)).
-Neither path enters Build *silently* or *by default*: the verb is operator-only-invocable, and acceptance
+No authority enters Build *silently* or *by default*: the command is operator-only-invocable, acceptance
 is an operator approval of a plan the engine surfaced — **honor-rate-free** where the verb is fallible
 ([R11](../../../reference/risks.md)), but **not a stronger gate**, since the engine still originates the plan it asks
 the operator to accept. Were the engine ever to enter Build wrongly, the entry is announced and the **merge
@@ -351,7 +353,7 @@ design:
 | **Three stances on two axes** — permission posture (read vs write) × attendance (interactive vs unattended); the fourth cell (unattended-read) is intentionally empty (Actions cron, not a stance). No slot numbering, no transition matrix; the prototype's per-session slot machinery is gone. | No merge-gated check asserts the stance set; your read carries it. Partial support: the modes tests (CI) pin the stance enum, the Explore default, and the per-stance write permissions; the locked set is recorded in the build's own eADR-0024 contract. | operator |
 | **Stance is session-scoped and never persists** — an ephemeral, session-keyed, non-committed signal that resolves to Explore in every ambiguous case, so every session boots Explore and no stance survives a session. | Your observation carries it. Partial support: the modes tests (CI) pin default-Explore-with-no-signal, the session-start clear and its idempotence, unrecognized-value→Explore, and absent-session-degrades-safe; the `in-tool-demo-failure-path` check (hard, CI) keeps the modes demo's resume-inertness block falsifiable. | operator |
 | **Explore is grounded and gated, the gate honest** — boot grounds every session; the `PreToolUse` write-gate denies the enumerated building set and allows everything else, a fallible §6 nudge backstopped by the merge wall for in-repo writes, never dressed as reliable. | The block-eligibility legs are merge-gated: the `block-coherence` check (hard, CI) asserts the write-gate sits on `PreToolUse` and declares a valid non-empty modes set. The gate's deny/allow *decisions* are pinned by the modes tests (CI — mutating calls denied, building verbs denied, PR-creation denied, reads and subagent spawns allowed) and exercised by the modes demo; no merge gate asserts the decisions themselves, and the merge wall is the backstop — so the row stays yours. One disclosed gap rides the row (the plan-artifact carve-out passage above): as built the carve-out keys on the session's plan permission mode, so *any* file-mutating call in plan mode passes this gate — including writes outside the repo, which no merge wall backstops — with the platform's own plan-mode write-block the current backstop; narrowing it is tracked as [engine-template#775](https://github.com/StarshipSuperjam/engine-template/issues/775). | operator |
-| **Entry is a deliberate operator act for both write stances** — Build via an operator-typed verb the model cannot self-invoke **or by accepting a plan** (the model cannot accept its own plan), both interactive; Routine via the operator-authored scheduled fire that invokes `/engine-routine`, whose authority is the schedule + the frozen scope-locked build Issue and whose `set-routine` write is isolation-gated ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible. | No check asserts non-self-election; your observation carries it. Partial support: the modes tests (CI) pin accepting-a-plan-enters-Build; the entry skills carry the operator-only invocation flags; `set-routine` declines without positive proof of worktree isolation. | operator |
+| **Entry is a deliberate operator act for both write stances** — Build follows an explicit `engine-start`, accepting the exact Plan, or unambiguous natural-language implementation instruction; planning-only language stays Explore. Routine still requires the operator-authored scheduled fire that invokes `/engine-routine`, with a frozen scope-locked Build Issue for unattended continuation and an isolation-gated `set-routine` write ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible. | No check asserts non-self-election; your observation carries it. Partial support: modes tests pin Plan acceptance, command, and direct-instruction entry versus planning-only non-entry; `set-routine` declines without positive proof of worktree isolation. | operator |
 | **Stance is operator-legible** — current stance, denials, and the entry into Build are all surfaced in plain language; informed consent requires the operator know which stance is in force. | Your observation carries it. Partial support: the modes tests (CI) pin the denial sentence naming the way forward, the plain describe-stance line, and the self-labelled Explore scope description; boot renders the stance line each session. | operator |
 | **Build and Routine are stances; their workflows are build-orchestration's** — modes fixes the entry principle and the unattended posture, and defers the build/routine *mechanism* so the two never describe it twice. | An architectural deferral your read carries; no check or test asserts the seam — the boundary lives in this document's prose and [build orchestration](build-orchestration.md)'s. | operator |
 | **The native permission-mode default is recommended, not imposed** — plan mode is the recommended interactive default (posture/ergonomics over the Explore gate, never the guarantee), a separate axis from the stance and **not** a Build-entry trigger; it is written at provisioning as operator config that **yields** to an existing operator preference, changed later via native `/config`, and **overridden by Routine's non-interactive launch posture** so an unattended run never stalls. | Your observation carries it. Partial support: the instantiator tests (CI) pin adopt-by-default, keep-on-conflict, the project-conflict variant, and the yield behavior; no check binds the copy's content, and the conflict copies' missing `/config` pointer is tracked as [engine-template#776](https://github.com/StarshipSuperjam/engine-template/issues/776). | operator |
