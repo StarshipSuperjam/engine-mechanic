@@ -121,14 +121,15 @@ scope-locked conformant Build Issue and bound by URL and digest — never recons
 
 > **Reconciliation note (2026-08-17).** The engine-template implementation
 > ([#982](https://github.com/StarshipSuperjam/engine-template/pull/982)) shipped only the first two Build
-> authorities. The third — an unambiguous natural-language implementation instruction — and the cold
-> continuation-promotion mechanism above (promoting an inaccessible plan into a scope-locked Build Issue)
-> were deferred during that build: a plan-review pass found the underlying Build-stance continuity evidence
-> forgeable and not durably reachable at boot, so the shipped roster recognizes only the two non-self-electable
-> entries — an accepted harness Plan and explicit `engine-start`. The deferred natural-language authority and
-> the authenticated continuity it depends on are tracked in
-> [engine-template#983](https://github.com/StarshipSuperjam/engine-template/issues/983). Until that lands,
-> "one of" above reads as those two shipped entries.
+> authorities, for two distinct reasons. The third — an unambiguous natural-language implementation
+> instruction — was **dropped**: it was never built, because an intent read from prose cannot be mechanically
+> distinguished from the model self-electing into Build, and the engine already recognizes exactly two
+> non-self-electable entries (an accepted harness Plan and explicit `engine-start`); dropping it stranded
+> nothing. Separately, the **cold-continuation stance mechanism** above (re-entering Build from an inaccessible
+> plan on a later session, promoting it verbatim to a scope-locked Build Issue) was **deferred**: a plan-review
+> pass found the evidence it relied on forgeable and not durably reachable at boot, so authenticated continuity
+> is tracked in [engine-template#983](https://github.com/StarshipSuperjam/engine-template/issues/983). As
+> shipped, "one of" above reads as the two entries; the natural-language authority is not a pending item.
 
 Engine Issue authoring is input-schema driven. `engine-issue-input.v1` carries repository, title,
 `what_this_is`, `whats_next`, optional labeled references, and optional governed urgency. The helper offers

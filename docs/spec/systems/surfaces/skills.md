@@ -124,7 +124,7 @@ verb they cannot find:
 
 **Operator-facing vocabulary.** `invocation`, `model-auto`, `operator-typed`, `model-only` are
 governance/maintainer terms; they must never surface in operator-facing text. To the operator, an
-operator-typed skill is simply a **command** — "a verb you type, like `/engine-build`."
+operator-typed skill is simply a **command** — "a verb you type, like `/engine-status`."
 
 ### Discovery by presence; complementary to the scent
 

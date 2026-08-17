@@ -1609,10 +1609,10 @@
       "who": "operator"
     },
     {
-      "criterion": "**Entry is a deliberate operator act for both write stances** — Build follows an explicit `engine-start`, accepting the exact Plan, or unambiguous natural-language implementation instruction; planning-only language stays Explore. Routine still requires the operator-authored scheduled fire that invokes `/engine-routine`, with a frozen scope-locked Build Issue for unattended continuation and an isolation-gated `set-routine` write ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible.",
-      "digest": "sha256:7e46b002f96841253eb54a7b3d831b84b3e3929368cc647e40f9af1cddc9572d",
+      "criterion": "**Entry is a deliberate operator act for both write stances** — Build follows an explicit `engine-start` or accepting the exact Plan; planning-only language stays Explore. Routine still requires the operator-authored scheduled fire that invokes `/engine-routine`, with a frozen scope-locked Build Issue for unattended continuation and an isolation-gated `set-routine` write ([decision 0322](../../../adr/0322-ratify-set-routine-as-the-routine-entry-actor.md)). None is silent or by-default self-election; self-election is made visible and effortful, never claimed impossible.",
+      "digest": "sha256:494782919fa727b90478b201cd59e20b8a13d3cf3cc1d23521c07f18d6d1c9cc",
       "doc": "docs/spec/systems/lifecycle/modes.md",
-      "how_verified": "No check asserts non-self-election; your observation carries it. Partial support: modes tests pin Plan acceptance, command, and direct-instruction entry versus planning-only non-entry; `set-routine` declines without positive proof of worktree isolation.",
+      "how_verified": "No check asserts non-self-election; your observation carries it. Partial support: modes tests pin Plan acceptance and command entry versus planning-only non-entry; `set-routine` declines without positive proof of worktree isolation.",
       "position": 3,
       "who": "operator"
     },
