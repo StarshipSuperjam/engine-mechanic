@@ -198,6 +198,10 @@ promotion **threshold values** (persistence, auto-resolve N-observations, triage
 telemetry's leaf — they live in the governed triage-threshold [policy](../surfaces/policies.md)
 telemetry reads ([D-114](../../../adr/0114-q25-re-litigation-a-fourth-v1-core-policy-the-triage-thresho.md)).
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

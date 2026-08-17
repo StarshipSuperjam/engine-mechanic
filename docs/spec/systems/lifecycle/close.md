@@ -144,6 +144,10 @@ The laws above are fixed; these concrete forms are settled in the build-spec pas
 - the **disposition-summary wording** — quiet when nothing needs action, expanded when there is something to
   act on — and the plain-language loop / cap-stop / fail-open notices.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

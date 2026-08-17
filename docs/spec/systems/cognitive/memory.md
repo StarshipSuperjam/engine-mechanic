@@ -445,6 +445,10 @@ and with it the [D-030](../../../adr/0030-memory-ledger-canonical-observe-don-t-
 role vocabulary and the consolidation-watermark representation (now a defined-but-unconsumed legacy
 field). This document fixes the laws, not these leaves.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model routes.** Ambient capture is internal (the `Stop` hook); explicit recall is reached by the `engine-recall` route, and operator pins by the `engine-save-operator-pin` / `engine-drop-operator-pin` / `engine-restore-operator-pin` routes (only on an explicit operator request) — per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

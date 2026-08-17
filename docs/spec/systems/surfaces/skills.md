@@ -145,6 +145,10 @@ they can appear for explicit selection there. Operator commands carry `allow_imp
 The generator and a hard parity check prove that every canonical route has its Codex render; this is a
 declared provider-visibility asymmetry, not an excuse for Codex to redefine the operator menu.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

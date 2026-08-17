@@ -221,6 +221,10 @@ control-plane's upstream-acceptance note, topology's CODEOWNERS-predicate note).
 - the **detection of the upstream's pull-request template / `CONTRIBUTING`** and the conformance of the
   authored PR body to it (fall back to the Engine's own shape when absent).
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model routes.** Reached by intent through `engine-file-upstream-issue` (the target project's own Issue procedure) and `engine-submit-upstream-contribution` (the submission path); when the add-on is absent its setup is the generated `engine-setup-external-contribution` route — per decision 0336. These upstream routes follow the target project's templates and filing authorization and never use the Engine's own Issue helper.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

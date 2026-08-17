@@ -182,6 +182,10 @@ session does so before M1). The **catalog is a source, not a member** — its go
 (only its *coverage* is derived), so a catalog conflict is a *real* authored conflict that regeneration would
 destroy; it is reconciled by ordinary authored-content review, never regenerate-to-resolve.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

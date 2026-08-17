@@ -99,6 +99,10 @@ the design states the bound rather than overclaiming "orient from State alone":
   (the failure mode is the swallow, not a literal empty read). State names these bounds rather than
   implying the partition is exhaustive.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

@@ -345,6 +345,10 @@ design:
   behavioral, Routine never boots a stalling mode, and the platform field is verified live before the build
   relies on it.
 
+## Operator and automatic workflow routing
+
+**Current disposition: operator command.** Explicit recovery entry to Build is the `engine-start` operator command; the stance transitions this system owns are otherwise internal (boot, plan acceptance, close), with no automatic route that flips stance on its own — per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

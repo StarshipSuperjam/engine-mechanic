@@ -86,6 +86,10 @@ frontmatter are mechanically checked; truth, usefulness, register, and clarity a
 check's — a doc that is accurate and usable but talks down is **flagged by the probe for remediation** (the audit
 recommends; the operator adjudicates).
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

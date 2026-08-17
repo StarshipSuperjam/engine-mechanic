@@ -72,6 +72,10 @@ validated against the current schema absent a breaking bump. The bump-plus-migra
 authoring discipline held at review — no merge-gated check ties a version bump to a migration at
 this layer.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

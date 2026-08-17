@@ -139,6 +139,10 @@ never a hand-edit, so a non-engineer tunes by a documented command rather than e
 deferred [Q17](../../../reference/open-questions.md) auto-calibration, if ever built, would write learned values through
 this same override lane. ([D-167](../../../adr/0167-take-up-q17-component-a-authorize-a-five-foundation-re-litig.md).)
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

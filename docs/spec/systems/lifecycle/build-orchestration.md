@@ -602,6 +602,10 @@ the design:
   the estimate itself —
   [decision 0321](../../../adr/0321-adopt-the-build-s-refusal-of-fabricated-cost-and-time-estima.md).)
 
+## Operator and automatic workflow routing
+
+**Current disposition: operator command and automatic model route.** The Build stance this system serves is entered by the `engine-start` operator command; its coordinator is reached by intent through the `engine-coordinate-build` automatic route, which names the procedure and never itself elects Build — per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

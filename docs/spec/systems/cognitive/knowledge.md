@@ -60,6 +60,10 @@ runs where its cost is tolerable:
 
 This places regeneration on the build path (editing surfaces) and keeps every session start cheap.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model route.** Reached by intent through the `engine-check-impact` route (the knowledge-impact operation over this system's graph); the graph itself is otherwise an internal navigation substrate with no operator command — per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

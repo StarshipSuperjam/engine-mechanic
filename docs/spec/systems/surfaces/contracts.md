@@ -114,6 +114,10 @@ and the schema and module bindings), routing metadata rather than citation bulk.
 surfaces when current work cites or
 lexically matches it (the scent / search), so a stable canon never burdens orientation.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This capability is internal engine machinery; no operator command or automatic natural-language route names it, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*

@@ -468,6 +468,10 @@ likewise GitHub issue infrastructure governed here, not a catalogued surface.
   [provisioning](provisioning.md) (its bootstrap-UX build-spec leaves). Full closure
   of Risk [R1](../../../reference/risks.md) depends on that first-run experience.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model route.** Protection bootstrap is reached by intent through the `engine-enable-protection` route (and the `engine-setup` protection branch when managed); the enforcement this system performs on GitHub is otherwise internal — per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.*
