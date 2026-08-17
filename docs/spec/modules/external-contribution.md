@@ -81,6 +81,15 @@ upstream carries no dependency on the Engine); and the **removal test passes** �
 operator's own product and fork intact, losing only the ability to contribute cross-repo with engine
 discipline. The dependency arrow stays Engine→product, and the product upstream never knows its contributor.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model routes.** When installed, this add-on's setup is reached by the
+generated `model-only` route `engine-setup-external-contribution`; its work is reached by intent through
+`engine-file-upstream-issue` (the target project's own Issue procedure) and
+`engine-submit-upstream-contribution` (the external-contribution submission) — per decision 0336. Those
+upstream routes follow the target project's templates and filing authorization and never use the Engine's
+own Issue helper; none installs the add-on or grants authority because a trigger matched.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

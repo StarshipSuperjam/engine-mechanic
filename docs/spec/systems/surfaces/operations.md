@@ -9,7 +9,7 @@ status: locked
 ## Summary
 
 A **multi-step engine procedure performed by reading-and-following** — the authoritative body of a
-procedure that a [skill](skills.md) (whether operator-typed or model-auto-invoked) or an
+procedure that a [skill](skills.md) (whether operator-typed, model-auto-, or model-only-invoked) or an
 [agent](agents.md) enters, or that a human follows where steps need human action. An operation is
 prose-with-frontmatter: a runbook, not executable code and not a persona. It is the *content* a thin
 invocation surface delegates to, so a procedure is written once and entered many ways — the boundary law's
@@ -37,7 +37,7 @@ with a product's own runbooks).
 ### What an operation is — and is not
 
 An operation is the home for a procedure that is **shared** (entered by two or more invokers — skills,
-operator-typed or model-auto, and, by design, agents; in the build as it stands every realized entry
+operator-typed, model-auto, or model-only, and, by design, agents; in the build as it stands every realized entry
 comes from a skill, the boot and hook flow, or another operation — no shipped agent enters one yet) or
 that is a **human-in-the-loop runbook** (steps the operator must perform — e.g. authenticating
 with an admin-scoped token — that no deterministic code can carry). It is deliberately *not*:

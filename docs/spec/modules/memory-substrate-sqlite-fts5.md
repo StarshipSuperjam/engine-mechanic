@@ -135,6 +135,12 @@ Recall always has a working answer, and the failure modes are surfaced honestly 
   ([§16](../../principles.md)) — and the slow scan is reached through the recall pull (the MCP `search`
   path), never pushed per-prompt.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** This is the memory floor's substrate — code, stores, wiring, and one owned
+migration; it exposes no operator command or automatic route of its own. Memory is reached through the core
+`engine-recall` verb and the memory tools, owned elsewhere; no route ships here, per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

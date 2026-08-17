@@ -89,6 +89,13 @@ first-fire echo, and misfire-as-Issue logic that must not be buried in a thin co
 build-orchestration prose) in one authoritative home — and rejected collapsing it onto a doc section. The
 affirmative case is the ratified drift-firewall, not a default.
 
+## Operator and automatic workflow routing
+
+**Current disposition: operator command `engine-routine`, with an automatic model route.** As a required
+module, `engine-routine` configures or explicitly fires the supported Routine path. The model also reaches
+configuration by intent through `engine-prepare-routine`, which offers Routine configuration guidance and
+never enters a Routine run itself — actual Routine entry stays subordinate and unrouted, per decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

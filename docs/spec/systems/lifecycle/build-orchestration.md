@@ -27,7 +27,10 @@ accepted depth, findings and dispositions, preflight and submission evidence, an
 handoff. An accepted Plan enters this coordinator without a second start prompt. If a later session cannot
 read the same exact Plan artifact, the plan is promoted verbatim to one scope-locked conformant Build Issue
 and the coordinator records that URL and digest; it never reconstructs a plan from a summary. The coordinator
-does not merge and no route creates a parallel workflow state.
+does not merge and no route creates a parallel workflow state. (The promotion surface ships and is
+assistant-driven; boot still clears stance to Explore on every restart, so the coordinator does **not** itself
+re-elect Build from this durable evidence. Tamper-resistant, authenticated cold-continuation re-entry is
+tracked in [engine-template#983](https://github.com/StarshipSuperjam/engine-template/issues/983).)
 
 ### Three records, three jobs — coordinator, change, and cold continuation
 

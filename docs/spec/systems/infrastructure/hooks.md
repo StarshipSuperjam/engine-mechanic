@@ -77,9 +77,10 @@ built the roster holds **three members**, each registered by its owner: the
 exploration stance's `PreToolUse` block, which honors the fail-open law below (a strong default, not an
 absolute wall; the durable backstop stays the [control-plane](control-plane.md) merge gate) —
 registered by modes; and the **engine-Issue-conformance reroute** — a
-minimal-work-loss redirect that denies a non-conforming engine-labeled `gh issue create` (or issue-creating
-`gh api`) and points the session to the [control-plane](control-plane.md) issue-authoring helper —
-registered by modes alongside it. An append-only-history guard may register later.
+minimal-work-loss redirect that denies every engine-labeled `gh issue create`, issue-creating
+`gh api`, or connector call ending `github_create_issue`, and points the session to the
+[control-plane](control-plane.md) issue-authoring helper ([decision 0336](../../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md)
+widened it from the original non-conforming-body test) — registered by modes alongside it. An append-only-history guard may register later.
 Hooks owns the *budget* (which events may block, and that
 membership is governance-critical only); it names no invariants itself, so it presupposes none of the
 systems that will populate the set.

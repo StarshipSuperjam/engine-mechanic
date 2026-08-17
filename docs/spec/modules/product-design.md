@@ -301,6 +301,15 @@ earns the ≥2-referencer bar ([D-042](../../adr/0042-procedural-content-groundi
 authored on spec — the front door is operator-typed unless a later pass clears the
 [skills](../systems/surfaces/skills.md) earns-a-skill bar.
 
+## Operator and automatic workflow routing
+
+**Current disposition: operator command `engine-design`, with automatic model routes.** When this add-on is
+installed the operator types `engine-design` to enter product-design intake. The model reaches the same
+capability by intent — `engine-design-product` routes a natural-language product-design request into that
+intake and offers to install the add-on when it is absent, and the generated `model-only` route
+`engine-setup-product-design` manages setup behind the permanent `engine-setup` dispatcher — per decision
+0336. No route installs the add-on or grants authority because a trigger matched.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*
