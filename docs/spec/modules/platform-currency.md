@@ -169,6 +169,13 @@ differs from the audit's no-network off-schedule run.
   (persona + doc + skill + policy, the qa-review/design-review shapes) is cleanly reversible and fails the
   contract-threshold bar; the reasoning rides the build pull request.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This forward-designed module is not yet built
+([engine-template #657](https://github.com/StarshipSuperjam/engine-template/issues/657)); its intended
+on-demand review verb and operator-scheduled hosts are chosen and recorded at that build under decision 0336.
+No route ships first.
+
 ## Acceptance criteria
 
 *In this table, `engine` means a named merge-gated check fully asserts the criterion; `operator` means your

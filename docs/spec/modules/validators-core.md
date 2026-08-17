@@ -161,6 +161,12 @@ a reasoned decision, well-grounded:
   `validators-core` *present*. Presence is not wiring — `depends` and `wires` are orthogonal — so the inbound
   edges create no wiring obligation, and `wires: none` stands.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** Its checks run through the CI validation suite and the commit-boundary
+hooks, not an operator surface; the module exposes no operator command or automatic route, and none is added
+speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

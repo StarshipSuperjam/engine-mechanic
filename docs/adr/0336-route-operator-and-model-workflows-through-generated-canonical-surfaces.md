@@ -119,6 +119,17 @@ asks for `engine-start` again. Planning, review, or drafting without implementat
 If a cold Terra continuation cannot access that exact plan artifact, it is promoted verbatim to one
 scope-locked conformant Build Issue and bound by URL and digest — never reconstructed from a summary.
 
+> **Reconciliation note (2026-08-17).** The engine-template implementation
+> ([#982](https://github.com/StarshipSuperjam/engine-template/pull/982)) shipped only the first two Build
+> authorities. The third — an unambiguous natural-language implementation instruction — and the cold
+> continuation-promotion mechanism above (promoting an inaccessible plan into a scope-locked Build Issue)
+> were deferred during that build: a plan-review pass found the underlying Build-stance continuity evidence
+> forgeable and not durably reachable at boot, so the shipped roster recognizes only the two non-self-electable
+> entries — an accepted harness Plan and explicit `engine-start`. The deferred natural-language authority and
+> the authenticated continuity it depends on are tracked in
+> [engine-template#983](https://github.com/StarshipSuperjam/engine-template/issues/983). Until that lands,
+> "one of" above reads as those two shipped entries.
+
 Engine Issue authoring is input-schema driven. `engine-issue-input.v1` carries repository, title,
 `what_this_is`, `whats_next`, optional labeled references, and optional governed urgency. The helper offers
 non-writing `preview --input` and `create --input --confirm`; create renders through the shared renderer,

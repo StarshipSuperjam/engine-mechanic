@@ -235,6 +235,13 @@ of the session/claim tracking [D-038](../../adr/0038-session-lifecycle-re-founde
 requests**; it adds the engine-specific fields (placing its own work items as needed to carry them) on
 top, nothing more.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model route.** When installed, this add-on is reached by the generated
+`model-only` setup route `engine-setup-github-projects-sync`. The retired `engine-board-setup` command has
+no alias; its upgrade notice names this `engine-setup` section (decision 0336). It carries no operator
+command, and no route installs it or grants authority because a trigger matched.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

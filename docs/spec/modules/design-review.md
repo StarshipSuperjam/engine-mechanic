@@ -90,6 +90,14 @@ the [D-066](../../adr/0066-the-4-4-review-lens-roster-two-stage-suites-mirroring
 by*, never *depended on by*, product-design). Two referents, two moments — the spec at lock, the build plan
 at plan-review — distinct, not redundant.
 
+## Operator and automatic workflow routing
+
+**Current disposition: automatic model route.** When installed, this add-on is reached by the generated
+`model-only` setup route `engine-setup-design-review`, which checks installation state — explaining the
+add-on and awaiting installation consent when absent, entering its setup when present — per decision 0336.
+It carries no operator command; setup lives behind the permanent `engine-setup` dispatcher, and no route
+installs it or grants authority because a trigger matched.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

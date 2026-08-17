@@ -253,6 +253,15 @@ the dispatcher's discovery *form* (the concrete directory a deferred value); it 
 blocker — `core`'s five closed kinds register directly, so the discovery path is exercised only when a module
 adds a kind.
 
+## Operator and automatic workflow routing
+
+**Current disposition: the operator command catalog, plus the automatic routes `core` owns.** The full
+operator command set and its routing are detailed under "Operator commands and automatic workflow routing"
+in the Behavior section above: `core` ships the fixed typed commands and owns most of the generated
+`model-only` routes that funnel natural-language intent into their canonical procedures, with `engine-recall`
+the sole `model-auto` route. Retired: `engine-conduct` and `engine-tune`, whose upgrade notices name their
+`engine-setup` section (decision 0336).
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

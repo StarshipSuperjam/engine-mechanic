@@ -208,6 +208,12 @@ token*, an *Actions secret*) and carrying **no backstage vocabulary** (persona, 
 concern-list, R-numbers). The audit digest itself stays the plain self-attestation the
 [audits](../systems/guardrails/audits.md) doc fixes.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none`.** The self-audit fires on its scheduled run and as a spawned audit persona,
+reporting through the audit digest and telemetry; it exposes no operator command or automatic natural-language
+route, and none is added speculatively under decision 0336.
+
 ## Acceptance criteria
 
 *In this table, `engine` means the named merge-gated check fully asserts the criterion; `operator` means your observation carries at least part of it — any named checks are partial support.* *(No row in this table earns `engine` — every criterion here rests at least partly on your observation.)*

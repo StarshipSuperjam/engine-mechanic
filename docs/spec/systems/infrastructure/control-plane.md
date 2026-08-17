@@ -344,18 +344,20 @@ concrete label strings and the mechanism that applies them are deferred build-sp
   way a required check gates a merge, so the engine authors its Issues through a single shared
   **issue-authoring helper** that assembles the body from the contract's parts (a producer that authors
   through it cannot omit one) — and a local **`PreToolUse` reroute gate** ([hooks](hooks.md)
-  block-eligible, [modes](../lifecycle/modes.md)-registered) **denies** a `gh issue create` /
-  issue-creating `gh api` bound for the **engine-labeled channel** whose body lacks the contract's structural
-  markers, **redirecting** the session to author it through the helper. The gate keys on the **body's shape,
-  not the tool's provenance** — a hand-matched conforming body passes, since the contract is about body
-  shape — so the shape's presence is now a **gated floor** while its truthfulness stays **posture**
-  ([§7](../../../principles.md), the PR-contract tiering) — a less-truthful body costs legibility, never a guardrail, so
+  block-eligible, [modes](../lifecycle/modes.md)-registered) **denies** every direct engine-labeled Issue
+  creation — a `gh issue create`, an issue-creating `gh api`, or a connector tool whose name ends
+  `github_create_issue` — **redirecting** the session to author it through the helper. As widened by
+  [decision 0336](../../../adr/0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md)
+  the gate now keys on the **engine-labeled channel itself, not the body's shape**: a hand-matched conforming
+  body no longer bypasses it, because the helper — not a per-call body match — is what guarantees the
+  contract. So **routing through the helper is the gated floor** while the body's truthfulness stays
+  **posture** ([§7](../../../principles.md), the PR-contract tiering) — a less-truthful body costs legibility, never a guardrail, so
   [§15](../../../principles.md) does not bite the truthfulness tier. Routing-through-the-helper is therefore **no longer
   mere posture but a block-eligible floor**, yet the gate is a **minimal-work-loss redirect**, not the wall:
   it loses no work (the Issue still gets filed, via the helper), so it clears the [§6](../../../principles.md)
   hard-block reservation a blanket Issue-blocker would not; and unlike the Explore build-gate it has **no
-  merge wall behind it**, so it is the primary lever — **fallible and fail-open** (aliases, `eval`, stdin, a
-  `--body-file`, or a `gh api` payload evade a shell-string check, [modes](../lifecycle/modes.md)) —
+  merge wall behind it**, so it is the primary lever — **fallible and fail-open** (aliases, `eval`, stdin,
+  or a `gh api` payload evade a shell-string check, [modes](../lifecycle/modes.md)) —
   with the **`on:issues` CI backstop** (below) the only catch-all for a slip: flagged into the engine's own
   remediation loop, never silently lost, never dressed as the wall. The escalate-upstream draft is **exempt**
   (un-owned upstream, not engine-labeled — above). The helper is core-provided shared code each producer
