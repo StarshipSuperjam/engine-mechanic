@@ -588,6 +588,12 @@ identity traffic, provider test environments, approval staffing, incident owners
 and on-call expectations. Those inputs define a minimum operable deployment and make build and operating cost
 weighable without fabricating an estimate in this target map.
 
+## Operator and automatic workflow routing
+
+**Current disposition: `none` (design-stage).** This is a candidate post-v1 system, not built and not accepted
+as a release commitment; it exposes no operator command or automatic route, and none is stubbed here — per
+decision 0336, a forward-designed draft records `none` until the capability exists.
+
 ## Acceptance criteria
 
 In the table, `operator` means the named human role performs the observation or decision in an
