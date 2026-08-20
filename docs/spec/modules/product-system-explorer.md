@@ -207,6 +207,14 @@ The source and responsibility lanes are:
 - the Engine self-map and knowledge providers: the operating Engine's own structural and route facts; and
 - reviewed explorer authoring artifacts: instructional framing and explicit proposed interpretations.
 
+The product knowledge graph's subject rule is retained: Engine-managed directories inside a product checkout
+remain product-subject structural records. The explorer adds a presentation admission rule rather than
+relabeling them. In an ordinary deployed product, records classified as Engine-managed implementation are
+excluded from the primary product-system projection by default and are reachable only through the separately
+authorized operating-Engine lens. When the product under construction is the Engine, product-owned Engine
+source may be admitted to the product projection, but the installed operating Engine tree remains a separate
+subject instance. The bundle records every admission and exclusion with classification and rationale.
+
 The explorer and [operator-cockpit](operator-cockpit.md) are sibling consumers of narrow provider contracts.
 The cockpit owns global current-state composition. The explorer may show status scoped to the selected system
 object and link to the cockpit for the whole operational picture. Neither consumes the other's composed
@@ -253,11 +261,21 @@ authorization scope, generation time, coverage, typed omissions, and freshness p
 input movement before activation and aborts or retries rather than publishing a plausible mixed-revision
 bundle. Independently changing or expired live evidence remains visibly time- and environment-bound.
 
+“Current” is always **current as of the named source snapshot**, never an assertion about now. A generated
+page displays that as-of revision and generation time even when directly opened. The launcher rederives
+provider bindings and live-observation expiry before describing a bundle as launch-current; if it cannot
+recheck a provider, current-now freshness is `unknown`. A direct file open cannot perform that rederivation and
+therefore identifies its launch freshness as `unknown` while preserving the snapshot-relative facts.
+
 Generation uses same-filesystem staging and immutable generation directories. Every generated file is
-hash-bound into the manifest before one atomic current pointer switches. Launch verifies subject identities,
-schema compatibility, authorization scope, and file hashes. Partial, tampered, cross-project, mixed-subject,
-or incompatible output never activates. Failure preserves the last verified generation and records a bounded,
-redacted reason outside it. Stale output remains readable but never presents itself as current.
+hash-bound into the manifest before one atomic current pointer switches. An independently protected activation
+receipt binds the manifest digest, generation identity, subject identities, and authorization scope; the
+pointer names that receipt rather than trusting a manifest inside the mutable bundle. Launch verifies the
+receipt, manifest binding, subject identities, schema compatibility, authorization scope, source freshness,
+and file hashes. Partial, jointly replaced file/manifest, cross-project, mixed-subject, or incompatible output
+never activates. Direct-open pages disclose that they cannot authenticate the activation receipt themselves.
+Failure preserves the last verified generation and records a bounded, redacted reason outside it. Stale output
+remains readable but never presents itself as current-now.
 
 The renderer produces a bounded multi-page semantic HTML core with stable deep links, ordered indexes, text
 alternatives for diagrams, exact lookup, and every admitted claim available without JavaScript or a server.
@@ -280,6 +298,11 @@ instructional text, guided-tour sequence, assertion ledger, source references, s
 generated-versus-human boundaries, author and reviewer, approval time, invalidation triggers, and display
 classification. Source changes select affected assertions for re-review. The explorer works without any
 authored narration; structural and evidence views remain available.
+
+Deterministic topology analysis may help an author choose useful map groupings, trace candidates, and tour
+steps. Its output is a bounded `computed` proposal with provider references and coverage, never a new product
+fact, behavior claim, or authority source. It follows the same review and invalidation path as other authored
+material.
 
 A model may be invoked only through a separate, explicit authoring action. Its output is an untrusted proposal:
 
@@ -367,9 +390,10 @@ accessible output; and discoverability from a cold session. Fixtures cover no bu
 unsupported provider, and JavaScript-disabled viewing. Fact equivalence is machine-checked and operator
 readability is observed.
 
-If the explorer is not universally installed and launchable, a minimal core bootstrap remains permanently to
-report Engine identity/version, explorer availability and degradation, and how to reach the inventory. The old
-name may still retire, but its guaranteed cold-start function may not.
+If the explorer is not universally installed and launchable, a core fallback permanently preserves the full
+operator-readable Engine inventory covered by the parity matrix, together with explorer availability,
+degradation, and access instructions. The old command name may still retire, but neither its detailed inventory
+capability nor its guaranteed cold-start function may be reduced.
 
 ### Boundaries with nearby capabilities
 
@@ -394,15 +418,19 @@ name may still retire, but its guaranteed cold-start function may not.
 Two external repositories informed this preserved design:
 
 - [`zarazhangrui/codebase-to-course`](https://github.com/zarazhangrui/codebase-to-course), reviewed
-  2026-08-18, contributed the initial idea of a guided, navigable introduction. No visible license was found at
-  review time. This design is clean-room with respect to it: no code, assets, templates, distinctive wording,
+  2026-08-18 at commit
+  [`ff8837ecf8e9f6ce9874ffa42e42633394a52a00`](https://github.com/zarazhangrui/codebase-to-course/commit/ff8837ecf8e9f6ce9874ffa42e42633394a52a00),
+  contributed the initial idea of a guided, navigable introduction. No visible license was found at review
+  time. This design is clean-room with respect to it: no code, assets, templates, distinctive wording,
   interaction sequence, or tests may be copied without compatible permission and explicit provenance review.
 - [`Egonex-AI/Understand-Anything`](https://github.com/Egonex-AI/Understand-Anything), reviewed at commit
   [`32944829e7a63a9fa9c55d811d7f98a9530c6a6a`](https://github.com/Egonex-AI/Understand-Anything/commit/32944829e7a63a9fa9c55d811d7f98a9530c6a6a),
   demonstrated useful interaction ideas: a guided panel that highlights graph nodes, local exact/fuzzy search,
-  bounded connection paths, and typed repository freshness. Its MIT license makes later attributed reuse
-  possible, but this decision authorizes none. Any reuse receives an explicit dependency, security, license,
-  provenance, and maintenance review.
+  bounded connection paths, and repository freshness states `dirty`, `ahead`, `behind`, `diverged`, and
+  `unknown`. Its advertised semantic-search path routed through the fuzzy matcher at the reviewed revision, so
+  this design relies on no semantic-search claim. Its MIT license makes later attributed reuse possible, but
+  this decision authorizes none. Any reuse receives an explicit dependency, security, license, provenance,
+  and maintenance review.
 
 The Engine does not adopt either repository's generic codebase-course framing, audience personas, runtime LLM
 improvisation, committed graph exports, automatic update hooks, local server, chat, or a second product scanner.
@@ -441,11 +469,12 @@ alter `engine-parts`, the operator reviews and records:
 - required versus optional distribution, activation, route, cold-start bootstrap, compatibility period,
   migration inventory, rollback criteria, and retirement decision sequence;
 - supported repository classes, local/runtime architecture, cache home, generation scheduling, incremental
-  refresh, browser/assistive-technology matrix, and measured resource budgets;
+  refresh, browser/assistive-technology matrix, operator-interface and authored-content localization policy,
+  and measured resource budgets;
 - authorization, disclosure, secret/personal-data handling, purge, participant protocol, live-state provider,
   export, dependency, and supply-chain policies;
 - the authoring owner, reviewer, assertion invalidation workflow, and whether model-assisted drafting is worth
-  retaining; and
+  retaining, including whether deterministic topology analysis is a useful bounded authoring aid; and
 - source-license and provenance decisions, including whether any attributed MIT reuse is desirable.
 
 That decision chooses whether the explorer joins or follows delivery wave 7, remains parked, changes shape, or
@@ -483,11 +512,12 @@ check can fully assert the criterion; `operator` means human observation or judg
 | **`engine-mechanic` keeps its two Engines distinct** — the Engine product under construction is never confused with the operating Engine instance building it. | A scenario uses colliding module names and file paths at different revisions; completion requires pivoting product → Engine work → product while naming both subject identities and evidence. | operator |
 | **Contradictions and unknowns survive composition** — narration and precedence cannot erase conflicting or missing claims. | Policy fixtures combine declared, observed, computed, inferred, live, and instructional claims; rendered output preserves every admitted conflict, absence, freshness, coverage, and source lane. | engine |
 | **Provider absence degrades per mode** — brownfield, mixed-language, absent, inactive, unsupported, partial, stale, corrupt, unauthorized, over-budget, and incompatible inputs never become whole-system claims. | The declared provider matrix runs one fixture per state and mode; unaffected views and the bootstrap remain usable while affected views show typed scope and next step. | engine |
-| **Snapshots are coherent and bundles atomic** — mixed-revision, partial, tampered, cross-project, or cross-authorization bundles never activate. | Drift-during-generation, crash-point, hash-tamper, instance-swap, expired-live-data, concurrent-writer, repair, and cleanup fixtures preserve the last verified bundle and exact stale reason. | engine |
+| **Snapshots are coherent, freshness is honest, and bundles are atomic** — mixed-revision, partial, tampered, cross-project, or cross-authorization bundles never activate, and static pages never claim current-now knowledge they cannot rederive. | Fixtures cover drift during generation, source mutation and live-evidence expiry after generation, direct file opening, protected-receipt and joint file/manifest tampering, instance swap, concurrent writers, repair, and cleanup; they preserve the last verified bundle and exact stale or unknown reason. | engine |
 | **Static access is complete and accessible** — every admitted claim, text alternative, deep link, and exact lookup works without JavaScript, storage, network, or server. | JavaScript-disabled, storage-disabled, network-denied, keyboard, screen-reader, zoom/reflow, reduced-motion, and print walkthroughs cover the same scenario tasks; enhanced-only fuzzy/path queries disclose their absence. | operator |
 | **Hostile inputs cannot act or escape** — product content cannot execute, authorize actions, alter model instructions, disclose unrelated data, escape roots, create active markup, or exhaust unbounded work. | Fixtures cover prompt injection, tool requests, traversal, symlinks, special files, parser expansion, cyclic/path explosion, hostile Markdown/URLs/assets, secrets, personal data, hidden output sinks, limits, cancellation, and typed truncation. | engine |
 | **Authorization is non-amplifying and purge is complete** — product and Engine access are checked independently and derived data does not outlive deletion. | Separate-principal fixtures prove depth controls do not bypass source permissions; purge inventories and removes bundles, indexes, proposals, progress, diagnostics, pointers, and retention records. | engine |
 | **Narration is optional, reviewable, and subordinate** — model text is a tool-less/network-less proposal with claim provenance and diff-scoped approval. | Publication rejects unreviewed, unclassified, stale, prompt-injected, over-context, or source-overriding proposals; structural views regenerate with no model service. | engine |
+| **Reference provenance is demonstrable** — the implementation is independently authored from the unlicensed reference and every reused MIT element is attributed and approved. | A provenance ledger binds each behavior, asset, dependency, and authored sequence to an independent source or compatible permission; clean-room history and any attributed-reuse security, license, dependency, and maintenance reviews are release evidence. | operator |
 | **`engine-parts` parity is proved before deprecation** — old and new projections expose equivalent core facts and cold-start recovery. | A field-by-field matrix runs both projections over representative module/route profiles and no-bundle, corrupt, stale, unsupported, and no-JS states; machine consumers are inventoried and operator readability is observed. | operator |
 | **Retirement is separately governed and reversible** — additive delivery, compatibility, dependent migration, rollback, and explicit superseding decisions occur before removal. | Release evidence names the compatibility period, supported dependent migrations, rollback drill, retained bootstrap or universal availability, superseding ADR, core-catalog change, and operator acceptance. | operator |
 | **Performance claims are measured** — representative repository classes meet declared end-to-end generation, launch, query, memory, and bundle budgets. | Network-denied large/adversarial fixtures exercise limits, cancellation, incremental refresh, retention, and typed partial results; numerical budgets are set only from late-v1 measurements. | engine |
