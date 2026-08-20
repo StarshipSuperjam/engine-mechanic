@@ -54,6 +54,14 @@ def _run_kind(kind_fn, rule, files):
         validate.target_files = orig
 
 
+def _installed_module_ids() -> set:
+    """The module ids present in this tree. Mirrors the helper of the same name in test_seed.py, and the
+    same presence-conditional discipline `optional_owner` documents below: an optional module can be
+    declined, so a case keyed on one it DELIVERS has no subject in a deployment that declined it."""
+    import module_coherence
+    return {m.get("id") for _p, m in module_coherence.discover_manifests() if isinstance(m, dict)}
+
+
 class TestModuleSchema(unittest.TestCase):
     def test_schema_is_well_formed(self):
         validate.Draft202012Validator.check_schema(MODULE_SCHEMA)
@@ -134,6 +142,30 @@ class TestModuleSchema(unittest.TestCase):
 
     def test_depends_with_range_is_allowed(self):
         self.assertEqual(_errors(MODULE_SCHEMA, {**VALID_MODULE, "depends": {"core": ">=1.0.0"}}), [])
+
+
+class TestRetiredVerbUpgradeNotices(unittest.TestCase):
+    """ADR-0336 S3: the three retired verbs each carry a version-keyed upgrade notice on their owning module,
+    naming the `engine-setup` replacement — so an operator upgrading across the removal is told where the
+    capability went, rather than a stale name silently failing."""
+
+    def _notices(self, module_id: str) -> str:
+        m = validate.load_json(os.path.join(validate.ROOT, ".engine", "modules", module_id, "manifest.json"))
+        return " ".join((entry or {}).get("description", "")
+                        for entry in (m.get("retired_capabilities") or {}).values())
+
+    def test_core_notice_names_conduct_and_tune_pointing_at_engine_setup(self):
+        text = self._notices("core")
+        self.assertIn("engine-conduct", text)
+        self.assertIn("engine-tune", text)
+        self.assertIn("engine-setup", text)
+
+    def test_github_projects_sync_notice_names_board_setup_pointing_at_engine_setup(self):
+        if "github-projects-sync" not in _installed_module_ids():
+            self.skipTest("the retired-verb notice is carried by the declined github-projects-sync module")
+        text = self._notices("github-projects-sync")
+        self.assertIn("engine-board-setup", text)
+        self.assertIn("engine-setup", text)
 
 
 class TestVersionKeyDuplicateFindings(unittest.TestCase):
@@ -444,7 +476,7 @@ class TestModuleCoherenceConsumer(unittest.TestCase):
     def test_check_corpus_split_core_two_guards_validators_core_owns_the_rest(self):
         # The locked engine/corpus boundary:
         # core ships the validation engine and owns ZERO rules EXCEPT the two frozen-named guards;
-        # the self-validation corpus is validators-core's (65 rules: the read-only-persona write-lock
+        # the self-validation corpus is validators-core's (66 rules: the read-only-persona write-lock
         # guard (the read-only-persona write-lock guard — every read-only review/audit persona must block
         # the file-writing tools, the live consumer of agent_coherence_findings) atop the negative-fixture
         # meta-check (engine-template #286 — the checker-of-checkers) atop
@@ -550,6 +582,7 @@ class TestModuleCoherenceConsumer(unittest.TestCase):
             ".engine/check/manifest-write-funnel.json",
             ".engine/check/memory-pointer-public-safety.json",
             ".engine/check/model-bindings-schema.json",
+            ".engine/check/module-catalog-drift.json",
             ".engine/check/module-manifest.json",
             ".engine/check/ontology-authority-reservation.json",
             ".engine/check/operation-frontmatter.json",
@@ -561,12 +594,17 @@ class TestModuleCoherenceConsumer(unittest.TestCase):
             ".engine/check/policy-shape.json",
             ".engine/check/pr-behaviors-declared.json",
             ".engine/check/pr-body-completeness.json",
+            ".engine/check/pr-release-impact.json",
             ".engine/check/provider-exceptions-schema.json",
             ".engine/check/provider-vocabulary-confinement.json",
             ".engine/check/provisioning-catalog.json",
             ".engine/check/release-integrity.json",
+            ".engine/check/route-budget.json",
+            ".engine/check/route-target-existence.json",
             ".engine/check/self-map-drift.json",
+            ".engine/check/setup-route-drift.json",
             ".engine/check/shipped-issue-references.json",
+            ".engine/check/shipped-local-references.json",
             ".engine/check/skill-coherence.json",
             ".engine/check/skill-frontmatter.json",
             ".engine/check/skill-shape.json",
@@ -574,7 +612,7 @@ class TestModuleCoherenceConsumer(unittest.TestCase):
             ".engine/check/template-shape-spec.json",
             ".engine/check/untracked-surface.json",
             ".engine/check/uv-group-drift.json",
-        ], "validators-core owns exactly the 65 corpus rules")
+        ], "validators-core owns exactly the 71 corpus rules")
         # the optional-module-owned DOMAIN checks: dependency-discipline inspects the product's dependencies,
         # not the engine — outside both core's guards and validators-core's self-validation corpus.
         dd_checks = optional_owner("dependency-discipline", [

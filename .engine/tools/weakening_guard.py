@@ -29,12 +29,18 @@ A match answers in one of TWO TIERS (eADR-0040). The KILLSWITCH tier — the val
 detectors, the directional detectors, removal/rename of any guarded file, the
 hard-floor members, and every fail-closed path — blocks the merge until the
 operator applies the distinct, deliberate acknowledgment (the `guardrail-ack`
-label) after reading, in plain language, what protection could weaken. Every
-OTHER guarded modification emits a plain-language DISCLOSURE at soft severity —
-which enforcement files changed and why they matter — and the check passes: the
-operator's protected-branch merge review judges the change, and the notice says
-plainly that it needs no action and must never shape a design. The ack label
-DOWNGRADES a killswitch finding to a disclosure; it never erases the record.
+label) after reading, in plain language, what protection could weaken. That
+acknowledgment is bound to the exact pull-request HEAD it was granted for — read
+here as the head-bound `engine-ack` commit status (posted by `ack_status.py` when
+the label is applied), NOT as the mere presence of the label — so a stale
+acknowledgment cannot replay across a later push onto a new head
+(StarshipSuperjam/engine-template#710; the witnessed replay was PR
+StarshipSuperjam/engine-template#457). Every OTHER guarded modification emits a
+plain-language DISCLOSURE at soft severity — which enforcement files changed and
+why they matter — and the check passes: the operator judges the change at the
+protected-branch merge, and the notice says plainly that it needs no action and
+must never shape a design. The ack DOWNGRADES a killswitch finding to a
+disclosure; it never erases the record.
 
 It now runs as a frozen-named `custom/script` check rule (engine/check/guardrail-weakening),
 invoked BY ID from engine-guard.yml (`validate.py --check`), NOT as part of the CI
@@ -64,11 +70,51 @@ import json
 import os
 import re
 import sys
+import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # the sibling tools dir, for github_client
 from github_client import get_json, get_page, next_link  # noqa: E402 — sibling import after the path insert
 
 ACK_LABEL = "guardrail-ack"
+# The acknowledgment is bound to the exact head it was granted for, not to the mere presence of the label.
+# The label is the operator's DELIBERATE gesture; the head-binding record is a GitHub commit STATUS — context
+# ACK_CONTEXT, state "success", pinned to the pull request's head SHA — posted by the ack-status companion
+# (`ack_status.py`) only when the operator applies the label, and read here against the CURRENT head. A commit
+# status is bound to an immutable content SHA, so a later push produces a new head with no such status and the
+# stale acknowledgment cannot replay across it (StarshipSuperjam/engine-template#710; the witnessed replay was
+# PR StarshipSuperjam/engine-template#457). This is
+# strictly a head-binding, NOT un-forgeability: it closes replay, not a builder minting the status itself
+# (StarshipSuperjam/engine-template#710). ACK_CONTEXT is single-homed here and imported
+# by `ack_status.py` (the writer)
+# and `lock_integrity.py` (the sibling reader) — never re-typed, or a drift would fail the readers closed.
+ACK_CONTEXT = "engine-ack"
+# An `engine-ack` status is trusted ONLY when GitHub stamped it as posted by the ack-status workflow's own
+# identity (StarshipSuperjam/engine-template#958). That workflow (`.github/workflows/engine-ack-status.yml`)
+# runs `ack_status.py` under the default `GITHUB_TOKEN`, which GitHub stamps as the `github-actions[bot]`
+# status creator (verified against the live API on real acknowledged pull requests). The reader below counts
+# an `engine-ack` entry only when its creator login is in this set (case-insensitively) and SKIPS any other —
+# so a status POSTed directly by another identity is never trusted. Why this leg exists: in TEAM the engine's
+# own machine account holds `statuses:write` and could mint `engine-ack=success` WITHOUT ever applying the
+# label, bypassing the writer's authority check entirely; trusting only the bot-stamped creator closes that.
+# INVARIANT (test-pinned in test_seed.py::TestAckTrustedCreatorInvariant): `ack_status.py` posts as one of
+# these logins. A deployment that rewired the ack workflow to a GitHub App or a PAT would stamp a DIFFERENT
+# creator and every ack would then silently fail closed — the self-test asserts the shipped workflow uses the
+# default token, so such a rewire becomes a red check rather than a silent denial. RESIDUAL
+# (StarshipSuperjam/engine-template#914): a PR-ADDED head workflow with `statuses: write` also posts as
+# `github-actions[bot]` — the same creator — so this filter does not stop that path. And a brand-NEW workflow
+# file is NOT flagged by this guard today: a pure file ADDITION is treated as strengthening (WEAKENING_STATUS
+# excludes "added"), so that path currently raises no acknowledgment prompt at all. Closing it needs a control
+# outside this token's reach (a distinct-identity or out-of-band gate) — StarshipSuperjam/engine-template#914's
+# territory, not a bolt-on to this filter, since flagging added workflow files is its own behaviour change with
+# its own blast radius.
+_ACK_TRUSTED_CREATOR_LOGINS = ("github-actions[bot]",)
+_TRUSTED_CREATOR_SET = frozenset(login.casefold() for login in _ACK_TRUSTED_CREATOR_LOGINS)
+# The head-ack read races the companion on a `labeled` event (both fire on the same event; posting a status does
+# not re-trigger this check). When the label is present but the status has not landed yet, retry a bounded few
+# times before failing closed — sized to exceed the companion's post latency, and only when a status is actually
+# expected (the label is on the pull request), so a legitimately-unacked pull request is never padded with waits.
+_ACK_POLL_TRIES = 4
+_ACK_POLL_SLEEP = 3
 # The guarded set is defined by a PROPERTY, not a path-prefix list: a committed file that constitutes
 # or configures an enforcement gate — one whose change could remove, disable, rename, or loosen a check, a
 # permission/enforcement hook, or a branch protection. Non-gate tooling (session boot, memory, telemetry, the
@@ -193,8 +239,17 @@ _FLOOR_GATE_SCHEMAS = (
     ".engine/schemas/skill.v1.json",
     ".engine/schemas/state.v1.json",
 )
+# The head-ack WRITER — the companion tool that posts the `engine-ack` commit status this guard now trusts to
+# clear a killswitch finding. It produces a signal the guard reads, so it is security-load-bearing exactly as
+# the guard's own machinery is: a change that made it post `engine-ack=success` unconditionally (ignoring the
+# label) would forge the operator's consent with NO on-disk correlate any other check catches. So it is floored
+# here (guarded at all) AND listed in _HARD_EXACT below (a modification routes through the ack, not a soft
+# disclosure). It is NOT modeled on `overlay_disclosure.py`'s unguarded posture — that tool only posts a comment
+# and gates nothing; this one feeds the killswitch. (StarshipSuperjam/engine-template#710.)
+_FLOOR_ACK_WRITER = (".engine/tools/ack_status.py",)
 GUARDRAIL_EXACT = (_FLOOR_ENFORCEMENT_CONFIG + _FLOOR_VALIDATOR + _FLOOR_RULESET_PROXY
-                   + _FLOOR_ENFORCEMENT_HOOKS + _FLOOR_SECURITY_PROVISION + _FLOOR_GATE_SCHEMAS)
+                   + _FLOOR_ENFORCEMENT_HOOKS + _FLOOR_SECURITY_PROVISION + _FLOOR_GATE_SCHEMAS
+                   + _FLOOR_ACK_WRITER)
 # A pure addition strengthens; removal/rename/modification/copy can weaken.
 # 'copied' is in GitHub's file-status enum — without it, a weakened *copy* of a
 # guardrail file would slip through ungated.
@@ -260,7 +315,7 @@ def _read_instance_guards(path: str | None = None) -> tuple:
 
 
 # ---------------------------------------------------------------------------
-# TIER (eADR-0040). The guarded SET is unchanged (D-268's property); what changed is what a match does:
+# TIER (eADR-0040). The guarded SET is unchanged (its property-defined membership is preserved); what changed is what a match does:
 # "hard" blocks the merge pending the operator's deliberate `guardrail-ack`; "soft" is a plain-language
 # disclosure and the check passes — the protected-branch merge review judges the change. The hard criterion is
 # a PROPERTY, not a roster: a weakening with NO mechanical on-disk correlate to catch it and no
@@ -283,6 +338,10 @@ _HARD_EXACT = (
     ".codex/config.toml",              # the Codex helper registration (same posture)
     # the guard's own set-defining machinery (self-protection):
     ".engine/tools/weakening_guard.py",
+    # the head-ack writer: it posts the `engine-ack` status this guard trusts to clear a killswitch, so a
+    # one-line change making it post unconditionally would forge consent with no diff-readable correlate
+    # (StarshipSuperjam/engine-template#710):
+    ".engine/tools/ack_status.py",
     # ruleset/write-target seams whose one-line fail-direction flip no diff read reliably catches:
     ".engine/tools/team_switch.py",
     ".engine/tools/mechanic_build.py",
@@ -969,6 +1028,117 @@ def changed_files_total(repo: str, number, token: str):
     return pr.get("changed_files")
 
 
+def _latest_engine_ack_state(repo: str, head_sha: str, token: str):
+    """The state of the MOST-RECENT `engine-ack` commit status on `head_sha`, or None if there is none.
+
+    Reads the PER-CONTEXT statuses LIST (`GET /commits/{sha}/statuses`), NOT the combined `/status` rollup:
+    the rollup's top-level state aggregates every check on the commit and stays "pending" while any other
+    required check is still running, so keying on it would mean the acknowledgment never registers. The list
+    is returned most-recent-first and is PAGINATED to exhaustion — a busy head can accumulate past 100 status
+    postings, and the latest `engine-ack` must not hide past the first page — so the FIRST `engine-ack` entry
+    encountered is the latest. Raises on a pathological Link cycle (more than MAX_PAGES pages) so the caller
+    fails closed rather than judging a truncated read, and lets `urllib` errors propagate UNWRAPPED so the
+    caller fails closed on a read failure."""
+    url = f"/repos/{repo}/commits/{head_sha}/statuses?per_page=100"
+    pages = 0
+    while url:
+        pages += 1
+        if pages > MAX_PAGES:
+            raise RuntimeError(f"statuses pagination exceeded {MAX_PAGES} pages")
+        page, link = get_page(url, token, user_agent=_UA)
+        for s in page:
+            if s.get("context") != ACK_CONTEXT:
+                continue
+            # Trust ONLY a status GitHub stamped as posted by the ack-status workflow's bot
+            # (_ACK_TRUSTED_CREATOR_LOGINS). SKIP — never fail on — an untrusted or unreadable-creator entry:
+            # skipping lets an OLDER legitimate entry still speak, so a minted `failure` cannot wedge a real
+            # acknowledgment, and a minted `success` cannot mask absence (it falls through to the next trusted
+            # entry, else to None -> the guard blocks). This is the leg-2 authority filter
+            # (StarshipSuperjam/engine-template#958); the leg-1 labeler check lives in the writer, ack_status.py.
+            # Null-safe: a missing/blank creator reads as untrusted and is skipped, never a crash.
+            creator = ((s.get("creator") or {}).get("login") or "").casefold()
+            if creator in _TRUSTED_CREATOR_SET:
+                return s.get("state")  # most-recent-first: the first TRUSTED engine-ack IS the latest
+        url = next_link(link)
+    return None
+
+
+def _head_ack_success(repo: str, head_sha: str, token: str, *, retry: bool = False) -> bool:
+    """True iff the MOST-RECENT `engine-ack` commit status on `head_sha` is "success"
+    (see `_latest_engine_ack_state`). A withdrawal posts a "failure" state, so a revoked acknowledgment reads
+    as not-success and the guard re-blocks. When `retry` is set (the label is present, so a status is expected
+    but may still be landing — the labeled-event race), it polls a bounded few times before concluding the
+    status is absent; an unacked pull request passes `retry=False` and pays no wait. Raises on a read failure
+    so the caller fails closed."""
+    tries = _ACK_POLL_TRIES if retry else 1
+    for attempt in range(tries):
+        state = _latest_engine_ack_state(repo, head_sha, token)
+        if state is not None:
+            return state == "success"
+        if attempt < tries - 1:
+            time.sleep(_ACK_POLL_SLEEP)
+    return False
+
+
+def _resolve_ack(repo: str, head_sha: str, token: str, label_present: bool) -> str:
+    """Resolve the acknowledgment state for the CURRENT head, for a pull request that carries a hard
+    finding. Returns one of:
+      - "fresh"  — an engine-ack/success status is bound to this exact head; the ack clears (downgrades).
+      - "stale"  — the label is on the pull request but no ack status is bound to THIS head: the operator
+                   acknowledged an earlier version and the head has since changed (a push), OR the ack
+                   record is still landing. Blocks, with the "does not carry across a push" wording.
+      - "absent" — no label and no ack status: the change has never been acknowledged. Blocks.
+      - "nohead" — the event carried no head SHA: malformed, fail closed. Blocks.
+      - "error"  — the ack status could not be read (network/API failure): fail closed. Blocks.
+    The status read (and thus any statuses-API dependency) happens ONLY on this path — a clean pull request
+    returns before reaching here, so it never depends on the statuses API."""
+    if not head_sha:
+        return "nohead"
+    try:
+        fresh = _head_ack_success(repo, head_sha, token, retry=label_present)
+    except Exception:  # noqa: BLE001 — any read failure fails closed (never wave a change through unjudged)
+        return "error"
+    if fresh:
+        return "fresh"
+    return "stale" if label_present else "absent"
+
+
+# Shared block wording, single-homed so the two ack sites (the too-large fail-closed path and the normal
+# hard-finding path) can never drift. The STALE note is shown when the label is present but not bound to the
+# current head (an acknowledgment of an earlier version, or one still landing); the REAPPLY note tells the
+# operator how to acknowledge THIS head with the same single label.
+_ACK_STALE_NOTE = (
+    "An acknowledgment is not in force for this exact version of the pull request. That can be because a new "
+    "commit was pushed after one was applied (an acknowledgment is bound to the exact version reviewed and "
+    "does NOT carry across a push), because it was withdrawn, or because a label applied to this version was "
+    "not accepted as a valid approval — for example, applied by an actor whose authority could not be confirmed "
+    "(StarshipSuperjam/engine-template#958). The `engine-ack` status on this commit records which. This version "
+    "has not been acknowledged.")
+_ACK_APPLY_NOTE = (
+    f"To approve this deliberately, apply the `{ACK_LABEL}` label to this pull request (one deliberate action, "
+    "distinct from the merge click).")
+_ACK_REAPPLY_NOTE = (
+    f"To acknowledge THIS version, apply the `{ACK_LABEL}` label again. If the label is still attached from an "
+    "earlier version, remove it and re-apply it — an already-present label posts no fresh acknowledgment. If "
+    "you just applied it, the acknowledgment record may still be landing; re-run this check in a moment.")
+_ACK_FAILCLOSED_NOTE = (
+    "GUARDRAIL CHECK: could not read the acknowledgment status for this pull request's head; failing closed. "
+    f"Re-run this check; if it persists, re-apply the `{ACK_LABEL}` label to re-post the acknowledgment.")
+# Appended to a DOWNGRADE (the ack cleared a killswitch finding) so the operator is never misled about WHAT
+# the acknowledgment proves (StarshipSuperjam/engine-template#958). Deliberately tier-AGNOSTIC: it reads no
+# committed manifest, so the guard's verdict stays derived purely from the live file listing and the live
+# status read (the property the guardrail-weakening not-applicable fixture rests on). The tier-SPECIFIC
+# framing ([operator] / [shared credential]) is recorded by the writer in the status description instead.
+_ACK_AUTHORITY_NOTE = (
+    "Who acknowledged: this record is bound to this exact version and confirms a deliberate label action. "
+    "Whether it also proves a distinct OPERATOR identity depends on your setup — a team setup (a separate "
+    "engine identity) refuses the acknowledgment unless a distinct operator applied it; a solo setup (one "
+    "shared credential) cannot verify who applied it, so an automated session holding that same credential "
+    "could have. Your merge remains the gate.")
+_ACK_NOHEAD_NOTE = (
+    "GUARDRAIL CHECK: the pull request event carried no head commit for this pull request; failing closed.")
+
+
 def emit(findings: list) -> int:
     """Write the finding.v1 array to stdout (the custom/script machine channel) and return
     0 — a successful evaluation, whatever it found. Each finding carries its own severity;
@@ -993,7 +1163,13 @@ def main() -> int:
         event = json.loads(fh.read())
     pr = event.get("pull_request") or {}
     number = pr.get("number")
+    # The label is read ONLY to word the block (stale-after-push vs never-acknowledged) — it is NO LONGER
+    # the gate. The authoritative acknowledgment is the head-bound `engine-ack` status resolved by
+    # `_resolve_ack` against `head_sha` below; a bare label present in this (frozen) event payload after a
+    # push must never clear the guard (StarshipSuperjam/engine-template#710). Do not collapse `label_present` back into the gate.
     labels = {l.get("name") for l in (pr.get("labels") or [])}
+    label_present = ACK_LABEL in labels
+    head_sha = ((pr.get("head") or {}).get("sha")) or ""
     if number is None:
         return emit([{"severity": tier, "location": None,
                       "message": "GUARDRAIL CHECK: no pull request number in the "
@@ -1031,7 +1207,10 @@ def main() -> int:
         else:
             detail = ("did not report how many files it changes, so the safety check "
                       f"cannot confirm it read them all (it read {seen})")
-        if ACK_LABEL in labels:
+        # The acknowledgment here is head-bound too: a stale label on a rebased over-large pull request must
+        # not clear this fail-closed block (StarshipSuperjam/engine-template#710).
+        state = _resolve_ack(repo, head_sha, token, label_present)
+        if state == "fresh":
             # eADR-0040: the ack DOWNGRADES, never erases — the fail-closed record survives as a
             # disclosure. (Before the tier split this path never honored the label at all, despite its
             # own message promising it would — fixed here.)
@@ -1039,13 +1218,18 @@ def main() -> int:
                           "message": "ACKNOWLEDGED (guardrail-ack applied) — kept as a record, no longer "
                           "blocking: this pull request " + detail + ". "
                           "The safety check could not read every changed file, and you approved "
-                          "proceeding by applying the label."}])
+                          "proceeding by applying the label to this version.\n\n" + _ACK_AUTHORITY_NOTE}])
+        if state == "nohead":
+            return emit([{"severity": tier, "location": None, "message": _ACK_NOHEAD_NOTE}])
+        if state == "error":
+            return emit([{"severity": tier, "location": None, "message": _ACK_FAILCLOSED_NOTE}])
+        stale_note = (_ACK_STALE_NOTE + "\n\n") if state == "stale" else ""
+        reapply = _ACK_REAPPLY_NOTE if state == "stale" else _ACK_APPLY_NOTE
         return emit([{"severity": tier, "location": None,
                       "message": "GUARDRAIL CHECK — this pull request " + detail + ".\n\n"
-                      "Rather than judge your safety gates from a partial view, this check "
-                      "is blocking.\n"
-                      f"To approve this deliberately, apply the `{ACK_LABEL}` label to this "
-                      "pull request (one deliberate action, distinct from the merge click). "
+                      + stale_note
+                      + "Rather than judge your safety gates from a partial view, this check "
+                      "is blocking.\n" + reapply + " "
                       "Splitting the change into smaller pull requests also lets the check "
                       "read every file. Until then, this check blocks the merge."}])
 
@@ -1072,7 +1256,8 @@ def main() -> int:
     arm = product_build_target_arm(files, _read_base_product_build_target())
     if not hard_files and not soft_files and not repoint and not downgrade and not shrink and not arm:
         return emit([])  # nothing weakens
-    acked = ACK_LABEL in labels
+    # The head-bound acknowledgment is resolved LAZILY, inside the `if hard_present` branch below — only a
+    # hard finding can be cleared by the ack, so a soft-only disclosure never touches the statuses API.
     findings = []
 
     def _listing(pairs):
@@ -1175,19 +1360,31 @@ def main() -> int:
                      "pull requests against and run against — the same command-and-supply-chain surface as your "
                      "update home: a wrong or tampered value redirects where your engine writes and runs code. "
                      "Only you can confirm this is the repository you intend the engine to build.\n")
-    parts.append(f"To approve this deliberately, apply the `{ACK_LABEL}` label to this pull request (one "
-                 "deliberate action, distinct from the merge click). Until then, this check blocks the merge.")
+    body = "\n".join(parts)  # the detected-changes description; each ack state appends its own tail below
 
     hard_present = bool(hard_files or repoint or downgrade or shrink or arm)
     if hard_present:
-        if acked:
+        # The gate is the head-bound acknowledgment, resolved now (only reached with a hard finding present).
+        state = _resolve_ack(repo, head_sha, token, label_present)
+        if state == "fresh":
             # eADR-0040: the ack DOWNGRADES a killswitch finding to a disclosure; it never erases the
             # record. (Before the tier split the label erased every finding.)
             findings.append({"severity": "soft", "location": None,
                              "message": "ACKNOWLEDGED (guardrail-ack applied) — kept as a record, no "
-                             "longer blocking:\n\n" + "\n".join(parts[:-1])})
-        else:
-            findings.append({"severity": tier, "location": None, "message": "\n".join(parts)})
+                             "longer blocking:\n\n" + body + "\n\n" + _ACK_AUTHORITY_NOTE})
+        elif state == "nohead":
+            findings.append({"severity": tier, "location": None, "message": _ACK_NOHEAD_NOTE + "\n\n" + body})
+        elif state == "error":
+            findings.append({"severity": tier, "location": None,
+                             "message": _ACK_FAILCLOSED_NOTE + "\n\n" + body})
+        elif state == "stale":
+            findings.append({"severity": tier, "location": None,
+                             "message": body + "\n\n" + _ACK_STALE_NOTE + " " + _ACK_REAPPLY_NOTE
+                             + " Until then, this check blocks the merge."})
+        else:  # "absent" — never acknowledged
+            findings.append({"severity": tier, "location": None,
+                             "message": body + "\n\n" + _ACK_APPLY_NOTE
+                             + " Until then, this check blocks the merge."})
     if soft_files:
         findings.append({"severity": "soft", "location": None,
                          "message": "GUARDRAIL DISCLOSURE — this pull request modifies enforcement files. "

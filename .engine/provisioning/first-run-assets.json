@@ -7,6 +7,7 @@
     ".engine/tools/demo_security_seed.py",
     ".engine/tools/demo_first_run_guard.py",
     ".engine/tools/demo_467_deployment_eadr_namespace.py",
+    ".engine/tools/demo_ack_authority.py",
     ".engine/tools/demo_audit_concern_list.py",
     ".engine/tools/demo_audit_digest.py",
     ".engine/tools/demo_boot_slice.py",
@@ -15,6 +16,7 @@
     ".engine/tools/demo_focus_read.py",
     ".engine/tools/demo_reverse_adjacency.py",
     ".engine/tools/demo_release_pr_mergeable.py",
+    ".engine/tools/demo_959_finalize_ready_transition.py",
     ".engine/tools/demo_build_entry_depth_gate.py",
     ".engine/tools/demo_state_cursor_honesty.py",
     ".engine/tools/demo_map_reachability.py",
@@ -44,10 +46,8 @@
     ".engine/operations/first-run.md",
     ".engine/templates/first-run.md",
     ".engine/operations/engine-development.md",
-    "assets/engine_banner.jpg"
+    "assets/engine_banner.jpg",
+    ".engine/operator-local-references.json"
   ],
-  "directories": [
-    ".claude/skills/engine-setup",
-    ".agents/skills/engine-setup"
-  ]
+  "directories": []
 }

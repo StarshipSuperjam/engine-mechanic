@@ -18,6 +18,7 @@ import bootstrap  # noqa: E402
 import protection_guard  # noqa: E402
 import weakening_guard  # noqa: E402  (ACK_LABEL — the frozen name bootstrap reuses when provisioning the label)
 import telemetry  # noqa: E402  (ENGINE_DOMAIN_LABEL — the engine label's canonical name/color/description)
+import integration_queue_backend  # noqa: E402  (the serialized-integration labels bootstrap provisions)
 
 REPO = "you/proj"
 
@@ -173,6 +174,9 @@ class TestApplyCreatesAndIsIdempotent(unittest.TestCase):
             weakening_guard.ACK_LABEL,
             bootstrap.NEEDS_REAUTHORING_LABEL,
             bootstrap.ERASURE_LABEL,
+            integration_queue_backend.READY_LABEL,
+            integration_queue_backend.PRIORITY_LABEL,
+            integration_queue_backend.INTEGRATING_LABEL,
         })
         # ensure_labels emits EXACTLY the REQUIRED_LABELS table (the one auditable home), so a row dropped or
         # mis-sourced there fails here; every description fits GitHub's 100-char label cap.
@@ -524,9 +528,12 @@ class TestDeBootstrap(unittest.TestCase):
 # ====================================================================================================
 
 def product_ruleset(rid=9, name="team protections", checks=("product-ci",), with_pr=True,
-                    with_nff=True, with_deletion=True, bypass=None, thread_resolution=True):
+                    with_nff=True, with_deletion=True, bypass=None, thread_resolution=True, strict=True):
     """A FULL product ruleset object (as GET /rulesets/{id} returns it), carrying the read-only metadata a
-    real GET echoes and a writable body, so the projection (which must strip the former) is exercised."""
+    real GET echoes and a writable body, so the projection (which must strip the former) is exercised.
+    `strict` sets the operator's own freshness flag; default True models an operator whose rule already
+    requires branches up to date (so the augment leaves no freshness residual). Pass strict=False to model
+    an operator rule the engine must DISCLOSE-not-modify a freshness gap on (StarshipSuperjam/engine-template#915)."""
     rules: list = []
     if with_pr:
         rules.append({"type": "pull_request",
@@ -536,7 +543,7 @@ def product_ruleset(rid=9, name="team protections", checks=("product-ci",), with
                       "ruleset_source_type": "Repository", "ruleset_id": rid})
     rules.append({"type": "required_status_checks",
                   "parameters": {"required_status_checks": [{"context": c} for c in checks],
-                                 "strict_required_status_checks_policy": False},
+                                 "strict_required_status_checks_policy": strict},
                   "ruleset_source_type": "Repository", "ruleset_id": rid})
     if with_nff:
         rules.append({"type": "non_fast_forward", "ruleset_id": rid})
@@ -660,10 +667,24 @@ class TestAugmentPayload(unittest.TestCase):
     def test_creates_checks_rule_when_absent(self):
         prod = product_ruleset(checks=())
         prod["rules"] = [r for r in prod["rules"] if r["type"] != "required_status_checks"]
-        payload, added, _ = bootstrap.augment_payload(prod, tier=bootstrap.SOLO)
+        payload, added, residual = bootstrap.augment_payload(prod, tier=bootstrap.SOLO)
         self.assertEqual(bootstrap._bound_checks(payload["rules"]), set(ENGINE))
         self.assertIn("required_status_checks", added["rules"])
         self.assertEqual(added["checks"], [])           # the created rule's removal covers the checks
+        # The engine-CREATED checks rule carries freshness (StarshipSuperjam/engine-template#915), so it leaves
+        # no residual gap and the created rule is strict.
+        rsc = next(r for r in payload["rules"] if r["type"] == "required_status_checks")
+        self.assertIs(rsc["parameters"]["strict_required_status_checks_policy"], True)
+        self.assertEqual(residual, [])
+
+    def test_existing_non_strict_checks_rule_freshness_gap_is_disclosed_not_modified(self):
+        # An operator whose OWN checks rule does not require branches up to date: the engine adds its checks but
+        # must NOT flip the operator's strict flag; the freshness gap is disclosed as a residual, not fixed.
+        prod = product_ruleset(strict=False)
+        payload, _added, residual = bootstrap.augment_payload(prod, tier=bootstrap.SOLO)
+        self.assertTrue(any("up to date with the base" in m for m in residual), residual)
+        rsc = next(r for r in payload["rules"] if r["type"] == "required_status_checks")
+        self.assertFalse(rsc["parameters"]["strict_required_status_checks_policy"])   # NOT flipped
 
     def test_adds_wholly_missing_floor_rule_types(self):
         _payload, added, residual = bootstrap.augment_payload(
@@ -800,6 +821,26 @@ class TestApplyAugmentsProductRuleset(unittest.TestCase):
         res = cp(fake).apply(branch="main", announce=quiet)
         self.assertEqual(res.mode, "repaired")
         self.assertNotIn("POST", [c[0] for c in fake.writes()])            # repaired, not created
+
+    def test_pre_existing_protection_recognizes_a_freshness_only_gap(self):
+        # A branch fully protected EXCEPT freshness (an operator's own non-strict checks rule) has substantial
+        # pre-existing protection, so the freshness message must NOT read as "nothing in force"
+        # (StarshipSuperjam/engine-template#915). The freshness message can never appear in the empty-rules
+        # baseline, so _pre_existing_protection must strip it before the subset test — this pins that fix.
+        rules = [
+            {"type": "pull_request", "parameters": {"required_review_thread_resolution": True}},
+            {"type": "required_status_checks", "parameters": {
+                "strict_required_status_checks_policy": False,
+                "required_status_checks": [{"context": "engine-ci"}, {"context": "engine-guard"}]}},
+            {"type": "non_fast_forward"}, {"type": "deletion"},
+        ]
+        pg = bootstrap.protection_guard
+        missing = pg.missing_floor(rules, pg.REQUIRED_CHECKS)
+        self.assertTrue(any("up to date with the base" in m for m in missing), missing)  # freshness IS the only gap
+        self.assertTrue(bootstrap.ControlPlane._pre_existing_protection(missing, bootstrap.SOLO))
+        # a truly-unprotected branch (nothing in force) is NOT pre-existing protection
+        none = pg.missing_floor([], pg.REQUIRED_CHECKS)
+        self.assertFalse(bootstrap.ControlPlane._pre_existing_protection(none, bootstrap.SOLO))
 
 
 class TestDeBootstrapAugmented(unittest.TestCase):
@@ -1260,6 +1301,38 @@ class TestManifestWriteBoundary(unittest.TestCase):
             self.assertFalse(ok, "a symlinked manifest is a best-effort False, never a write-through")
             with open(outside, encoding="utf-8") as fh:
                 self.assertNotIn("protection_posture", fh.read())
+
+
+class TestSandboxAwareNoTokenWiring(unittest.TestCase):
+    """StarshipSuperjam/engine-template#808: each combined-guard command prints the single-homed
+    boot.gh_unreachable_note() when the token is unavailable (never a signed-out/expired verdict), and the
+    DISTINCT boot.repo_unresolved_note() when only the repo slug is missing — pinned at the call site so a
+    future edit cannot silently revert the wording or re-conflate the two failures."""
+
+    def _run(self, fn, *, token, repo="you/proj"):
+        import argparse
+        import contextlib
+        import io
+        from unittest import mock
+        args = argparse.Namespace(repo=repo, branch="main")
+        buf = io.StringIO()
+        with mock.patch.object(bootstrap.boot, "gh_token", return_value=token), \
+                mock.patch.object(bootstrap, "_resolve_repo", return_value=repo), \
+                contextlib.redirect_stdout(buf):
+            fn(args)
+        return buf.getvalue()
+
+    def test_no_token_prints_the_inconclusive_sandbox_note(self):
+        for fn in (bootstrap.cmd_status, bootstrap.cmd_apply,
+                   bootstrap.cmd_accept_unprotected, bootstrap.cmd_finalize):
+            msg = self._run(fn, token=None)
+            self.assertIn("does not by itself mean", msg, fn.__name__)   # the inconclusive #808 note
+            self.assertNotIn("(`gh auth login`)", msg, fn.__name__)      # never the old bare "log in" verdict
+
+    def test_missing_repo_with_a_token_is_not_blamed_on_the_token(self):
+        msg = self._run(bootstrap.cmd_status, token="tok", repo=None)
+        self.assertIn("couldn't tell which GitHub repository", msg)      # the repo-specific message
+        self.assertNotIn("No GitHub token was reachable", msg)           # NOT the token/sandbox story
 
 
 if __name__ == "__main__":
