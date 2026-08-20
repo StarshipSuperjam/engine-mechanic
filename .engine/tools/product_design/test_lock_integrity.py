@@ -104,6 +104,29 @@ class ClassifyTests(unittest.TestCase):
         self.assertNotIn("safety gate", f["message"])
         self.assertNotIn("safety check", f["message"])
 
+    def test_finding_names_engine_ci_and_explains_the_green_engine_guard(self):
+        # StarshipSuperjam/engine-template#927: this block surfaces through the engine-ci check, while the
+        # guardrail-weakening classifier (engine-guard) correctly stays green — the two checks share the one
+        # `guardrail-ack` label. The finding must name that relationship so a green engine-guard is not
+        # misread as "no acknowledgment needed". Pin the fuller obligation, not just the two check names:
+        # the rebuttal ("doesn't mean you're done here") and the no-re-push reassurance must survive.
+        for head in ({"docs/spec/checkout.md": _EDITED}, {"docs/spec/checkout.md": _REOPENED},
+                     {"docs/spec/checkout.md": None}):
+            msg = lock_integrity.classify(self.base, head, False, "hard")[0]["message"]
+            for needle in ("engine-ci", "engine-guard", "no new commit", "doesn't mean you're done"):
+                self.assertIn(needle, msg)
+
+    def test_static_check_message_mirrors_the_engine_ci_relationship(self):
+        # #927: the check rule's static message (product-lock-integrity.json) must carry the same
+        # engine-ci/engine-guard framing as the finding — including the rebuttal and the no-re-push
+        # reassurance — so the rule description and the finding cannot silently drift apart.
+        here = os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(here, "..", "..", "check", "product-lock-integrity.json"),
+                  encoding="utf-8") as fh:
+            message = json.load(fh)["message"]
+        for needle in ("engine-ci", "engine-guard", "no new commit", "doesn't mean you're done"):
+            self.assertIn(needle, message)
+
 
 # --------------------------------------------------------------------------------------------------
 # The I/O wrapper — emit_findings(), faking ONLY the boundary (api_get + event file + ROOT)
@@ -114,6 +137,7 @@ class IoTests(unittest.TestCase):
         self._env = dict(os.environ)
         self._root = validate.ROOT
         self._api = lock_integrity.get_json
+        self._ack = lock_integrity._head_ack_success
         self._tmp = tempfile.mkdtemp(prefix="engine-lock-io-")
         validate.ROOT = self._tmp
 
@@ -123,6 +147,7 @@ class IoTests(unittest.TestCase):
         os.environ.update(self._env)
         validate.ROOT = self._root
         lock_integrity.get_json = self._api
+        lock_integrity._head_ack_success = self._ack
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def _write_head(self, rel: str, body: str):
@@ -131,15 +156,26 @@ class IoTests(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(body)
 
-    def _set_event(self, *, base_sha="basesha", labels=()):
-        event = {"pull_request": {"number": 1, "base": {"sha": base_sha},
-                                  "labels": [{"name": n} for n in labels]}}
+    def _set_event(self, *, base_sha="basesha", labels=(), head_ack=False, head_sha="headsha"):
+        pr = {"number": 1, "base": {"sha": base_sha}, "labels": [{"name": n} for n in labels]}
+        if head_sha is not None:
+            pr["head"] = {"sha": head_sha}
+        event = {"pull_request": pr}
         path = os.path.join(self._tmp, "event.json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(event, fh)
         os.environ["GITHUB_REPOSITORY"] = "owner/repo"
         os.environ["GITHUB_TOKEN"] = "t0ken"
         os.environ["GITHUB_EVENT_PATH"] = path
+        # The re-acceptance is head-bound (#710): stub the shared head-ack read. True = an engine-ack success
+        # status on this head; "error" = the statuses read raises (fail closed); False = no fresh status.
+        if head_ack == "error":
+            def _fake_ack(*a, **k):
+                raise RuntimeError("statuses API unreachable")
+        else:
+            def _fake_ack(*a, **k):
+                return bool(head_ack)
+        lock_integrity._head_ack_success = _fake_ack
 
     def _fake_api(self, *, dir_entries=None, dirs=None, files=None, dir_error=None):
         """A boundary fake for github_client.get_json: serves docs/spec directory listings (recursively) and per-file content,
@@ -172,6 +208,26 @@ class IoTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         return json.loads(buf.getvalue())
 
+    def test_non_pr_event_is_witness_deferred_not_collapsed(self):
+        # StarshipSuperjam/engine-template#761 regression: repo+token+event are all present, but the event is NOT a
+        # pull request (e.g. a push / workflow_dispatch). This check enforces in CI on a real pull
+        # request; here it has no PR context, so it is WITNESS-DEFERRED (elevated on report()'s "not
+        # verified in this run" line), never folded into the benign "nothing to do" collapse. This
+        # branch was previously a plain disclosed_noop and reintroduced the false-green on a non-PR run.
+        os.makedirs(self._tmp, exist_ok=True)
+        path = os.path.join(self._tmp, "push_event.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({"ref": "refs/heads/main", "commits": []}, fh)   # no pull_request key
+        os.environ["GITHUB_REPOSITORY"] = "owner/repo"
+        os.environ["GITHUB_TOKEN"] = "t0ken"
+        os.environ["GITHUB_EVENT_PATH"] = path
+        fs = self._run()
+        self.assertEqual(len(fs), 1)
+        self.assertEqual(fs[0]["severity"], "soft")
+        self.assertIs(fs[0].get("witness_deferred"), True)
+        self.assertIs(fs[0].get("not_applicable"), True)
+        self.assertIsInstance(fs[0].get("missing_witness"), list)
+
     def test_edited_settled_doc_in_ci_without_label_blocks_hard(self):
         self._set_event(labels=())
         self._fake_api(dir_entries=[{"type": "file", "path": "docs/spec/index.md"},
@@ -184,11 +240,45 @@ class IoTests(unittest.TestCase):
         self.assertIn("docs/spec/checkout.md", fs[0]["message"])
 
     def test_edited_settled_doc_in_ci_with_guardrail_ack_clears(self):
-        self._set_event(labels=("guardrail-ack",))
+        # #710: the head-bound engine-ack status (head_ack=True), not the label presence, clears it.
+        self._set_event(labels=("guardrail-ack",), head_ack=True)
         self._fake_api(dir_entries=[{"type": "file", "path": "docs/spec/checkout.md"}],
                        files={"docs/spec/checkout.md": _SETTLED})
         self._write_head("docs/spec/checkout.md", _EDITED)
         self.assertEqual(self._run(), [])
+
+    def test_stale_label_without_head_ack_status_still_blocks(self):
+        # #710 regression lock: a stale guardrail-ack label in the payload but NO engine-ack status on this
+        # head (head_ack=False) must NOT clear the re-acceptance — the change still blocks hard.
+        self._set_event(labels=("guardrail-ack",), head_ack=False)
+        self._fake_api(dir_entries=[{"type": "file", "path": "docs/spec/checkout.md"}],
+                       files={"docs/spec/checkout.md": _SETTLED})
+        self._write_head("docs/spec/checkout.md", _EDITED)
+        fs = self._run()
+        self.assertEqual(len(fs), 1)
+        self.assertEqual(fs[0]["severity"], "hard")
+        self.assertIn("docs/spec/checkout.md", fs[0]["message"])
+
+    def test_head_ack_read_failure_fails_closed_hard(self):
+        # A statuses-API read failure fails closed (hard), never a silent clear.
+        self._set_event(labels=("guardrail-ack",), head_ack="error")
+        self._fake_api(dir_entries=[{"type": "file", "path": "docs/spec/checkout.md"}],
+                       files={"docs/spec/checkout.md": _SETTLED})
+        self._write_head("docs/spec/checkout.md", _EDITED)
+        fs = self._run()
+        self.assertEqual(len(fs), 1)
+        self.assertEqual(fs[0]["severity"], "hard")
+
+    def test_missing_head_sha_fails_closed_hard(self):
+        # The re-acceptance is head-bound: an event with no head commit fails closed.
+        self._set_event(labels=("guardrail-ack",), head_sha=None)
+        self._fake_api(dir_entries=[{"type": "file", "path": "docs/spec/checkout.md"}],
+                       files={"docs/spec/checkout.md": _SETTLED})
+        self._write_head("docs/spec/checkout.md", _EDITED)
+        fs = self._run()
+        self.assertEqual(len(fs), 1)
+        self.assertEqual(fs[0]["severity"], "hard")
+        self.assertIn("no head commit", fs[0]["message"].lower())
 
     def test_unsettled_doc_change_is_not_gated(self):
         # checkout.md is draft at base => not collected => no finding even though head differs.
@@ -302,6 +392,11 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(len(fs), 1)
         self.assertEqual(fs[0]["severity"], "soft")
         self.assertNotIn("guardrail-ack", fs[0]["message"])  # not a blocking ask, just a disclosed no-op
+        # Witness-deferred (StarshipSuperjam/engine-template#761): lock-integrity ENFORCES in CI, it just had no
+        # credential / PR event here — surfaced on report()'s elevated line, not folded into "nothing to do".
+        self.assertIs(fs[0].get("not_applicable"), True)
+        self.assertIs(fs[0].get("witness_deferred"), True)
+        self.assertIsInstance(fs[0].get("missing_witness"), list)
 
     def test_main_routes_demo(self):
         rc, out = self._run_main(["demo"])

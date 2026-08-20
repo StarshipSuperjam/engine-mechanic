@@ -479,6 +479,16 @@ class TestDispatcherGate(unittest.TestCase):
 
 
 class TestWeakeningClassifier(unittest.TestCase):
+    def test_ack_authority_note_names_the_merge_not_a_review(self):
+        # #712: the guardrail-ack authority note — appended to the finding an operator reads when
+        # deciding whether to accept a guardrail-weakening change — must frame the protected-branch
+        # merge as the gate, not call the operator's action a "review". Pinned so a revert to the
+        # overstated form reddens CI; the _HARD_EXACT guardrail-ack gates edits to this file, but not
+        # this specific wording, which is the exact sentence #712 exists to correct.
+        note = weakening_guard._ACK_AUTHORITY_NOTE
+        self.assertIn("Your merge remains the gate", note)
+        self.assertNotIn("Your review at the merge remains the gate", note)
+
     def test_is_guardrail_covers_guards_and_lockfiles(self):
         for p in (".github/workflows/engine-ci.yml", ".engine/check/x.json",
                   ".engine/tools/validate.py", ".github/CODEOWNERS",
@@ -1023,6 +1033,7 @@ class TestProtectionFloor(unittest.TestCase):
             {"type": "pull_request", "parameters": {
                 "required_review_thread_resolution": True, "required_approving_review_count": 0}},
             {"type": "required_status_checks", "parameters": {
+                "strict_required_status_checks_policy": True,
                 "required_status_checks": [{"context": "engine-ci"}, {"context": "engine-guard"}]}},
             {"type": "non_fast_forward", "parameters": {}},
             {"type": "deletion", "parameters": {}},
@@ -1030,6 +1041,61 @@ class TestProtectionFloor(unittest.TestCase):
 
     def test_full_floor_has_nothing_missing(self):
         self.assertEqual(protection_guard.missing_floor(self._full(), self.CHECKS), [])
+
+    def test_non_strict_checks_rule_flags_freshness(self):
+        # Freshness (StarshipSuperjam/engine-template#915): a required_status_checks rule that binds the checks
+        # but does NOT require the branch to be up to date lets a green proven against an older base merge stale.
+        rules = self._full()
+        rules[1]["parameters"]["strict_required_status_checks_policy"] = False
+        missing = protection_guard.missing_floor(rules, self.CHECKS)
+        self.assertTrue(any("up to date with the base" in m for m in missing), missing)
+
+    def test_absent_strict_flag_fails_closed_to_not_fresh(self):
+        # An unreadable/omitted strict flag must read as NOT fresh (RED), never as a false green.
+        rules = self._full()
+        rules[1]["parameters"].pop("strict_required_status_checks_policy", None)
+        missing = protection_guard.missing_floor(rules, self.CHECKS)
+        self.assertTrue(any("up to date with the base" in m for m in missing), missing)
+
+    def test_checkless_arrival_does_not_flag_freshness(self):
+        # In the checkless brownfield-arrival window (required_checks == []) the whole checks rule is absent;
+        # freshness must be suppressed exactly like the check-binding floor, or the arrival false-fails.
+        rules = [
+            {"type": "pull_request", "parameters": {"required_review_thread_resolution": True}},
+            {"type": "non_fast_forward", "parameters": {}},
+            {"type": "deletion", "parameters": {}},
+        ]
+        missing = protection_guard.missing_floor(rules, [])
+        self.assertFalse(any("up to date with the base" in m for m in missing), missing)
+
+    def _lax_checks_rule(self, contexts):
+        return {"type": "required_status_checks", "parameters": {
+            "strict_required_status_checks_policy": False,
+            "required_status_checks": [{"context": c} for c in contexts]}}
+
+    def test_freshness_satisfied_when_any_of_multiple_checks_rules_is_strict(self):
+        # GitHub's evaluated rules aggregate EVERY ruleset targeting the branch, so two required_status_checks
+        # rules can appear (the engine's own strict ruleset alongside an operator's non-strict one — bootstrap's
+        # ambiguous-arrival path). Freshness is satisfied when ANY is strict (most-restrictive wins), regardless
+        # of the array order GitHub returns — the `or`-accumulation, not last-write-wins.
+        base = [r for r in self._full() if r["type"] != "required_status_checks"]
+        strict_rule = self._full()[1]  # the strict rule binding both engine checks
+        lax_rule = self._lax_checks_rule(["product-ci"])
+        for order in ([strict_rule, lax_rule], [lax_rule, strict_rule]):
+            missing = protection_guard.missing_floor(base + order, self.CHECKS)
+            self.assertFalse(any("up to date with the base" in m for m in missing), (order, missing))
+
+    def test_freshness_flagged_when_no_checks_rule_is_strict(self):
+        base = [r for r in self._full() if r["type"] != "required_status_checks"]
+        rules = base + [self._lax_checks_rule(["engine-ci", "engine-guard"]), self._lax_checks_rule(["product-ci"])]
+        missing = protection_guard.missing_floor(rules, self.CHECKS)
+        self.assertTrue(any("up to date with the base" in m for m in missing), missing)
+
+    def test_solo_floor_from_the_builder_self_satisfies_its_verifier(self):
+        # End-to-end: the solo floor bootstrap WRITES, fed straight into the verifier, must be clean — pins the
+        # builder↔verifier freshness agreement so a future edit to floor_ruleset that drops strict is caught.
+        rules = bootstrap.floor_ruleset(tier=protection_guard.SOLO)["rules"]
+        self.assertEqual(protection_guard.missing_floor(rules, self.CHECKS, tier=protection_guard.SOLO), [])
 
     def test_empty_rules_flags_every_floor_piece(self):
         missing = protection_guard.missing_floor([], self.CHECKS)
@@ -1219,6 +1285,39 @@ class TestPRContractNoDrift(unittest.TestCase):
         for phrase in phrases:
             self.assertIn(phrase, template,
                           f"preamble anchor {phrase!r} required by the check is absent from the template")
+
+    def test_committed_preamble_states_the_honest_check_proof_taxonomy(self):
+        # #712: the consent preamble must not overclaim that EVERY check is itself proven against a
+        # deliberately broken example. The honest account distinguishes the custom checks (each
+        # against their own example), the standard kinds (proven by one shared example), and a few
+        # openly-noted exceptions where that kind of proof doesn't apply. Pinned so a revert to the
+        # universal overclaim reddens CI. The three required_phrases anchors are asserted above; this
+        # guards the corrected sentence that sits between them, which no anchor covers.
+        tmpl_path = os.path.join(self._repo_root(), ".github", "pull_request_template.md")
+        with open(tmpl_path, encoding="utf-8") as fh:
+            template = fh.read()
+        self.assertNotIn(
+            "Each check is itself proven against a deliberately broken example it must catch", template,
+            "the universal check-proof overclaim must not return (#712)")
+        self.assertIn("the standard kinds against one shared example", template)
+        self.assertIn("a few are openly-noted exceptions where that kind of proof doesn't apply", template)
+
+    def test_floor_conduct_frames_the_merge_as_consent_not_enforced_review(self):
+        # #712 (SC-2): the always-loaded floor conduct in CLAUDE.md/AGENTS.md must frame the
+        # protected-branch merge as the operator's consent, not a code review the engine enforces.
+        # These are the most operator-visible lines of the whole change (they sit in the floor fence)
+        # yet nothing else reads them, so this pin is what catches an accidental revert.
+        for name in ("CLAUDE.md", "AGENTS.md"):
+            with open(os.path.join(self._repo_root(), name), encoding="utf-8") as fh:
+                text = fh.read()
+            self.assertNotIn("a pull request you review and merge", text,
+                             f"{name}: the 'you review and merge' flow-claim must not return (#712)")
+            self.assertIn("a pull request you approve and merge", text)
+        with open(os.path.join(self._repo_root(), "CLAUDE.md"), encoding="utf-8") as fh:
+            claude = fh.read()
+        self.assertNotIn("your review at merge is the real backstop", claude)
+        self.assertIn("your merge is the real backstop", claude)
+        self.assertIn("the reading you give each change before you merge it", claude)
 
 
 class TestDemonstrationSectionRequired(unittest.TestCase):
@@ -2098,7 +2197,7 @@ class TestWeakeningReHome(unittest.TestCase):
     _AUTO = object()  # sentinel: derive expected from len(files) unless overridden
 
     def _main_json(self, event, files, expected=_AUTO, base_home=None, base_tier=None,
-                   base_product_build_target=None):
+                   base_product_build_target=None, head_ack=False, head_sha="headsha0"):
         """Drive main() with the network seams stubbed: the complete changed-file list, the authoritative
         changed_files count, the BASE manifest's recorded home (`base_home`, default None = no home
         recorded, so a home in the diff reads as a first recording), the BASE manifest's recorded identity
@@ -2112,12 +2211,19 @@ class TestWeakeningReHome(unittest.TestCase):
         import io
         if expected is self._AUTO:
             expected = len(files)
+        # The head-bound ack reads pull_request.head.sha; inject one unless the caller withheld it
+        # (head_sha=None) to exercise the no-head fail-closed path. `head_ack` controls the stubbed
+        # head-ack read: True/False (fresh vs not) or "error" (the statuses read raises -> fail closed).
+        pr = event.get("pull_request")
+        if isinstance(pr, dict) and "head" not in pr and head_sha is not None:
+            event = dict(event, pull_request=dict(pr, head={"sha": head_sha}))
         saved = dict(os.environ)
         orig_fetch = weakening_guard.fetch_all_changed_files
         orig_count = weakening_guard.changed_files_total
         orig_home = weakening_guard._read_base_home
         orig_tier = weakening_guard._read_base_tier
         orig_target = weakening_guard._read_base_product_build_target
+        orig_ack = weakening_guard._head_ack_success
         buf = io.StringIO()
         with tempfile.TemporaryDirectory() as d:
             ep = os.path.join(d, "event.json")
@@ -2130,6 +2236,17 @@ class TestWeakeningReHome(unittest.TestCase):
             weakening_guard._read_base_home = lambda: base_home
             weakening_guard._read_base_tier = lambda: base_tier
             weakening_guard._read_base_product_build_target = lambda: base_product_build_target
+            self._ack_calls = 0  # a clean/soft-only PR must never reach the head-ack read
+            _outer = self
+            if head_ack == "error":
+                def _fake_ack(*a, **k):
+                    _outer._ack_calls += 1
+                    raise RuntimeError("statuses API unreachable")
+            else:
+                def _fake_ack(*a, **k):
+                    _outer._ack_calls += 1
+                    return bool(head_ack)
+            weakening_guard._head_ack_success = _fake_ack
             try:
                 with contextlib.redirect_stdout(buf):
                     rc = weakening_guard.main()
@@ -2141,6 +2258,7 @@ class TestWeakeningReHome(unittest.TestCase):
                 weakening_guard._read_base_home = orig_home
                 weakening_guard._read_base_tier = orig_tier
                 weakening_guard._read_base_product_build_target = orig_target
+                weakening_guard._head_ack_success = orig_ack
         return rc, json.loads(buf.getvalue())
 
     def test_no_weakening_is_empty_and_exit_zero(self):
@@ -2183,15 +2301,19 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertIn("guardrail-ack", out[0]["message"])
 
     def test_ack_label_downgrades_hard_to_disclosure_never_erases(self):
-        # eADR-0040: the ack DOWNGRADES the killswitch finding to a soft ACKNOWLEDGED record.
+        # eADR-0040 + #710: the head-bound ack (engine-ack success on this head) DOWNGRADES the killswitch
+        # finding to a soft ACKNOWLEDGED record.
         rc, out = self._main_json(
             {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
-            [{"filename": ".engine/suites.json", "status": "modified"}])
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_ack=True)
         self.assertEqual(rc, 0)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("ACKNOWLEDGED", out[0]["message"])
         self.assertIn("suites.json", out[0]["message"])
+        # #958: the downgrade must carry the authority note so a solo operator is not misled into reading the
+        # ack as identity-verified. Pinned here so a future edit cannot silently drop the disclosure.
+        self.assertIn("who acknowledged", out[0]["message"].lower())
 
     def test_ack_label_leaves_the_disclosure_untouched(self):
         # the ack is about the killswitch tier; a disclosure still emits with the label present.
@@ -2201,6 +2323,92 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("GUARDRAIL DISCLOSURE", out[0]["message"])
+
+    # ---- #710: the ack is bound to the HEAD, not to the mere presence of the label ----
+
+    def test_stale_ack_blocks_after_head_change(self):
+        # The #457 regression lock: the label is present in the (frozen) payload, but no engine-ack status is
+        # bound to THIS head (head_ack=False) — a stale ack from an earlier version must NOT clear the guard.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_ack=False)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("does not", out[0]["message"].lower())          # "does not carry across a push"
+        self.assertIn("push", out[0]["message"].lower())
+        self.assertIn("guardrail-ack", out[0]["message"])             # tells the operator how to re-acknowledge
+        # #958: this same not-fresh path also fires when a labeler's authority was REFUSED (bot posts
+        # engine-ack=failure). The note must NOT assert a push as the sole cause; it points to the engine-ack
+        # status for the actual reason. Pinned so the message stays honest across push / withdrawal / refusal.
+        self.assertIn("engine-ack", out[0]["message"])
+
+    def test_never_acked_blocks_without_stale_wording(self):
+        # No label and no status: never acknowledged — the plain apply guidance, not the stale-after-push note.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_ack=False)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("guardrail-ack", out[0]["message"])
+        self.assertNotIn("earlier version", out[0]["message"].lower())
+
+    def test_fresh_head_ack_downgrades_even_without_label_in_payload(self):
+        # The gate is the head-bound status, not the payload label: a fresh engine-ack status downgrades even
+        # if the frozen payload's label list is empty (e.g. read before the label event settled).
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_ack=True)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "soft")
+        self.assertIn("ACKNOWLEDGED", out[0]["message"])
+        self.assertIn("who acknowledged", out[0]["message"].lower())  # #958 authority note pinned here too
+
+    def test_ack_status_fetch_failure_fails_closed(self):
+        # A statuses-API read failure on a hard finding fails CLOSED (a hard block), never a silent clear.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_ack="error")
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("could not read the acknowledgment status", out[0]["message"].lower())
+
+    def test_missing_head_sha_fails_closed(self):
+        # A hard finding with no head SHA in the event fails closed (the ack is head-bound).
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
+            [{"filename": ".engine/suites.json", "status": "modified"}], head_sha=None)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("no head commit", out[0]["message"].lower())
+
+    def test_clean_pr_makes_no_status_call(self):
+        # A clean pull request returns before the ack read — no dependency on the statuses API.
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            [{"filename": "README.md", "status": "modified"}], head_ack="error")
+        self.assertEqual(out, [])
+        self.assertEqual(self._ack_calls, 0)
+
+    def test_soft_only_pr_makes_no_status_call(self):
+        # A disclosure-tier-only change passes without touching the statuses API (the ack clears only HARD).
+        rc, out = self._main_json(
+            {"pull_request": {"number": 1, "labels": []}},
+            [{"filename": ".engine/tools/validate.py", "status": "modified"}], head_ack="error")
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "soft")
+        self.assertEqual(self._ack_calls, 0)
+
+    def test_stale_ack_on_oversized_pr_blocks(self):
+        # The too-large fail-closed path is head-bound too: a stale label must not clear a rebased big PR.
+        files = [{"filename": f"docs/f{i}.md", "status": "modified"} for i in range(100)]
+        rc, out = self._main_json({"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
+                                  files, expected=5000, head_ack=False)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["severity"], "hard")
+        self.assertIn("does not", out[0]["message"].lower())
+        self.assertNotIn("GUARDRAIL CHANGE DETECTED", out[0]["message"])
 
     # ---- the engine's update-home repoint is a guardrail weakening (content-aware; #367) ----
     _REPOINT_PATCH = ('@@ -1,4 +1,4 @@\n'
@@ -2227,7 +2435,7 @@ class TestWeakeningReHome(unittest.TestCase):
         rc, out = self._main_json(
             {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
             [{"filename": ".engine/engine.json", "status": "modified", "patch": self._REPOINT_PATCH}],
-            base_home="acme/engine-home")
+            base_home="acme/engine-home", head_ack=True)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("ACKNOWLEDGED", out[0]["message"])
@@ -2519,7 +2727,7 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertIn("guardrail-ack", out[0]["message"])
         rc, out = self._main_json(
             {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
-            self._f(self._DOWNGRADE_PATCH), base_tier="team")
+            self._f(self._DOWNGRADE_PATCH), base_tier="team", head_ack=True)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("ACKNOWLEDGED", out[0]["message"])
@@ -2587,7 +2795,7 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertIn("guardrail-ack", out[0]["message"])
         rc, out = self._main_json(
             {"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
-            self._f(self._ARM_PATCH))
+            self._f(self._ARM_PATCH), head_ack=True)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("ACKNOWLEDGED", out[0]["message"])
@@ -2723,7 +2931,8 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertIn("foo.json", out[0]["message"])
         self.assertIn("configures the gate itself", out[0]["message"])
         self.assertIn("guardrail-ack", out[0]["message"])
-        rc, out = self._main_json({"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}}, files)
+        rc, out = self._main_json({"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}}, files,
+                                  head_ack=True)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
         self.assertIn("ACKNOWLEDGED", out[0]["message"])
@@ -2740,11 +2949,11 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertIn("modes.py", soft["message"])
 
     def test_oversized_pr_with_ack_downgrades_to_record(self):
-        # the fail-closed completeness path honors the ack as a DOWNGRADE (it used to promise this and
-        # never check the label at all).
+        # the fail-closed completeness path honors the head-bound ack as a DOWNGRADE (it used to promise this
+        # and never check the label at all; now it reads the engine-ack status on this head — #710).
         files = [{"filename": f"docs/f{i}.md", "status": "modified"} for i in range(100)]
         rc, out = self._main_json({"pull_request": {"number": 1, "labels": [{"name": "guardrail-ack"}]}},
-                                  files, expected=5000)
+                                  files, expected=5000, head_ack=True)
         self.assertEqual(rc, 0)
         self.assertEqual(len(out), 1)
         self.assertEqual(out[0]["severity"], "soft")
@@ -2856,6 +3065,163 @@ class TestWeakeningReHome(unittest.TestCase):
         self.assertEqual(out[0]["severity"], "hard")
         self.assertIn("guardrail-ack", out[0]["message"])
         self.assertNotIn("GUARDRAIL CHANGE DETECTED", out[0]["message"])
+
+
+class TestHeadAckRead(unittest.TestCase):
+    """The REAL body of the head-ack read (#710) — driven through a faked get_page seam, NOT stubbed out.
+    Proves: it reads the per-context `/statuses` LIST (never the combined `/status` rollup), takes the
+    MOST-RECENT engine-ack entry (so a withdrawal 'failure' overrides an earlier 'success'), treats a
+    non-success state as not-fresh, paginates past the first page, fails closed on a Link cycle, and retries
+    only when asked."""
+
+    def _fake_pages(self, pages):
+        """pages: dict {url -> (list_of_status_dicts, link_header_or_None)}. Installs a fake get_page and
+        returns a call-counter list. Restores in addCleanup."""
+        calls = []
+        orig = weakening_guard.get_page
+
+        def fake(url, token, **kw):
+            calls.append(url)
+            return pages[url]
+        weakening_guard.get_page = fake
+        self.addCleanup(lambda: setattr(weakening_guard, "get_page", orig))
+        return calls
+
+    _P1 = "/repos/o/r/commits/HEAD/statuses?per_page=100"
+    # The trusted creator: GitHub stamps a status posted under the ack workflow's default GITHUB_TOKEN as this
+    # bot (#958). A legitimately-posted engine-ack carries it; the filter skips any other creator.
+    _BOT = {"login": "github-actions[bot]"}
+
+    def test_reads_statuses_list_endpoint_not_the_rollup(self):
+        calls = self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success",
+                                               "creator": self._BOT}], None)})
+        self.assertTrue(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+        # it hit the per-context LIST endpoint (/statuses?…), never the combined /status rollup
+        self.assertTrue(calls and all("/statuses?" in u for u in calls))
+
+    def test_success_is_fresh(self):
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success",
+                                       "creator": self._BOT}], None)})
+        self.assertEqual(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"), "success")
+        self.assertTrue(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_withdrawal_failure_overrides_earlier_success(self):
+        # most-recent-first: a 'failure' (withdrawal) posted after a 'success' is the latest -> not fresh.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "failure", "creator": self._BOT},
+                                      {"context": "engine-ack", "state": "success", "creator": self._BOT}],
+                                     None)})
+        self.assertEqual(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"), "failure")
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_pending_engine_ack_is_not_fresh(self):
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "pending"}], None)})
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_absent_engine_ack_is_not_fresh_and_no_retry_by_default(self):
+        calls = self._fake_pages({self._P1: ([{"context": "engine-ci", "state": "success"}], None)})
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+        self.assertEqual(len(calls), 1)  # retry=False -> a single fetch, no waiting
+
+    def test_absent_engine_ack_state_is_none(self):
+        self._fake_pages({self._P1: ([{"context": "engine-ci", "state": "success"}], None)})
+        self.assertIsNone(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"))
+
+    def test_engine_ack_on_a_later_page_is_found(self):
+        p2 = "https://api.github.com/repos/o/r/commits/HEAD/statuses?per_page=100&page=2"
+        pages = {
+            self._P1: ([{"context": "other", "state": "success"}], f'<{p2}>; rel="next"'),
+            p2: ([{"context": "engine-ack", "state": "success", "creator": self._BOT}], None),
+        }
+        self._fake_pages(pages)
+        self.assertTrue(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    # ---- leg-2 trusted-creator filter (#958): only a status stamped by the ack bot is counted ----
+
+    def test_minted_success_by_untrusted_creator_is_skipped(self):
+        # A builder who directly POSTs engine-ack=success under their own User/PAT identity: the creator is
+        # not the bot, so it is SKIPPED and the head reads as un-acked (fail closed), never fresh.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success",
+                                       "creator": {"login": "attacker"}}], None)})
+        self.assertIsNone(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"))
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_untrusted_success_falls_through_to_older_trusted_success(self):
+        # Most-recent is a minted (untrusted) success; skipping it lets the older TRUSTED success speak.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success",
+                                       "creator": {"login": "attacker"}},
+                                      {"context": "engine-ack", "state": "success",
+                                       "creator": self._BOT}], None)})
+        self.assertEqual(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"), "success")
+
+    def test_untrusted_failure_cannot_wedge_a_trusted_success(self):
+        # A minted (untrusted) 'failure' posted most-recently must NOT wedge a legitimate bot 'success' —
+        # it is skipped, and the trusted success behind it is the effective latest.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "failure",
+                                       "creator": {"login": "attacker"}},
+                                      {"context": "engine-ack", "state": "success",
+                                       "creator": self._BOT}], None)})
+        self.assertEqual(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"), "success")
+        self.assertTrue(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_trusted_creator_match_is_case_insensitive(self):
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success",
+                                       "creator": {"login": "GitHub-Actions[Bot]"}}], None)})
+        self.assertTrue(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_missing_or_null_creator_is_skipped_not_a_crash(self):
+        # Null-safe: an entry with a missing/null creator reads as untrusted and is skipped, never a crash.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "success"},          # no creator key
+                                      {"context": "engine-ack", "state": "success",
+                                       "creator": None}], None)})                              # null creator
+        self.assertIsNone(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"))
+
+    def test_trusted_withdrawal_is_honored(self):
+        # A legitimate withdrawal (bot-posted failure) survives the creator filter and blocks.
+        self._fake_pages({self._P1: ([{"context": "engine-ack", "state": "failure",
+                                       "creator": self._BOT}], None)})
+        self.assertEqual(weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t"), "failure")
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t"))
+
+    def test_pathological_link_cycle_fails_closed(self):
+        # a page that always points to itself must raise (the caller then fails closed), never loop forever.
+        pages = {self._P1: ([{"context": "other", "state": "success"}], f'<{self._P1}>; rel="next"')}
+        self._fake_pages(pages)
+        with self.assertRaises(RuntimeError):
+            weakening_guard._latest_engine_ack_state("o/r", "HEAD", "t")
+
+    def test_retry_polls_when_asked_then_gives_up(self):
+        orig_sleep = weakening_guard.time.sleep
+        weakening_guard.time.sleep = lambda *_: None  # don't actually wait
+        self.addCleanup(lambda: setattr(weakening_guard.time, "sleep", orig_sleep))
+        calls = self._fake_pages({self._P1: ([], None)})  # persistently absent
+        self.assertFalse(weakening_guard._head_ack_success("o/r", "HEAD", "t", retry=True))
+        self.assertEqual(len(calls), weakening_guard._ACK_POLL_TRIES)  # polled the full budget
+
+
+class TestAckTrustedCreatorInvariant(unittest.TestCase):
+    """The leg-2 trusted-creator filter (#958) rests on one cross-artifact invariant: the ack workflow posts
+    the engine-ack status under the DEFAULT GITHUB_TOKEN, which GitHub stamps github-actions[bot] — the sole
+    trusted creator. A future edit that rewired the workflow to a GitHub App or a PAT would change the stamped
+    creator and silently fail every acknowledgment closed. These pin that invariant so such a rewire trips CI
+    rather than dying quietly."""
+
+    def test_trusted_creator_set_names_the_default_token_bot(self):
+        self.assertIn("github-actions[bot]", weakening_guard._ACK_TRUSTED_CREATOR_LOGINS)
+
+    def test_ack_workflow_runs_ack_status_under_the_default_github_token(self):
+        import yaml
+        path = os.path.join(validate.ROOT, ".github", "workflows", "engine-ack-status.yml")
+        with open(path, encoding="utf-8") as fh:
+            wf = yaml.safe_load(fh)
+        steps = wf["jobs"]["engine-ack-status"]["steps"]
+        run_steps = [s for s in steps if "ack_status.py" in (s.get("run") or "")]
+        self.assertEqual(len(run_steps), 1, "exactly one workflow step runs ack_status.py")
+        token = (run_steps[0].get("env") or {}).get("GITHUB_TOKEN")
+        self.assertEqual(
+            token, "${{ secrets.GITHUB_TOKEN }}",
+            "ack_status.py must post under the default GITHUB_TOKEN so its engine-ack status is stamped as the "
+            "trusted github-actions[bot]; rewiring it to a GitHub App or PAT would change the creator and "
+            "silently fail every acknowledgment closed (weakening_guard._ACK_TRUSTED_CREATOR_LOGINS, #958).")
 
 
 class TestRunCheckById(unittest.TestCase):

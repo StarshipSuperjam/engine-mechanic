@@ -11,8 +11,10 @@ by configuration.
 Runs as a `custom/script` check rule in the CI suite,
 so an unprotected branch turns engine-ci red. It emits finding.v1 JSON on stdout
 (the custom/script machine channel): a hard finding when the gate is not in force,
-and a soft "not checked here" note when no token is available (locally — fail open;
-the CI run, which has a token, performs the real check). The default GITHUB_TOKEN
+and a soft witness-deferred note when no token is available (locally — fail open; the
+CI run, which has a token, performs the real check). That note is surfaced on the
+validator's elevated "not verified in this run — enforces in CI" line (StarshipSuperjam/engine-template#761),
+never folded into "nothing to do". The default GITHUB_TOKEN
 (Metadata: read) can read this endpoint; it never reads the admin-gated
 ruleset-configuration endpoints.
 
@@ -44,8 +46,8 @@ _ENGINE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .en
 
 def _load_manifest(engine_dir: str | None = None) -> dict | None:
     """The engine manifest (engine.json) as a dict, or None when it is absent/unreadable/not-an-object — the
-    single committed-manifest reader this module shares (resolve_tier and recorded_posture both call it, so
-    neither opens the file independently). Deliberately robust; never raises."""
+    single committed-manifest reader this module shares (resolve_tier, resolve_labeler_authority, and
+    recorded_posture all call it, so none opens the file independently). Deliberately robust; never raises."""
     engine_dir = engine_dir if engine_dir is not None else _ENGINE_DIR
     try:
         with open(os.path.join(engine_dir, "engine.json"), encoding="utf-8") as fh:
@@ -74,6 +76,71 @@ def resolve_tier(engine_dir: str | None = None) -> str:
     if manifest.get("identity") == TEAM and (manifest.get("engine_identity") or {}).get("login"):
         return TEAM
     return SOLO
+
+
+# Authority tiers for a guardrail-ack LABEL event, returned by resolve_labeler_authority. Kept beside the
+# identity-tier vocabulary (SOLO/TEAM) so, if this stage-0 module is ever superseded, the whole authority
+# vocabulary migrates as a unit rather than stranding one half.
+AUTH_TEAM, AUTH_SOLO, AUTH_REFUSE = "team", "solo", "refuse"
+
+
+def resolve_labeler_authority(sender_login, sender_type, engine_dir: str | None = None) -> "tuple[str, str]":
+    """Decide whether a `guardrail-ack` LABEL event applied by `sender` is an authorized acknowledgment — the
+    SINGLE home of that judgment (StarshipSuperjam/engine-template#958), consumed by the head-binding writer
+    `ack_status.py`. Derived from ONE read of the committed base manifest, so the tier decision and the
+    identity comparand can never desync (two independent reads could, if resolve_tier's TEAM condition ever
+    changed). Returns `(decision, detail)`:
+
+      - AUTH_TEAM  ("team")   — team tier, and a DISTINCT operator identity applied it: mint the head-bound
+                                success. `detail` is a short non-secret audit phrase for the status description.
+      - AUTH_SOLO  ("solo")   — solo tier (the documented default whenever a READABLE manifest records solo or
+                                no distinct identity): accept, preserving one-step consent — but the
+                                acknowledgment proves head-binding and a deliberate gesture, NOT WHO applied it
+                                (a session holding the same single credential could have). That limit is
+                                disclosed to the operator by the guard; this decision does not hide it.
+      - AUTH_REFUSE ("refuse")— the event must NOT mint a success. Every branch that cannot PROVE authority
+                                fails closed here: an absent/unreadable/malformed manifest (a team repo with a
+                                corrupt BASE manifest must never silently drop to solo-accept), team tier with
+                                no distinct engine identity to compare against (an empty comparand would accept
+                                any sender), or — in team tier — a sender that is not a distinct user account
+                                (a Bot, a missing sender, or the engine's OWN identity).
+
+    Deliberately robust; never raises. NOTE ON SCOPE (StarshipSuperjam/engine-template#914 seam): team
+    acceptance is "a distinct User whose login is not the engine identity", NOT a bind to a single recorded
+    operator `handle`. GitHub's own label ACL (only triage+ collaborators can apply a label) is the allowlist;
+    this subtracts the engine's own machine account from it. Multi-operator teams are legitimate, and `handle`
+    is optional/stale-able, so a positive operator roster is left as StarshipSuperjam/engine-template#914's
+    territory — the swap point is this
+    one function. The residual is: any collaborator the operator granted triage+ can acknowledge, not only the
+    operator; the threat this closes is the engine acknowledging its OWN change under a shared credential."""
+    # NOTE — this inspects `identity`/`engine_identity` directly rather than delegating to resolve_tier(), on
+    # purpose and NOT as a duplication oversight: resolve_tier() collapses a TEAM-recorded-but-no-identity
+    # manifest to SOLO (its safe default for the ruleset floor), but for an ACK that collapse is fail-OPEN — it
+    # would accept a self-applied label under the weaker solo rule. Here that same state must fail CLOSED
+    # (AUTH_REFUSE below). The two functions therefore agree on the POSITIVE team/solo classification (pinned by
+    # a parity test in test_protection_guard.py) but diverge, deliberately, on the ambiguous case. Both read the
+    # manifest ONCE.
+    manifest = _load_manifest(engine_dir)
+    if manifest is None:
+        return (AUTH_REFUSE, "the engine manifest could not be read, so the label applier's authority is unknown")
+    login = (manifest.get("engine_identity") or {}).get("login")
+    engine_login = login.strip() if isinstance(login, str) and login.strip() else None
+    if manifest.get("identity") == TEAM:
+        if not engine_login:
+            # Defense in depth: resolve_tier only returns TEAM with a truthy login, but the writer must not
+            # rest on that internal invariant — were it ever relaxed, an empty comparand below would make
+            # `sender != ""` trivially true and accept any labeler. Fail closed instead.
+            return (AUTH_REFUSE, "team mode is recorded but no distinct engine identity is on record")
+        if sender_type != "User" or not (isinstance(sender_login, str) and sender_login.strip()):
+            return (AUTH_REFUSE, "the acknowledgment was not applied by a user account")
+        if sender_login.strip().casefold() == engine_login.casefold():
+            return (AUTH_REFUSE, "the acknowledgment was applied by the engine's own identity, not a distinct operator")
+        return (AUTH_TEAM, f"by @{sender_login.strip()} [operator]")
+    # A readable manifest that is not team tier resolves to solo — the documented default for an absent or
+    # unknown `identity`, matching resolve_tier. Accept (one-step consent preserved); the annotation states the
+    # shared-credential limit plainly so a solo operator is never misled into reading it as identity-verified.
+    who = f"@{sender_login.strip()}" if isinstance(sender_login, str) and sender_login.strip() else "an unrecorded actor"
+    return (AUTH_SOLO, f"by {who} [shared credential]")
 
 
 def recorded_posture(engine_dir: str | None = None) -> dict | None:
@@ -159,7 +226,12 @@ def http_error_forbids_rulesets(err: urllib.error.HTTPError) -> bool:
 def missing_floor(rules: list, required_checks: list, *, tier: str = SOLO) -> list:
     """Pure evaluation of the protection floor against the EVALUATED per-branch rules (which already omit rules in
     evaluate/disabled mode), for the given identity `tier`. Returns the list of floor pieces not in force — empty
-    means the gate fully bites. In TEAM the floor additionally requires a code-owner approval that survives the last
+    means the gate fully bites. The floor requires FRESHNESS — the required checks must have passed against the
+    then-current base — enforced as `strict_required_status_checks_policy` on the required_status_checks rule
+    (eADR-0021, amended by StarshipSuperjam/engine-template#915). A merge queue is an OPTIONAL second mechanism
+    for the same invariant where GitHub offers one (never the floor); if it is ever recognized here it ships
+    together with its workflow plumbing (StarshipSuperjam/engine-template#989), never detection alone.
+    In TEAM the floor additionally requires a code-owner approval that survives the last
     push — the distinct-identity review the tier is sold on. The default is SOLO: the ENFORCEMENT paths (the standing
     CI check `main()` and bootstrap's apply/verify) resolve the real tier once via resolve_tier and pass it
     explicitly, so team protection is continuously verified; the default only serves an un-migrated informational
@@ -167,6 +239,7 @@ def missing_floor(rules: list, required_checks: list, *, tier: str = SOLO) -> li
     there rather than mis-enforcing them."""
     types = {r.get("type") for r in rules}
     bound: set[str] = set()
+    strict_checks = False  # freshness: does the required_status_checks rule require the branch to be up to date?
     pr_thread_resolution = False
     pr_params: dict = {}
     for r in rules:
@@ -175,6 +248,17 @@ def missing_floor(rules: list, required_checks: list, *, tier: str = SOLO) -> li
             for c in p.get("required_status_checks", []):
                 if c.get("context"):
                     bound.add(c["context"])
+            # FRESHNESS: strict_required_status_checks_policy makes GitHub require the head to be up to date with
+            # the base before the required checks authorize a merge — so a green proven against an older base
+            # cannot merge stale. The evaluated-rules endpoint surfaces this flag inside the rule's parameters
+            # (confirmed live). A MISSING/unreadable flag reads as False here — fail toward not-fresh (RED),
+            # never toward a false green, matching this module's fail-closed posture. ACCUMULATE with `or`, the
+            # same union `bound` uses above: the evaluated response aggregates rules from EVERY ruleset that
+            # targets the branch, so two required_status_checks rules can appear (the engine's own strict
+            # ruleset created alongside an operator's non-strict one — bootstrap's ambiguous-arrival path). If
+            # ANY applicable rule requires up-to-date, GitHub gates the branch on it (most-restrictive wins), so
+            # freshness is satisfied when any of them is strict — never last-write-wins on GitHub's array order.
+            strict_checks = strict_checks or bool(p.get("strict_required_status_checks_policy"))
         elif r.get("type") == "pull_request":
             pr_thread_resolution = bool(p.get("required_review_thread_resolution"))
             pr_params = p
@@ -204,6 +288,14 @@ def missing_floor(rules: list, required_checks: list, *, tier: str = SOLO) -> li
             for name in required_checks:
                 if name not in bound:
                     missing.append(f"the required check '{name}' is not bound")
+            # FRESHNESS is gated HERE, inside `if required_checks:` and only when the required_status_checks rule
+            # is actually present — exactly like the check-binding floor above. A change with no required checks
+            # (the checkless brownfield-arrival window, which strips the whole rule) has nothing to be fresh
+            # about, so asserting freshness there would false-fail the arrival the checkless path exists to allow.
+            if not strict_checks:
+                missing.append("a change can merge without first being brought up to date with the base branch, "
+                               "so a check that passed against an older base can still merge — turn on "
+                               "'Require branches to be up to date before merging' in the branch rule to require it")
     if not pr_thread_resolution:
         missing.append("unresolved review conversations do not block merging")
     if "non_fast_forward" not in types:
@@ -238,11 +330,15 @@ def main() -> int:
         # Local / no credentials: FAIL OPEN with a soft note — a soft finding never blocks,
         # and the CI run (which has a token) performs the real check. Mirrors the presence
         # kind's fail-open-locally posture; never a false local block.
-        # A disclosed not-applicable: on a local run there is no token, so the real check runs in CI
-        # and there is nothing to do here. Marked so the validator collapses it away from actionable
-        # notes (StarshipSuperjam/engine-template#322); the marker rides through the custom/script boundary's allow-list.
+        # WITNESS-DEFERRED, not merely not-applicable: this check DOES enforce in CI, it just had no
+        # witness (a repository token) in this run — so the validator lifts it onto its elevated
+        # "not verified in this run — enforces in CI" line, never folding it into "nothing to do"
+        # (StarshipSuperjam/engine-template#761). The markers ride through the custom/script boundary's allow-list
+        # (validate.witness_deferred is the canonical shape; mirrored here since this tool does not
+        # import validate). not_applicable stays set so every prior fail-safe path still holds.
         return emit([{"severity": "soft", "location": None, "not_applicable": True,
-                      "message": "Branch protection was not checked here — no repository "
+                      "witness_deferred": True, "missing_witness": ["GITHUB_REPOSITORY", "GITHUB_TOKEN"],
+                      "message": "Branch protection was not checked in this run — no repository "
                       "access token is available, which is normal on your own machine. The "
                       "check that can actually block a bad merge runs in CI."}])
     posture = recorded_posture()  # an operator-consented 'this plan can't host protection' acceptance, or None
@@ -291,8 +387,8 @@ def main() -> int:
                      "protection on with the command above clears it.)")
         return emit([{"severity": tier, "location": None,
                       "message": f"The protected-branch safety gate on '{branch}' is not fully "
-                      "in force: " + "; ".join(missing) + ". Until this is on, an unreviewed "
-                      "change could reach the protected branch. If the engine was just added to "
+                      "in force: " + "; ".join(missing) + ". Until this is on, a change can reach "
+                      "the protected branch without the required checks or a pull request. If the engine was just added to "
                       "this project, run `python .engine/tools/bootstrap.py finalize` to turn its "
                       "required checks on now that their workflows are on the branch; otherwise "
                       "complete the branch-protection setup you were handed, then re-run." + stale}])

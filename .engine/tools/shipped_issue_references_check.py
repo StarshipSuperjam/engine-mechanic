@@ -271,9 +271,15 @@ def _excluded(rel: str) -> bool:
     return rel in _EXCLUDED_EXACT or any(rel.startswith(p) for p in _EXCLUDED_PREFIXES)
 
 
-def _scan_targets(root: str, retire_files: set, retire_dirs: tuple) -> list:
+def _scan_targets(root: str, retire_files: set, retire_dirs: tuple, *, include_test_demo: bool = False) -> list:
     """Every shipped, scannable, repo-relative file: `.engine/**` minus retire minus excluded, plus the
-    foundation files outside `.engine/`."""
+    foundation files outside `.engine/`.
+
+    The bare-issue floor keeps test/demo prose out because synthetic ``#N`` tokens are endemic there. A
+    declaration-driven local-reference floor can opt in: its vocabulary is meaningful in every shipped prose
+    surface, including a test's explanatory comments and docstrings, while the shared Python extractor still
+    excludes fixture string literals. First-run-retired files remain excluded in either mode.
+    """
     targets = []
     engine_dir = os.path.join(root, _ENGINE_REL)
     for cur, dirs, names in os.walk(engine_dir):
@@ -282,7 +288,7 @@ def _scan_targets(root: str, retire_files: set, retire_dirs: tuple) -> list:
             rel = os.path.relpath(os.path.join(cur, name), root).replace(os.sep, "/")
             if os.path.splitext(name)[1] not in _SCAN_EXTS:
                 continue
-            if name.startswith(("test_", "demo_")):
+            if not include_test_demo and name.startswith(("test_", "demo_")):
                 continue  # test/demo prose is dominated by synthetic scenario numbers — see docstring
             if rel in retire_files or (retire_dirs and rel.startswith(retire_dirs)):
                 continue
@@ -322,6 +328,17 @@ def _retire_fault_message() -> str:
         f"(`{_RETIRE_MANIFEST_REL}`). Without it this check can't tell which files ship, so it can't confirm "
         f"that no bare issue reference travels into a generated repository, and it can't pass. Restore that "
         f"file from the project's history — it is permanent data — then re-run this check.")
+
+
+# --- shared shipped-surface primitives (StarshipSuperjam/engine-template#943) ----------------------------
+# The enumeration and prose extraction above define the ENGINE's shipped, scannable surface ONCE. The shipped
+# local-reference floor (`shipped_local_references_check.py`) and the release-cut gate reuse these so every
+# floor scans exactly the surface this check does — one definition, no drift. Public aliases; the private
+# originals stay for this module's own callers below.
+scan_targets = _scan_targets
+py_prose_fragments = _py_prose_fragments
+text_fragments = _text_fragments
+retire_set = _retire_set
 
 
 def check(root: str | None = None) -> list:

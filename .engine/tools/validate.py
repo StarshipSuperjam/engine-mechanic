@@ -58,9 +58,13 @@ NOT from the head-checkout CI suite, so a pull request cannot run its own edited
 guard. The by-id path loads only the check rules, never the
 suite declarations, so a broken or loosened suites.json cannot strand or alter it.
 
-The PR body is read from --pr-body-file, else from $GITHUB_EVENT_PATH
-(.pull_request.body — the safe path: never interpolated into a shell command), else
-treated as unavailable (the PR-body presence check fails OPEN locally, evaluates in CI).
+The PR body is read from --pr-body-file, else — in a CI pull-request run — fetched LIVE from
+the GitHub API so a body edited after the last push is seen (a rerun of the frozen event never
+would), falling back to the $GITHUB_EVENT_PATH event payload (.pull_request.body — the safe path:
+never interpolated into a shell command) when the live read is unavailable, else treated as
+unavailable (the PR-body presence check fails OPEN locally, evaluates in CI). The live fetch lives
+ONLY in main()'s ctx build (resolve_ci_pr_body) — never in local_ctx()/get_pr_body — so a local run
+makes no network call and can never hang a commit.
 """
 from __future__ import annotations
 import datetime
@@ -143,6 +147,25 @@ def disclosed_noop(message: str, location: dict | None = None) -> dict:
     closed property set); a finding WITHOUT it defaults to actionable, so the fail-safe is a
     no-op shown in full, never an actionable note hidden."""
     return {"severity": "soft", "message": message, "location": location, "not_applicable": True}
+
+
+def witness_deferred(message: str, location: dict | None = None, *, missing=None) -> dict:
+    """A DISCLOSED no-op for a check that could not run IN THIS RUN for lack of a live witness — a
+    credential or pull-request context present in CI but absent here — yet that DOES enforce in CI.
+    A distinct sub-class of `disclosed_noop`: report() lifts these onto their own elevated "not
+    verified in this run — enforces in CI" line (never folded into the benign "nothing to do"
+    summary), and the marker rides `collect()` so an orchestrator can see them (StarshipSuperjam/engine-template#761).
+    Soft (a no-op never gates) and carries `not_applicable` too, so every existing fail-safe / collapse /
+    audit path still holds if a reader ignores the new marker. `missing` optionally names the absent
+    witness(es). This reports a RUNTIME fact — "did not run here" — NOT an exemption from a check's
+    bite-proof: it is deliberately distinct from `hard_check_bite_check.py`'s frozen "NOT WITNESSED
+    HERE" carve-out (`_REQ_PROPERTY`), which is about whether a check's negative FIXTURE can be
+    witnessed. Both markers are additive finding.v1 keys; `missing_witness` is a list of strings."""
+    f = {"severity": "soft", "message": message, "location": location,
+         "not_applicable": True, "witness_deferred": True}
+    if missing:
+        f["missing_witness"] = list(dict.fromkeys(str(m) for m in missing))  # str-coerced + deduped
+    return f
 
 
 def env_override_path(var: str, default: "str | None" = None) -> "str | None":
@@ -472,6 +495,27 @@ def phrase_presence_findings(phrases: list, body: str, tier: str, message: str, 
 
 # ---- kind: presence --------------------------------------------------------
 
+def _pr_body_recovery_note(ctx) -> "dict | None":
+    """The phase-aware recovery guidance for a body-completeness FAILURE, or None when it does not apply
+    (StarshipSuperjam/engine-template#949). Emitted ONCE per failing pull-request-body presence rule — never
+    appended to the rule's static `message` (which prints on every missing-section finding and also runs in
+    local nudges) — and ONLY when the CI read fell back to the frozen event body after a failed live read
+    (`pr_body_source == 'frozen-fallback'`): the case where this run evaluated a possibly-stale body, so the
+    operator needs the reliable fix stated. It leads with that fix (edit the body — a fresh check reads the new
+    text) and describes a rerun ACCURATELY: a rerun re-executes the job and re-attempts the live read, so it
+    can pass once that read is available — never a blanket "rerun can't help", which is false for a transient
+    failure. When the live read succeeded ('live'), the body evaluated IS current, so no note is emitted; a
+    local/explicit run carries no source and gets nothing. Always `soft` — guidance, not a gate; the gate is
+    severity-based, so this can never change the merge verdict."""
+    if ctx.get("pr_body_source") != "frozen-fallback":
+        return None
+    return finding("soft",
+                   "To recover: edit the pull-request body — a fresh check runs automatically and reads the "
+                   "new text. This run evaluated the body captured by the event that triggered it, because "
+                   "reading your current body live was unavailable this time. Re-running the job makes a fresh "
+                   "attempt at that live read, so it can also pass once the read is available again.")
+
+
 def kind_presence(rule, ctx):
     """Named sections are present and non-empty. The target is either the
     pull-request body (target.context == 'pull-request-body') or a prose file
@@ -496,15 +540,24 @@ def kind_presence(rule, ctx):
     if target.get("context") == "pull-request-body":
         body = ctx.get("pr_body")
         if body is None:
-            return True, [disclosed_noop("PR body not available; completeness not "
-                                         "evaluated here (the CI run evaluates it).")]
+            # Witness-deferred, not merely not-applicable: this check enforces in CI on a real
+            # pull-request run; here there is no PR body to evaluate. Surfaced on report()'s
+            # elevated "not verified in this run" line, never folded into "nothing to do".
+            return True, [witness_deferred("PR body not available; completeness not evaluated in "
+                                           "this run (a CI pull-request run evaluates it).",
+                                           missing=["pull-request body"])]
         findings = section_presence_findings(body, sections, tier, message, "pull-request body", label)
         if label:
             findings += subsection_fill_findings(body, sections, label, tier, message,
                                                  "pull-request body")
         if phrases:
             findings += phrase_presence_findings(phrases, body, tier, message, "pull-request body")
-        return (len(findings) == 0), findings
+        result = (len(findings) == 0)          # the verdict is fixed by the real completeness findings...
+        if not result:                          # ...before the soft recovery note is appended, so the
+            note = _pr_body_recovery_note(ctx)  # guidance can never flip the merge verdict. One note per
+            if note is not None:                # failing pull-request-body presence rule; the shipped corpus
+                findings = findings + [note]    # has exactly one, so today that is once per run.
+        return result, findings
     findings = []
     for path in target_files(rule):
         where = os.path.relpath(path, ROOT)
@@ -1364,12 +1417,15 @@ def agent_coherence_findings(agents: list, tier: str, message: str) -> list:
         `tools` / `disallowedTools`). A read-only persona blocks a write tool iff it lists it
         in `disallowedTools` OR declares a `tools` allowlist (a list) that omits it; a read-only
         persona that declares NEITHER inherits every tool (the inherit-all trap) and is a finding.
-        HONEST LIMIT: this enforces only that the native file-writing tools (Edit/Write/NotebookEdit)
-        are blocked — it deliberately does NOT police `Bash` (which the execution roles
-        pre-submission-review/audit legitimately keep to run the suite in a scratch worktree —
-        qa-review dry-run) nor any write-capable MCP tools the session may expose; confining
-        those tool-/shell-side writes is the orchestration worktree's + the protected-branch merge
-        gate's job, not a frontmatter invariant this static leg can see. A STRING-valued
+        HONEST LIMIT: this pure leg enforces only that the native file-writing tools
+        (Edit/Write/NotebookEdit) are blocked. It does not read persona bodies, so the git-safety
+        recipe a shell-capable persona must carry (StarshipSuperjam/engine-template#947) is a SEPARATE leg in the
+        consumer (`agent_coherence_check.git_safety_findings`), which reads the body — the
+        pre-submission-review lenses keep `Bash` to run the suite in a throwaway copy they make themselves
+        (never a worktree of the real checkout), so that recipe's presence is enforced there; the audit
+        persona is Bash-locked in its own frontmatter and needs no recipe. Neither leg polices any
+        write-capable MCP tools the session may expose nor what a shell does at runtime; confining those tool-/shell-side writes is the orchestration worktree's + the
+        protected-branch merge gate's job, not a frontmatter invariant this static leg can see. A STRING-valued
         disallowedTools/tools is treated CONSERVATIVELY (a string denylist blocks nothing here; a
         string `tools` is not a write-excluding allowlist), so blocking must come from the list
         form — this errs toward a false finding, never a false pass.
@@ -1390,6 +1446,7 @@ def agent_coherence_findings(agents: list, tier: str, message: str) -> list:
     roles = {"plan-review", "worker", "pre-submission-review", "audit"}
     lensless_roles = {"worker", "audit"}   # the recognized roles that carry no lens
     tiers = {"judgment", "mechanical"}
+    impl_classes = {"builder", "bounded"}   # the dispatched worker classes (integrator is never a persona)
     write_tools = ("Edit", "Write", "NotebookEdit")   # the authoritative-write tools a read-only persona must block
     findings = []
     for a in agents:
@@ -1398,10 +1455,22 @@ def agent_coherence_findings(agents: list, tier: str, message: str) -> list:
         if role not in roles:
             findings.append(finding(tier, f"Persona '{name}' declares role '{role}', which is not a "
                             f"recognized role ({sorted(roles)}). {message}"))
-        mtier = a.get("model-tier")
-        if mtier not in tiers:
-            findings.append(finding(tier, f"Persona '{name}' declares model-tier '{mtier}', which is "
-                            f"not a recognized demand level ({sorted(tiers)}). {message}"))
+        # A worker resolves its per-provider model through implementation-class; a review/audit persona
+        # resolves through model-tier. Each axis belongs to exactly one side.
+        if role == "worker":
+            impl = a.get("implementation-class")
+            if impl not in impl_classes:
+                findings.append(finding(tier, f"Persona '{name}' is a worker but declares "
+                                f"implementation-class '{impl}', which is not a recognized worker class "
+                                f"({sorted(impl_classes)}). {message}"))
+        else:
+            mtier = a.get("model-tier")
+            if mtier not in tiers:
+                findings.append(finding(tier, f"Persona '{name}' declares model-tier '{mtier}', which is "
+                                f"not a recognized demand level ({sorted(tiers)}). {message}"))
+            if a.get("implementation-class") is not None:
+                findings.append(finding(tier, f"Persona '{name}' has role '{role}' but declares an "
+                                f"implementation-class; only the worker role carries one. {message}"))
         if a.get("lens") and role in lensless_roles:
             findings.append(finding(tier, f"Persona '{name}' has role '{role}', which carries no lens, "
                             f"but declares lens '{a.get('lens')}'; only the review roles carry a "
@@ -1729,6 +1798,16 @@ def kind_custom_script(rule, ctx):
         rebuilt = finding(f.get("severity", tier), f.get("message", ""), f.get("location"))
         if f.get("not_applicable"):
             rebuilt["not_applicable"] = True
+        # The witness-deferred marker (a live-witness no-op the local report() elevates,
+        # StarshipSuperjam/engine-template#761) rides the boundary too — but COERCED, never copied verbatim,
+        # exactly as not_applicable is: the flag to literal True, and missing_witness to a bounded
+        # list of strings, so no author-controllable structure leaks through this trust boundary (a
+        # raw value could otherwise crash report()'s join or bloat collect()).
+        if f.get("witness_deferred"):
+            rebuilt["witness_deferred"] = True
+            mw = f.get("missing_witness")
+            if isinstance(mw, list):
+                rebuilt["missing_witness"] = list(dict.fromkeys(str(x) for x in mw))[:16]  # str + deduped, bounded
         findings.append(rebuilt)
     return (not any(f["severity"] == "hard" for f in findings)), findings
 
@@ -1965,6 +2044,81 @@ def get_pr_labels() -> list:
         except (OSError, ValueError, AttributeError, TypeError):
             return []                      # unreadable / malformed / type-confused event → no labels
     return []
+
+
+# The CI live PR-body read (StarshipSuperjam/engine-template#949). Before this, a body-completeness run read
+# the body ONLY from the frozen $GITHUB_EVENT_PATH payload — the body AS OF the event that spawned the run —
+# so a body edited after the last push was invisible to that run (a `gh run rerun` replays the same event), and
+# nothing said so. In a CI pull-request run we now fetch the CURRENT body from the API,
+# falling back to the frozen read when the live read is unavailable. The whole live path lives HERE and is
+# reached ONLY from main()'s ctx build — never from local_ctx()/get_pr_body — so the local no-network contract
+# (a local nudge can never hang a commit) stays a structural fact, not a runtime flag.
+_PR_BODY_USER_AGENT = "engine-validate-pr-body"
+_FETCH_FAILED = object()   # sentinel: a live read was attempted and failed (any cause) → fall back to frozen
+
+
+def _event_pr_number() -> "int | None":
+    """The pull request's number from the trusted event payload (.pull_request.number), or None when
+    unavailable: a non-PR event (a `push`-triggered run carries no `pull_request`), a local run, or a
+    malformed/partial event. A positive int only (rejects bool/str/None), so the value is safe to interpolate
+    into an API path. Read only; the sole consumer is resolve_ci_pr_body's live-fetch gate. Mirrors
+    get_pr_author()'s fail-safe posture — any doubt yields None, which SKIPS the fetch (frozen read stands)."""
+    event = os.environ.get("GITHUB_EVENT_PATH")
+    if event and os.path.exists(event):
+        try:
+            num = (load_json(event).get("pull_request") or {}).get("number")
+            return num if _is_pos_int(num) else None
+        except (OSError, ValueError, AttributeError, TypeError):
+            return None                    # unreadable / malformed / type-confused event → no number
+    return None
+
+
+def _fetch_live_pr_body(repo: str, num: int, token: str) -> "str | object":
+    """GET the current PR body from the GitHub API and return it NORMALIZED — a null/empty/whitespace body
+    becomes "" exactly as get_pr_body does, so a CI body is never None (None SKIPS the completeness check;
+    "" ENFORCES it — the invariant this whole change rests on). Returns the _FETCH_FAILED sentinel on ANY
+    failure — a non-200, a non-dict payload, an unreachable host, a socket timeout, or a malformed body — and
+    NEVER raises: the caller falls back to the frozen read, so a transient blip cannot error the required
+    check red. `github_client` is imported lazily to keep this module's top-level stdlib-only bootstrap
+    contract (it must `import` before the tool-runtime exists); the fetch is only ever reached inside CI."""
+    import http.client     # the HTTPException base (IncompleteRead) is here — a stdlib module, top-safe
+    import github_client   # lazy — see the module docstring's tool-runtime bootstrap note
+    try:
+        status, data = github_client.json_request(
+            "GET", f"/repos/{repo}/pulls/{num}", token, user_agent=_PR_BODY_USER_AGENT)
+    except (OSError, ValueError, http.client.HTTPException):
+        # Every realistic transport failure degrades to the frozen read — NEVER a raise into the required
+        # check. OSError covers urllib's URLError and a socket timeout (TimeoutError); http.client.HTTPException
+        # covers a truncated response (IncompleteRead, which is NOT an OSError); ValueError covers a malformed
+        # 200 body (json.loads). json_request already maps an HTTPError (4xx/5xx) to (code, None) internally.
+        return _FETCH_FAILED
+    if status != 200 or not isinstance(data, dict):
+        return _FETCH_FAILED
+    return data.get("body") or ""          # null/empty live body → "" (ENFORCE), never None (which would SKIP)
+
+
+def resolve_ci_pr_body(body_file: "str | None") -> "tuple[str | None, str]":
+    """Resolve (body, source) for a main() run, attempting a LIVE fetch of the current PR body in a CI
+    pull-request context so an edited body — invisible to a rerun of the frozen event — is actually seen.
+    `source` records provenance for the phase-aware recovery note (kind_presence reads it):
+      - "live"            the current body was read from the API; a rerun re-reads it, so every recovery works;
+      - "frozen-fallback" a live read was attempted and FAILED, so the (possibly stale) frozen event body is
+                          evaluated — the recovery note fires, steering to an edit (a rerun re-attempts live);
+      - "frozen"          no live read was attempted (a --pr-body-file override, or not a CI PR context) — this
+                          is the prior behaviour, and carries no recovery note.
+    Called ONLY by main(); local_ctx()/get_pr_body stay network-free."""
+    frozen = get_pr_body(body_file)
+    if body_file:
+        return frozen, "frozen"            # an explicit body file always wins — never a network read
+    num = _event_pr_number()
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    token = os.environ.get("GITHUB_TOKEN")
+    if not (num and repo and token):
+        return frozen, "frozen"            # not a CI pull-request run with a token → prior behaviour
+    live = _fetch_live_pr_body(repo, num, token)
+    if live is _FETCH_FAILED:
+        return frozen, "frozen-fallback"   # attempted live, fell back to the frozen (possibly stale) body
+    return live, "live"
 
 
 def _exemption_note(rule: dict, ctx: dict) -> "str | None":
@@ -2360,16 +2514,24 @@ def fmt(f: dict) -> str:
 def report(suite: str, findings: list, gates: bool) -> None:
     hard = [f for f in findings if f["severity"] == "hard"]
     soft = [f for f in findings if f["severity"] != "hard"]
-    # Partition soft notes so an actionable one stands out from the dormant "nothing to do" ones.
-    # Only a no-op we can NAME (it carries a source_rule) is collapsed into the summary line; an
-    # actionable note — OR a marked no-op with no source rule to name (the by-id `--check` path does
-    # not set one, and a single deliberately-invoked check is never noise) — renders in full. A
-    # finding WITHOUT the marker defaults to actionable (`.get`, never `[]`), so the fail-safe is a
-    # note shown in full (harmless), never an actionable note hidden. The collapsed no-ops stay
-    # DISCLOSED (named + counted, never a silent skip); only their boilerplate prose folds away.
-    collapsible, shown = [], []
+    # Partition soft notes THREE ways. An actionable one stands out from the dormant "nothing to do"
+    # ones, AND a WITNESS-DEFERRED no-op (a credential/PR-context-gated check that did not run here
+    # but DOES enforce in CI) is lifted onto its own elevated line rather than folded into the benign
+    # collapse. witness_deferred is peeled out FIRST: it also carries not_applicable, so without this
+    # it would hide in the "nothing to do" summary — reproducing the false-green this surface exists
+    # to kill (StarshipSuperjam/engine-template#761). As before, only a no-op we can NAME (source_rule) is
+    # collapsed/elevated; a marked no-op with no source rule to name (the by-id `--check` path sets
+    # none) renders in full; a finding WITHOUT any marker defaults to actionable (`.get`, never `[]`),
+    # so the fail-safe is a note shown in full (harmless), never one hidden. The collapsed and the
+    # elevated no-ops both stay DISCLOSED (named + counted, never a silent skip).
+    deferred, collapsible, shown = [], [], []
     for f in soft:
-        (collapsible if f.get("not_applicable") and f.get("source_rule") else shown).append(f)
+        if f.get("witness_deferred") and f.get("source_rule"):
+            deferred.append(f)
+        elif f.get("not_applicable") and f.get("source_rule"):
+            collapsible.append(f)
+        else:
+            shown.append(f)
     displayed = len(shown) + (1 if collapsible else 0)
     if displayed:
         print(f"\nnotes ({displayed}):")
@@ -2378,6 +2540,15 @@ def report(suite: str, findings: list, gates: bool) -> None:
         if collapsible:
             names = list(dict.fromkeys(str(f["source_rule"]) for f in collapsible))
             print(f"  - {len(names)} check(s) not applicable here (nothing to do): " + ", ".join(names))
+    # The elevated line — separate from notes and above the verdict — so a green result below cannot
+    # read as "checked and passed" for a check that never ran here. Truthful locally AND on a non-PR
+    # CI run (a push), where these same checks no-op for lack of a pull-request context.
+    deferred_names = list(dict.fromkeys(str(f["source_rule"]) for f in deferred))
+    if deferred_names:
+        print(f"\nnot verified in this run — {len(deferred_names)} check(s) enforce in CI but had no "
+              "witness here (a credential or pull-request context this run lacks): "
+              + ", ".join(deferred_names))
+        print("  these did NOT run here; they enforce when the change is proposed for merge in CI.")
     if hard and gates:
         print(f"\nFAIL ({len(hard)} hard finding(s)) [suite: {suite}] — blocks the merge:")
         for f in hard:
@@ -2387,7 +2558,9 @@ def report(suite: str, findings: list, gates: bool) -> None:
         for f in hard:
             print("  - " + fmt(f))
     else:
-        print(f"\nOK — suite '{suite}' passed, no hard findings.")
+        tail = (f" — but {len(deferred_names)} CI-only check(s) were not verified here (see above)"
+                if deferred_names else "")
+        print(f"\nOK — suite '{suite}' passed, no hard findings{tail}.")
 
 
 def _demo(argv: list) -> int:
@@ -2507,7 +2680,9 @@ def main(argv: list) -> int:
         else:
             print(f"unknown argument: {argv[i]}", file=sys.stderr)
             return 2
-    ctx = {"pr_body": get_pr_body(body_file),     # the same ctx both entry points build
+    pr_body, pr_body_source = resolve_ci_pr_body(body_file)  # LIVE read in CI (never in local_ctx)
+    ctx = {"pr_body": pr_body,                     # the CI/CLI entry — the live path lives ONLY here
+           "pr_body_source": pr_body_source,       # provenance for the phase-aware recovery note
            "pr_author": get_pr_author(),           # honored by run() for ci_author_exempt (CI gate only)
            "pr_labels": get_pr_labels()}           # honored by run() for ci_label_exempt (CI gate only)
     if check_id is not None:

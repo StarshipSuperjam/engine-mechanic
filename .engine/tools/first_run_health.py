@@ -41,24 +41,17 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import module_coherence  # noqa: E402  (slug_eq — the ONE normalized slug comparison, single-homed there)
+import repo_identity     # noqa: E402  (parse_github_slug — the ONE origin-URL parser, single-homed there; StarshipSuperjam/engine-template#691)
 
 # The one-time setup tool, relative to a checkout root. Its presence is the design's "first-run not finished"
 # signal — `instantiator.retire` self-deletes it as the final setup step.
 _SETUP_TOOL_REL = os.path.join(".engine", "tools", "instantiator.py")
 _MANIFEST_REL = os.path.join(".engine", "engine.json")
-# host-anchored: github.com must be the URL host, never a substring of a look-alike (notgithub.com,
-# github.com.evil.com) — consistent with mechanic_build/boot's belts (defense-in-depth; this parser only
-# decides whether to OFFER first-run setup, but a mis-parse should never treat a look-alike as the home).
-# IGNORECASE reads a mixed-case host (`GitHub.com`); ASCII keeps that fold ASCII-only so a Unicode homograph
-# (`gİthub.com`, where U+0130 folds to `i`) cannot satisfy the host literal (StarshipSuperjam/engine-template#625).
-_GITHUB_SLUG_RE = re.compile(
-    r"^(?:(?:https?|ssh)://)?(?:[^@/]+@)?github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", re.IGNORECASE | re.ASCII)
 
 
 def _run(cmd: list, cwd: str | None = None, timeout: int = 30) -> str | None:
@@ -106,11 +99,7 @@ def _origin_slug(main: str) -> str | None:
     (NOT this process's `GITHUB_REPOSITORY` env), so a fixture/test can set a fake origin and the detector
     reads THAT — the injection seam boot's env-first `repo_slug()` cannot provide. None when there is no
     origin remote or the URL is not a recognizable GitHub slug."""
-    url = _run(["git", "-C", main, "remote", "get-url", "origin"])
-    if not url:
-        return None
-    m = _GITHUB_SLUG_RE.search(url.strip())
-    return m.group(1) if m else None
+    return repo_identity.parse_github_slug(_run(["git", "-C", main, "remote", "get-url", "origin"]))
 
 
 def _recorded_home(main: str) -> str | None:
@@ -257,17 +246,17 @@ def forked_from_home(repo: str | None, token: str | None, home: str | None, tran
     Kept OFF `detect_first_run_pending` so a network round-trip never sits on the offline detector's critical
     path. Only a fork OF THE HOME suppresses: a template-generated copy and a clone-and-push copy are both
     `fork == false`, so neither is silenced and the dead-on-arrival case they represent is still caught.
-    `transport(method, path, body) -> (status, json)` is injectable (the `GitHubIssues` seam) so a test drives
-    the real fork/parent decision logic without a network round-trip. NOTE (issue StarshipSuperjam/engine-template#353): this deliberately
+    `transport(method, path, body) -> (status, json)` is injectable (the neutral `github_client.reader` seam)
+    so a test drives the real fork/parent decision logic without a network round-trip. NOTE (issue StarshipSuperjam/engine-template#353): this deliberately
     silences a FORK-based *adopter* too (indistinguishable from a contributor's fork through this one signal);
     a fork-adopter is still rescued via `/engine-setup show`, which does not apply this suppressor. Revisit
     when the project's contribution model is defined (see README 'Contributing')."""
     if not repo or not token or not home:
         return None
     try:
-        import telemetry
-        gh = telemetry.GitHubIssues(repo, token, transport=transport)
-        status, data = gh._transport("GET", f"/repos/{repo}", None)
+        import github_client
+        gh = github_client.reader(repo, token, user_agent="engine-first-run-health", transport=transport)
+        status, data = gh.transport("GET", f"/repos/{repo}", None)
         if status >= 400 or not isinstance(data, dict):
             return None
         if not data.get("fork"):
