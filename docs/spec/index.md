@@ -58,7 +58,6 @@ Supporting material sits alongside: the guiding principles in `../principles.md`
 | execution-environment | in progress | [execution-environment](modules/execution-environment.md) |
 | external-contribution | settled | [external-contribution](modules/external-contribution.md) |
 | github-projects-sync | settled | [github-projects-sync](modules/github-projects-sync.md) |
-| product-system-explorer | in progress | [product-system-explorer](modules/product-system-explorer.md) |
 | large-change-coordination | in progress | [large-change-coordination](modules/large-change-coordination.md) |
 | maintenance-ledger | in progress | [maintenance-ledger](modules/maintenance-ledger.md) |
 | memory-semantic-recall | settled | [memory-semantic-recall](modules/memory-semantic-recall.md) |
@@ -71,6 +70,7 @@ Supporting material sits alongside: the guiding principles in `../principles.md`
 | platform-web | in progress | [platform-web](modules/platform-web.md) |
 | product-design | settled | [product-design](modules/product-design.md) |
 | product-knowledge-graph | in progress | [product-knowledge-graph](modules/product-knowledge-graph.md) |
+| product-system-explorer | in progress | [product-system-explorer](modules/product-system-explorer.md) |
 | profile-registry | in progress | [profile-registry](modules/profile-registry.md) |
 | qa-review | settled | [qa-review](modules/qa-review.md) |
 | research-and-learning | in progress | [research-and-learning](modules/research-and-learning.md) |
