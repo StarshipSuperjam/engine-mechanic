@@ -65,6 +65,7 @@ import os
 import re
 import sys
 import tempfile
+from dataclasses import dataclass
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import hooks  # noqa: E402  (run_hook + decide/proceed: the fail-open harness the gate rides)
@@ -82,14 +83,22 @@ STANCES = frozenset({EXPLORE, BUILD, ROUTINE})
 # from each owner's declaration; the block-registry leg (validate.block_budget_findings) reads `event`
 # (only PreToolUse/Stop may block) AND `modes` (the mode dimension declared as data, not code-only).
 # Modes carries the *stances the block is active in*: the write-gate
-# enforces only in EXPLORE (it lets writes through in Build/Routine); the engine-Issue reroute is
-# STANCE-INDEPENDENT — it fires in every stance (a non-conforming engine-labeled `gh issue create` is
-# rerouted whether exploring, building, or in a routine run) — so it declares all three. modes' single
-# handler composes both PreToolUse blocks; each is its own invariant because their mode sets differ.
+# enforces only in EXPLORE (it lets writes through in Build/Routine); the engine-Issue reroute and the
+# protected-merge nudge are both STANCE-INDEPENDENT — they fire in every stance (a non-conforming
+# engine-labeled `gh issue create` is rerouted, and a session `gh pr merge` is refused, whether
+# exploring, building, or in a routine run) — so each declares all three. modes' single handler composes
+# THREE PreToolUse blocks; each is its own registry member. The distinguishing key is the block's NAME
+# (the reroute and the merge nudge share a mode set, so the mode set alone no longer tells them apart),
+# not the mode dimension — which the block-registry leg reads to check every block is on an eligible event.
 BLOCK_INVARIANT = {"event": "PreToolUse", "name": "explore-write-gate", "owner": "modes",
                    "modes": [EXPLORE]}
 REROUTE_BLOCK_INVARIANT = {"event": "PreToolUse", "name": "engine-issue-conformance", "owner": "modes",
                            "modes": [EXPLORE, BUILD, ROUTINE]}
+# The protected-merge nudge: the session never merges the protected branch — that is the operator's own
+# consent act, in every stance (eADR-0005/0021). A best-effort, fail-open nudge (never a wall); its own
+# block-registry member so the governance registry names every deny modes' handler can emit.
+MERGE_BLOCK_INVARIANT = {"event": "PreToolUse", "name": "protected-merge-nudge", "owner": "modes",
+                         "modes": [EXPLORE, BUILD, ROUTINE]}
 
 
 # ---- the stance signal: ephemeral, session-keyed, OS-temp, non-committed --------------------
@@ -129,24 +138,61 @@ def current_stance(session_id: str | None) -> str:
     return value if value in STANCES else EXPLORE
 
 
-def set_stance(session_id: str | None, stance: str) -> bool:
+@dataclass(frozen=True)
+class StanceWriteResult:
+    """Truth-compatible result for a stance-marker write.
+
+    Existing hook callers need only success/failure and remain fail-open through ``bool(result)``.
+    Operator-typed CLI callers also need the reason so they do not misdiagnose an absent session id,
+    a sandbox-denied temp write, and an unrelated filesystem failure as the same thing.
+    """
+    ok: bool
+    reason: str | None = None
+    path: str | None = None
+    error: str | None = None
+
+    def __bool__(self) -> bool:
+        return self.ok
+
+
+def set_stance(session_id: str | None, stance: str) -> StanceWriteResult:
     """Set the session's stance signal. Callers: the plan-acceptance trigger (accept_handler, this module),
     the operator-typed Build verb, and the demo/tests. Setting EXPLORE clears the marker
-    (explore is the absence of a signal). Returns True on success, False when there is no usable session
-    id or the write fails; never raises."""
+    (explore is the absence of a signal). Returns a truth-testable structured result: hook callers keep
+    their old success/failure behavior, while operator-typed CLI callers can distinguish no session,
+    sandbox denial, and another filesystem failure. Never raises."""
     if stance == EXPLORE:
-        return clear_stance(session_id)
+        ok = clear_stance(session_id)
+        return StanceWriteResult(ok, None if ok else "no-session", _signal_path(session_id))
     if stance not in STANCES:
         raise ValueError(f"unknown stance {stance!r}; expected one of {sorted(STANCES)}")
     path = _signal_path(session_id)
     if not path:
-        return False
+        return StanceWriteResult(False, "no-session")
     try:
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(stance)
-        return True
-    except Exception:  # noqa: BLE001 — a failed write degrades to "no signal" → explore, never a crash
-        return False
+        return StanceWriteResult(True, path=path)
+    except PermissionError as exc:
+        # The OS denied the temp marker. Codex Read Only is one cause; host ownership/permissions are another.
+        # Preserve only what this seam can prove so the CLI can name both narrow remedies without guessing.
+        return StanceWriteResult(False, "permission-denied", path, str(exc))
+    except OSError as exc:
+        return StanceWriteResult(False, "filesystem-error", path, str(exc))
+    except Exception as exc:  # noqa: BLE001 — a failed write degrades to Explore, never a crash
+        return StanceWriteResult(False, "unknown-error", path, str(exc))
+
+
+def _stance_write_failure(label: str, result: StanceWriteResult) -> str:
+    """One truthful CLI failure line for Build/Routine stance entry."""
+    if result.reason == "no-session":
+        return f"set {label}: False (no session id resolvable)"
+    if result.reason == "permission-denied":
+        return (f"set {label}: False (the OS denied the session marker write; if this Codex task is "
+                f"Read Only, select Workspace Write and try again; otherwise check ownership and permissions "
+                f"on the reported temporary path: {result.path or 'unknown'})")
+    detail = f": {result.error}" if result.error else ""
+    return f"set {label}: False (could not write the session marker{detail})"
 
 
 def clear_stance(session_id: str | None) -> bool:
@@ -172,7 +218,8 @@ def clear_stance(session_id: str | None) -> bool:
 _STANCE_LINES = {
     EXPLORE: "Exploring — I won't change files or open a pull request until you tell me to build.",
     BUILD: "Building — I'll make changes and submit them as a pull request for your approval.",
-    ROUTINE: "Running unattended (routine) — scope-locked build work; nothing merges without review.",
+    ROUTINE: "Running unattended (routine) — scope-locked build work; it never merges the protected "
+             "branch, which stays your own consent.",
 }
 
 
@@ -215,7 +262,8 @@ def describe_explore_scope() -> str:
         "issue helper (`.engine/tools/issue_author.py` — render_engine_issue_body); a non-conforming "
         "`engine`-labelled `gh issue create` is rerouted back to that helper. Any other Issue needs no "
         "label from you — the engine derives the native `Kind:`-prefix label. (The gate is a strong "
-        "default, not a wall; nothing reaches main without a pull-request review.)"
+        "default, not a wall; nothing reaches main without the operator's own merge — which you never "
+        "perform yourself, in any stance.)"
     )
 
 
@@ -270,6 +318,59 @@ def is_building_action(tool_name: str, tool_input) -> bool:
             command = tool_input.get("command") or ""
         return any(p.search(command) for p in _BASH_BUILD_PATTERNS)
     return False
+
+
+# ---- the stance-independent protected-merge nudge -------------------------------------------
+# The session never merges the protected branch — that is the operator's own consent act (eADR-0021), and
+# an AI performing it would corrupt the very gate the trust model rests on, so eADR-0005's "may hard-fail
+# a governance-critical invariant locally" carve-out applies. It is therefore NOT part of the Explore-only
+# building set above (which Build/Routine let through): merging is illegitimate in EVERY stance, so this is
+# a SEPARATE predicate checked before the stance short-circuit in handler(). Best-effort and fail-open like
+# the build patterns — an alias/eval/substitution, or a `gh api graphql` mergePullRequest mutation, evades
+# it (stated honestly; the wall is the protected-branch merge itself, never this nudge).
+# The REST form is METHOD-ANCHORED on purpose: `GET /repos/{o}/{r}/pulls/{n}/merge` is a merge-STATUS read
+# and must NOT be denied; only a write method (PUT, or a body flag) performs the merge — mirroring how
+# issue_gate distinguishes a creating call from a reading one, so a read is never taxed. The `gh api`
+# pattern is compiled IGNORECASE because `gh` normalises the method's case before sending, so a lowercase
+# `-X put` / `--method put` performs a REAL merge and must still fire; an optional surrounding quote on the
+# method value is tolerated too. (A quoted-in-a-variable or eval'd form is still the disclosed best-effort
+# residual — the wall is the merge itself.)
+_MERGE_WRITE_METHOD = (r"(?:-X\s*['\"]?PUT|--method(?:=|\s+)['\"]?PUT"
+                       r"|-f\b|-F\b|--field\b|--raw-field\b|--input\b)")
+_MERGE_PATTERNS = (
+    re.compile(_CMD_START + r"gh\s+pr\s+merge\b"),        # the porcelain merge (incl. --auto scheduling)
+    # the REST merge, order-independent: `gh api` at command position AND a pulls/<n>/merge path AND a
+    # write method (a bare GET on the same path — the status read — matches neither lookahead → ALLOW):
+    re.compile(_CMD_START + r"gh\s+api\b(?=.*pulls/\S+/merge\b)(?=.*" + _MERGE_WRITE_METHOD + r")",
+               re.IGNORECASE),
+)
+# The GitHub-MCP pull-request-merge tool name. An UNVERIFIED build-spec leaf (no in-repo corroboration
+# for the exact name): kept narrow so it never catches an unrelated tool, pinned by a test, best-effort,
+# verified against current GitHub MCP.
+_MCP_MERGE_TOOL = re.compile(r"^mcp__.*merge_pull_request\b", re.IGNORECASE)
+
+
+def is_merge_action(tool_name: str, tool_input) -> bool:
+    """True iff this call attempts to MERGE the protected branch — `gh pr merge`, the REST PUT merge form,
+    or the GitHub-MCP merge tool. Stance-INDEPENDENT (the session never merges, in any stance); handler()
+    checks it before the Explore short-circuit. Best-effort and fail-open like is_building_action; a
+    merge-status GET read on the same path is deliberately NOT matched (see _MERGE_WRITE_METHOD)."""
+    if _MCP_MERGE_TOOL.match(tool_name or ""):
+        return True
+    if tool_name in _SHELL_TOOLS:
+        command = ""
+        if isinstance(tool_input, dict):
+            command = tool_input.get("command") or ""
+        return any(p.search(command) for p in _MERGE_PATTERNS)
+    return False
+
+
+# The plain-language merge refusal — "won't" (the session's choice to leave the consent act to the
+# operator), NEVER "cannot" (which would dress this fallible local nudge as the wall eADR-0005 forbids).
+_MERGE_DENIAL = ("I won't merge that — or schedule a merge of it. Merging the protected branch is your "
+                 "consent act, never the session's, in any stance; I open the pull request and stop, and "
+                 "you merge it when the evidence convinces you. (This is a nudge, not a wall — it's "
+                 "best-effort, so the real guarantee is your own merge, not this refusal.)")
 
 
 # ---- the plan-mode artifact carve-out -----------------------------------------
@@ -469,20 +570,26 @@ def _is_memory_path(path: str) -> bool:
 # ---- the PreToolUse write-gate handler ------------------------------------------------------
 
 def handler(payload: dict) -> dict:
-    """The PreToolUse gate, run on every tool call (broad matcher). It composes TWO decisions in one
-    reviewable place: the engine-Issue conformance reroute (matcher in issue_gate, called
-    first because it is channel-scoped and STANCE-INDEPENDENT) and the Explore write-gate (stance-dependent —
-    Build/Routine permit the write; Explore denies a building action and allows everything else). Either deny
+    """The PreToolUse gate, run on every tool call (broad matcher). It composes THREE decisions in one
+    reviewable place: two STANCE-INDEPENDENT denies checked first — the engine-Issue conformance reroute
+    (matcher in issue_gate) and the protected-merge nudge (the session never merges, in any stance) — and
+    then the Explore write-gate (stance-dependent — Build/Routine permit the write; Explore denies a
+    building action and allows everything else). Either deny
     rides the structured permissionDecision channel (hooks.decide → exit 0 + hookSpecificOutput), which the
     platform honors AND feeds back to the session as the reason; exit-2 block() would be read as a crash and the
     deny — and its redirect reason — dropped."""
     tool_name = payload.get("tool_name", "") if isinstance(payload, dict) else ""
     tool_input = payload.get("tool_input") if isinstance(payload, dict) else None
-    # The engine-Issue conformance reroute — fires in Explore AND Build (the body contract is unconditional),
-    # so it is checked before the stance short-circuit. issue_gate holds the matcher; here we wrap its reason.
-    reroute = issue_gate.non_conforming_reason(tool_name, tool_input)
+    # The engine-Issue reroute — fires in Explore AND Build (the channel rule is unconditional), so it is
+    # checked before the stance short-circuit. issue_gate holds the matcher; here we wrap its reason. It now
+    # reroutes EVERY direct engine-labelled creation (Bash/API/connector) to the helper's create CLI.
+    reroute = issue_gate.reroute_reason(tool_name, tool_input)
     if reroute is not None:
         return hooks.decide("deny", reroute)
+    # The protected-merge nudge — also STANCE-INDEPENDENT (the session never merges the protected branch in
+    # any stance; that is the operator's consent act), so likewise checked before the stance short-circuit.
+    if is_merge_action(tool_name, tool_input):
+        return hooks.decide("deny", _MERGE_DENIAL)
     session_id = payload.get("session_id") if isinstance(payload, dict) else None
     if current_stance(session_id) != EXPLORE:
         return hooks.proceed()                       # Build / Routine permit the write
@@ -719,9 +826,9 @@ def main(argv: list) -> int:
         print(current_stance(session))
         return 0
     if cmd == "set-build":
-        ok = set_stance(_resolve_session(argv), BUILD)
-        print(f"set Build: {ok}")
-        return 0 if ok else 1
+        result = set_stance(_resolve_session(argv), BUILD)
+        print("set Build: True" if result else _stance_write_failure("Build", result))
+        return 0 if result else 1
     if cmd == "set-routine":
         # The unattended Routine stance-entry — run by the operator-authored scheduled fire through the
         # engine-routine skill (which carries the operator-only flag), never the model on its own. Unlike
@@ -737,9 +844,9 @@ def main(argv: list) -> int:
             print("set Routine: False (not a dedicated worktree — a routine writes only in an isolated "
                   "worktree, never the operator's checkout)")
             return 1
-        ok = set_stance(session, ROUTINE)
-        print(f"set Routine: {ok}")
-        return 0 if ok else 1
+        result = set_stance(session, ROUTINE)
+        print("set Routine: True" if result else _stance_write_failure("Routine", result))
+        return 0 if result else 1
     if cmd == "clear":
         ok = clear_stance(_arg(argv, "--session"))
         print(f"cleared: {ok}")

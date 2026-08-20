@@ -68,7 +68,6 @@ CLI:
 from __future__ import annotations
 import contextlib
 import glob
-import io
 import json
 import os
 import re
@@ -88,6 +87,8 @@ import module_coherence  # noqa: E402  (the present-set reader + the coherence l
 import module_catalog    # noqa: E402  (the degrade-safe optional-module catalog reader — offer text + the decline discriminator)
 import bootstrap         # noqa: E402  (ControlPlane.de_bootstrap — the clean-removal control-plane leg; one-way)
 import engine_write      # noqa: E402  (the engine-owned write boundary — homed once, StarshipSuperjam/engine-template#862/StarshipSuperjam/engine-template#923)
+import derived_state      # noqa: E402  (the derived-committed set + its regeneration — single owner, StarshipSuperjam/engine-template#925)
+import release_source     # noqa: E402  (release fetch + ref/tag resolution boundary — single home, StarshipSuperjam/engine-template#925 Part 5)
 
 
 # ---- paths (computed from validate.ROOT at CALL time so a test/demo can redirect ROOT) --------
@@ -375,200 +376,12 @@ def remove(module_id: str, removal_notice: str | None = None) -> dict:
 # ---- fetch / overlay (the shared release machinery: add uses it here; the engine updater reuses
 #      it in `upgrade`) ----------------------------------------------------------------------
 
-class _NoPublishedRelease(RuntimeError):
-    """The home is reachable but has NO release to resolve (the releases API returned 200 with no
-    `tag_name`) — a genuine missing-release condition, distinct from a transport failure, so the caller
-    refuses LOUDLY naming the home rather than degrading it as a network problem (StarshipSuperjam/engine-template#367)."""
-
-
-def _release_api_request(path: str, *, token: str | None,
-                         user_agent: str = "engine-module-manager"):
-    """Build the authenticated-OR-anonymous GitHub API Request that the three release/tag network
-    boundaries below share (the tarball fetch, the latest-release resolve, the tag-published probe), so the
-    token resolution and the header block live in ONE place — an API-version or auth change is now a single
-    edit here, not three. Resolves the token ITSELF: the caller passes its own `token`, or None to fall back
-    to `boot.gh_token()` (matching the `tok = token if token is not None else boot.gh_token()` the three
-    callers each used to inline). `path` is an `api.github.com`-relative path the caller builds.
-
-    Deliberately NOT `github_client.request`: that core client sets `Authorization: Bearer` UNCONDITIONALLY
-    (its off-host guard protects a token-BEARING request), but these release reads stay OPTIONALLY
-    authenticated — a public engine home's release is fetchable with no token, and an empty `Bearer ` would
-    401 even a public repo. So this helper keeps the `if tok` conditional. It also carries no off-host guard:
-    the callers build their own paths and never follow a `Link` header, so there is no redirect to guard.
-    Callers keep their own slug-resolve (each with its own not-found message) and their own transport (raw
-    tarball bytes / JSON parse / 404-vs-raise), mirroring github_client's own request/get seam split. `path`
-    must be host-relative (a leading `/`): it is joined onto the host verbatim, so a slash-less path would
-    silently build a malformed URL — refuse it loudly instead."""
-    if not path.startswith("/"):
-        raise ValueError(f"release API path must be host-relative and start with '/': {path!r}")
-    import urllib.request, boot   # lazy: only the real network path needs these (matches the call sites)
-    tok = token if token is not None else boot.gh_token()
-    headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28",
-               "User-Agent": user_agent}
-    if tok:
-        headers["Authorization"] = f"Bearer {tok}"
-    return urllib.request.Request(f"https://api.github.com{path}", headers=headers)
-
-
-def _fetch_release_tree(ref: str, dest_dir: str, repo: str | None = None,
-                        token: str | None = None) -> str:
-    """Download the engine's SOURCE archive at the tagged release `ref`, extract it under `dest_dir`, and
-    return the path to the extracted tree root (the directory that contains `.engine/`). THIS IS THE
-    NETWORK BOUNDARY — `add` (and the later updater) accept an injected local `release_tree`, so the tests
-    and the demo never reach the network: they pass a local tree and exercise the REAL overlay/wire/
-    coherence logic. The concrete download-and-extract below is therefore the named inductive gap a fixture
-    cannot discharge (it never runs in the construction repo — there are no releases to fetch).
-
-    Build-spec leaf (recorded): the artifact is the tag's GitHub SOURCE archive (the `tarball` endpoint),
-    NOT a curated release asset — the engine ships from one tagged release as one tree, so the source archive carries every module's files and resolves their
-    `provides` globs, and no separate asset-build pipeline exists. `ref` is a TAG, pinned, never a moving
-    branch (the supply-chain control)."""
-    import tarfile                # local: only the real network path needs these
-    import urllib.request
-    import boot                   # lazy: only the real fetch needs the repo slug
-    slug = repo or boot.repo_slug()
-    if not slug:
-        raise RuntimeError("could not determine the engine repository to fetch the release from.")
-    req = _release_api_request(f"/repos/{slug}/tarball/{ref}", token=token)
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        payload = resp.read()
-    with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as tf:
-        tops = {n.split("/", 1)[0] for n in tf.getnames() if n}
-        if len(tops) != 1:
-            raise RuntimeError(f"unexpected release archive layout (top-level entries: {sorted(tops)[:3]}).")
-        tf.extractall(dest_dir, filter="data")   # filter='data' blocks path traversal / device entries (py3.12)
-    return os.path.join(dest_dir, tops.pop())
-
-
-def _archive_tree(ref: str, dest_dir: str) -> str:
-    """The OFFLINE sibling of `_fetch_release_tree`: materialize a local tag/ref's tree via `git archive`
-    piped into `dest_dir` — no network, no token. The cut-time deployment gate uses it to project a genuine
-    past release to its deployed shape and practice-upgrade it to the release candidate, asserting the
-    structural gate stays green — the proof a synthetic fixture cannot make. Returns `dest_dir` ITSELF: `git
-    archive` writes the tree with NO owner-repo-sha wrapper directory (unlike GitHub's tarball), so there is no
-    top-level dir to descend into (arch-N2). Raises if the ref's tree object is absent (a shallow checkout with
-    no tags — the gate blocks the cut on that)."""
-    import subprocess   # local: only the offline projection needs it
-    os.makedirs(dest_dir, exist_ok=True)
-    proc = subprocess.run(["git", "-C", validate.ROOT, "archive", "--format=tar", ref],
-                          capture_output=True, timeout=120)
-    if proc.returncode != 0:
-        raise RuntimeError(f"git archive {ref} failed: {(proc.stderr or b'').decode('utf-8', 'replace')[:200]}")
-    import tarfile   # local: only the offline belt needs it
-    with tarfile.open(fileobj=io.BytesIO(proc.stdout), mode="r:") as tf:
-        tf.extractall(dest_dir, filter="data")
-    return dest_dir
-
-
-def _resolve_release_ref(ref: str | None, repo: str | None = None, token: str | None = None) -> str:
-    """Resolve a target release ref to a CONCRETE, fetchable tag. A pinned tag/sha passes through unchanged;
-    None or "latest" is resolved to the repository's latest published release tag via the GitHub releases
-    API; a BARE version (`0.4.1` — the shape the manifest records, since `_bump_engine_manifest` strips the
-    leading `v`) is resolved to the home's real published tag (`v0.4.1` or `0.4.1`), so a home that tags
-    releases `vX.Y.Z` is fetched correctly instead of 404ing on the bare version (issue StarshipSuperjam/engine-template#760). The engine
-    never fetches, runs, or RECORDS a moving ref (the tag-pin is the supply-chain control). THE NETWORK
-    BOUNDARY for ref resolution — only the real add/upgrade path reaches it (the injected release_tree path
-    passes a concrete ref), so it is part of the same named inductive gap as the release fetch (never run in
-    the construction repo)."""
-    if ref and ref != "latest":
-        if not _is_bare_version(ref):
-            return ref                                                  # a real tag / sha — pinned, untouched
-        return _resolve_bare_version_tag(ref, repo=repo, token=token)   # bare X.Y.Z -> the home's real tag
-    import urllib.request, json as _json, boot   # local: only the real resolve needs these
-    slug = repo or boot.repo_slug()
-    if not slug:
-        raise RuntimeError("could not determine the engine repository to resolve the latest release.")
-    req = _release_api_request(f"/repos/{slug}/releases/latest", token=token)
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        tag = (_json.loads(resp.read()) or {}).get("tag_name")
-    if not tag:
-        raise _NoPublishedRelease("the engine repository has no published release to update to.")
-    return tag
-
-
-# ---- bare-version -> published-tag resolution (issue StarshipSuperjam/engine-template#760) ------------------------------------------
-# `_bump_engine_manifest` records the engine release BARE (it strips a leading `v`), so the manifest holds a
-# VERSION (`0.4.1`), not a fetchable TAG. A home tags its releases either `vX.Y.Z` (the common convention) or
-# bare `X.Y.Z`; `add`/`upgrade` must resolve the bare version to whichever tag the home actually published,
-# rather than fetching the bare version verbatim (which 404s on a `v`-tagging home — the StarshipSuperjam/engine-template#760 bug). Resolution
-# is a DIRECT `releases/tags/{tag}` lookup per candidate, never a paginated releases LIST (a list drops an
-# older pinned version off page 1, and admits drafts/pre-releases) — authoritative and O(1) per candidate.
-
-_BARE_VERSION = re.compile(r"\d+\.\d+\.\d+")
-
-
-def _is_bare_version(ref: str | None) -> bool:
-    """True iff `ref` is a bare three-part semantic version like `0.4.1` — a VERSION, not a fetchable tag. A
-    real tag (`v0.4.1`), a sha, a branch, or `latest`/None is not bare and the resolver leaves it untouched.
-    A pre-release / build-metadata suffix (`0.4.1-rc1`) is deliberately treated as NOT bare and passes
-    through: the engine's release flow only ever records a stable `X.Y.Z` (the `releases/latest` resolution
-    excludes pre-releases), so this boundary is safe, not a gap."""
-    return bool(ref) and _BARE_VERSION.fullmatch(ref) is not None
-
-
-def _release_ref_candidates(version: str) -> list[str]:
-    """The tags a bare `version` could have been published under, in probe order. `v`-first matches the
-    dominant convention (and the `v` that `_bump_engine_manifest` strips on the way in), so the usual home
-    resolves in a single probe; the bare candidate covers a home that tags without the prefix."""
-    return [f"v{version}", version]
-
-
-def _release_tag_published(tag: str, repo: str | None = None, token: str | None = None) -> bool:
-    """Does the home publish a RELEASE at this exact `tag`? A direct `releases/tags/{tag}` lookup: 200 -> True;
-    404 -> False (try the next candidate); any other failure propagates so the caller degrades on a transport
-    fault, never silently. THE NETWORK BOUNDARY for tag resolution — joins `_resolve_release_ref` /
-    `_fetch_release_tree` as a named inductive gap (never run in the construction repo; tests inject it)."""
-    import urllib.request, urllib.error, boot   # local: only the real probe needs these
-    slug = repo or boot.repo_slug()
-    if not slug:
-        raise RuntimeError("could not determine the engine repository to resolve the release tag.")
-    req = _release_api_request(f"/repos/{slug}/releases/tags/{tag}", token=token)
-    try:
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            resp.read()
-        return True
-    except urllib.error.HTTPError as exc:
-        if exc.code == 404:
-            return False
-        raise
-
-
-def _resolve_bare_version_tag(version: str, repo: str | None = None, token: str | None = None) -> str:
-    """Resolve a bare recorded `version` (`0.4.1`) to the home's real published tag, probing the candidates in
-    order. Raises `_NoPublishedRelease` (classified MISSING by `_release_is_missing`, so the caller refuses
-    LOUDLY and names the home) when no candidate is a published release — never a silent wrong or moving ref.
-    A transport fault on a probe propagates (the caller degrades to the current version)."""
-    for cand in _release_ref_candidates(version):
-        if _release_tag_published(cand, repo=repo, token=token):
-            return cand
-    raise _NoPublishedRelease(f"the engine's update home publishes no release for version {version}.")
-
-
-def _home_repository() -> str | None:
-    """The engine's HOME repository slug (`owner/repo`) recorded in the manifest — the single source of
-    truth for where engine updates are fetched from (issue StarshipSuperjam/engine-template#367). None when the manifest
-    records no home (a repo generated before this coordinate shipped). The release-fetch callers pass this
-    as `repo=` so they resolve the HOME, never the deployed repo's own `origin` (which `boot.repo_slug()`
-    returns and which has no engine releases). On a None home the caller REFUSES with a plain remedy and
-    never falls back to origin — the engine does not guess a home.
-
-    Delegates to `module_coherence.home_repository()`, the single accessor (also read by the
-    external-contribution submit flow), so the field name and the absent/blank/unreadable -> None contract
-    live in one place rather than two that could drift."""
-    return module_coherence.home_repository()
-
-
-def _release_is_missing(exc: BaseException) -> bool:
-    """Split a release-fetch failure into its two operator-distinct outcomes (three-state resolution). True → the home is recorded but UNRESOLVABLE: the release/repo does not exist (HTTP 404
-    — release-less, renamed, or removed home) OR the home is reachable but has no published release at all
-    (`_NoPublishedRelease`, a 200 with no tag) — both refused LOUDLY naming the home. False → a transport
-    failure (offline / DNS / timeout / other status), which DEGRADES to the current version.
-    urllib raises HTTPError (a URLError subclass) carrying a numeric `.code` for an HTTP status; a bare
-    URLError or socket error carries none."""
-    import urllib.error
-    if isinstance(exc, _NoPublishedRelease):
-        return True
-    return isinstance(exc, urllib.error.HTTPError) and getattr(exc, "code", None) == 404
+# ---- release source: fetch + ref/tag resolution ----------------------------------------------
+# The engine's release download and ref/tag resolution primitives live in `release_source.py`
+# (StarshipSuperjam/engine-template#925 Part 5): `_resolve_release_ref` / `_fetch_release_tree` /
+# `_archive_tree` / `_release_is_missing` / `_home_repository` and the shared `_release_api_request`.
+# They are a change domain that recurs on its own and are reused by release_cut / release_gate, so
+# they earn one home; the add / upgrade paths below call them through `release_source`.
 
 
 def _within_root(rel: str) -> bool:
@@ -644,7 +457,7 @@ def add(module_id: str, release_tree: str | None = None, ref: str | None = None)
                         "reason": "could not determine which engine release to fetch the module from."}
             # A module's files come from the engine's HOME release too, never this repo's own origin
             # (StarshipSuperjam/engine-template#367). Absent home -> refuse with a remedy; never fall back to origin.
-            home = _home_repository()
+            home = release_source._home_repository()
             if not home:
                 return {"module_id": module_id, "refused": True, "applied": False,
                         "reason": f"This engine has no update home recorded, so it can't fetch '{module_id}'. "
@@ -654,10 +467,10 @@ def add(module_id: str, release_tree: str | None = None, ref: str | None = None)
             try:
                 # `engine_release` is recorded BARE (0.4.1); resolve it to the home's real published tag
                 # (v0.4.1 or 0.4.1) before fetching, so a `v`-tagging home isn't fetched as a 404 (StarshipSuperjam/engine-template#760).
-                target_ref = _resolve_release_ref(target_ref, repo=home)
-                release_tree = _fetch_release_tree(target_ref, tmp, repo=home)
+                target_ref = release_source._resolve_release_ref(target_ref, repo=home)
+                release_tree = release_source._fetch_release_tree(target_ref, tmp, repo=home)
             except Exception as exc:
-                if _release_is_missing(exc):   # recorded home, but no such release/repo -> refuse, NAME it
+                if release_source._release_is_missing(exc):   # recorded home, but no such release/repo -> refuse, NAME it
                     return {"module_id": module_id, "refused": True, "applied": False,
                             "reason": f"Couldn't find release '{target_ref}' at your engine's update home, "
                                       f"{home}, to add '{module_id}' — that home may have no such release, or "
@@ -947,8 +760,8 @@ def _classify_available_modules(available, present_ids, pre_overlay_known, *,
     manifests) — the discriminator between a NET-NEW `default-on` module (never known here → auto-install opt-out)
     and a previously-DECLINED one (known but absent → offer, NEVER resurrect). `catalog_trusted=False` (the
     pre-overlay catalog could not be read) means the discriminator is UNPROVEN, so `default-on` FAILS CLOSED to
-    offer-only; `required` is unaffected (it can never be declined). `catalog_text` maps id → {"description","verb"}
-    for offer wording.
+    offer-only; `required` is unaffected (it can never be declined). `catalog_text` maps id → {"description"}
+    for offer wording (an add-on is offered by its description and added by id — there is no per-module verb).
 
     Classification by the RELEASE manifest's `status`: `required` → install (mandatory — the deployment needs it
     for coherence; a required module with an unmet dependency STAYS in `install` so the tail's
@@ -956,7 +769,7 @@ def _classify_available_modules(available, present_ids, pre_overlay_known, *,
     → install when net-new AND the catalog is trusted, else offer. `optional`/`experimental`/anything else →
     offer (never auto-installed). A `default-on` whose dependency the deployment will still lack is demoted to an
     offer (never pull an unchosen module in as a side effect). Returns
-    `{"install": [{"id","status","prior_declined"}], "offered": [{"id","status","description","verb"}]}`, install
+    `{"install": [{"id","status","prior_declined"}], "offered": [{"id","status","description"}]}`, install
     dependency-ordered, offered id-sorted."""
     present, known, text = set(present_ids or ()), set(pre_overlay_known or ()), (catalog_text or {})
     install, offered = [], []
@@ -964,7 +777,7 @@ def _classify_available_modules(available, present_ids, pre_overlay_known, *,
     def _as_offer(mid, status):
         info = text.get(mid) or {}
         offered.append({"id": mid, "status": status or "optional",
-                        "description": info.get("description") or "", "verb": info.get("verb") or ""})
+                        "description": info.get("description") or ""})
 
     for m in sorted(available, key=lambda e: e.get("id") or ""):
         mid, status = m.get("id"), (m.get("status") or "optional")
@@ -1038,7 +851,7 @@ def classify_available_modules(release_tree, present_ids, pre_overlay_known, *,
             continue
         if m["id"] not in skip:
             available.append({"id": m["id"], "status": m.get("status"), "depends": m.get("depends") or {}})
-    catalog_text = {e["id"]: {"description": e.get("description"), "verb": e.get("verb")}
+    catalog_text = {e["id"]: {"description": e.get("description")}
                     for e in module_catalog.entries(
                         path=os.path.join(release_tree, ".engine", "provisioning", "module-catalog.json"))
                     if e.get("id")}
@@ -1349,11 +1162,11 @@ def _overlay_copy_map(tree_root: str, manifests_by_id: dict) -> dict:
 # than a per-file alarm — single-sourced here so behaviour and notice cannot disagree. `product-spec-matrix.json`
 # is regenerated only where the OPTIONAL product-design module (and a settled `docs/spec/`) is present; skipped,
 # never fabricated, otherwise.
-REGENERATED_DERIVED = (
-    ".engine/self-map.md",
-    ".engine/knowledge/graph.json",
-    ".engine/product-spec-matrix.json",
-)
+# Single-sourced from the derived-state substrate (`derived_state.MEMBERS`) so the derived-committed set has
+# exactly one owner: a new derived artifact registers there and reaches this reconcile tail, the overwrite
+# disclosure, and every other boundary at once, rather than in several hand-maintained tuples that drift
+# (StarshipSuperjam/engine-template#925). Kept as a module attribute for back-compat readers (overlay_disclosure).
+REGENERATED_DERIVED = derived_state.paths()
 
 
 def _preserved_present(dest_root: "str | None" = None) -> set:
@@ -1689,7 +1502,12 @@ def _resync_tool_runtime() -> bool:
     the demo (the injected-release path skips it) — one of the four named inductive gaps."""
     import subprocess   # local: only the real re-sync needs it
     try:
-        subprocess.run(["uv", "sync", "--frozen"], cwd=os.path.join(validate.ROOT, ".engine"),
+        cwd = os.path.join(validate.ROOT, ".engine")
+        subprocess.run(["uv", "sync", "--frozen"], cwd=cwd,
+                       check=True, capture_output=True, timeout=300)
+        # The project-local cache is disposable and can otherwise grow without a production retention seam.
+        # Prune after each real update re-sync, when the locked environment has already been materialized.
+        subprocess.run(["uv", "cache", "prune"], cwd=cwd,
                        check=True, capture_output=True, timeout=300)
         return True
     except Exception:   # noqa: BLE001 — degrade: the caller surfaces a re-sync failure, never crashes
@@ -1827,6 +1645,15 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
                       "damaged, so I left the file unchanged. Check the marker lines, then update again.")
     if shared:
         scope += ["", "What this update did to the engine's marked blocks in shared files:"] + shared
+    control_plane = result.get("control_plane") or {}
+    if control_plane.get("status") == "repaired":
+        scope += ["", "Safety rule confirmed before this update was opened:",
+                  "- Strengthened and verified the Engine-owned main-branch safety rule for this version. "
+                  "No rule you created was changed."]
+    elif control_plane.get("status") == "already":
+        scope += ["", "Safety rule confirmed before this update was opened:",
+                  "- Verified the Engine-owned main-branch safety rule already met this version's floor; "
+                  "nothing was written."]
 
     # Reconcile outcomes (StarshipSuperjam/engine-template#599): files this version DELIVERED (fixtures an older update would have missed) and
     # files it REMOVED (renamed/dropped engine files, so stale copies don't linger). Removals are BUCKETED so a
@@ -1998,7 +1825,7 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
         ["- A structural consistency check on the rebuilt engine passed before this update was opened — the "
          "checks that catch a missing, orphaned, or mismatched engine file.",
          "- That is a structural check, not the engine's full check suite: the full suite runs here on this "
-         "pull request, and your review at the merge is the real gate."],
+         "pull request, and your merge is the real gate."],
         "a structural consistency check passed; the full suite runs on this pull request and the merge is "
         "still yours.")
     out += release_cut.pr_section(
@@ -2044,6 +1871,217 @@ def render_upgrade_pr_body(from_versions: dict, target_versions: dict, result: d
          "engine's consistency check.",
          "- I did not decide to merge it; that decision is yours."],
         "the update was assembled by the engine; your merge is the decision.")
+    # Engine updates change the engine itself, not the deployed product's public interface. The generated
+    # declaration is explicitly none; it is built by the release-impact formatter and appended once, after
+    # all prose, so the normal CI rule and the release fold see the exact same body.
+    out += ["", release_cut.release_impact.impact_trailer("none")]
+    return "\n".join(out)
+
+
+def render_arrival_pr_body(*, engine_release=None, tier="solo", module_ids=None, overlaid_count=0,
+                           overlap_count=0, kept_as_is_count=0, claude_floor=None, agents_floor=None,
+                           home_repository=None, default_branch="the default branch", protected=False) -> str:
+    """The brownfield ARRIVAL pull-request body — the FIRST pull request the engine opens when it is dropped
+    into an existing project — authored in the repository template's shape (the nine required sections plus the
+    consent preamble every engine pull request carries) so the project's very first view of the engine reads
+    like every other engine pull request and honours the same body contract (StarshipSuperjam/engine-template#755). It is the arrival
+    counterpart to `render_upgrade_pr_body`, and — like it — reuses release_cut's public `pr_section`/
+    `template_preamble` primitives, so there is one preamble source and no second copy to drift from the gate's
+    anchor phrases.
+
+    THIS BODY IS THE SOLE CONSENT SURFACE FOR ADOPTING THE ENGINE, AND NOTHING MECHANICAL CAN REJECT A FALSE
+    CLAIM IN IT: a brownfield target has no engine checks yet — they arrive IN this pull request and arrival runs
+    checkless — so the renderer's own honesty is the only safeguard. Accordingly it says ONLY what the arrival
+    actually did. In particular it does NOT borrow the upgrade body's "the full suite runs on this pull request"
+    claim: for an arrival that is FALSE (the workflows are not on the branch until this merges), so Validation
+    states plainly that the engine's own checks are not yet running and arm only at the post-merge `finalize`.
+    It surfaces the must-see NEGATIVES — a floor it could not insert, a branch-protection it could not apply —
+    rather than dropping them, and it degrades tolerantly: an outcome absent from the arrival produces no line,
+    never a fabricated 'nothing happened' claim.
+
+    Imported LAZILY: release_cut imports this module (a top-level import would cycle), AND arrive() calls this on
+    the operator's bare Python 3.9 floor, where `import release_cut` is safe only because release_cut's jsonschema
+    dependency is now lazy (StarshipSuperjam/engine-template#755). Every externally-derived value (the default-branch name, the
+    update-home slug) is Markdown-literalized so a stray metacharacter cannot reshape the consent surface."""
+    import release_cut  # noqa: E402 — lazy: avoids the release_cut<->module_manager cycle AND keeps this safe to reach on the 3.9 arrival floor
+
+    module_ids = module_ids or []
+    tier = tier or "solo"
+
+    def _lit(value) -> str:
+        # One plain, Markdown-literal inline: collapse whitespace and escape structural characters so an
+        # externally-derived value (a branch name, an update-home slug) renders as itself and cannot reshape the
+        # body. Mirrors _retired_capability_line's discipline; the values here are short identifiers, not prose.
+        return " ".join(str(value or "").split()).translate(_MD_LITERAL)
+
+    def _floor_line(status, which, file_name):
+        # A must-see line for EACH runtime's instruction floor. 'degraded'/'skipped' are negatives the operator
+        # must meet on this surface before merging the whole engine — surfaced, never silently dropped; an
+        # unrecognised/absent status renders nothing (tolerant degradation).
+        if status == "inserted":
+            return (f"- Added the engine's instruction block to your {which} guide ({file_name}); anything you "
+                    f"already wrote there is left untouched.")
+        if status == "present":
+            return (f"- Your {which} guide ({file_name}) already carried the engine's instruction block, so it "
+                    f"was left as it was.")
+        if status == "degraded":
+            return (f"- Could NOT add the engine's instruction block to your {which} guide ({file_name}) — an "
+                    f"engine block already there looks damaged, so the file was left untouched. Before you "
+                    f"merge, ask your AI assistant to repair the engine block in {file_name} (its begin/end "
+                    f"marker comments).")
+        if status == "skipped":
+            return (f"- Did not add an engine instruction block to the {which} guide — this release ships none "
+                    f"for it.")
+        return None
+
+    # Scope — what the arrival actually did to the project, at an honest aggregate (per-collision choices are not
+    # retained at the opener site, so overlaps are reported by count and outcome, never as claimed dispositions).
+    lead = f"- Installed engine {_lit(engine_release)}" if engine_release else "- Installed the engine"
+    lead += (f" — {overlaid_count} engine files placed in their own namespaced corners (the `.engine/` area and "
+             "the provider guides), leaving your project's files where they are."
+             if overlaid_count else
+             " — its files placed in their own namespaced corners (the `.engine/` area and the provider guides), "
+             "leaving your project's files where they are.")
+    scope = [lead]
+    if module_ids:
+        scope.append(f"- Enabled {len(module_ids)} engine modules in {_lit(tier)} mode "
+                     f"(governance sized for {'a single maintainer' if tier == 'solo' else 'a team'}).")
+    if overlap_count:
+        settled = (f"- Found {overlap_count} place(s) where the engine's files overlapped your own; each was "
+                   f"surfaced and settled before anything was written")
+        settled += f" ({kept_as_is_count} left as it was)." if kept_as_is_count else "."
+        scope.append(settled)
+    else:
+        scope.append("- Found no overlap between the engine's files and your own.")
+    for line in (_floor_line(claude_floor, "Claude", "CLAUDE.md"),
+                 _floor_line(agents_floor, "Codex", "AGENTS.md")):
+        if line:
+            scope.append(line)
+    if home_repository:
+        scope.append(f"- Recorded where this project fetches its engine updates from ({_lit(home_repository)}).")
+    if protected:
+        scope.append("- Turned on branch protection for the default branch: it has already been turned on as "
+                     "part of this arrival, so a change now needs a reviewed pull request and the branch cannot "
+                     "be force-pushed or deleted.")
+    else:
+        scope.append("- Branch protection for the default branch could NOT be turned on during this arrival "
+                     "(usually a sign-in that cannot administer the repository), so it is not on yet — the "
+                     "post-merge step in Review turns it on.")
+    scope += [
+        "",
+        "### Behaviors",
+        "",
+        "**With the engine installed, this project can orient, validate, and protect its work.**",
+        "",
+        f"- The engine knows your default branch ({_lit(default_branch)}) and whether its safety gate is on — "
+        "the orientation every session starts from.",
+        "- The installed configuration is internally consistent and passes the engine's own local checks.",
+        "- From here, changes are developed in isolated worktrees and reviewed through protected pull requests.",
+    ]
+
+    out = ["# Adding the engine to this project", "", release_cut.template_preamble(), ""]
+    out += release_cut.pr_section(
+        "Purpose",
+        "This adds the engine to your project, for you to review and merge.",
+        ["- Merging adopts the engine here; closing this changes nothing and leaves your project as it is.",
+         "- It sets up a reviewable, reversible, protected-branch way of working — every later change arrives "
+         "as its own reviewed pull request."],
+        "merging is your consent to run the engine in this project; nothing changes until you merge.")
+    scope_paren = "; ".join(
+        ([f"{len(module_ids)} modules, {_lit(tier)} mode"] if module_ids else [])
+        + ([f"{overlaid_count} files"] if overlaid_count else []))
+    scope_summary = (
+        f"What the arrival did — installed engine {_lit(engine_release)}" if engine_release
+        else "What the arrival did — installed the engine")
+    scope_summary += f" ({scope_paren})" if scope_paren else ""
+    scope_summary += (", settled any overlap with your own files, and "
+                      + ("turned on branch protection."
+                         if protected else "could not turn on branch protection (see Scope and Review)."))
+    out += release_cut.pr_section(
+        "Scope", scope_summary, scope,
+        "the project gains the engine's governance layer while your own files and history stay untouched.")
+    out += release_cut.pr_section(
+        "Out of scope",
+        "What this does not do.",
+        ["- It does not change your project's own files, code, or content.",
+         "- It does not change settings you configured yourself — turning on branch protection (see Scope) is "
+         "the one repository setting the arrival sets.",
+         "- It touches only the engine's own files and the engine's marked blocks in your shared guides.",
+         "- It does not delete any existing branch."],
+        "the arrival stays independently reviewable; changes to your project begin only after this merges.")
+    risk = [
+        "- The engine's own checks (engine-ci, engine-guard) cannot be *required* on a branch until their "
+        "workflows are on it — and those workflows arrive in THIS pull request. So they are not yet enforced "
+        "on this pull request; until you run the post-merge step in Review, your own review is the gate.",
+        "- This adds a large governance layer — the engine's tools, checks, and workflows. Reverting this pull "
+        "request removes the engine's files again.",
+    ]
+    if not protected:
+        risk.insert(1, "- Branch protection is not on yet (see Scope), so the default branch stays unprotected "
+                    "until the post-merge step in Review turns it on.")
+    out += release_cut.pr_section(
+        "Risk", "What to weigh before merging.", risk,
+        "the engine's automated checks only begin guarding after the post-merge step, so this first merge rests "
+        "on your review; everything the arrival added is reversible.")
+    out += release_cut.pr_section(
+        "Validation",
+        "What the engine checked before opening this — and what it honestly did not.",
+        ["- The engine's first-run consistency checks passed before this pull request was opened — the checks "
+         "that catch a missing, orphaned, or mismatched engine file.",
+         "- The engine's own generated index of its parts was rebuilt and checked against the installed files "
+         "before opening — so what the engine records about itself matches what is actually there.",
+         "- These are structural checks run locally during the arrival. The engine's full check suite does NOT "
+         "run on this pull request yet — its workflows arrive in this very pull request and only start running "
+         "once they are on the default branch (see Review). Nothing here is represented as a passing check that "
+         "is not actually running."],
+        "the engine's local state was checked for consistency; the native automated checks are honestly not yet "
+        "running on this pull request, so your review is the real gate for this first merge.")
+    review = [
+        "- Merge to adopt the engine; close this to decline — nothing changes and your project stays as it is.",
+        "- **After you merge, run `python .engine/tools/bootstrap.py finalize` from the project.** It turns on "
+        "the engine's required checks (engine-ci, engine-guard)"
+        + ("" if protected else ", and turns on branch protection itself, since this arrival could not turn it "
+           "on directly")
+        + ". The engine's guardrails are not fully armed until you do.",
+        "- No separate independent review ran; the installation was checked mechanically (see Validation) and "
+        "refuses to open on a hard finding.",
+        "- To undo the arrival after merging, revert this pull request — it removes the engine's files again.",
+    ]
+    out += release_cut.pr_section(
+        "Review", "How to act on this, and the one step to run after you merge.", review,
+        "your merge is the binding gate, and the post-merge finalize step is what arms the engine's automated "
+        "protection — until then its guardrails are not fully on.")
+    out += release_cut.pr_section(
+        "Demonstration",
+        "What you can check for yourself, before and after merging.",
+        ["- Check out this branch and run `python .engine/tools/bootstrap.py status` — it reports the engine's "
+         "safety gate and the branch it operates on.",
+         "- Run the engine's local check suite against the branch: `python .engine/tools/validate.py --suite "
+         "CI` — the same structural checks the arrival ran.",
+         "- The fuller behaviour — the engine guarding your merges through its own required checks — begins "
+         "once you run the finalize step in Review."],
+        "the arrival's effects are inspectable now (the installed engine reports its own status and passes its "
+        "own local checks); the merge-time guarding begins after finalize.")
+    out += release_cut.pr_section(
+        "Files of interest",
+        "What this adds.",
+        ["- The engine's own files under `.engine/` — its tools, checks, contracts, schemas, and state.",
+         "- Your provider instruction guides (CLAUDE.md and AGENTS.md) — the engine added its marked block; "
+         "anything outside that block is untouched.",
+         "- The merge-gating workflows and settings (`.github/workflows/engine-ci.yml`, `engine-guard.yml`, and "
+         "the pull-request template).",
+         "- The engine's configuration record (`.engine/engine.json`), including where this project fetches its "
+         "updates."],
+        "these files determine what engine was installed, how your agents behave, and how future merges are "
+        "gated.")
+    out += release_cut.pr_section(
+        "AI involvement",
+        "Who did what.",
+        ["- The engine's arrival process installed itself here — overlaying its files, surfacing and settling "
+         "each overlap with your files, inserting its instruction block into your provider guides, and "
+         "configuring branch protection — and it authored this pull request.",
+         "- It did not decide to adopt the engine or to merge this; those decisions are yours."],
+        "the arrival was performed by the engine; your merge is the decision.")
     return "\n".join(out)
 
 
@@ -2584,6 +2622,7 @@ _STRUCTURAL_GATE_CHECK_IDS = frozenset({
     "engine/check/codex-provider-parity",   # an orphaned .claude/agents/* with no .codex twin (the StarshipSuperjam/engine-template#599 class)
     "engine/check/codex-agent-coherence",   # the Codex agent renders matching their .claude sources
     "engine/check/uv-group-drift",          # the committed default-groups matching the deployed module set (StarshipSuperjam/engine-template#757)
+    "engine/check/pr-body-completeness",    # the generated review body must clear the same contract before opening
 })
 # NOT in the gate: `hard-check-bite` — it is a release-cut META-check that every hard check bites its
 # negative fixture, a property of the CHECK CORPUS (verified where releases are cut), not of the reconciled
@@ -2604,10 +2643,15 @@ def _reconcile_gate(body: str) -> list:
     structural CI subset, run against the reconciled tree before opening the update PR. Returns the findings;
     the tail refuses cleanly on any `hard` one. Scoped by a rule filter so `suites.json` is untouched (no
     guardrail change) and no PR/event/network check runs."""
+    import release_impact_check  # noqa: E402 — the pure rendered-body rule; no event context exists pre-open
+
     findings = list(module_coherence.check_coherence())
     findings += validate.collect("CI", {"pr_body": body, "pr_author": None, "pr_labels": []},
                                  with_source=True,
                                  rule_filter=lambda r: r.get("id") in _STRUCTURAL_GATE_CHECK_IDS)
+    # The normal release-impact script reads GitHub's event payload. Before opening there is intentionally no
+    # event, so invoke its public body-level rule directly instead of accepting its normal local no-op.
+    findings += release_impact_check.findings_for_body(body)
     return findings
 
 
@@ -2618,8 +2662,11 @@ def _coherence_only_gate(body: str) -> list:
     deployed upgrade (`in_process` ⇒ an injected release tree + injected callables — a real upgrade fetches a
     release and spawns a child), so the full gate on the child path is the one that matters, and it is proven
     against a real reconciled tree by `demo_599` and by the cut-time deployment gate's practice upgrades from
-    real past releases (StarshipSuperjam/engine-template#664). `body` is accepted for signature parity with `_reconcile_gate`."""
-    return list(module_coherence.check_coherence())
+    real past releases (StarshipSuperjam/engine-template#664). The pure release-impact rule has no tree-path
+    dependency, so it runs here too: an injected upgrade demo must not open a fake PR with a malformed marker.
+    `body` is otherwise accepted for signature parity with `_reconcile_gate`."""
+    import release_impact_check  # noqa: E402 — same pure rendered-body contract as the real pre-open gate
+    return list(module_coherence.check_coherence()) + release_impact_check.findings_for_body(body)
 
 
 def _reconcile_refuse_reason(findings: list | None = None) -> str:
@@ -2642,6 +2689,34 @@ def _reconcile_refuse_reason(findings: list | None = None) -> str:
             "or ask me to undo the update's changes.")
 
 
+def _repair_upgrade_control_plane() -> dict:
+    """The real upgrade's narrow control-plane leg: repair and verify only an existing Engine-owned rule."""
+    import boot  # noqa: E402 — resolve the target repository/credential through the shared seams
+    import repo_identity  # noqa: E402 — the branch control-plane operations are allowed to protect
+
+    repo, token = boot.repo_slug(), boot.gh_token()
+    branch = repo_identity.resolve_default_branch()
+    if not repo or not token:
+        return {"status": "operator-action-required", "branch": branch, "missing": [],
+                "reason": "could not determine repository administration credentials for the Engine-owned safety rule"}
+    return bootstrap.ControlPlane(repo, token).repair_owned(branch)
+
+
+def _control_plane_refuse_reason(result: dict) -> str:
+    """Plain refusal for an upgrade whose Engine-owned safety rule could not be confirmed safe."""
+    status = (result or {}).get("status")
+    detail = (result or {}).get("reason") or "its state could not be confirmed"
+    if status == "operator-action-required":
+        return ("The update was applied to your working copy but the Engine could not safely strengthen its "
+                f"own main-branch safety rule ({detail}). It did not change any operator-owned rule and did "
+                "NOT open a pull request. Ask me to repair the safety gate through the separate setup flow, "
+                "then update again, or ask me to undo this update's changes.")
+    return ("The update was applied to your working copy but the Engine could not verify its own main-branch "
+            f"safety rule ({detail}), so it did NOT open a pull request. Nothing was merged. Ask me to check "
+            "the safety gate through the separate setup flow, then update again, or ask me to undo this "
+            "update's changes.")
+
+
 def _stage_worktree() -> None:
     """Best-effort `git add -A` at ROOT so the pre-open structural gate sees the to-be-committed set (the
     reconcile's adds AND deletes), not a transient dirty tree — some structural checks read git's tracked set
@@ -2654,69 +2729,35 @@ def _stage_worktree() -> None:
         pass
 
 
-def _regen_indexes() -> None:
-    """Regenerate the deployed-state-dependent index files listed in REGENERATED_DERIVED — the self-map, the
-    knowledge graph, and the product-spec-matrix — from the reconciled tree, so they describe the DEPLOYED
-    shape (post first-run projection), NOT the construction shape the release ships. The overlay delivers the
-    release's construction versions, but each derives from / fingerprints the surface the reconcile just
-    changed, so the shipped copy would drift (self-map-drift / knowledge-coverage; the matrix's own drift
-    gate). The self-map and graph are `core`'s; the product-spec-matrix is the same shape but supplied by the
-    OPTIONAL product-design module — it derives from the deployment's OWN `docs/spec/`, so an update refreshes
-    its format without freezing the deployment's settled-criteria rows (StarshipSuperjam/engine-template#814). Each is regenerated ONLY where
-    the tree already carries it (never fabricated on a minimal fixture, nor on a deployment that never settled
-    a spec), and the product-design generator is imported LAZILY and guarded (the module, hence its tool, is
-    absent on a deployment without it). Best-effort: a regen failure surfaces as a drift finding, never a crash
-    mid-upgrade — but WHERE it surfaces differs: the self-map and graph drift is caught PRE-OPEN by the
-    structural gate (`self-map-drift` / `knowledge-coverage`, a clean refusal that opens nothing), whereas the
-    product-spec-matrix's drift check is NOT in that offline subset, so a swallowed matrix-regen failure is
-    caught instead by the full `engine-ci` run on the OPENED pull request (a red required check) — still never
-    silent, but post-open rather than a pre-open refusal."""
-    import self_map            # lazy: only the reconcile tail needs the generators
-    import knowledge_gen
+def _regen_indexes() -> list:
+    """Regenerate the deployed-state-dependent index files from the reconciled tree, so they describe the
+    DEPLOYED shape (post first-run projection), NOT the construction shape the release ships. The overlay
+    delivers the release's construction versions, but each derives from / fingerprints the surface the
+    reconcile just changed, so the shipped copy would drift (self-map-drift / knowledge-coverage; the matrix's
+    own drift gate). The set, the presence rule (never fabricate on a minimal tree / no settled spec), the
+    symlink guard, and the lazy optional-module import all live in ONE place now — the derived-state substrate
+    (`derived_state.regenerate`, StarshipSuperjam/engine-template#925) — rather than being re-implemented here.
 
-    # Resolve each REGENERATED_DERIVED path to its generator. Pass an EXPLICIT target under the CURRENT
-    # validate.ENGINE_DIR: the generators' own default-path constants are bound at import to the real repo, so
-    # a bare generate() would write there even under a redirected tree (a test/demo fixture). ENGINE_DIR IS
-    # redirected, so the path built from it writes the tree actually being reconciled.
-    def _generator(rel: str):
-        if rel == ".engine/self-map.md":
-            return self_map.generate
-        if rel == ".engine/knowledge/graph.json":
-            return knowledge_gen.generate
-        if rel == ".engine/product-spec-matrix.json":
-            try:
-                from product_design import obligation_matrix   # OPTIONAL module: absent is EXPECTED → skip
-            except ImportError:
-                return None
-            return obligation_matrix.generate
-        # A REGENERATED_DERIVED member with no generator here is a MAINTENANCE BUG — the tuple and this resolver
-        # must stay in lockstep, or the disclosure would promise 'regenerated' for a file the update never
-        # rebuilds. Fail LOUD (this runs outside the regen swallow below), never a silent skip.
-        raise KeyError(f"REGENERATED_DERIVED member {rel!r} has no generator in _regen_indexes — add one")
-
-    for rel in REGENERATED_DERIVED:
-        target = os.path.join(validate.ENGINE_DIR, *rel.split("/")[1:])
-        if not os.path.isfile(target):
-            continue   # the tree does not carry this index (a minimal fixture / no settled spec) — never fabricate
-        # StarshipSuperjam/engine-template#862: os.path.isfile FOLLOWS a symlink, so a live symlink at an engine index would be regenerated
-        # THROUGH it — an out-of-tree write (self-map/matrix use a plain open('w')). Refuse via the shared
-        # predicate (StarshipSuperjam/engine-template#923): SKIP the regen — keep this a `continue`, never a raise, even if the isfile check
-        # above is ever reordered — so no write follows the link; the drift gate (arrival's index gate / the
-        # upgrade reconcile) then surfaces the un-regenerated index as a hard finding, disclosed never silent.
-        if engine_write.write_through_symlink_reason(target, validate.ROOT):
-            continue
-        gen = _generator(rel)          # OUTSIDE the swallow: an unmapped member is a loud maintenance bug
-        if gen is None:
-            continue                   # optional module absent — nothing to regenerate here
-        try:
-            gen(path=target)           # a genuine regen failure IS swallowed (drift-gate backstop), never a crash
-        except Exception:  # noqa: BLE001 — a regen failure surfaces as a drift finding, not a traceback
-            pass
+    Import dispatch: the substrate targets the CURRENT `validate.ENGINE_DIR`, which this tail has redirected,
+    so it writes the tree being reconciled. Each member's outcome comes back explicit (regenerated / unchanged
+    / skipped-absent / skipped-symlink / skipped-no-generator / failed) — never a swallowed exception. A
+    `failed` result is surfaced here as a plain note but is ADVISORY, not a new refusal: the downstream drift
+    gate remains the authority (self-map-drift / knowledge-coverage pre-open for the core indexes; the matrix's
+    own check in the full engine-ci run post-open), so an upgrade whose committed output is already canonical is
+    not newly refused by a transient generator hiccup. Returns the per-member results for any caller that wants
+    them; today's callers rely on the drift gate and ignore the return."""
+    results = derived_state.regenerate()   # single owner; import dispatch honours the redirected ENGINE_DIR
+    for r in results:
+        if r.status == "failed":
+            # Surfaced, never swallowed — but non-blocking: the drift gate is what refuses.
+            print(f"note: could not regenerate {r.path}: {r.error}", file=sys.stderr)
+    return results
 
 
 def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, old_by_id, old_owned,
                   candidates, handle, selected, seam, practice, opener, groups_before=None, gate=None,
-                  dropped_ids=(), pre_overlay_known=(), catalog_trusted=True) -> dict:
+                  dropped_ids=(), pre_overlay_known=(), catalog_trusted=True,
+                  control_plane_repair=None, require_control_plane=False) -> dict:
     """The version-sensitive tail of an upgrade — the work that MUST run as the freshly-overlaid engine code
     (the StarshipSuperjam/engine-template#594 fix): apply the new version's wiring with the FRESH appliers, re-render the release-evolvable
     seams (ownership wall, CLAUDE/AGENTS floor, foundation ignores), RECONCILE the file surface to
@@ -2735,7 +2776,7 @@ def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, o
             "removed_capabilities": [],
             "findings": [], "pr": None, "notes": [], "applied": False, "reason": None,
             "groups_before": groups_before, "groups_after": None, "groups_changed": False,
-            "modules_installed": [], "modules_offered": []}
+            "modules_installed": [], "modules_offered": [], "control_plane": None}
     # (a0) RETIRED-CAPABILITY ANNOUNCEMENTS — derived from the FULL present-manifest set (`candidates`), NEVER
     # from `selected`: a version that retires a capability but ships no migration must still announce it, so this
     # is independent of migration selection (design-review). Announcement-only, so it is computed once up front
@@ -2874,7 +2915,7 @@ def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, o
             tail["notes"].append(note)
             if status != "required":   # a required failure is handled by the completeness refusal, not an offer
                 tail["modules_offered"].append(
-                    {"id": mid, "status": status, "verb": "",
+                    {"id": mid, "status": status,
                      "description": entry.get("description")
                      or f"(the engine could not turn this on automatically: {reason})"})
     # Required-completeness refusal: a REQUIRED module the release adds that could not be installed leaves an
@@ -2913,9 +2954,27 @@ def _upgrade_tail(*, release_tree, target_ref, from_versions, target_versions, o
     # Regenerate the deployed-state-dependent indexes (self-map + knowledge graph) from the reconciled tree,
     # so they describe the DEPLOYED shape rather than the construction shape the release shipped (StarshipSuperjam/engine-template#599).
     _regen_indexes()
+    # (d2) CONTROL PLANE — confirmation permits this narrow, target-version repair only after the new engine
+    # code is overlaid. It never calls bootstrap.apply(): a missing, ambiguous, operator-owned, unreachable, or
+    # unverified rule stays untouched and stops the update before any PR can be opened. Practice upgrades have
+    # no GitHub token and deliberately record no live result; the release gate exercises this same operation
+    # separately through an injected fake transport.
+    if require_control_plane or control_plane_repair is not None:
+        try:
+            repair = control_plane_repair or _repair_upgrade_control_plane
+            tail["control_plane"] = repair()
+        except Exception as exc:  # noqa: BLE001 — a control-plane outage is an unverified refusal, never a crash
+            tail["control_plane"] = {"status": "unverified", "missing": [],
+                                     "reason": f"the Engine-owned safety rule could not be checked: {exc}"}
+        if (tail["control_plane"] or {}).get("status") not in {"already", "repaired"}:
+            tail["reason"] = _control_plane_refuse_reason(tail["control_plane"] or {})
+            return tail
+    elif practice:
+        tail["control_plane"] = {"status": "not-run",
+                                 "reason": "practice upgrades do not contact a live repository"}
     # Author the review-PR body FIRST — it carries the reconcile facts (fixtures, removals) into the pull
-    # request, and rendering it early catches a template-read failure before staging (the structural gate does
-    # NOT check body completeness — the release's own CI does, on the opened PR). Guarded: render reads the PR
+    # request, and rendering it early catches a template-read failure before staging (the structural gate checks
+    # its completeness and release-impact declaration before the PR exists). Guarded: render reads the PR
     # template (I/O) and can raise, so a failure degrades to a clean refusal (staged, not opened), never a
     # traceback (the surfaced-never-a-crash rule).
     try:
@@ -2980,7 +3039,8 @@ def _run_upgrade_tail(state: dict) -> None:
         handle=state.get("handle"), selected=selected, seam=seam, practice=practice, opener=opener,
         groups_before=state.get("groups_before") or [], dropped_ids=dropped_ids,
         pre_overlay_known=set(state.get("pre_overlay_known") or []),
-        catalog_trusted=state.get("catalog_trusted", True))
+        catalog_trusted=state.get("catalog_trusted", True),
+        require_control_plane=not practice)
     _upgrade_state_dump(tail, state["result_path"])
 
 
@@ -3140,7 +3200,7 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
         if injected:
             target_ref = target_ref or ref or "latest"
         else:
-            home = _home_repository()
+            home = release_source._home_repository()
             if not home:
                 out["status"] = "no-home"
                 out["reason"] = ("This engine has no update home recorded, so I can't check for updates. Tell "
@@ -3148,7 +3208,7 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
                                  "again.")
                 return out
             try:
-                target_ref = target_ref or _resolve_release_ref(ref, repo=home)   # concrete ref -> no network
+                target_ref = target_ref or release_source._resolve_release_ref(ref, repo=home)   # concrete ref -> no network
             except Exception as exc:   # noqa: BLE001 — offline / no published release -> degrade, never crash
                 return _preview_degrade(out, home, exc, target=ref or "latest")
         out["target_ref"] = target_ref
@@ -3160,7 +3220,7 @@ def plan_upgrade(ref: str | None = None, release_tree: str | None = None,
         if not injected:
             tmp = tempfile.mkdtemp(prefix="engine-preview-")
             try:
-                release_tree = _fetch_release_tree(target_ref, tmp, repo=home)
+                release_tree = release_source._fetch_release_tree(target_ref, tmp, repo=home)
             except Exception as exc:   # noqa: BLE001
                 return _preview_degrade(out, home, exc, target=target_ref)
         # FLOOR PREFLIGHT (StarshipSuperjam/engine-template#599 Slice 4): if this engine is below the target's clean-upgrade floor, say so in the
@@ -3261,7 +3321,7 @@ def _preview_degrade(out: dict, home: str, exc: BaseException, target: str) -> d
     """Map a release-resolve/fetch failure in the read-only preview to a plain degrade dict (never raises):
     a missing/renamed home names it and asks the operator to check; a transport failure degrades to 'the
     engine is unchanged and still working'. Mirrors upgrade()'s three-state resolution, preview-worded."""
-    if _release_is_missing(exc):
+    if release_source._release_is_missing(exc):
         return {**out, "status": "missing-release",
                 "reason": (f"Couldn't find a release to update to at your engine's update home, {home} "
                            f"(looked for '{target}'). That home may have no published releases yet, or it may "
@@ -3342,6 +3402,9 @@ def _render_upgrade_preview(p: dict) -> None:
         what = ("stored data" if m.get("kind") == "data"
                 else "a setting" if m.get("kind") == "config" else "an engine record")
         print(f"  Changes {what}: {m.get('description') or m.get('module_id')}")
+    print("  After you confirm, the Engine may strengthen and verify its own main-branch safety rule for "
+          "this version. It never creates, augments, or rewrites a rule you made; if the exact Engine-owned "
+          "rule cannot be verified, the update stops before opening a pull request and routes you to setup.")
     retired = p.get("retired_capabilities") or []
     removed_caps = p.get("removed_capabilities") or []
     # A within-module retirement and a whole-module removal read identically to the operator ("a capability is
@@ -3382,7 +3445,8 @@ _UPGRADE_USAGE = ("usage: module_manager.py upgrade [ref] [--confirm] [--json]\n
                   "  [ref] optionally names a version; the default is the latest published release.")
 
 
-def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None, backup=None) -> dict:
+def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None, backup=None,
+            control_plane_repair=None) -> dict:
     """Upgrade the whole engine vX -> vY. Steps: fetch the tagged
     release, overlay engine code and re-render the CODEOWNERS ownership wall for the new release's engine
     files (operator config + gitignored data preserved), re-sync the tool-runtime, run migrations in
@@ -3407,7 +3471,8 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
     manifest bump runs AFTER migrations (in the tail) so an early abort leaves nothing half-recorded, and a
     re-run with --confirm completes it. The engine does not attempt in-place rollback."""
     injected_release = release_tree is not None                       # captured before the fetch reassigns it
-    in_process = injected_release and (opener is not None or backup is not None)   # test/demo full-injection
+    in_process = injected_release and (opener is not None or backup is not None
+                                       or control_plane_repair is not None)         # test/demo full-injection
     practice = injected_release and not in_process                    # local release, no callables ⇒ child, no resync/PR
     result = {"refused": False, "applied": False, "reason": None, "from": None, "to": None,
               "copied": [], "wiring": [], "synced": None, "migrations": {"ran": [], "refused": []},
@@ -3428,7 +3493,7 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
                 return {**result, "refused": True, "reason": "There are no installed modules to update."}
             # Resolve the engine's HOME from the manifest and fetch the release FROM THE HOME, never from
             # this repo's own origin (StarshipSuperjam/engine-template#367). Absent home -> refuse with a remedy (three-state).
-            home = _home_repository()
+            home = release_source._home_repository()
             if not home:
                 return {**result, "refused": True,
                         "reason": "This engine has no update home recorded, so it can't check for updates. "
@@ -3436,10 +3501,10 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
                                   "record it, then you can update again. The engine is unchanged."}
             tmp = tempfile.mkdtemp(prefix="engine-upgrade-")
             try:
-                target_ref = _resolve_release_ref(ref, repo=home)   # None/"latest" -> concrete latest tag
-                release_tree = _fetch_release_tree(target_ref, tmp, repo=home)
+                target_ref = release_source._resolve_release_ref(ref, repo=home)   # None/"latest" -> concrete latest tag
+                release_tree = release_source._fetch_release_tree(target_ref, tmp, repo=home)
             except Exception as exc:
-                if _release_is_missing(exc):   # recorded home, but no such release/repo -> refuse, NAME it
+                if release_source._release_is_missing(exc):   # recorded home, but no such release/repo -> refuse, NAME it
                     return {**result, "refused": True,
                             "reason": f"Couldn't find a release to update to at your engine's update home, "
                                       f"{home} (looked for '{ref or 'latest'}'). That home may have no "
@@ -3570,7 +3635,9 @@ def upgrade(ref: str | None = None, release_tree: str | None = None, opener=None
                 candidates=candidates, handle=engine.get("handle"), selected=selected, seam=seam,
                 practice=practice, opener=opener, groups_before=pre_overlay_groups,
                 gate=_coherence_only_gate, dropped_ids=dropped_ids,
-                pre_overlay_known=pre_overlay_known, catalog_trusted=catalog_trusted)
+                pre_overlay_known=pre_overlay_known, catalog_trusted=catalog_trusted,
+                control_plane_repair=control_plane_repair,
+                require_control_plane=control_plane_repair is not None)
         else:
             tail = _spawn_upgrade_tail({
                 "release_tree": release_tree, "target_ref": target_ref, "from_versions": from_versions,
@@ -3989,10 +4056,14 @@ def _status() -> int:
 def _redirect_root(root: str):
     """Point every ROOT-derived path at a throwaway fixture tree, restore on exit. The wiring-library
     path constants are bound at import, so they are redirected explicitly (the same discipline the
-    coherence tests use)."""
+    coherence tests use). Fixture migrations must also use a throwaway memory directory: the real
+    memory ledger is intentionally shared across worktrees, so leaving that seam live would make a
+    synthetic upgrade contend with an unrelated active session or write a migration marker into the
+    operator's store."""
     saved = (validate.ROOT, validate.ENGINE_DIR, wiring.SETTINGS_PATH, wiring.MCP_PATH,
              wiring.GITIGNORE_PATH, wiring.CATALOG_PATH,
              wiring.CODEX_HOOKS_PATH, wiring.CODEX_CONFIG_PATH)
+    saved_memory_dir = os.environ.get("ENGINE_MEMORY_DIR")
     validate.ROOT = root
     validate.ENGINE_DIR = os.path.join(root, ".engine")
     wiring.SETTINGS_PATH = os.path.join(root, ".claude", "settings.json")
@@ -4001,12 +4072,17 @@ def _redirect_root(root: str):
     wiring.CATALOG_PATH = os.path.join(root, ".engine", "schemas", "surface-catalog.json")
     wiring.CODEX_HOOKS_PATH = os.path.join(root, ".codex", "hooks.json")
     wiring.CODEX_CONFIG_PATH = os.path.join(root, ".codex", "config.toml")
+    os.environ["ENGINE_MEMORY_DIR"] = os.path.join(root, ".engine", "memory")
     try:
         yield
     finally:
         (validate.ROOT, validate.ENGINE_DIR, wiring.SETTINGS_PATH, wiring.MCP_PATH,
          wiring.GITIGNORE_PATH, wiring.CATALOG_PATH,
          wiring.CODEX_HOOKS_PATH, wiring.CODEX_CONFIG_PATH) = saved
+        if saved_memory_dir is None:
+            os.environ.pop("ENGINE_MEMORY_DIR", None)
+        else:
+            os.environ["ENGINE_MEMORY_DIR"] = saved_memory_dir
 
 
 def _build_fixture(root: str) -> None:
@@ -4301,7 +4377,7 @@ def _build_upgrade_release(root: str) -> str:
         fh.write("# lock v2\n")
     with open(os.path.join(eng, "pyproject.toml"), "w") as fh:
         fh.write('[project]\nname = "x"\nversion = "0"\n\n[dependency-groups]\nbase = ["pkg-a"]\n\n'
-                 '[tool.uv]\ndefault-groups = ["base"]\n')
+                 '[tool.uv]\ncache-dir = ".uv"\ndefault-groups = ["base"]\n')
     # The PR template is foundation the overlay delivers (FOUNDATION_CODE), and the upgrade tail's PR-body
     # author reads its consent-preamble blockquote from the LIVE tree (post-overlay). A real release ships it,
     # so the fixture release must too — else the body author finds no template and the update can't open. This
@@ -4376,13 +4452,13 @@ def upgrade_demo() -> bool:
             ok = ok and not before
 
             print("\nPart H — an unreachable release leaves the engine on its current version (it degrades):")
-            saved_fetch = globals().get("_fetch_release_tree")
-            globals()["_fetch_release_tree"] = lambda *a, **k: (_ for _ in ()).throw(
+            saved_fetch = release_source._fetch_release_tree
+            release_source._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
                 RuntimeError("no such release"))
             try:
                 degraded = upgrade(ref="v9.9.9")
             finally:
-                globals()["_fetch_release_tree"] = saved_fetch
+                release_source._fetch_release_tree = saved_fetch
             still0 = (module_coherence.load_engine_manifest() or {}).get("packages", {}).get("base")
             print("    -> " + (degraded["reason"] if degraded.get("refused") else "NOT refused?!"))
             ok = ok and degraded.get("refused") and still0 == "0.0.0"
@@ -4435,13 +4511,13 @@ def upgrade_demo() -> bool:
             print("\nPart J2 — the update is fetched from the engine's recorded HOME, never this repo's own "
                   "origin (#367); and with NO home recorded it refuses with a remedy rather than guess a home:")
             seen = {}
-            saved_fetch2 = globals().get("_fetch_release_tree")
-            globals()["_fetch_release_tree"] = lambda ref, dest, repo=None, token=None: (
+            saved_fetch2 = release_source._fetch_release_tree
+            release_source._fetch_release_tree = lambda ref, dest, repo=None, token=None: (
                 seen.__setitem__("repo", repo) or (_ for _ in ()).throw(RuntimeError("stop after capture")))
             try:
                 upgrade(ref="v0.2.0")            # real fetch path -> captures the SOURCE repo, then stops
             finally:
-                globals()["_fetch_release_tree"] = saved_fetch2
+                release_source._fetch_release_tree = saved_fetch2
             from_home = seen.get("repo") == "acme/engine-home"
             print(f"    [{'ok' if from_home else 'FAIL'}] fetched from the recorded home 'acme/engine-home' "
                   f"(saw {seen.get('repo')!r}), not this repo's own origin")

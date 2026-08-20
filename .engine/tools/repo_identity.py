@@ -38,15 +38,37 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402  (ROOT + load_json — the one JSON reader, fail-loud on a malformed manifest)
 
 _ENGINE_MANIFEST_REL = ".engine/engine.json"
-# `owner/repo` out of an https or ssh GitHub remote URL, tolerating a trailing `.git` and/or slash. The host is
-# ANCHORED to the scheme/userinfo boundary (`//github.com`, `git@github.com`, or a bare-start `github.com`) so a
-# look-alike host — `notgithub.com/evil/repo`, `evilgithub.com/owner/repo`, or a `github.com` path segment under
-# another host — cannot mis-parse into a slug that `slug_eq` would then read as the engine's home. IGNORECASE
-# because host names are case-insensitive by specification (`GitHub.com` is `github.com`); ASCII so the fold
-# stays ASCII-only — without it Unicode case-folding lets a homograph host (`gİthub.com`, where U+0130 folds to
-# `i`) satisfy the `github.com` literal and slip through as a look-alike. The flags fold only the literal host,
-# never the structural anchors, so no look-alike host is newly accepted (StarshipSuperjam/engine-template#625).
-_GITHUB_SLUG_RE = re.compile(r"(?:^|@|//)github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", re.IGNORECASE | re.ASCII)
+# `owner/repo` out of an https or ssh GitHub remote URL, tolerating a trailing `.git` and/or slash. The scheme
+# is PINNED to https/ssh (or a bare-start `github.com`, or a `user@` userinfo prefix) and the host is anchored to
+# that boundary, so a look-alike host — `notgithub.com/evil/repo`, `evilgithub.com/owner/repo`, a `github.com`
+# path segment under another host, or an exotic `git://`/`ftp://github.com/...` shape — cannot mis-parse into a
+# slug that `slug_eq` would then read as the engine's home. IGNORECASE because host names are case-insensitive by
+# specification (`GitHub.com` is `github.com`); ASCII so the fold stays ASCII-only — without it Unicode
+# case-folding lets a homograph host (`gİthub.com`, where U+0130 folds to `i`) satisfy the `github.com` literal
+# and slip through as a look-alike. The flags fold only the literal host, never the structural anchors, so no
+# look-alike host is newly accepted. This is the ONE canonical origin-URL parser: the five origin readers (boot's
+# `repo_slug`, `execution_environment.current_repo`, `mechanic_build._github_slug`, `first_run_health._origin_slug`,
+# and `origin_slug` below) all call `parse_github_slug` rather than hand-copying the pattern
+# (StarshipSuperjam/engine-template#625, StarshipSuperjam/engine-template#691).
+_GITHUB_SLUG_RE = re.compile(
+    r"^(?:(?:https?|ssh)://)?(?:[^@/]+@)?github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$",
+    re.IGNORECASE | re.ASCII,
+)
+
+
+def parse_github_slug(url: "str | None") -> "str | None":
+    """`owner/repo` out of an https/ssh GitHub remote URL (a trailing `.git` and/or slash tolerated), or None.
+    The SINGLE home for this parse: the five origin readers call it instead of each hand-copying the host regex
+    (StarshipSuperjam/engine-template#691). TOTAL — never raises; `None`/blank/non-str -> `None` — because a
+    caller on the mechanic's fail-closed write belt (`mechanic_build._classify_origin`) has no `try/except`
+    around it, and a raise there would degrade a plain-language DENY into a traceback. Strips internally so
+    whitespace handling is defined ONCE here rather than assumed from each caller's pre-strip. The pattern pins
+    the scheme to https/ssh — rejecting `git://` and any other exotic `scheme://github.com/...` the older `//`
+    boundary accepted — and is ASCII-anchored against homograph/look-alike hosts."""
+    if not isinstance(url, str):
+        return None
+    m = _GITHUB_SLUG_RE.search(url.strip())
+    return m.group(1) if m else None
 
 
 def _run(args: list) -> "str | None":
@@ -81,6 +103,23 @@ def slug_eq(a: "str | None", b: "str | None") -> bool:
     third-party repo. `None` on either side is never equal (an unconfirmed home never satisfies it)."""
     na, nb = normalize_slug(a), normalize_slug(b)
     return na is not None and na == nb
+
+
+# A well-formed `owner/repo`: two non-empty segments of `[A-Za-z0-9._-]`, each STARTING alphanumeric, joined by
+# a single `/`, ASCII-only, and nothing else. `re.fullmatch` (never a `^…$` anchor, which admits a single
+# TRAILING newline — Python's `$` matches before a terminal `\n`) so a value carrying `\n`, spaces, `)`/`]`, a
+# `../` segment, extra path segments, or a unicode look-alike is rejected whole (StarshipSuperjam/engine-template#643 review).
+_SLUG_SHAPE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*", re.ASCII)
+
+
+def is_wellformed_slug(slug: "str | None") -> bool:
+    """True iff `slug` is a safe, well-formed GitHub `owner/repo` — a SHAPE validator, distinct from
+    `_GITHUB_SLUG_RE` (which EXTRACTS a slug out of a remote URL). It gates a manifest-recorded slug BEFORE it
+    is interpolated into a rendered URL or issue body, so a malformed or hostile value can never break out of
+    the link or the prose. Validates the EXACT string passed (no internal strip): strip the value first,
+    validate that, then interpolate the SAME value — validating one form and interpolating another is the gap
+    this closes. `None`/non-str -> False."""
+    return isinstance(slug, str) and _SLUG_SHAPE_RE.fullmatch(slug) is not None
 
 
 _READ_HOME = object()  # sentinel: "no home passed -> read THIS repo's home", distinct from a passed home of None
@@ -160,11 +199,7 @@ def origin_slug(root: "str | None" = None) -> "str | None":
     args = ["git", "remote", "get-url", "origin"]
     if root is not None:
         args = ["git", "-C", root, "remote", "get-url", "origin"]
-    url = _run(args)
-    if not url:
-        return None
-    m = _GITHUB_SLUG_RE.search(url)
-    return m.group(1) if m else None
+    return parse_github_slug(_run(args))
 
 
 def is_downstream_copy(own_slug: "str | None", home_slug=_READ_HOME) -> bool:

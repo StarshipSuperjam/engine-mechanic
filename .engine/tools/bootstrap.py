@@ -67,6 +67,7 @@ import protection_guard  # noqa: E402  (REQUIRED_CHECKS + missing_floor — the 
 import engine_write  # noqa: E402  (the engine-owned write boundary — the manifest markers below, StarshipSuperjam/engine-template#923)
 import telemetry  # noqa: E402  (GitHubIssues.ensure_label — the minimal ensure this inherits)
 import weakening_guard  # noqa: E402  (ACK_LABEL — reuse the frozen guardrail-ack name, never re-decide it)
+import integration_queue_backend  # noqa: E402  (INTEGRATION_LABELS — provisioned here, owned by the queue, StarshipSuperjam/engine-template#925)
 
 USER_AGENT = "engine-control-plane-bootstrap"
 TEMPLATE_PATH = os.path.join(validate.ENGINE_DIR, "templates", "control-plane-bootstrap.md")
@@ -110,6 +111,7 @@ REQUIRED_LABELS = [
     (weakening_guard.ACK_LABEL, ACK_LABEL_COLOR, ACK_LABEL_DESCRIPTION),
     (NEEDS_REAUTHORING_LABEL, NEEDS_REAUTHORING_LABEL_COLOR, NEEDS_REAUTHORING_LABEL_DESCRIPTION),
     (ERASURE_LABEL, ERASURE_LABEL_COLOR, ERASURE_LABEL_DESCRIPTION),
+    *integration_queue_backend.INTEGRATION_LABELS,   # the serialized-integration labels (StarshipSuperjam/engine-template#925), owned by the queue
 ]
 
 
@@ -161,10 +163,12 @@ def _pull_request_params(tier: str) -> dict:
 def floor_ruleset(name: str = ENGINE_RULESET_NAME, *, tier: str) -> dict:
     """The ruleset object that satisfies protection_guard.missing_floor EXACTLY for the given tier (verified
     against the live evaluated floor): a pull request before merging (tier-specific review requirement above,
-    plus conversation resolution), the engine's required checks, no force-push, no deletion. Targets the
-    default branch via the ~DEFAULT_BRANCH ref condition so it follows a rename. `tier` is keyword-only and
-    REQUIRED — never defaulted, so no call site can silently build the weaker floor (the tier is resolved once,
-    via resolve_tier, and threaded explicitly)."""
+    plus conversation resolution), the engine's required checks WITH freshness (the head must be up to date with
+    the base so a green proven against an older base cannot merge stale — eADR-0021 as amended by
+    StarshipSuperjam/engine-template#915), no force-push, no deletion. Targets the default branch via the
+    ~DEFAULT_BRANCH ref condition so it follows a rename. `tier` is keyword-only and REQUIRED — never defaulted,
+    so no call site can silently build the weaker floor (the tier is resolved once, via resolve_tier, and threaded
+    explicitly)."""
     return {
         "name": name,
         "target": "branch",
@@ -178,7 +182,10 @@ def floor_ruleset(name: str = ENGINE_RULESET_NAME, *, tier: str) -> dict:
             {
                 "type": "required_status_checks",
                 "parameters": {
-                    "strict_required_status_checks_policy": False,
+                    # Freshness: require the head to be up to date with the base before the required checks
+                    # authorize a merge, so a check green against an older base cannot merge stale
+                    # (StarshipSuperjam/engine-template#915). protection_guard.missing_floor verifies this flag.
+                    "strict_required_status_checks_policy": True,
                     "do_not_enforce_on_create": False,
                     # The required-check names come from the SINGLE frozen home (never copied here).
                     "required_status_checks": [
@@ -305,9 +312,13 @@ def augment_payload(product_full: dict, required_checks: list | None = None, *, 
         rsc = next((r for r in rules if r.get("type") == "required_status_checks"), None)
         created_rsc = rsc is None
         if created_rsc:
+            # The engine-CREATED checks rule carries freshness (StarshipSuperjam/engine-template#915). This
+            # branch runs only when the operator's ruleset has NO checks rule, so setting strict here is purely
+            # additive — an operator's PRE-EXISTING checks rule is never modified (that rule and its strict flag
+            # stay theirs; a residual freshness gap on it is disclosed via residual_gaps, never overwritten).
             rsc = {"type": "required_status_checks",
                    "parameters": {"required_status_checks": [],
-                                  "strict_required_status_checks_policy": False,
+                                  "strict_required_status_checks_policy": True,
                                   "do_not_enforce_on_create": False}}
             rules.append(rsc)
             added_rules.append("required_status_checks")
@@ -412,7 +423,7 @@ FINALIZE_ACTIONS_NOTE = (
 FALLBACK_COPY = {
     "before-you-approve": (
         "I'm about to turn on your safety gate — the branch protection that keeps work from reaching "
-        "your main branch without passing checks and your review. To do that I need permission to manage "
+        "your main branch without a pull request and passing checks. To do that I need permission to manage "
         "this repository's settings. GitHub will show an authorization screen for `repo` access, and it "
         "describes that access in sweeping terms — it reads as full control of your repositories. That "
         "sounds far broader than what happens here: it's the standard GitHub permission for turning on the "
@@ -422,25 +433,25 @@ FALLBACK_COPY = {
     ),
     "degraded-not-admin": (
         "I couldn't turn on branch protection — this account doesn't administer the repository. Protection "
-        "is not active, so work can merge unreviewed. Next step: ask whoever owns the repository to run "
+        "is not active, so work can reach the branch without the required checks or a pull request. Next step: ask whoever owns the repository to run "
         "this setup and approve the screen. I'll keep reminding you until it's on."
     ),
     "degraded-org-policy": (
         "I couldn't turn on branch protection — your organization's settings blocked the permission it "
-        "needs. Protection is not active, so work can merge unreviewed. The way forward is to ask your "
+        "needs. Protection is not active, so work can reach the branch without the required checks or a pull request. The way forward is to ask your "
         "organization's admin to allow it — creating branch protection here needs an admin's permission, "
         "which I can't grant myself. I'll keep reminding you until it's on."
     ),
     "degraded-didnt-save": (
         "The authorization screen completed but the permission didn't save (some sign-in methods do "
-        "this). Protection is still off, so work can merge unreviewed. Let's try once more, or sign in "
+        "this). Protection is still off, so work can reach the branch without the required checks or a pull request. Let's try once more, or sign in "
         "again first. I'll keep reminding you until it's on."
     ),
     "degraded-unsupported-platform": (
         "I couldn't turn on branch protection — this repository's GitHub plan doesn't offer the "
         "branch-protection rules the safety gate needs (private repositories need GitHub Pro, Team, or "
         "Enterprise; public repositories have them for free). This isn't a permission problem — your "
-        "account administers the repository fine. Protection is not active, so work can merge unreviewed. "
+        "account administers the repository fine. Protection is not active, so work can reach the branch without the required checks or a pull request. "
         "Two ways forward: upgrade this repository's plan (or make it public), then say **turn my safety gate "
         "back on** — or, if you're deliberately running without the gate, say **accept that my plan can't "
         "protect this branch** and I'll record that, so the engine stops failing every pull request over a "
@@ -722,6 +733,90 @@ class ControlPlane:
             if r.get("name") == ENGINE_RULESET_NAME:
                 return r
         return None
+
+    def repair_owned(self, branch: str | None = None) -> dict:
+        """Repair only the one ruleset the Engine owns, and verify the live floor afterward.
+
+        This is deliberately narrower than apply(). An upgrade has already changed the local engine files
+        when it reaches this step, so it must never turn a missing or uncertain control-plane state into a
+        new ruleset or an edit to an operator rule. It may issue one PUT only for exactly one listed rule named
+        ENGINE_RULESET_NAME. Every other state returns a machine-readable refusal for the updater's separate
+        consent route, with no POST, augment, label operation, or authorization refresh.
+        """
+        branch = branch or repo_identity.resolve_default_branch()
+        try:
+            status, data, _ = self._transport("GET", f"/repos/{self.repo}/rulesets", None)
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"could not read the Engine-owned safety rule: {exc}"}
+        if status >= 400 or not isinstance(data, list):
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"could not list the Engine-owned safety rule (status {status})"}
+        owned = [r for r in data if r.get("name") == ENGINE_RULESET_NAME]
+        if len(owned) != 1 or not owned[0].get("id"):
+            why = ("no exactly named Engine-owned safety rule exists"
+                   if not owned else "more than one safety rule claims the Engine-owned name")
+            return {"status": "operator-action-required", "branch": branch, "missing": [],
+                    "reason": why}
+        rid = owned[0]["id"]
+        # Assess the named Engine rule itself, not only the aggregate branch result.  An operator-owned rule
+        # can coincidentally make the whole branch look protected while this exact Engine rule remains stale;
+        # an update must repair its own rule in that case and must never infer the operator rule is ours.
+        try:
+            full = self.ruleset_detail(rid)
+            missing = protection_guard.missing_floor(full["rules"], self.required_checks, tier=self.tier)
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"could not read the Engine-owned safety rule in full: {exc}", "ruleset_id": rid}
+        # The evaluated endpoint is a separate live-reachability proof.  Read it before deciding whether the
+        # named rule is already current, and once more immediately before any PUT, so an outage stays no-write.
+        try:
+            self.floor_missing(branch)
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"could not read the live branch protection: {exc}", "ruleset_id": rid}
+        if not missing:
+            return {"status": "already", "branch": branch, "missing": [], "reason": None,
+                    "ruleset_id": rid}
+
+        try:
+            full = self.ruleset_detail(rid)
+            missing = protection_guard.missing_floor(full["rules"], self.required_checks, tier=self.tier)
+            self.floor_missing(branch)
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"could not re-check the live branch protection before strengthening it: {exc}",
+                    "ruleset_id": rid}
+        if not missing:
+            return {"status": "already", "branch": branch, "missing": [], "reason": None,
+                    "ruleset_id": rid}
+
+        # The exact id obtained above is the only writable target. _write_floor with a present rule uses PUT;
+        # it cannot create a rule or route into apply()'s operator-owned augmentation path.
+        try:
+            write_status, _body = self._write_floor(owned[0])
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": missing,
+                    "reason": f"could not strengthen the Engine-owned safety rule: {exc}",
+                    "ruleset_id": rid}
+        if write_status >= 400:
+            return {"status": "operator-action-required", "branch": branch, "missing": missing,
+                    "reason": f"GitHub did not allow the Engine-owned safety rule to be strengthened (status {write_status})",
+                    "ruleset_id": rid}
+        try:
+            post = self.ruleset_detail(rid)
+            still_missing = protection_guard.missing_floor(post["rules"], self.required_checks, tier=self.tier)
+            live_missing = self.floor_missing(branch)
+        except BootstrapError as exc:
+            return {"status": "unverified", "branch": branch, "missing": [],
+                    "reason": f"the strengthened Engine-owned safety rule could not be verified: {exc}",
+                    "ruleset_id": rid}
+        if still_missing or live_missing:
+            return {"status": "unverified", "branch": branch, "missing": still_missing or live_missing,
+                    "reason": "the strengthened Engine-owned safety rule did not meet the live protection floor",
+                    "ruleset_id": rid}
+        return {"status": "repaired", "branch": branch, "missing": [], "reason": None,
+                "ruleset_id": rid}
 
     def product_rulesets(self, branch: str, own_id="__resolve__") -> list:
         """The ids of the repository's OWN branch rulesets that ACTUALLY apply to the branch (and bite),
@@ -1020,7 +1115,12 @@ class ControlPlane:
         if not missing:
             return False
         baseline = set(protection_guard.missing_floor([], protection_guard.REQUIRED_CHECKS, tier=tier))
-        return set(missing) < baseline   # proper subset => something was already in force
+        # The freshness gap is a "rule present but not strict" signal — missing_floor emits it ONLY when a
+        # required_status_checks rule EXISTS (StarshipSuperjam/engine-template#915), so it can never appear in
+        # the empty-rules baseline. Its presence therefore itself proves pre-existing protection; drop it before
+        # the subset test so a freshness-only (or freshness-plus) gap isn't wrongly read as "nothing in force".
+        core = {m for m in missing if "up to date with the base" not in m}
+        return core < baseline   # proper subset => something was already in force
 
     # -- de-bootstrap (the inverse of apply — operator-privileged, for clean removal) -------------
 
@@ -1139,7 +1239,7 @@ def render(result: Result, copy: dict | None = None) -> str:
         # The write reported success but the gate still isn't fully in force — honest, not "not-admin".
         detail = (": " + "; ".join(result.missing)) if result.missing else ""
         msg = ("I tried to turn on branch protection, but it still isn't fully in force" + detail +
-               ". Work can merge unreviewed until it's on — please check your repository's branch "
+               ". Work can reach the branch without the required checks or a pull request until it's on — please check your repository's branch "
                "settings, or run this again.")
     else:  # degraded — pick the cause-matched banner
         key = {
@@ -1165,9 +1265,11 @@ def cmd_status(args) -> int:
     """Read-only: report whether the safety gate is on for the branch (no writes, no consent screen)."""
     repo = _resolve_repo(args.repo)
     token = boot.gh_token()
-    if not repo or not token:
-        print("Can't check branch protection from here — no repository access is available. "
-              "(This is normal on a machine without a logged-in `gh`.)")
+    if not token:
+        print(f"Can't check branch protection from here. {boot.gh_unreachable_note()}")
+        return 0
+    if not repo:
+        print(f"Can't check branch protection from here. {boot.repo_unresolved_note()}")
         return 0
     cp = ControlPlane(repo, token)
     try:
@@ -1201,9 +1303,11 @@ def cmd_apply(args) -> int:
     """Turn the safety gate on for the branch (idempotent; surfaces the consent screen if needed)."""
     repo = _resolve_repo(args.repo)
     token = boot.gh_token()
-    if not repo or not token:
-        print("Can't turn on branch protection from here — no repository access is available. "
-              "Run this where you're logged in to GitHub (`gh auth login`).")
+    if not token:
+        print(f"Can't turn on branch protection from here. {boot.gh_unreachable_note()}")
+        return 1
+    if not repo:
+        print(f"Can't turn on branch protection from here. {boot.repo_unresolved_note()}")
         return 1
     cp = ControlPlane(repo, token)
     try:
@@ -1351,9 +1455,11 @@ def cmd_accept_unprotected(args) -> int:
     repo = _resolve_repo(args.repo)
     token = boot.gh_token()
     branch = args.branch
-    if not repo or not token:
-        print("Can't record this from here — no repository access is available. Run this where you're "
-              "logged in to GitHub (`gh auth login`).")
+    if not token:
+        print(f"Can't record this from here. {boot.gh_unreachable_note()}")
+        return 1
+    if not repo:
+        print(f"Can't record this from here. {boot.repo_unresolved_note()}")
         return 1
     cp = ControlPlane(repo, token)
     # The load-bearing belt: re-read the evaluated branch rules and confirm the platform genuinely forbids
@@ -1395,7 +1501,7 @@ def cmd_accept_unprotected(args) -> int:
     print("Recorded: branch protection isn't available on this repository's GitHub plan, and you've accepted "
           f"running without it (recorded {posture['recorded_on']}, by {login}). What this means: the "
           "protected-branch safety gate is OFF — work can reach '" + branch + "' without a pull request, "
-          "passing checks, or your review, and nothing here technically prevents that. The standing check will "
+          "passing checks, or your consent, and nothing here technically prevents that. The standing check will "
           "now report this as an accepted limitation (an honest warning) rather than failing every pull "
           "request. If your plan later supports branch rulesets (upgrade it, or make the repository public), "
           "run `python .engine/tools/bootstrap.py apply` to turn the gate on — that clears this record.")
@@ -1413,9 +1519,11 @@ def cmd_finalize(args) -> int:
     refuses (exit 1) if those workflows aren't on the branch yet (the arrival PR hasn't merged)."""
     repo = _resolve_repo(args.repo)
     token = boot.gh_token()
-    if not repo or not token:
-        print("Can't finalize branch protection from here — no repository access is available. "
-              "Run this where you're logged in to GitHub (`gh auth login`).")
+    if not token:
+        print(f"Can't finalize branch protection from here. {boot.gh_unreachable_note()}")
+        return 1
+    if not repo:
+        print(f"Can't finalize branch protection from here. {boot.repo_unresolved_note()}")
         return 1
     cp = ControlPlane(repo, token)
     try:

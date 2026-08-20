@@ -135,14 +135,18 @@ def _succeeds(cmd: list, cwd: str | None = None) -> bool:
         return False
 
 
-def _refresh_origin(main: str) -> dict:
-    """Read origin's authoritative HEAD symref, then fetch that exact branch. Returns a structured success or
-    failure reason, and succeeds only when the fetched remote-tracking ref matches the advertisement. A normal fetch does NOT refresh the
-    cached `origin/HEAD` symref, so trusting it here would quietly follow an old default after a remote rename.
-    This updates only remote-tracking metadata and objects — never local HEAD, branches, index, or working tree."""
+def _verified_remote_default(checkout_path: str) -> dict:
+    """Read origin's authoritative HEAD symref and fetch that exact branch, returning the freshly-verified
+    default branch and its advertised commit — WITHOUT rewriting the local `origin/HEAD` symref cache. Succeeds
+    only when the fetched remote-tracking ref matches the advertisement, so a moved remote fails closed. This
+    is the read core shared by `_refresh_origin` (which additionally rewrites the origin/HEAD cache for the
+    correction path, and passes the operator's main checkout) and `fresh_default_head` (a freshness read that
+    needs no cache write — from ANY session/build checkout, so a local-ref-write hiccup must not downgrade a
+    genuine fresh read). Updates only remote-tracking objects/refs — never local HEAD, branches, index, or
+    working tree. Returns `{"ok": True, "default", "oid"}` or `{"ok": False, "reason"}`."""
     try:
         started = time.monotonic()
-        advertised = subprocess.run(["git", "-C", main, "ls-remote", "--symref", "origin", "HEAD"],
+        advertised = subprocess.run(["git", "-C", checkout_path, "ls-remote", "--symref", "origin", "HEAD"],
                                     capture_output=True, text=True, timeout=_FETCH_TIMEOUT, check=False)
         if advertised.returncode != 0:
             return {"ok": False, "reason": "remote-head-unreadable"}
@@ -157,21 +161,34 @@ def _refresh_origin(main: str) -> dict:
         remaining = _FETCH_TIMEOUT - (time.monotonic() - started)
         if remaining <= 0:
             return {"ok": False, "reason": "refresh-timeout"}
-        fetched = subprocess.run(["git", "-C", main, "fetch", "--quiet", "origin",
+        fetched = subprocess.run(["git", "-C", checkout_path, "fetch", "--quiet", "origin",
                                   f"+refs/heads/{default}:refs/remotes/origin/{default}"],
                                  capture_output=True, text=True, timeout=remaining, check=False)
         if fetched.returncode != 0:
             return {"ok": False, "reason": "refresh-failed"}
-        actual = (_run(["git", "-C", main, "rev-parse", "--verify",
+        actual = (_run(["git", "-C", checkout_path, "rev-parse", "--verify",
                         f"refs/remotes/origin/{default}"]) or "").strip()
         if actual != advertised_oid:
             return {"ok": False, "reason": "remote-moved"}
-        if not _ok(["git", "-C", main, "symbolic-ref", "refs/remotes/origin/HEAD",
-                    f"refs/remotes/origin/{default}"]):
-            return {"ok": False, "reason": "default-cache-write-failed"}
-        return {"ok": True, "default": default, "target_oid": advertised_oid}
+        return {"ok": True, "default": default, "oid": advertised_oid}
     except Exception:  # noqa: BLE001 — timeout/offline/missing git -> an honest unavailable snapshot
         return {"ok": False, "reason": "refresh-failed"}
+
+
+def _refresh_origin(main: str) -> dict:
+    """Verify origin's authoritative default via `_verified_remote_default`, then rewrite the cached
+    `refs/remotes/origin/HEAD` symref — a normal fetch does NOT refresh it, so trusting it would quietly follow
+    an old default after a remote rename, and the correction path (`catch_up`) relies on it. Returns the
+    verified default and its commit as `target_oid`, or a structured failure reason. Updates only
+    remote-tracking metadata and objects — never local HEAD, branches, index, or working tree."""
+    verified = _verified_remote_default(main)
+    if not verified["ok"]:
+        return verified
+    default = verified["default"]
+    if not _ok(["git", "-C", main, "symbolic-ref", "refs/remotes/origin/HEAD",
+                f"refs/remotes/origin/{default}"]):
+        return {"ok": False, "reason": "default-cache-write-failed"}
+    return {"ok": True, "default": default, "target_oid": verified["oid"]}
 
 
 def _main_checkout(cwd: str | None = None) -> tuple[str, bool] | None:
@@ -628,6 +645,114 @@ def confident_default_branch(checkout_path: str) -> str | None:
     return _confident_default_branch(checkout_path)
 
 
+def fresh_default_head(checkout_path: str) -> dict:
+    """FACT SEAM (StarshipSuperjam/engine-template#957): resolve the checkout's remote default branch FRESHLY —
+    read origin's authoritative HEAD symref, fetch that exact branch, and verify the fetched commit matches the
+    advertisement. Returns `{"ok": True, "default": <name>, "sha": <freshly-verified commit>, "slug":
+    <owner/repo of origin, or None>}`, or `{"ok": False, "reason": <why>}` when the remote cannot be read
+    freshly (offline, timeout, ambiguous symref, moved remote). `sha` is the advertised OID validated against
+    the fetch, so a moved remote fails closed. Unlike the correction path it does NOT depend on rewriting the
+    local `origin/HEAD` cache, so a transient local-ref-write hiccup never downgrades a genuine fresh read.
+    `slug` lets a caller confirm this checkout IS the repository a claim is about before trusting a read taken
+    here — a mismatch must be treated as unverified, never as resolved.
+
+    Read-only to your working tree, index, HEAD, and local branches; it DOES fetch, updating only
+    remote-tracking objects/refs — the same mutation profile boot's behind-origin snapshot already performs."""
+    verified = _verified_remote_default(checkout_path)
+    if not verified["ok"]:
+        return verified
+    return {"ok": True, "default": verified["default"], "sha": verified["oid"],
+            "slug": repo_identity.origin_slug(checkout_path)}
+
+
+def claim_at_fresh_head(checkout_path: str, rel_path: str, still_present) -> dict:
+    """FACT REPORTER for the issue-filing freshness preflight (StarshipSuperjam/engine-template#957): report
+    whether a repository-state defect claim still holds at the checkout's FRESH remote default-branch commit,
+    so a session never files an engine Issue for work already merged — nor suppresses a real one. This REPORTS
+    facts and names no filing decision; the caller (the build-orchestration freshness rule) maps these facts to
+    file / already-resolved / unverified.
+
+    Returns, on a readable claim, `{"ok": True, "slug", "sha", "readable": True, "present_at_head": <bool>}`,
+    where `present_at_head` is `still_present(content_at_head)` — the caller's claim expressed as a predicate
+    over the file's content AT the pinned fresh commit (`git show <sha>:<path>`, never the moving branch ref,
+    so a concurrent fetch cannot shift it). If the fresh default cannot be read, returns fresh_default_head's
+    `{"ok": False, "reason"}` (no content inspected — the caller must treat this as unverified, not resolved).
+    If the fresh default is read but `rel_path` is absent at that commit, returns `{"ok": True, "slug", "sha",
+    "readable": False}` — the predicate is NOT consulted, so a git-show failure short-circuits before any
+    possibly-empty content could reach `still_present`; the caller decides what an absent path means for its
+    claim.
+
+    BOUNDARY: covers a claim expressible as a predicate over ONE file readable as a blob at head — the common
+    'a section/line is missing from an existing file' shape (the StarshipSuperjam/engine-template#911 incident).
+    An absent path, or one that is not a single file (a directory), surfaces as `readable: False`; a multi-file
+    or absence-premise claim ('file X was never created') the caller handles from `readable: False`.
+    `still_present` is the one irreducibly defect-specific judgment; everything around it is fact. Read-only to
+    your working tree/index/HEAD/local branches (it fetches remote-tracking refs, like boot)."""
+    head = fresh_default_head(checkout_path)
+    if not head["ok"]:
+        return head
+    sha = head["sha"]
+    # Only a blob is a readable single file; `git show <sha>:<dir>` exits 0 with a tree listing, so gate on the
+    # object type first — a directory or absent path is `readable: False`, never a synthetic listing string fed
+    # to `still_present`.
+    kind = _run(["git", "-C", checkout_path, "cat-file", "-t", f"{sha}:{rel_path}"])
+    if kind is None or kind.strip() != "blob":
+        return {"ok": True, "slug": head["slug"], "sha": sha, "readable": False}
+    content = _run(["git", "-C", checkout_path, "show", f"{sha}:{rel_path}"])
+    if content is None:
+        return {"ok": True, "slug": head["slug"], "sha": sha, "readable": False}
+    return {"ok": True, "slug": head["slug"], "sha": sha, "readable": True,
+            "present_at_head": bool(still_present(content))}
+
+
+# A stray build workspace with no git activity in this many days is "stale" and worth a cleanup nudge; one
+# touched more recently is treated as a possibly-live session's and left alone (StarshipSuperjam/engine-template#950). A detection
+# threshold, deliberately a code constant here rather than a briefing-budget dial — that policy governs the
+# pack's byte-fit, not detector tuning, and blurring the two would cross eADR-0033's boundary.
+SPRAWL_STALE_DAYS = 7
+
+
+def _worktree_admin_dir(wt: str) -> str | None:
+    """The git admin directory backing a checkout at `wt`: its own `.git` when that is a real directory (the main
+    checkout / a plain clone), else the `gitdir:` target its `.git` pointer file names (a linked worktree keeps
+    its HEAD/index under `<repo>/.git/worktrees/<id>/`). None when neither is readable."""
+    dotgit = os.path.join(wt, ".git")
+    try:
+        if os.path.isdir(dotgit):
+            return dotgit
+        with open(dotgit, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                stripped = line.strip()
+                if stripped.startswith("gitdir:"):
+                    target = stripped[len("gitdir:"):].strip()
+                    return target if os.path.isabs(target) else os.path.normpath(os.path.join(wt, target))
+    except OSError:
+        return None
+    return None
+
+
+def _idle_days(wt: str, now: float) -> "int | None":
+    """Whole days since the most recent git activity in the checkout at `wt` — the max mtime of its admin dir and
+    that dir's HEAD/index/ORIG_HEAD. ANY git operation touches one of these, including the `git status` a live
+    session runs constantly, so a workspace a session is actively using reads as fresh (idle ≈ 0); that is the
+    signal, not "real work happened" — deliberately, because the question is whether a session may be USING it.
+    A hint, not a fact (mtimes are coarse and trivially changed); None when nothing can be stat'd."""
+    admin = _worktree_admin_dir(wt)
+    if not admin:
+        return None
+    newest = None
+    for name in ("", "HEAD", "index", "ORIG_HEAD"):
+        target = admin if name == "" else os.path.join(admin, name)
+        try:
+            mtime = os.path.getmtime(target)
+        except OSError:
+            continue
+        newest = mtime if newest is None else max(newest, mtime)
+    if newest is None:
+        return None
+    return max(0, int((now - newest) // 86400))
+
+
 def detect_product_build_sprawl(cwd: str | None = None) -> dict | None:
     """OFFLINE, READ-ONLY: the negative control for the worktree-isolated build model (StarshipSuperjam/engine-template#902).
     Reports build workspaces of the product that are NOT the sanctioned kind — the sprawl the model exists to
@@ -637,29 +762,55 @@ def detect_product_build_sprawl(cwd: str | None = None) -> dict | None:
         `.claude/worktrees/` or a `~/Developer` sibling);
       - `sibling_clones` — separate CLONES of the product (same `origin`) sitting beside it as `<name>-*`
         folders (the `engine-template-656-labels` sprawl the operator flagged).
-    Returns `{"state":"build-sprawl","product",<stray_worktrees>,<sibling_clones>}` with at least one list
-    non-empty, or None when this is not a mechanic, the product path is unset/absent, or nothing stray is found
-    (fail-soft QUIET). It never judges the shared checkout's BRANCH — under this model that no longer matters,
-    so flagging it would be noise. Read-only: it lists, it never removes; cleanup is a consented act."""
+    ACTIVITY-AWARE (StarshipSuperjam/engine-template#950): a stray whose git admin files were touched within `SPRAWL_STALE_DAYS` is
+    treated as a possibly-live session's workspace and NOT reported (counted in `active_skipped` instead), so the
+    nudge never fires on the worktrees of the operator's other open sessions. A `locked` worktree is skipped
+    (deliberately parked); a `prunable` one is reported regardless of age (git itself calls it removable).
+    Unpushed commits are deliberately NOT used as the staleness signal — a squash-merge leaves a merged branch
+    looking unpushed forever — so that check stays a pre-DELETE safeguard, not a detection input.
+    Returns `{"state":"build-sprawl","product",<stray_worktrees>,<sibling_clones>,"active_skipped"}` — each stray
+    an `{"path","idle_days"}` entry — with at least one list non-empty, or None when this is not a mechanic, the
+    product path is unset/absent, or nothing STALE is found (fail-soft QUIET). It never judges the shared
+    checkout's BRANCH — under this model that no longer matters. Read-only: it lists, it never removes."""
     path, state = resolve_product_checkout(cwd)
     if state is not None or not path or not os.path.isdir(path):
         return None                              # not a mechanic / path unset / nothing there -> nothing to say
     product = os.path.realpath(path)
     root = engine_common_checkout(cwd)
     sanctioned = os.path.realpath(os.path.join(root, ".engine", "mechanic", "worktrees")) if root else None
-    registered: set = set()
-    stray_worktrees: list = []
+    now = time.time()
+    active_skipped = 0
+    # Parse the porcelain into per-worktree records so `locked`/`prunable` flags (their own lines in each
+    # record, blank-line separated) are visible, not just the `worktree ` path line.
     listing = _run(["git", "-C", product, "worktree", "list", "--porcelain"]) or ""
+    records: list = []
+    current: dict | None = None
     for line in listing.splitlines():
-        if not line.startswith("worktree "):
-            continue
-        wt = os.path.realpath(line[len("worktree "):].strip())
-        registered.add(wt)
+        if line.startswith("worktree "):
+            current = {"path": os.path.realpath(line[len("worktree "):].strip()),
+                       "locked": False, "prunable": False}
+            records.append(current)
+        elif current is not None and line.startswith("locked"):
+            current["locked"] = True
+        elif current is not None and line.startswith("prunable"):
+            current["prunable"] = True
+        elif not line.strip():
+            current = None
+    registered: set = {rec["path"] for rec in records}
+    stray_worktrees: list = []
+    for rec in records:
+        wt = rec["path"]
         if wt == product:
             continue                             # the main worktree is the product itself — expected
         if sanctioned and (wt == sanctioned or wt.startswith(sanctioned + os.sep)):
             continue                             # a sanctioned build worktree — the whole point of the model
-        stray_worktrees.append(wt)
+        if rec["locked"]:
+            continue                             # deliberately parked — never a cleanup nudge
+        idle = _idle_days(wt, now)
+        if not rec["prunable"] and idle is not None and idle < SPRAWL_STALE_DAYS:
+            active_skipped += 1                  # recent git activity: a live session may be using it
+            continue
+        stray_worktrees.append({"path": wt, "idle_days": idle})
     sibling_clones: list = []
     origin = _run(["git", "-C", product, "remote", "get-url", "origin"])
     origin = origin.strip() if origin and origin.strip() else None
@@ -674,11 +825,16 @@ def detect_product_build_sprawl(cwd: str | None = None) -> dict | None:
                 continue                         # a linked worktree, already counted above — not a clone
             cand_origin = _run(["git", "-C", cand, "remote", "get-url", "origin"])
             if cand_origin and cand_origin.strip() == origin:
-                sibling_clones.append(os.path.realpath(cand))
+                idle = _idle_days(cand, now)
+                if idle is not None and idle < SPRAWL_STALE_DAYS:
+                    active_skipped += 1          # a clone with recent activity — a live session may hold it
+                    continue
+                sibling_clones.append({"path": os.path.realpath(cand), "idle_days": idle})
     if not stray_worktrees and not sibling_clones:
         return None
     return {"state": "build-sprawl", "product": product,
-            "stray_worktrees": stray_worktrees, "sibling_clones": sibling_clones}
+            "stray_worktrees": stray_worktrees, "sibling_clones": sibling_clones,
+            "active_skipped": active_skipped}
 
 
 def mechanic_orientation(cwd: str | None = None) -> dict | None:
