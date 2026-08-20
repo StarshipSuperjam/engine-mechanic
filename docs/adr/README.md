@@ -348,4 +348,4 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0334 | [Adopt the delivery-plane spec program: module map, wave order, and program rules](0334-adopt-the-delivery-plane-spec-program-module-map-wave-order.md) | 2026-08-02 |
 | 0335 | [Separate module distribution, applicability, and activation into independent axes](0335-separate-module-distribution-applicability-and-activation.md) | 2026-08-10 |
 | 0336 | [Route operator and model workflows through generated canonical surfaces](0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md) | 2026-08-14 |
-| 0337 | [Preserve the interactive Engine tour design for late v1](0337-preserve-the-interactive-engine-tour-design-for-late-v1.md) | 2026-08-19 |
+| 0337 | [Preserve the product-system explorer design for late v1](0337-preserve-the-product-system-explorer-design-for-late-v1.md) | 2026-08-19 |
