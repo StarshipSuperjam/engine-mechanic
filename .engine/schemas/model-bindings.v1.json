@@ -24,6 +24,24 @@
       "description": "Per-persona bindings, keyed by the persona's name (its .claude/agents/<name>.md slug). An override wins over the persona's tier default — this is how a specific lens is tuned to a stronger or cheaper model without changing its declared capability tier. A key that names no installed persona is a stale override, caught by the agent-bindings coherence test.",
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/binding" }
+    },
+    "implementation_classes": {
+      "description": "Per-provider model/effort bindings for the DAG Build's DISPATCHED worker classes — the source of truth the coordinator renders into a worker's route and into the worker personas. This is a SEPARATE axis from the review `tiers`: reviewer personas resolve a name-free demand tier (judgment|mechanical) to one model, while a dispatched worker resolves its implementation class (builder|bounded) to a per-PROVIDER model+effort, because Claude and Codex realize the same class with different frontier/efficient models. The `integrator` class is never dispatched (it is the current senior session, so it carries no fixed binding here). A worker model alias MAY carry digits/dots (a provider-native family name like gpt-5.6-terra), so it uses its own grammar — the review `binding` anti-rot pattern is deliberately left untouched. Optional: a deployment with no DAG worker packs need not declare it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "builder": { "$ref": "#/$defs/implementation_binding" },
+        "bounded": { "$ref": "#/$defs/implementation_binding" }
+      }
+    },
+    "review_depths": {
+      "description": "The per-depth reviewer EFFORT the operator's review-depth choice scales — the single depth dial (StarshipSuperjam/engine-template#677). Each present depth carries ONE effort applied uniformly to the reviewers that depth runs; there is deliberately NO model dimension here, because depth scales effort (thoroughness/token spend) while MODEL stays matched per-lens to each lens's nature via `tiers`+`overrides`, stable across depths — stepping both at once would double-cut the middle tier toward Quick. `quick` carries no entry (it runs no cold reviewers). `thorough` is the anchor (high, so it is a zero-regression identity with today's stamped effort); `standard` steps effort down. On Claude the depth effort is realized by the session --effort governing the un-pinned reviewer roles; on Codex by spawning each cold reviewer as a non-full-history fork (fork_turns=\"none\") with reasoning_effort set from the depth (the un-pinned twin bakes no model_reasoning_effort). Optional: absent, the depth passes no effort, so reviewers run at their un-pinned default (Claude Code's session default; the Codex fork carries none). Operators retune these values through the preserved operator-review-effort override, which survives an engine update.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "standard": { "$ref": "#/$defs/depth_effort" },
+        "thorough": { "$ref": "#/$defs/depth_effort" }
+      }
     }
   },
   "$defs": {
@@ -40,6 +58,45 @@
         },
         "effort": {
           "description": "The reasoning-effort level that, with the model, realizes the tier. A bounded platform concept.",
+          "enum": ["low", "medium", "high"]
+        }
+      }
+    },
+    "implementation_binding": {
+      "description": "One implementation class's bindings, one per provider. Both providers are present so a class renders explicitly for Claude and Codex from a single source, rather than one provider silently inheriting a frontier default.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claude", "codex"],
+      "properties": {
+        "claude": { "$ref": "#/$defs/provider_binding" },
+        "codex": { "$ref": "#/$defs/provider_binding" }
+      }
+    },
+    "provider_binding": {
+      "description": "One provider-native model + effort pairing for a dispatched worker class. Unlike the review `binding`, the model alias MAY carry digits/dots so a provider-native family name (gpt-5.6-terra) is expressible; it remains an operator-tunable alias, not a dated snapshot id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "effort"],
+      "properties": {
+        "model": {
+          "description": "A provider-native model alias — lowercase alphanumerics separated by hyphen or dot (e.g. sonnet, haiku, gpt-5.6-terra). Digits are permitted here, unlike the review binding grammar.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+([.-][a-z0-9]+)*$"
+        },
+        "effort": {
+          "description": "The reasoning-effort level for this worker class.",
+          "enum": ["low", "medium", "high"]
+        }
+      }
+    },
+    "depth_effort": {
+      "description": "One review depth's reasoning effort — the single value the depth applies to the reviewers it runs. No model dimension (model stays the per-lens tiers+overrides at every depth). The enum is the review effort range; xhigh/max are deliberately not offered here — the three depths need no more, and holding to low/medium/high keeps the value valid as a Codex model_reasoning_effort too.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["effort"],
+      "properties": {
+        "effort": {
+          "description": "The reasoning-effort level this depth runs its reviewers at.",
           "enum": ["low", "medium", "high"]
         }
       }

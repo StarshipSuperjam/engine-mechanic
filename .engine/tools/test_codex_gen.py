@@ -13,9 +13,11 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import codex_gen   # noqa: E402
+import codex_agent_coherence_check as cac   # noqa: E402
 import validate    # noqa: E402
 
 
@@ -67,26 +69,116 @@ class _FixtureTree(unittest.TestCase):
         self._tmp.cleanup()
 
 
+WORKER_SRC = """---
+name: engine-worker-widget
+description: Builds widgets.
+role: worker
+implementation-class: builder
+model: sonnet
+effort: medium
+permissions: scoped-write
+output-contract: worker-result.v1
+---
+
+## Mandate
+
+Build the widget node and return the work product.
+"""
+
+WORKER_BINDINGS = """{
+  "schema_version": 1,
+  "tiers": {"judgment": {"model": "opus", "effort": "high"}, "mechanical": {"model": "haiku", "effort": "low"}},
+  "implementation_classes": {
+    "builder": {"claude": {"model": "sonnet", "effort": "medium"}, "codex": {"model": "gpt-5.6-terra", "effort": "medium"}}
+  }
+}
+"""
+
+
+class TestWorkerRenders(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = self._tmp.name
+        _write(os.path.join(self.root, ".claude", "agents", "engine-worker-widget.md"), WORKER_SRC)
+        _write(os.path.join(self.root, ".engine", "policies", "model-bindings.json"), WORKER_BINDINGS)
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_worker_render_emits_model_and_a_write_sandbox(self):
+        codex_gen.generate(self.root)
+        path = os.path.join(self.root, ".codex", "agents", "engine-worker-widget.toml")
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+        self.assertEqual(data["sandbox_mode"], "workspace-write")
+        self.assertEqual(data["model"], "gpt-5.6-terra")        # single-sourced from implementation_classes.codex
+        self.assertEqual(data["model_reasoning_effort"], "medium")
+        self.assertIn("scoped write", data["developer_instructions"])
+
+
+class TestWorkerFloorScoping(unittest.TestCase):
+    """The role-scoped Codex coherence floor: worker renders must carry a matching model and a
+    write sandbox; review/audit renders (and any render whose canonical role can't be placed) still
+    forbid a pinned model. Each worker case supplies its own canonical source and binding policy, so
+    the shipped test keeps exercising the production resolution seam in a deployed repository."""
+    def _seed(self, d, name, body):
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+            fh.write(body)
+
+    def _worker_findings(self, body):
+        with tempfile.TemporaryDirectory() as root:
+            agents = os.path.join(root, ".codex", "agents")
+            self._seed(agents, "engine-worker-builder.toml", body)
+            _write(os.path.join(root, ".claude", "agents", "engine-worker-builder.md"), WORKER_SRC)
+            _write(os.path.join(root, ".engine", "policies", "model-bindings.json"), WORKER_BINDINGS)
+            with mock.patch.object(validate, "ROOT", root):
+                return cac.findings("hard", agents_dir=agents)
+
+    def test_worker_render_model_drift_is_a_finding(self):
+        found = self._worker_findings(
+            'name = "engine-worker-builder"\nsandbox_mode = "workspace-write"\n'
+            'model = "wrong-model"\nmodel_reasoning_effort = "medium"\ndeveloper_instructions = "x"\n')
+        self.assertTrue(any("does not match its implementation_classes binding" in f["message"] for f in found))
+
+    def test_worker_render_with_a_read_only_sandbox_is_a_finding(self):
+        found = self._worker_findings(
+            'name = "engine-worker-builder"\nsandbox_mode = "read-only"\n'
+            'model = "gpt-5.6-terra"\nmodel_reasoning_effort = "medium"\ndeveloper_instructions = "x"\n')
+        self.assertTrue(any("read-only sandbox" in f["message"] for f in found))
+
+    def test_a_render_with_no_canonical_worker_source_still_forbids_a_model(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._seed(d, "some-reviewer.toml",
+                       'name = "some-reviewer"\nsandbox_mode = "read-only"\nmodel = "opus"\ndeveloper_instructions = "x"\n')
+            found = cac.findings("hard", agents_dir=d)
+        self.assertTrue(any("pins a model" in f["message"] for f in found))
+
+
 class TestRenderTransforms(_FixtureTree):
-    def test_agent_render_carries_the_floor_and_pins_no_model(self):
+    def test_reviewer_render_carries_the_floor_pins_no_model_and_un_pins_effort(self):
+        # A reviewer twin (role pre-submission-review) carries the read-only floor and NO model id, and — since
+        # #677 — NO model_reasoning_effort either: the cold reviewer's effort is depth-scaled at launch by
+        # spawning it as a non-full-history fork with reasoning_effort from the resolved depth, so the twin must
+        # not bake an effort the spawn would have to override.
         codex_gen.generate(self.root)
         path = os.path.join(self.root, ".codex", "agents", "qa-review-widget.toml")
         with open(path, "rb") as fh:
             data = tomllib.load(fh)
         self.assertEqual(data["sandbox_mode"], "read-only")
         self.assertNotIn("model", data)
-        self.assertEqual(data["model_reasoning_effort"], "high")     # judgment tier
+        self.assertNotIn("model_reasoning_effort", data,
+                         "a reviewer twin un-pins effort so the depth-scaled reasoning_effort governs at spawn")
         self.assertIn("read-only", data["developer_instructions"])
         self.assertIn("Do not run shell commands", data["developer_instructions"],
                       "a Bash-denylisting source renders the no-shell instruction line")
         self.assertIn("Review the widget.", data["developer_instructions"])
 
     def test_stamped_effort_sources_from_frontmatter_and_model_never_leaks(self):
-        # A persona stamped with model:/effort: by agent_bindings render — Codex takes the effort from the
-        # stamped frontmatter (not the tier fallback, which would be 'high'), and STILL emits no model id
-        # (a pinned model in a persona rots). This guards the codex_gen change + the no-model-leak rule.
-        stamped = AGENT_SRC.replace("model-tier: judgment\n",
-                                    "model-tier: judgment\nmodel: sonnet\neffort: low\n")
+        # A NON-reviewer persona stamped with model:/effort: by agent_bindings render (the audit persona keeps
+        # its effort, unlike the un-pinned reviewer roles) — Codex takes the effort from the stamped frontmatter
+        # (not the tier fallback, which would be 'high'), and STILL emits no model id (a pinned model in a
+        # persona rots). This guards the codex_gen change + the no-model-leak rule.
+        stamped = AGENT_SRC.replace("role: pre-submission-review\n", "role: audit\n").replace(
+            "model-tier: judgment\n", "model-tier: judgment\nmodel: sonnet\neffort: low\n")
         _write(os.path.join(self.root, ".claude", "agents", "qa-review-widget.md"), stamped)
         codex_gen.generate(self.root)
         path = os.path.join(self.root, ".codex", "agents", "qa-review-widget.toml")
@@ -169,32 +261,44 @@ class TestCodexCoherenceExemptionIsSourceBound(unittest.TestCase):
 
     def test_the_exemption_must_be_DECLARED_not_inferred_from_an_omission(self):
         # The gate and the renderer must agree on failing closed: a command that simply omits the key is
-        # protected, so a forgotten declaration can never silently become a model-startable command.
-        self.assertNotIn("engine-recall", [])  # anchor: the exemption is by declaration, checked below
+        # protected, so a forgotten declaration can never silently become a model-startable command. Under
+        # ADR 0336 the exempt set is the whole model-route roster, not a single command — but the invariant is
+        # unchanged: every exempt skill EXPLICITLY declares a model-reachable invocation (model-auto or
+        # model-only); none is exempt by omission, and engine-recall states its reachability outright.
         import glob
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         exempt = [os.path.basename(os.path.dirname(p))
                   for p in sorted(glob.glob(os.path.join(root, "..", ".claude", "skills", "engine-*",
                                                          "SKILL.md")))
                   if not self.check._source_demands_protection(os.path.basename(os.path.dirname(p)))]
-        self.assertEqual(exempt, ["engine-recall"])
-        fm = validate.frontmatter(os.path.join(root, "..", ".claude", "skills", "engine-recall", "SKILL.md"))
-        self.assertEqual(fm.get("invocation"), "model-auto",
-                         "the exempt command must state its reachability, not imply it by omission")
+        self.assertIn("engine-recall", exempt, "the deliberately model-reachable command stays exempt")
+        for name in exempt:
+            fm = validate.frontmatter(os.path.join(root, "..", ".claude", "skills", name, "SKILL.md"))
+            self.assertIn(fm.get("invocation"), ("model-auto", "model-only"),
+                          f"{name} is exempt, so it must DECLARE its reachability, not imply it by omission")
 
     def test_every_operator_typed_skill_still_renders_refusing_implicit_invocation(self):
-        # The end-to-end property the narrowing must not have broken: exactly one shipped command is
-        # model-reachable, and every other one still refuses. Reads the real committed renders.
+        # The end-to-end property the narrowing must not have broken: a Codex render is model-startable EXACTLY
+        # when its Claude source declares a model-reachable invocation, and every operator-typed command still
+        # refuses. Reads the real committed renders. (ADR 0336: the reachable set is the model-route roster, no
+        # longer a single command.)
         import glob
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        reachable = []
+        reachable = set()
         for policy_path in sorted(glob.glob(os.path.join(root, "..", ".agents", "skills", "engine-*",
                                                          "agents", "openai.yaml"))):
             name = os.path.basename(os.path.dirname(os.path.dirname(policy_path)))
             if "allow_implicit_invocation: true" in validate.read(policy_path):
-                reachable.append(name)
-        self.assertEqual(reachable, ["engine-recall"],
-                         "only the deliberately model-reachable command may carry a reachable render")
+                reachable.add(name)
+        declared = set()
+        for src in glob.glob(os.path.join(root, "..", ".claude", "skills", "engine-*", "SKILL.md")):
+            name = os.path.basename(os.path.dirname(src))
+            if validate.frontmatter(src).get("invocation") in ("model-auto", "model-only"):
+                declared.add(name)
+        self.assertEqual(reachable, declared,
+                         "a Codex render is model-startable exactly when its Claude source declares reachability")
+        self.assertIn("engine-recall", reachable,
+                      "the deliberately model-reachable command carries a reachable render")
 
     def test_the_residual_protection_depends_on_the_claude_side_coherence_rule(self):
         # Load-bearing dependency, pinned so a future narrowing of the sibling rule turns something red HERE.
@@ -239,10 +343,10 @@ class TestDriftGate(_FixtureTree):
         self.assertTrue(any("is missing" in p for p in problems), problems)
 
     def test_no_skill_is_excluded_and_engine_routine_now_renders(self):
-        # The routine backend shipped, so SKILL_EXCLUDE is empty: an engine-routine skill renders its twin
-        # like every other (the old exclusion, which would have shipped a stub, is retired).
+        # SKILL_EXCLUDE stays empty so the engine-routine twin remains present as an actionable refusal for
+        # old Codex schedules, rather than disappearing and leaving them with an opaque missing-skill failure.
         self.assertEqual(codex_gen.SKILL_EXCLUDE, frozenset(),
-                         "no skill is excluded once the routine backend exists")
+                         "every skill has a Codex render, including retirement surfaces")
         _write(os.path.join(self.root, ".claude", "skills", "engine-routine", "SKILL.md"),
                SKILL_SRC.replace("engine-widget", "engine-routine"))
         codex_gen.generate(self.root)
@@ -250,6 +354,9 @@ class TestDriftGate(_FixtureTree):
                                                     "SKILL.md")), "the twin now renders")
         self.assertTrue(os.path.isfile(os.path.join(self.root, ".agents", "skills", "engine-routine",
                                                     "agents", "openai.yaml")), "with its operator-only policy")
+        with open(os.path.join(self.root, ".agents", "skills", "engine-routine", "SKILL.md"),
+                  encoding="utf-8") as fh:
+            self.assertIn("description: Retired on Codex", fh.read())
         self.assertEqual(codex_gen.check(self.root), [], "and the drift gate is clean")
 
 

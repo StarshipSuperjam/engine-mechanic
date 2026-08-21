@@ -17,9 +17,13 @@ Render rules (the whole mapping, so review needs no second source):
     - name/description from the frontmatter; the prose body becomes `developer_instructions`,
       prefixed with rendered routing lines for what the TOML cannot carry structurally (the output
       contract; the read-only floor; a no-shell line when the source denylists Bash).
-    - `sandbox_mode = "read-only"` always (every current persona is a report-only reviewer).
+    - `sandbox_mode = "read-only"` always (every current persona is a report-only reviewer). This is
+      the agent's requested standalone default, not mechanical child isolation: a parent task's live
+      runtime override can be reapplied by Codex (the declared provider exception).
     - `model` is NEVER emitted (a pinned model id in a persona file rots — eADR-0034);
-      `model_reasoning_effort` maps the demand tier (judgment -> high, mechanical -> low).
+      `model_reasoning_effort` maps the demand tier (judgment -> high, mechanical -> low), EXCEPT for the
+      un-pinned reviewer roles (plan-review, pre-submission-review), whose effort is depth-scaled at spawn,
+      so their twins omit it entirely (see the reviewer branch in render_agent).
   SKILLS (.claude/skills/engine-*/ -> .agents/skills/engine-*/):
     - frontmatter narrows to the two keys Codex reads (name = the directory slug, description);
       the Claude governance flags stay home. The companion `agents/openai.yaml` carries the one
@@ -29,8 +33,8 @@ Render rules (the whole mapping, so review needs no second source):
       on Claude and silently disable it on Codex.
     - the body is the Claude body with the typed prefix rewritten (/engine-x -> $engine-x) and the
       Claude session flag dropped (the engine resolves the session itself on Codex).
-    - every engine skill is rendered; there is no exclusion. (The routine backend — the set-routine
-      stance-entry — shipped, so `engine-routine` now has its Codex twin like the rest.)
+    - every engine skill is rendered; there is no exclusion. The `engine-routine` Codex twin is retained as
+      an actionable retirement surface so an invocation explains the required external migration.
 """
 from __future__ import annotations
 import glob
@@ -41,6 +45,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import validate  # noqa: E402
+import skill_discovery  # noqa: E402  (the shared skill-discovery helper — one glob + slug-identity path)
+import agent_bindings  # noqa: E402  (single source for which reviewer roles have depth-scaled, un-pinned effort)
 
 AGENT_SRC_GLOB = os.path.join(".claude", "agents", "engine-*.md")
 _AGENT_SRC_ALL = os.path.join(".claude", "agents", "*.md")
@@ -48,9 +54,13 @@ SKILL_SRC_ROOT = os.path.join(".claude", "skills")
 AGENT_OUT_DIR = os.path.join(".codex", "agents")
 SKILL_OUT_ROOT = os.path.join(".agents", "skills")
 
-SKILL_EXCLUDE = frozenset()   # no exclusions — every engine skill has a Codex twin (the routine backend shipped)
+SKILL_EXCLUDE = frozenset()   # every skill renders; engine-routine's Codex twin is a retirement/refusal surface
 
 _EFFORT_BY_TIER = {"judgment": "high", "mechanical": "low"}
+_CODEX_SKILL_DESCRIPTIONS = {
+    "engine-routine": ("Retired on Codex — explains how to disable an old unattended Engine build "
+                       "Automation and which supported path to use instead."),
+}
 
 _SESSION_FLAG_RE = re.compile(r'\s*--session\s+"\$\{CLAUDE_CODE_SESSION_ID\}"')
 # A typed verb reference is a /engine-… NOT preceded by a word character (so a path segment like
@@ -90,6 +100,18 @@ def skill_policy(invocation) -> str:
     return _OPENAI_YAML_MODEL_STARTABLE if invocation in _MODEL_REACHABLE else _OPENAI_YAML_TYPED
 
 
+def is_platform_reachable(invocation) -> bool:
+    """Whether a skill is model-reachable ON THE CLAUDE PLATFORM — the platform-truth question the route
+    budget/target checks and the engine-parts readout ask: an OMITTED invocation means model-auto (the
+    platform default), so it IS reachable. This is the DELIBERATE OPPOSITE of `skill_policy`'s default above:
+    `skill_policy` renders the Codex twin and must fail CLOSED on omission (never hand Codex a command the
+    author did not clearly mark reachable), whereas the enforcement checks must fail OPEN toward COVERAGE — a
+    route that IS reachable on Claude but skips the invocation line (which the schema invites for an "ordinary"
+    skill) must still be held to the target-existence and budget rules, not silently escape them. Mirrors
+    validate.skill_coherence_findings' `effective = inv or "model-auto"`."""
+    return (invocation or "model-auto") in _MODEL_REACHABLE
+
+
 def _split_frontmatter(path: str):
     """(frontmatter dict, body text) for a prose source file."""
     fm = validate.frontmatter(path)
@@ -98,10 +120,27 @@ def _split_frontmatter(path: str):
     return fm, text[m.end():] if m else text
 
 
+def _impl_binding(cls: str, root: str | None) -> dict:
+    """The Codex-side {model, effort} for a worker class, from implementation_classes. A worker's model
+    is single-sourced here, not pinned in the persona: it is the ONE place a Codex worker model lives,
+    the same source the Claude side stamps from, so the two providers can never silently diverge."""
+    path = os.path.join(root or validate.ROOT, ".engine", "policies", "model-bindings.json")
+    bindings = validate.load_json(path)
+    provider = (bindings.get("implementation_classes", {}).get(cls) or {}).get("codex")
+    if not provider:
+        raise KeyError(f"no implementation_classes.{cls}.codex binding for a worker render")
+    return provider
+
+
 def _routing_lines(fm: dict) -> str:
     disallowed = fm.get("disallowedTools") or []
     if isinstance(disallowed, str):
         disallowed = [t.strip() for t in disallowed.split(",")]
+    if fm.get("role") == "worker":
+        return (f"Output contract: report your result on the {fm.get('output-contract')} shape.\n"
+                "Permissions: scoped write. You implement only within your node's declared paths and "
+                "return your work product to the orchestrator; you never push the PR branch, open a "
+                "pull request, or integrate — the orchestrator is the single writer.")
     lines = [f"Output contract: report every finding on the {fm.get('output-contract')} shape "
              f"(severity, message, location).",
              "Permissions floor: read-only. You review and report; you never edit files, commit, "
@@ -117,19 +156,33 @@ def render_agent(src_path: str, root: str | None = None) -> str:
     fm, body = _split_frontmatter(src_path)
     rel_src = os.path.relpath(src_path, root or validate.ROOT).replace(os.sep, "/")
     instructions = _routing_lines(fm) + "\n\n" + body.strip() + "\n"
-    # The reasoning effort is the one the bindings stamped into the persona's frontmatter (model-bindings.json
-    # -> agent_bindings render -> frontmatter), so both platforms read one rendered source; the tier map is a
-    # fallback for a persona not yet stamped. Codex still emits NO model — a pinned model id in a persona rots.
-    effort = fm.get("effort") or _EFFORT_BY_TIER.get(fm.get("model-tier"), "high")
-    return "\n".join([
+    lines = [
         _TOML_BANNER.format(src=rel_src),
         f"name = {json.dumps(fm.get('name'))}",
         f"description = {json.dumps(fm.get('description'))}",
-        'sandbox_mode = "read-only"',
-        f'model_reasoning_effort = "{effort}"',
-        f"developer_instructions = {json.dumps(instructions)}",
-        "",
-    ])
+    ]
+    if fm.get("role") == "worker":
+        # A dispatched worker renders an EXPLICIT per-provider model + effort (single-sourced from
+        # implementation_classes) and a write-capable sandbox — the eADR-0034 no-model rule is a
+        # REVIEWER-identity guard and does not apply to a worker that only writes its own node.
+        binding = _impl_binding(fm.get("implementation-class"), root)
+        lines += [
+            'sandbox_mode = "workspace-write"',
+            f"model = {json.dumps(binding['model'])}",
+            f'model_reasoning_effort = "{binding["effort"]}"',
+        ]
+    else:
+        # A reviewer render emits NO model — a pinned model id rots. Its EFFORT is depth-scaled at launch
+        # (StarshipSuperjam/engine-template#677): the cold reviewer is spawned as a non-full-history fork
+        # (fork_turns="none") carrying reasoning_effort resolved from the review depth, so the twin omits
+        # model_reasoning_effort rather than baking a value the spawn would have to override. Non-reviewer
+        # personas (the audit persona) keep their stamped effort, or the tier fallback if not yet stamped.
+        lines.append('sandbox_mode = "read-only"')
+        if fm.get("role") not in agent_bindings.EFFORT_UNPINNED_ROLES:
+            effort = fm.get("effort") or _EFFORT_BY_TIER.get(fm.get("model-tier"), "high")
+            lines.append(f'model_reasoning_effort = "{effort}"')
+    lines += [f"developer_instructions = {json.dumps(instructions)}", ""]
+    return "\n".join(lines)
 
 
 def render_skill(src_dir: str, root: str | None = None):
@@ -144,7 +197,7 @@ def render_skill(src_dir: str, root: str | None = None):
     text = "\n".join([
         "---",
         f"name: {slug}",
-        f"description: {fm.get('description')}",
+        f"description: {_CODEX_SKILL_DESCRIPTIONS.get(slug, fm.get('description'))}",
         "---",
         "",
         _MD_BANNER.format(src=rel_src),
@@ -162,13 +215,11 @@ def _agent_sources(root: str) -> list:
 
 
 def _skill_sources(root: str) -> list:
-    out = []
-    for src_dir in sorted(glob.glob(os.path.join(root, SKILL_SRC_ROOT, "engine-*"))):
-        slug = os.path.basename(src_dir)
-        if slug in SKILL_EXCLUDE or not os.path.isfile(os.path.join(src_dir, "SKILL.md")):
-            continue
-        out.append(src_dir)
-    return out
+    # The engine skill directories come from the shared discovery helper (one glob + slug-identity home);
+    # this renderer keeps its own SKILL_EXCLUDE posture. render_skill still reads the source `invocation`
+    # itself and maps it fail-closed — the helper centralizes discovery, never the policy interpretation.
+    return [src_dir for src_dir in skill_discovery.skill_dirs("claude", root)
+            if os.path.basename(src_dir) not in SKILL_EXCLUDE]
 
 
 def expected_renders(root: str | None = None) -> dict:

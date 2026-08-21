@@ -14,15 +14,20 @@ matches its name.
 """
 from __future__ import annotations
 import contextlib
+import hashlib
 import io
 import json
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import module_manager  # noqa: E402
+import release_impact  # noqa: E402  (the canonical marker formatter/parser)
+import release_impact_check  # noqa: E402  (the same pure pre-open marker rule the updater invokes)
+import release_source  # noqa: E402  (StarshipSuperjam/engine-template#925 Part 5: release primitives' home)
 import module_coherence  # noqa: E402
 import validate  # noqa: E402
 import wiring  # noqa: E402
@@ -163,6 +168,14 @@ class TestUvGroupDerivation(unittest.TestCase):
         with self.assertRaises(ValueError):
             module_manager.rewrite_default_groups_text(
                 '[tool.uv]\ndefault-groups = [\n  "base",\n]\n', ["base"])
+
+    def test_default_group_reconcile_preserves_engine_cache_setting(self):
+        text = ('[dependency-groups]\nbase = ["p"]\noptx = ["q"]\n\n[tool.uv]\n'
+                'cache-dir = ".uv"\ndefault-groups = ["base", "optx"]\n')
+        new, changed = module_manager.rewrite_default_groups_text(text, ["base"])
+        self.assertTrue(changed)
+        self.assertIn('cache-dir = ".uv"', new)
+        self.assertEqual(new.count('cache-dir = ".uv"'), 1)
 
 
 class TestUpgradeDefaultGroupsReconcile(unittest.TestCase):
@@ -384,16 +397,16 @@ class TestAddSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_add_fixture(live)                  # engine_release "0.0.0"
-                saved = module_manager._fetch_release_tree
-                saved_pub = module_manager._release_tag_published         # bare "0.0.0" resolves to a tag first (#760)
-                module_manager._release_tag_published = lambda *a, **k: True
-                module_manager._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
+                saved = release_source._fetch_release_tree
+                saved_pub = release_source._release_tag_published         # bare "0.0.0" resolves to a tag first (#760)
+                release_source._release_tag_published = lambda *a, **k: True
+                release_source._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
                     RuntimeError("HTTP Error 404: Not Found"))
                 try:
                     res = module_manager.add("feat")                    # real-fetch path -> raises
                 finally:
-                    module_manager._fetch_release_tree = saved
-                    module_manager._release_tag_published = saved_pub
+                    release_source._fetch_release_tree = saved
+                    release_source._release_tag_published = saved_pub
                 engine = module_manager.module_coherence.load_engine_manifest()
             self.assertTrue(res["refused"])
             self.assertIn("Couldn't reach", res["reason"])              # plain, not a raw urllib error
@@ -408,19 +421,19 @@ class TestAddSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_add_fixture(live)                 # records home "acme/engine-home"
-                saved = module_manager._fetch_release_tree
-                saved_pub = module_manager._release_tag_published        # bare "0.0.0" resolves to a tag first (#760)
-                module_manager._release_tag_published = lambda *a, **k: True
+                saved = release_source._fetch_release_tree
+                saved_pub = release_source._release_tag_published        # bare "0.0.0" resolves to a tag first (#760)
+                release_source._release_tag_published = lambda *a, **k: True
 
                 def _spy(ref, dest, repo=None, token=None):
                     seen["repo"] = repo
                     raise RuntimeError("stop after capturing the source")
-                module_manager._fetch_release_tree = _spy
+                release_source._fetch_release_tree = _spy
                 try:
                     module_manager.add("feat")
                 finally:
-                    module_manager._fetch_release_tree = saved
-                    module_manager._release_tag_published = saved_pub
+                    release_source._fetch_release_tree = saved
+                    release_source._release_tag_published = saved_pub
         self.assertEqual(seen.get("repo"), "acme/engine-home")          # the HOME, not boot.repo_slug()/origin
 
     def test_add_with_no_recorded_home_refuses_with_a_remedy_never_origin(self):
@@ -434,12 +447,12 @@ class TestAddSafety(unittest.TestCase):
                 m = module_manager.validate.load_json(p)
                 m.pop("home_repository", None)
                 module_manager._write_json(p, m)
-                saved = module_manager._fetch_release_tree
-                module_manager._fetch_release_tree = lambda *a, **k: called.__setitem__("n", called["n"] + 1)
+                saved = release_source._fetch_release_tree
+                release_source._fetch_release_tree = lambda *a, **k: called.__setitem__("n", called["n"] + 1)
                 try:
                     res = module_manager.add("feat")
                 finally:
-                    module_manager._fetch_release_tree = saved
+                    release_source._fetch_release_tree = saved
         self.assertTrue(res["refused"])
         self.assertIn("no update home recorded", res["reason"])
         self.assertEqual(called["n"], 0)                                # never reached a fetch -> never origin
@@ -451,192 +464,19 @@ class TestAddSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_add_fixture(live)
-                saved = module_manager._fetch_release_tree
-                saved_pub = module_manager._release_tag_published        # bare "0.0.0" resolves to a tag first (#760)
-                module_manager._release_tag_published = lambda *a, **k: True
-                module_manager._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
+                saved = release_source._fetch_release_tree
+                saved_pub = release_source._release_tag_published        # bare "0.0.0" resolves to a tag first (#760)
+                release_source._release_tag_published = lambda *a, **k: True
+                release_source._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
                     urllib.error.HTTPError("u", 404, "Not Found", {}, None))   # a REAL 404 at the home
                 try:
                     res = module_manager.add("feat")
                 finally:
-                    module_manager._fetch_release_tree = saved
-                    module_manager._release_tag_published = saved_pub
+                    release_source._fetch_release_tree = saved
+                    release_source._release_tag_published = saved_pub
         self.assertTrue(res["refused"])
         self.assertIn("acme/engine-home", res["reason"])               # NAMES the home so the operator can check
         self.assertIn("Nothing was changed", res["reason"])
-
-
-class TestReleaseApiRequest(unittest.TestCase):
-    """#867: the three release/tag network boundaries (`_fetch_release_tree`, `_resolve_release_ref`,
-    `_release_tag_published`) now build their GitHub Request through ONE shared helper, so the header block
-    and the token resolution live in one place. These offline tests are the FIRST coverage of that block —
-    the three call sites are a named inductive gap the suite never runs against the network. The load-bearing
-    property is the CONDITIONAL auth: a tokenless call must send NO `Authorization` (an empty `Bearer ` would
-    401 even an anonymous public-release fetch), which the pre-#867 copies preserved by hand and this helper
-    must keep — hence the deliberate `if tok:` rather than github_client.request's unconditional Bearer."""
-
-    @staticmethod
-    def _headers(req):
-        # urllib capitalizes header keys on store; normalize for a case-insensitive assertion.
-        return {k.lower(): v for k, v in req.header_items()}
-
-    def test_an_explicit_token_sets_a_bearer_authorization_and_the_full_header_block(self):
-        req = module_manager._release_api_request("/repos/acme/home/releases/latest", token="ghp_secret")
-        self.assertEqual(req.full_url, "https://api.github.com/repos/acme/home/releases/latest")
-        h = self._headers(req)
-        self.assertEqual(h["authorization"], "Bearer ghp_secret")
-        self.assertEqual(h["accept"], "application/vnd.github+json")
-        self.assertEqual(h["x-github-api-version"], "2022-11-28")
-        self.assertEqual(h["user-agent"], "engine-module-manager")
-
-    def test_no_token_and_no_ambient_token_sends_no_authorization(self):
-        # The anonymous public-release fetch: boot.gh_token() -> None, so NO Authorization header at all.
-        import boot
-        saved = boot.gh_token
-        boot.gh_token = lambda: None
-        try:
-            req = module_manager._release_api_request("/repos/acme/home/tarball/v1.0.0", token=None)
-        finally:
-            boot.gh_token = saved
-        h = self._headers(req)
-        self.assertNotIn("authorization", h)                          # the property this de-dup must preserve
-        self.assertEqual(h["accept"], "application/vnd.github+json")   # the rest of the block still present
-        self.assertEqual(h["x-github-api-version"], "2022-11-28")
-        self.assertEqual(h["user-agent"], "engine-module-manager")
-
-    def test_no_explicit_token_falls_back_to_the_ambient_gh_token(self):
-        import boot
-        saved = boot.gh_token
-        boot.gh_token = lambda: "ambient_tok"
-        try:
-            req = module_manager._release_api_request("/repos/acme/home/releases/tags/v1.0.0", token=None)
-        finally:
-            boot.gh_token = saved
-        self.assertEqual(self._headers(req)["authorization"], "Bearer ambient_tok")
-
-    def test_an_empty_token_string_sends_no_authorization_and_never_consults_boot(self):
-        # `token=""` is "not None", so the fallback is skipped, and the empty string is falsy, so no auth
-        # header — matching the pre-#867 `if tok:` truthiness exactly, never drawing an empty `Bearer `.
-        import boot
-        saved = boot.gh_token
-        boot.gh_token = lambda: (_ for _ in ()).throw(AssertionError("consulted boot for an explicit token"))
-        try:
-            req = module_manager._release_api_request("/repos/acme/home/tarball/main", token="")
-        finally:
-            boot.gh_token = saved
-        self.assertNotIn("authorization", self._headers(req))
-
-    def test_the_user_agent_is_overridable_and_defaults_to_the_module_manager_agent(self):
-        default = module_manager._release_api_request("/x", token="t")
-        custom = module_manager._release_api_request("/x", token="t", user_agent="engine-something-else")
-        self.assertEqual(self._headers(default)["user-agent"], "engine-module-manager")
-        self.assertEqual(self._headers(custom)["user-agent"], "engine-something-else")
-
-    def test_a_path_without_a_leading_slash_is_refused(self):
-        # The path is joined onto the host verbatim, so a slash-less path would silently build a malformed
-        # URL (https://api.github.comrepos/...); the helper must refuse it loudly, not emit a bad request.
-        with self.assertRaises(ValueError):
-            module_manager._release_api_request("repos/acme/home/releases/latest", token="t")
-
-
-class TestBareVersionTagResolution(unittest.TestCase):
-    """#760: the manifest records the engine release BARE (`_bump_engine_manifest` strips a leading `v`), so
-    `add`/`upgrade` must resolve that bare version to the home's REAL published tag before fetching — a
-    `v`-tagging home was fetched as `tarball/0.4.1` and 404'd. `_release_tag_published` is the single network
-    boundary; every test below injects it so the REAL resolution logic runs offline."""
-
-    def test_is_bare_version_matches_only_a_plain_semver(self):
-        self.assertTrue(module_manager._is_bare_version("0.4.1"))
-        self.assertTrue(module_manager._is_bare_version("12.0.30"))
-        self.assertFalse(module_manager._is_bare_version("v0.4.1"))    # a real tag, not bare
-        self.assertFalse(module_manager._is_bare_version("main"))      # a branch
-        self.assertFalse(module_manager._is_bare_version("abc1234"))   # a sha
-        self.assertFalse(module_manager._is_bare_version("latest"))
-        self.assertFalse(module_manager._is_bare_version(None))
-
-    def test_release_ref_candidates_probe_v_first(self):
-        # v-first so the dominant convention (and the `v` that _bump_engine_manifest strips) resolves in one hit.
-        self.assertEqual(module_manager._release_ref_candidates("0.4.1"), ["v0.4.1", "0.4.1"])
-
-    def test_bare_version_resolves_to_the_v_tag_on_a_v_home(self):
-        saved = module_manager._release_tag_published
-        module_manager._release_tag_published = lambda tag, repo=None, token=None: tag in {"v0.4.1", "v0.4.0"}
-        try:
-            self.assertEqual(module_manager._resolve_release_ref("0.4.1", repo="acme/home"), "v0.4.1")
-        finally:
-            module_manager._release_tag_published = saved
-
-    def test_bare_version_falls_back_to_the_bare_tag_on_a_bare_home(self):
-        saved = module_manager._release_tag_published
-        module_manager._release_tag_published = lambda tag, repo=None, token=None: tag == "0.4.1"
-        try:
-            self.assertEqual(module_manager._resolve_release_ref("0.4.1", repo="acme/home"), "0.4.1")
-        finally:
-            module_manager._release_tag_published = saved
-
-    def test_a_pinned_tag_or_sha_passes_through_without_a_probe(self):
-        # A non-bare ref must never touch the network — the tag-pin supply-chain control is unchanged.
-        saved = module_manager._release_tag_published
-        module_manager._release_tag_published = lambda *a, **k: (_ for _ in ()).throw(
-            AssertionError("probed a pinned ref"))
-        try:
-            self.assertEqual(module_manager._resolve_release_ref("v0.4.1", repo="acme/home"), "v0.4.1")
-            self.assertEqual(module_manager._resolve_release_ref("abc1234def", repo="acme/home"), "abc1234def")
-        finally:
-            module_manager._release_tag_published = saved
-
-    def test_no_matching_release_is_classified_missing_not_transport(self):
-        saved = module_manager._release_tag_published
-        module_manager._release_tag_published = lambda *a, **k: False   # the home publishes no such release
-        try:
-            with self.assertRaises(module_manager._NoPublishedRelease) as ctx:
-                module_manager._resolve_release_ref("0.4.1", repo="acme/home")
-        finally:
-            module_manager._release_tag_published = saved
-        self.assertTrue(module_manager._release_is_missing(ctx.exception))   # refuse loudly, never degrade
-
-    def test_a_transport_fault_on_the_probe_propagates_and_degrades(self):
-        import urllib.error
-        saved = module_manager._release_tag_published
-        module_manager._release_tag_published = lambda *a, **k: (_ for _ in ()).throw(
-            urllib.error.URLError("network down"))
-        try:
-            with self.assertRaises(urllib.error.URLError) as ctx:
-                module_manager._resolve_release_ref("0.4.1", repo="acme/home")
-        finally:
-            module_manager._release_tag_published = saved
-        self.assertFalse(module_manager._release_is_missing(ctx.exception))  # transport -> degrade, not refuse
-
-    def test_add_resolves_the_bare_recorded_version_to_the_tag_before_fetching(self):
-        # End to end on the real add path: the bare recorded "0.0.0" is resolved to "v0.0.0" and THAT is what
-        # the fetch is asked for — the exact wiring that fixes #760.
-        seen = {}
-        with tempfile.TemporaryDirectory() as d:
-            live = os.path.join(d, "live")
-            os.makedirs(live)
-            with module_manager._redirect_root(live):
-                module_manager._build_add_fixture(live)                  # engine_release "0.0.0", v-less
-                saved_pub = module_manager._release_tag_published
-                saved_fetch = module_manager._fetch_release_tree
-                module_manager._release_tag_published = lambda tag, repo=None, token=None: tag == "v0.0.0"
-
-                def _spy(ref, dest, repo=None, token=None):
-                    seen["ref"] = ref
-                    raise RuntimeError("stop after capturing the resolved ref")
-                module_manager._fetch_release_tree = _spy
-                try:
-                    module_manager.add("feat")
-                finally:
-                    module_manager._fetch_release_tree = saved_fetch
-                    module_manager._release_tag_published = saved_pub
-        self.assertEqual(seen.get("ref"), "v0.0.0")   # fetched the resolved tag, not the bare "0.0.0"
-
-    def test_the_760_falsification_demo_passes(self):
-        # Runs the shipped #760 demo (its negative control reproduces the original 404). This surviving
-        # reference is also what lets the demo travel (census-completeness) rather than retire.
-        import demo_760_add_release_tag as demo
-        import quiet_call
-        self.assertEqual(quiet_call.run(demo.main), 0)
 
 
 class TestFrozenLockSync(unittest.TestCase):
@@ -647,8 +487,12 @@ class TestFrozenLockSync(unittest.TestCase):
         from unittest import mock
         with mock.patch("subprocess.run", return_value=mock.Mock(returncode=0)) as run:
             self.assertTrue(module_manager._resync_tool_runtime())
-        self.assertIn("--frozen", run.call_args[0][0])              # never a bare `uv sync` that can re-resolve
-        self.assertEqual(run.call_args[0][0][:3], ["uv", "sync", "--frozen"])
+        self.assertEqual(run.call_count, 2)
+        sync, prune = run.call_args_list
+        self.assertIn("--frozen", sync.args[0])              # never a bare `uv sync` that can re-resolve
+        self.assertEqual(sync.args[0][:3], ["uv", "sync", "--frozen"])
+        self.assertEqual(prune.args[0], ["uv", "cache", "prune"])
+        self.assertEqual(sync.kwargs["cwd"], prune.kwargs["cwd"])
 
 
 class TestCli(unittest.TestCase):
@@ -1397,6 +1241,60 @@ class TestUpgradeEndToEnd(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertTrue(module_manager.upgrade_demo())
 
+    def test_upgrade_fixture_isolates_the_memory_migration_window(self):
+        from memory import ledger
+        previous = os.environ.get("ENGINE_MEMORY_DIR")
+        with tempfile.TemporaryDirectory() as root:
+            expected = os.path.join(root, ".engine", "memory")
+            with module_manager._redirect_root(root):
+                self.assertEqual(ledger.ledger_dir(), expected)
+            self.assertEqual(os.environ.get("ENGINE_MEMORY_DIR"), previous)
+
+    def _upgrade_with_control_plane(self, outcome, *, body_override=None):
+        opened = []
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                patcher = (mock.patch.object(module_manager, "render_upgrade_pr_body", return_value=body_override)
+                           if body_override is not None else contextlib.nullcontext())
+                with patcher:
+                    result = module_manager.upgrade(
+                        ref="v0.2.0", release_tree=release,
+                        opener=lambda **kwargs: opened.append(kwargs) or {"number": 1},
+                        backup=lambda *args, **kwargs: {"ok": 1},
+                        control_plane_repair=lambda: outcome)
+        return result, opened
+
+    def test_confirmed_upgrade_repairs_or_verifies_before_opening_the_pr(self):
+        for outcome in ({"status": "repaired", "ruleset_id": 42},
+                        {"status": "already", "ruleset_id": 42}):
+            with self.subTest(status=outcome["status"]):
+                result, opened = self._upgrade_with_control_plane(outcome)
+                self.assertEqual(result["control_plane"], outcome)
+                self.assertTrue(opened, result.get("reason"))
+                self.assertIn("Safety rule confirmed", opened[0]["body"])
+
+    def test_operator_owned_or_unverified_control_plane_refuses_before_opening(self):
+        for outcome in ({"status": "operator-action-required", "reason": "operator-owned rule"},
+                        {"status": "unverified", "reason": "could not reach GitHub"}):
+            with self.subTest(status=outcome["status"]):
+                result, opened = self._upgrade_with_control_plane(outcome)
+                self.assertEqual(result["control_plane"], outcome)
+                self.assertFalse(opened)
+                self.assertIn("NOT open a pull request", result["reason"])
+
+    def test_bad_generated_marker_refuses_before_the_opener_boundary(self):
+        good = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {})
+        broken = good.replace(release_impact.impact_trailer("none"), "")
+        result, opened = self._upgrade_with_control_plane({"status": "already", "ruleset_id": 42},
+                                                          body_override=broken)
+        self.assertFalse(opened)
+        self.assertTrue(any(f.get("severity") == "hard" for f in result["findings"]))
+        self.assertIn("NOT opened for review", result["reason"])
+
 
 class TestUpgradeSafety(unittest.TestCase):
     """Upgrade's defense-in-depth: degrade on an unreachable release, the data-migration pre-flight refusal
@@ -1408,13 +1306,13 @@ class TestUpgradeSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)
-                saved = module_manager._fetch_release_tree
-                module_manager._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
+                saved = release_source._fetch_release_tree
+                release_source._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
                     RuntimeError("HTTP Error 404: Not Found"))
                 try:
                     res = module_manager.upgrade(ref="v9.9.9")
                 finally:
-                    module_manager._fetch_release_tree = saved
+                    release_source._fetch_release_tree = saved
                 engine = module_manager.module_coherence.load_engine_manifest()
             self.assertTrue(res["refused"])
             self.assertIn("Couldn't reach", res["reason"])
@@ -1428,18 +1326,18 @@ class TestUpgradeSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)             # records home "acme/engine-home"
-                sr, sf = module_manager._resolve_release_ref, module_manager._fetch_release_tree
-                module_manager._resolve_release_ref = lambda ref, repo=None, token=None: (
+                sr, sf = release_source._resolve_release_ref, release_source._fetch_release_tree
+                release_source._resolve_release_ref = lambda ref, repo=None, token=None: (
                     seen.__setitem__("resolve_repo", repo) or "v0.2.0")
 
                 def _spy(ref, dest, repo=None, token=None):
                     seen["fetch_repo"] = repo
                     raise RuntimeError("stop after capturing the source")
-                module_manager._fetch_release_tree = _spy
+                release_source._fetch_release_tree = _spy
                 try:
                     module_manager.upgrade()                            # ref=None -> resolve latest FROM THE HOME
                 finally:
-                    module_manager._resolve_release_ref, module_manager._fetch_release_tree = sr, sf
+                    release_source._resolve_release_ref, release_source._fetch_release_tree = sr, sf
         self.assertEqual(seen.get("resolve_repo"), "acme/engine-home")
         self.assertEqual(seen.get("fetch_repo"), "acme/engine-home")
 
@@ -1454,12 +1352,12 @@ class TestUpgradeSafety(unittest.TestCase):
                 m = module_manager.validate.load_json(p)
                 m.pop("home_repository", None)
                 module_manager._write_json(p, m)
-                sf = module_manager._fetch_release_tree
-                module_manager._fetch_release_tree = lambda *a, **k: called.__setitem__("n", called["n"] + 1)
+                sf = release_source._fetch_release_tree
+                release_source._fetch_release_tree = lambda *a, **k: called.__setitem__("n", called["n"] + 1)
                 try:
                     res = module_manager.upgrade()
                 finally:
-                    module_manager._fetch_release_tree = sf
+                    release_source._fetch_release_tree = sf
                 engine = module_manager.module_coherence.load_engine_manifest()
         self.assertTrue(res["refused"])
         self.assertIn("no update home recorded", res["reason"])
@@ -1473,13 +1371,13 @@ class TestUpgradeSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)
-                sf = module_manager._fetch_release_tree
-                module_manager._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
+                sf = release_source._fetch_release_tree
+                release_source._fetch_release_tree = lambda *a, **k: (_ for _ in ()).throw(
                     urllib.error.HTTPError("u", 404, "Not Found", {}, None))   # a REAL 404 at the home
                 try:
                     missing = module_manager.upgrade(ref="v9.9.9")
                 finally:
-                    module_manager._fetch_release_tree = sf
+                    release_source._fetch_release_tree = sf
         self.assertTrue(missing["refused"])
         self.assertIn("acme/engine-home", missing["reason"])            # names the home (not just "the release")
         self.assertNotIn("network", missing["reason"].lower())          # distinct from the transport-degrade wording
@@ -1492,13 +1390,13 @@ class TestUpgradeSafety(unittest.TestCase):
             os.makedirs(live)
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)
-                sr = module_manager._resolve_release_ref
-                module_manager._resolve_release_ref = lambda *a, **k: (_ for _ in ()).throw(
-                    module_manager._NoPublishedRelease("no published release"))
+                sr = release_source._resolve_release_ref
+                release_source._resolve_release_ref = lambda *a, **k: (_ for _ in ()).throw(
+                    release_source._NoPublishedRelease("no published release"))
                 try:
                     res = module_manager.upgrade()   # ref=None -> resolve latest -> no published release
                 finally:
-                    module_manager._resolve_release_ref = sr
+                    release_source._resolve_release_ref = sr
         self.assertTrue(res["refused"])
         self.assertIn("acme/engine-home", res["reason"])               # names the home
         self.assertNotIn("network", res["reason"].lower())             # not the transport-degrade wording
@@ -1519,6 +1417,25 @@ class TestUpgradeSafety(unittest.TestCase):
                 engine = module_manager.module_coherence.load_engine_manifest()
         self.assertEqual((engine or {}).get("home_repository"), "acme/engine-home")   # preserved
         self.assertEqual((engine or {}).get("packages", {}).get("base"), "0.2.0")     # but versions bumped
+
+    def test_upgrade_overlays_engine_cache_and_preserves_reconciled_groups(self):
+        # The older deployment has no cache-dir. The release overlays the whole foundation pyproject,
+        # then the upgrade's default-group reconciler rewrites only its one array; both settings must survive.
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live")
+            os.makedirs(live)
+            release = module_manager._build_upgrade_release(os.path.join(d, "release"))
+            with module_manager._redirect_root(live):
+                module_manager._build_upgrade_fixture(live)
+                before = module_manager.validate.read(os.path.join(live, ".engine", "pyproject.toml"))
+                self.assertNotIn("cache-dir", before)
+                module_manager.upgrade(ref="v0.2.0", release_tree=release,
+                                       opener=lambda **k: {"number": 1},
+                                       backup=lambda *a, **k: {"ok": 1})
+                after = module_manager.validate.read(os.path.join(live, ".engine", "pyproject.toml"))
+                groups = module_manager.committed_default_groups()
+        self.assertIn('cache-dir = ".uv"', after)
+        self.assertEqual(groups, ["base"])
 
     def test_upgrade_preserves_a_recorded_protection_posture(self):
         # #809: an unsupported-platform posture is operator config (a top-level manifest key), so a version bump
@@ -1792,6 +1709,39 @@ class TestMergeClaudeFloor(unittest.TestCase):
         self.assertEqual(after, raw)                           # untouched, no append
         self.assertNotIn("Project status v2.", after)
 
+    def test_known_byte_identical_legacy_engine_floor_is_migrated(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live"); os.makedirs(live)
+            rel = self._release(d)
+            legacy = "# Engine-owned legacy floor\n\nProject status (unfenced).\n"
+            digest = hashlib.sha256(legacy.encode("utf-8")).hexdigest()
+            with module_manager._redirect_root(live), \
+                 mock.patch.dict(module_manager._LEGACY_ENGINE_FLOOR_DIGESTS,
+                                 {"CLAUDE.md": frozenset({digest})}, clear=True):
+                self._write_local(live, legacy)
+                out = module_manager._merge_claude_floor(rel)
+                after = module_manager.validate.read(os.path.join(live, "CLAUDE.md"))
+        self.assertEqual(out, "migrated")
+        self.assertIn("Project status v2.", after)
+        self.assertEqual(after.count("BEGIN engine-managed block: floor"), 1)
+        self.assertNotIn("Engine-owned legacy floor", after)
+
+    def test_a_one_byte_changed_legacy_floor_is_left_untouched(self):
+        with tempfile.TemporaryDirectory() as d:
+            live = os.path.join(d, "live"); os.makedirs(live)
+            rel = self._release(d)
+            legacy = "# Engine-owned legacy floor\n"
+            digest = hashlib.sha256(legacy.encode("utf-8")).hexdigest()
+            changed = legacy + "operator edit\n"
+            with module_manager._redirect_root(live), \
+                 mock.patch.dict(module_manager._LEGACY_ENGINE_FLOOR_DIGESTS,
+                                 {"CLAUDE.md": frozenset({digest})}, clear=True):
+                self._write_local(live, changed)
+                out = module_manager._merge_claude_floor(rel)
+                after = module_manager.validate.read(os.path.join(live, "CLAUDE.md"))
+        self.assertEqual(out, "skipped-no-section")
+        self.assertEqual(after, changed)
+
     def test_release_without_a_floor_source_is_skipped(self):
         with tempfile.TemporaryDirectory() as d:
             live = os.path.join(d, "live"); os.makedirs(live)
@@ -1961,6 +1911,27 @@ class TestUpgradePrBodyIsTemplateConforming(unittest.TestCase):
         passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
         self.assertTrue(passed, f"minimal update PR body failed the completeness gate: {findings}")
 
+    def test_rendered_update_body_has_exactly_one_none_impact_marker(self):
+        body = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {})
+        self.assertEqual(release_impact.find_impact_markers(body), ["none"])
+        self.assertEqual(release_impact_check.findings_for_body(body), [])
+
+    def test_pre_open_gate_refuses_missing_duplicate_or_invalid_impact_markers(self):
+        # Keep tree-dependent structural pieces empty so every hard finding below is attributable to the real
+        # rendered-body rule that runs before the opener boundary.
+        good = module_manager.render_upgrade_pr_body({"base": "0.1.0"}, {"base": "0.2.0"}, {})
+        bodies = {
+            "missing": good.replace(release_impact.impact_trailer("none"), ""),
+            "duplicate": good + "\n" + release_impact.impact_trailer("none"),
+            "invalid": good.replace("engine-release-impact: none", "engine-release-impact: enormous"),
+        }
+        for name, body in bodies.items():
+            with self.subTest(name=name), \
+                 mock.patch.object(module_manager.module_coherence, "check_coherence", return_value=[]), \
+                 mock.patch.object(module_manager.validate, "collect", return_value=[]):
+                findings = module_manager._reconcile_gate(body)
+            self.assertTrue(any(f.get("severity") == "hard" for f in findings), findings)
+
     def test_validation_section_claims_only_the_consistency_check_not_ci(self):
         # Consent honesty: this body is authored before the update PR opens, so the PR's CI has not run yet —
         # it must NOT claim the CI/full suite passed, only the consistency check that runs before the update is opened.
@@ -2030,6 +2001,83 @@ class TestUpgradePrBodyIsTemplateConforming(unittest.TestCase):
         self.assertGreater(suspect_idx, 0)
         self.assertGreater(caveat_idx, 0)
         self.assertLess(caveat_idx, suspect_idx, "the suspect caveat must introduce the suspect list")
+
+
+class TestArrivalPrBodyIsTemplateConforming(unittest.TestCase):
+    """#755: the brownfield arrival PR body — the project's FIRST view of the engine, which no target-repo check
+    can reject before merge — must clear the SAME `pr-body-completeness` gate every engine PR does, while being
+    honest about the checkless arrival (the engine's own checks are not required until the post-merge finalize)."""
+
+    def _rule(self):
+        return module_manager.validate.load_json(
+            os.path.join(module_manager.validate.CHECK_DIR, "pr-body-completeness.json"))
+
+    def _rich(self, **over):
+        facts = dict(engine_release="v0.5.0", tier="team", module_ids=[f"m{i}" for i in range(9)],
+                     overlaid_count=715, overlap_count=3, kept_as_is_count=1,
+                     claude_floor="inserted", agents_floor="inserted",
+                     home_repository="StarshipSuperjam/engine-template", default_branch="main", protected=True)
+        facts.update(over)
+        return module_manager.render_arrival_pr_body(**facts)
+
+    def test_rendered_arrival_body_clears_the_completeness_gate(self):
+        body = self._rich()
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"arrival PR body failed the completeness gate: {findings}")
+        self.assertEqual(findings, [])
+
+    def test_rendered_arrival_body_clears_the_gate_even_when_minimal(self):
+        # A quiet arrival (no overlaps, protection not applied, no update home) must still be a complete,
+        # conforming consent surface — never a half-filled template.
+        body = module_manager.render_arrival_pr_body(module_ids=[], overlap_count=0, claude_floor="inserted",
+                                                     agents_floor="skipped", home_repository=None,
+                                                     default_branch="main", protected=False)
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"minimal arrival PR body failed the completeness gate: {findings}")
+
+    def test_arrival_validation_never_claims_the_full_suite_runs_on_this_pr(self):
+        # Consent honesty (the sharpest arrival divergence from the upgrade body): the target has no engine
+        # checks yet — they arrive IN this PR and run only after finalize — so the body must NOT claim a CI/full
+        # suite runs on or gates this pull request, and it must say the checks arm at the post-merge finalize.
+        low = self._rich().lower()
+        self.assertNotIn("full suite runs on this pull request", low)
+        self.assertNotIn("suite runs on this pull request", low)
+        self.assertNotIn("ci suite", low)
+        self.assertIn("not yet running on this pull request", low)
+        self.assertIn("bootstrap.py finalize", self._rich())  # the post-merge action, case-preserved
+
+    def test_arrival_body_surfaces_a_must_see_degraded_floor(self):
+        # A floor the engine could NOT insert (a malformed local fence) is a must-see negative on the one surface
+        # the operator reads before merging the whole engine — it must render a visible line, not be dropped.
+        body = self._rich(claude_floor="degraded")
+        self.assertIn("Could NOT add the engine's instruction block to your Claude guide", body)
+        passed, findings = module_manager.validate.kind_presence(self._rule(), {"pr_body": body})
+        self.assertTrue(passed, f"degraded-floor arrival body failed the gate: {findings}")
+
+    def test_arrival_body_preserves_the_conditional_protection_honesty(self):
+        # The protection claim is conditional on what actually happened (pinned end-to-end by the instantiator
+        # test); at the renderer level, the not-applied path must never read as protected.
+        on = self._rich(protected=True)
+        self.assertIn("has already been turned on", on)
+        self.assertNotIn("could NOT be turned on", on)
+        off = self._rich(protected=False)
+        self.assertIn("could NOT be turned on", off)
+        self.assertNotIn("has already been turned on", off)
+
+    def test_arrival_body_names_the_engine_version_and_file_count(self):
+        # #755 (deliverable review): engine_release and overlaid_count are threaded to the renderer, so they must
+        # actually appear — a reviewer of the project's first engine PR must be able to tell which version was
+        # installed and how much it placed, not have those facts computed and silently dropped.
+        body = self._rich(engine_release="v0.5.0", overlaid_count=712)
+        self.assertIn("engine v0.5.0", body)
+        self.assertIn("712 engine files", body)
+
+    def test_arrival_body_literalizes_externally_derived_values(self):
+        # The branch name and update-home slug are external strings; a stray Markdown metacharacter must not
+        # reshape the sole consent surface.
+        body = self._rich(default_branch="feat/*x_y", home_repository="o/r`z")
+        self.assertIn("feat/\\*x\\_y", body)
+        self.assertIn("o/r\\`z", body)
 
 
 class TestLifecycleRendersCarryCoherenceWarrant(unittest.TestCase):
@@ -2105,6 +2153,9 @@ class TestFoundationInfra(unittest.TestCase):
         # identical to the historical literal — no membership change to the ownership-walk carve-out
         self.assertEqual(module_coherence.NAMED_INFRA,
                          {".engine/engine.json", ".engine/pyproject.toml", ".engine/uv.lock"})
+
+    def test_acknowledgment_status_workflow_is_delivered_by_upgrade(self):
+        self.assertIn(".github/workflows/engine-ack-status.yml", module_manager.FOUNDATION_CODE)
 
     def test_foundation_code_is_foundation_infra_minus_manifest_codeowners_claude_and_gitignore(self):
         expected = tuple(p for p in module_coherence.FOUNDATION_INFRA
@@ -2412,18 +2463,18 @@ class TestUpgradeTailAndSafeCli(unittest.TestCase):
             release = module_manager._build_upgrade_release(os.path.join(d, "release"))
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)   # coherent, engine_release 0.0.0
-                orig_r, orig_f = module_manager._resolve_release_ref, module_manager._fetch_release_tree
+                orig_r, orig_f = release_source._resolve_release_ref, release_source._fetch_release_tree
                 fetched = []
                 try:
-                    module_manager._resolve_release_ref = lambda ref, repo=None, token=None: "v0.2.0"
-                    module_manager._fetch_release_tree = (
+                    release_source._resolve_release_ref = lambda ref, repo=None, token=None: "v0.2.0"
+                    release_source._fetch_release_tree = (
                         lambda ref, dest, repo=None, token=None: fetched.append(ref) or release)
                     available = module_manager.upgrade_preview()
-                    module_manager._resolve_release_ref = lambda ref, repo=None, token=None: "0.0.0"
+                    release_source._resolve_release_ref = lambda ref, repo=None, token=None: "0.0.0"
                     current = module_manager.upgrade_preview()
                 finally:
-                    module_manager._resolve_release_ref = orig_r
-                    module_manager._fetch_release_tree = orig_f
+                    release_source._resolve_release_ref = orig_r
+                    release_source._fetch_release_tree = orig_f
         self.assertEqual(available["status"], "update-available")
         self.assertEqual(available["available"], "v0.2.0")
         self.assertEqual(available["target_versions"]["base"], "0.2.0")   # it read the release's real manifest
@@ -2463,14 +2514,14 @@ class TestUpgradeTailAndSafeCli(unittest.TestCase):
             release = module_manager._build_upgrade_release(os.path.join(d, "release"))
             with module_manager._redirect_root(live):
                 module_manager._build_upgrade_fixture(live)
-                orig_f = module_manager._fetch_release_tree
+                orig_f = release_source._fetch_release_tree
                 fetched = []
                 try:
-                    module_manager._fetch_release_tree = (
+                    release_source._fetch_release_tree = (
                         lambda ref, dest, repo=None, token=None: fetched.append(ref) or release)
                     preview = module_manager.upgrade_preview("v0.2.0")
                 finally:
-                    module_manager._fetch_release_tree = orig_f
+                    release_source._fetch_release_tree = orig_f
         self.assertEqual(preview["status"], "update-available")
         self.assertEqual(preview["named_ref"], "v0.2.0")
         self.assertEqual(preview["target_ref"], "v0.2.0")
@@ -2964,7 +3015,7 @@ class TestUpgradeReconcile(unittest.TestCase):
         # returns `dest` itself (arch-N2). Uses HEAD, so it runs in a shallow CI checkout too.
         with tempfile.TemporaryDirectory() as d:
             dest = os.path.join(d, "tree")
-            out = module_manager._archive_tree("HEAD", dest)
+            out = release_source._archive_tree("HEAD", dest)
             self.assertEqual(out, dest)
             self.assertTrue(os.path.isdir(os.path.join(dest, ".engine")),
                             "the archived tree root should contain .engine/ directly (no wrapper dir)")
@@ -4129,10 +4180,11 @@ class TestUpgradeInstallsNewModules(unittest.TestCase):
         self.assertEqual([e["id"] for e in out["offered"]], ["d"])
 
     def test_offer_text_falls_back_when_no_catalog_entry(self):
-        # An experimental module with no catalog entry still surfaces — description/verb fall back to empty, no crash.
+        # An experimental module with no catalog entry still surfaces — description falls back to empty, no crash.
+        # The offered shape carries no verb (modules are added by id, not a per-module command).
         out = module_manager._classify_available_modules(
             self._avail(("x", "experimental", None)), ["core"], set(), catalog_trusted=True, catalog_text=None)
-        self.assertEqual(out["offered"][0], {"id": "x", "status": "experimental", "description": "", "verb": ""})
+        self.assertEqual(out["offered"][0], {"id": "x", "status": "experimental", "description": ""})
 
     # ---- the discriminator capture (`_pre_overlay_known`) — catalog trust ----
     def test_pre_overlay_known_trust_flag(self):
@@ -4165,7 +4217,7 @@ class TestUpgradeInstallsNewModules(unittest.TestCase):
     def test_pr_body_discloses_installed_and_offered_modules(self):
         result = {"modules_installed": [{"id": "fx-req", "status": "required", "prior_declined": False},
                                         {"id": "fx-def", "status": "default-on", "prior_declined": False}],
-                  "modules_offered": [{"id": "fx-opt", "status": "optional", "description": "a thing", "verb": ""}]}
+                  "modules_offered": [{"id": "fx-opt", "status": "optional", "description": "a thing"}]}
         body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"}, result)
         self.assertIn("New required capabilities", body)
         self.assertIn("fx-req", body)
@@ -4194,7 +4246,7 @@ class TestUpgradeInstallsNewModules(unittest.TestCase):
              "files": {"replaced": [], "added": []}, "wires": {}, "migrations": [],
              "retired_capabilities": [], "removed_capabilities": [],
              "modules_installed": [{"id": "fx-req", "status": "required", "prior_declined": False}],
-             "modules_offered": [{"id": "fx-opt", "status": "optional", "description": "", "verb": ""}]}
+             "modules_offered": [{"id": "fx-opt", "status": "optional", "description": ""}]}
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             module_manager._render_upgrade_preview(p)
@@ -4261,8 +4313,8 @@ class TestUpgradeInstallsNewModules(unittest.TestCase):
         # The literal ask-1 surface: an offered default-on (a default the deployment doesn't have) must read
         # differently from a genuinely-optional add-on, in BOTH the PR body and the terminal preview.
         result = {"modules_installed": [], "modules_offered": [
-            {"id": "fx-def", "status": "default-on", "description": "", "verb": ""},
-            {"id": "fx-opt", "status": "optional", "description": "", "verb": ""}]}
+            {"id": "fx-def", "status": "default-on", "description": ""},
+            {"id": "fx-opt", "status": "optional", "description": ""}]}
         body = module_manager.render_upgrade_pr_body({"core": "0.4.0"}, {"core": "0.5.0"}, result)
         self.assertIn("fx-def", body)
         self.assertIn("a default add-on you don't have", body)          # the default-on distinction
