@@ -48,7 +48,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 import urllib.error
 import urllib.request
@@ -59,6 +58,7 @@ import module_coherence
 import module_manager
 import repo_identity
 import validate
+import render_safety
 import weakening_guard
 
 COMMENT_MARKER = "<!-- engine-overlay-disclosure -->"
@@ -71,10 +71,6 @@ USER_AGENT = "engine-overlay-disclosure"
 # `engine-remove-cleanup` is not wrongly exempted); only the varying-ref update branch is matched by prefix.
 _ENGINE_AUTHORED_BRANCH_EXACT = ("engine-remove", "engine-arrival")
 _ENGINE_AUTHORED_BRANCH_PREFIXES = ("engine-update-",)
-
-# A conservative file-path whitelist. Real engine paths use only these, so the substitution is lossless for
-# them; anything else (a crafted rename target) becomes '?', which cannot break a markdown code span.
-_UNSAFE_PATH_CHAR = re.compile(r"[^A-Za-z0-9._/-]")
 
 _MAX_LISTED = 15   # cap the rendered list so a large edit is not a wall of paths; the rest is summarized.
 
@@ -154,12 +150,12 @@ def _is_bot(comment: dict) -> bool:
 
 
 def _safe_path(path: str) -> str:
-    """A render-safe form of `path`: every character outside a conservative file-path whitelist (letters,
-    digits, dot, underscore, slash, hyphen) becomes '?'. Real engine paths use only those, so this is
-    lossless for them; it neutralizes a crafted rename target so no backtick can terminate the code span and
-    no bracket/paren/angle-bracket/autolink can form inside it. Backslash-escaping is deliberately NOT used —
-    it has no effect inside a markdown code span (CommonMark)."""
-    return _UNSAFE_PATH_CHAR.sub("?", path)
+    """A render-safe form of `path` — delegates to the one shared render-safety boundary
+    (`render_safety.safe_path`), so a crafted identifier is neutralised through a single, tested implementation
+    rather than an inline copy that could drift. Real engine paths pass through unchanged; a crafted rename
+    target is neutralised so no backtick can terminate the code span and no bracket/paren/angle-bracket/autolink
+    can form inside it."""
+    return render_safety.safe_path(path)
 
 
 def _changed_hits(changed: list, wanted: set) -> list:
@@ -236,7 +232,7 @@ def compose_comment(registers: dict, home: str | None) -> str:
             "If that was a one-off, this is just so you know. If you want the change to last, the durable home "
             f"for an edit to engine machinery is upstream in the engine project these files come from{home_hint} "
             "— a fix there travels to every update. And if what you actually want is to customize how the engine "
-            "behaves, the settings that *do* survive an update are your tunable policy (via `/engine-tune`) and "
+            "behaves, the settings that *do* survive an update are your tunable policy (via `/engine-setup`) and "
             "your operator notes — those are preserved; these files are not.")
     if derived:
         parts.append(

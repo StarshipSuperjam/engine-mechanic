@@ -178,6 +178,9 @@ class TestReportPartitioning(unittest.TestCase):
     def _noop(self, msg, rule):
         return {**validate.disclosed_noop(msg), "source_rule": rule}
 
+    def _deferred(self, msg, rule, missing=None):
+        return {**validate.witness_deferred(msg, missing=missing), "source_rule": rule}
+
     def test_actionable_shown_in_full_noops_collapsed_and_named(self):
         findings = [
             validate.finding("soft", "'a.md' is 812 lines, over its 800-line budget", {"file": "a.md", "line": None}),
@@ -236,6 +239,57 @@ class TestReportPartitioning(unittest.TestCase):
         clean = self._render([], gates=True)
         self.assertIn("OK — suite 'CI' passed, no hard findings.", clean)
 
+    # ---- witness-deferred surface (StarshipSuperjam/engine-template#761) ----
+
+    def test_witness_deferred_lifts_to_elevated_line_not_collapse(self):
+        # A credential/PR-context-gated check that no-ops locally but ENFORCES in CI is surfaced on
+        # its own elevated line naming it — never folded into the benign "nothing to do" collapse.
+        out = self._render([self._deferred("branch protection had no token here", "engine/check/protection")])
+        self.assertIn("not verified in this run", out)
+        self.assertIn("enforce in CI", out)
+        self.assertIn("engine/check/protection", out)
+        self.assertNotIn("nothing to do", out)                 # NOT the collapse bucket
+        self.assertNotIn("had no token here", out)             # boilerplate prose folds, name stays
+
+    def test_green_line_qualified_when_deferred(self):
+        # With no hard findings but a deferred check, the green line cannot read as full validation.
+        out = self._render([self._deferred("x", "engine/check/protection")], gates=True)
+        self.assertIn("OK — suite 'CI' passed, no hard findings — but 1 CI-only check(s) were not "
+                      "verified here (see above).", out)
+
+    def test_mixed_deferred_and_collapsible_partition(self):
+        # The ordering hazard: a deferred finding also carries not_applicable, so it must be peeled
+        # out BEFORE the collapse or it hides in "nothing to do". A genuine no-op stays collapsed.
+        out = self._render([
+            self._deferred("protection had no token", "engine/check/protection"),
+            self._noop("no docs/spec here", "engine/check/product-spec-form"),
+        ])
+        lines = out.splitlines()
+        # the genuine no-op collapses (and does NOT name the deferred check)...
+        collapse_line = next(l for l in lines if "nothing to do" in l)
+        self.assertIn("engine/check/product-spec-form", collapse_line)
+        self.assertNotIn("protection", collapse_line)
+        # ...while the deferred check is on its own elevated line (and the collapse check is not there)
+        elevated_line = next(l for l in lines if "not verified in this run" in l)
+        self.assertIn("engine/check/protection", elevated_line)
+        self.assertNotIn("product-spec-form", elevated_line)
+
+    def test_deferred_without_source_rule_renders_in_full(self):
+        # Fail-safe: an unnameable witness_deferred (no source_rule) renders in full, never a nameless
+        # "not verified" line — same posture as an unnameable disclosed_noop.
+        out = self._render([validate.witness_deferred("this check could not run here, here is why")])
+        self.assertIn("notes (1):", out)
+        self.assertIn("this check could not run here, here is why", out)
+        self.assertNotIn("not verified in this run —", out)
+
+    def test_no_deferred_output_is_byte_identical(self):
+        # The whole empty-deferred path must be byte-for-byte what it was pre-#761, so no existing
+        # assertion regresses: no elevated line, and the green line carries no qualifier.
+        clean = self._render([self._noop("dormant", "engine/check/dependency-pinning")], gates=True)
+        self.assertNotIn("not verified in this run", clean)
+        self.assertNotIn("were not verified here", clean)
+        self.assertIn("OK — suite 'CI' passed, no hard findings.", clean)
+
 
 class TestCustomScriptCarriesMarker(unittest.TestCase):
     """The load-bearing boundary: kind_custom_script rebuilds each script-emitted finding on the
@@ -263,6 +317,70 @@ class TestCustomScriptCarriesMarker(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertNotIn("evil", found[0], "only the finding.v1 allow-list may cross the trust boundary")
         self.assertFalse(found[0].get("not_applicable"))       # unmarked stays actionable
+
+    def test_witness_deferred_marker_survives_reingestion(self):
+        # A custom/script check's witness_deferred no-op keeps its full marker key-set across the
+        # boundary (StarshipSuperjam/engine-template#761) — so report() elevates it and collect() exposes it.
+        _verdict, found = self._run_script([{"severity": "soft", "message": "na", "not_applicable": True,
+                                             "witness_deferred": True, "missing_witness": ["GITHUB_TOKEN"]}])
+        self.assertEqual(len(found), 1)
+        self.assertIs(found[0]["witness_deferred"], True)
+        self.assertIs(found[0]["not_applicable"], True)
+        self.assertEqual(found[0]["missing_witness"], ["GITHUB_TOKEN"])
+
+    def test_missing_witness_is_sanitized_not_trusted(self):
+        # missing_witness is author-controllable across the trust boundary, so it is coerced to a
+        # bounded list of strings (like not_applicable is coerced to True) — a malformed value never
+        # leaks raw structure nor crashes report()'s join.
+        _verdict, found = self._run_script([{"severity": "soft", "message": "m",
+                                             "witness_deferred": 1,          # truthy non-bool -> True
+                                             "missing_witness": [1, {"x": 2}, "GITHUB_TOKEN"]}])
+        self.assertEqual(len(found), 1)
+        self.assertIs(found[0]["witness_deferred"], True)      # coerced to literal True
+        self.assertTrue(all(isinstance(x, str) for x in found[0]["missing_witness"]))
+        # and it renders without raising (the elevated line does a ", ".join over source_rule names)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            validate.report("CI", [{**found[0], "source_rule": "engine/check/x"}], True)
+        self.assertIn("not verified in this run", buf.getvalue())
+
+    def test_non_list_missing_witness_is_dropped(self):
+        # A non-list missing_witness is ignored entirely (never copied), so nothing odd rides through.
+        _verdict, found = self._run_script([{"severity": "soft", "message": "m",
+                                             "witness_deferred": True, "missing_witness": "GITHUB_TOKEN"}])
+        self.assertEqual(len(found), 1)
+        self.assertIs(found[0]["witness_deferred"], True)
+        self.assertNotIn("missing_witness", found[0])
+
+    def test_missing_witness_is_deduped_at_the_boundary(self):
+        # missing_witness is str-coerced AND deduped (order-preserving), so a duplicated author list
+        # never rides through doubled into the elevated line or collect().
+        _verdict, found = self._run_script([{"severity": "soft", "message": "m", "witness_deferred": True,
+                                             "missing_witness": ["GITHUB_TOKEN", "GITHUB_TOKEN", 1, "1"]}])
+        self.assertEqual(found[0]["missing_witness"], ["GITHUB_TOKEN", "1"])
+
+    def test_constructor_dedupes_missing(self):
+        # The witness_deferred() constructor itself dedupes (the four routed checks build through it).
+        f = validate.witness_deferred("m", missing=["GITHUB_TOKEN", "GITHUB_TOKEN", "pull-request context"])
+        self.assertEqual(f["missing_witness"], ["GITHUB_TOKEN", "pull-request context"])
+
+
+class TestCollectExposesWitnessDeferred(unittest.TestCase):
+    """Goal-3-lite (StarshipSuperjam/engine-template#761): the witness_deferred marker rides collect() so an
+    orchestrator can read "validated except for N CI-only checks" from the structured seam, no new
+    exit code. Run the real CI suite locally (no credentials) and confirm the marker is present."""
+
+    def test_collect_carries_the_marker_locally(self):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_EVENT_PATH",
+                            "GITHUB_ACTIONS", "CI")}
+        with mock.patch.dict(os.environ, env, clear=True):
+            findings = validate.collect("CI", validate.local_ctx(), with_source=True)
+        deferred = [f for f in findings if f.get("witness_deferred")]
+        # branch-protection is a core check present in every deployment; locally it has no token, so
+        # its witness_deferred no-op must be visible in the structured collect() output.
+        self.assertTrue(any(f.get("source_rule") == "engine/check/protection" for f in deferred),
+                        "collect() must expose the witness_deferred marker for a core credential-gated check")
 
 
 class TestLocalTriggers(unittest.TestCase):
@@ -711,6 +829,243 @@ class TestAuthorityReservationFindings(unittest.TestCase):
         catalog = validate.load_json(validate.CATALOG_PATH)
         manifests = [m for _p, m in module_coherence.discover_manifests()]
         self.assertEqual(validate.authority_reservation_findings(catalog, manifests, "hard", "M"), [])
+
+
+# ---- CI live PR-body read + phase-aware recovery (StarshipSuperjam/engine-template#949) -------------
+import urllib.error  # noqa: E402
+import github_client  # noqa: E402
+
+
+class _FakeResp:
+    """A minimal context-manager stand-in for a urllib response — the shape json_request drives
+    (`with _urlopen(...) as resp: resp.read(); resp.status`). No live call is ever made."""
+    def __init__(self, status, raw):
+        self.status, self._raw = status, raw
+
+    def read(self):
+        return self._raw
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+def _urlopen_ok(status=200, payload=None, raw=None):
+    body = raw if raw is not None else json.dumps(payload if payload is not None else {}).encode("utf-8")
+    def _fn(req, timeout=None):
+        return _FakeResp(status, body)
+    return _fn
+
+
+def _urlopen_raise(exc):
+    def _fn(req, timeout=None):
+        raise exc
+    return _fn
+
+
+def _urlopen_forbidden():
+    def _fn(req, timeout=None):
+        raise urllib.error.HTTPError("https://api.github.com/repos/o/r/pulls/42", 403,
+                                     "Forbidden", {}, None)
+    return _fn
+
+
+def _urlopen_read_raises(exc):
+    """A response whose .read() raises — the faithful shape of a truncated transfer (IncompleteRead is raised
+    during read(), inside json_request's with-block, and is NOT an OSError)."""
+    class _R(_FakeResp):
+        def read(self):
+            raise exc
+    def _fn(req, timeout=None):
+        return _R(200, b"")
+    return _fn
+
+
+class TestLivePrBodyFetch(unittest.TestCase):
+    """resolve_ci_pr_body fetches the CURRENT body in a CI pull-request run so an edited body (invisible to a
+    rerun of the frozen event) is seen, and falls back — never raises — when the live read is unavailable. The
+    network is injected at `github_client._urlopen`; a live call is NEVER made."""
+
+    def setUp(self):
+        self.d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        self.ev = os.path.join(self.d, "event.json")
+        self._write_event({"pull_request": {"number": 42, "body": "FROZEN STALE BODY"}})
+        self.ci_env = {"GITHUB_EVENT_PATH": self.ev, "GITHUB_REPOSITORY": "o/r", "GITHUB_TOKEN": "t"}
+
+    def _write_event(self, obj):
+        with open(self.ev, "w", encoding="utf-8") as fh:
+            json.dump(obj, fh)
+
+    def _resolve(self, urlopen, env=None):
+        with mock.patch.object(github_client, "_urlopen", urlopen), \
+                mock.patch.dict(os.environ, env if env is not None else self.ci_env, clear=True):
+            return validate.resolve_ci_pr_body(None)
+
+    # --- the live read wins, and NEVER yields None (the merge-gate-safety invariant) ---
+    def test_live_body_overrides_stale_frozen(self):
+        body, source = self._resolve(_urlopen_ok(payload={"body": "LIVE CURRENT BODY"}))
+        self.assertEqual(body, "LIVE CURRENT BODY")
+        self.assertEqual(source, "live")
+
+    def test_live_null_body_normalizes_to_empty_and_never_none(self):
+        # GitHub returns "body": null for an empty PR body. It MUST become "" (which ENFORCES the
+        # completeness check), never None (which the kind treats as a disclosed no-op and SKIPS).
+        body, source = self._resolve(_urlopen_ok(payload={"body": None}))
+        self.assertEqual(body, "")
+        self.assertEqual(source, "live")
+        self.assertIsNotNone(body)
+
+    def test_empty_live_body_hard_fails_completeness_not_skip(self):
+        # The end-to-end invariant: a live-read empty body FAILS the presence check, never skips it.
+        rule = {"tier": "hard", "message": "MSG", "target": {"context": "pull-request-body"},
+                "params": {"sections": ["Purpose"]}}
+        passed, findings = validate.kind_presence(rule, {"pr_body": "", "pr_body_source": "live"})
+        self.assertFalse(passed)
+        self.assertTrue(any(f["severity"] == "hard" for f in findings))
+
+    # --- every failure path falls back to the frozen read, never raises, never None ---
+    def test_httperror_falls_back_to_frozen(self):
+        body, source = self._resolve(_urlopen_forbidden())   # 403 = no pull-requests perm (private repo)
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    def test_urlerror_falls_back_no_raise(self):
+        body, source = self._resolve(_urlopen_raise(urllib.error.URLError("unreachable")))
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    def test_timeout_falls_back_no_raise(self):
+        body, source = self._resolve(_urlopen_raise(TimeoutError("timed out")))
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    def test_malformed_json_falls_back_no_raise(self):
+        body, source = self._resolve(_urlopen_ok(raw=b"{ not json"))
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    def test_non_200_status_falls_back(self):
+        body, source = self._resolve(_urlopen_ok(status=500, payload={"body": "ignored"}))
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    def test_incomplete_read_falls_back_no_raise(self):
+        # A truncated transfer raises http.client.IncompleteRead during read() — NOT an OSError, so it must be
+        # in the catch set or it would crash the whole required check on a transient blip.
+        import http.client
+        body, source = self._resolve(_urlopen_read_raises(http.client.IncompleteRead(b"partial")))
+        self.assertEqual(body, "FROZEN STALE BODY")
+        self.assertEqual(source, "frozen-fallback")
+
+    # --- the fetch is gated: an explicit body file or a non-CI context never touches the network ---
+    def test_body_file_override_skips_fetch(self):
+        bf = os.path.join(self.d, "body.md")
+        with open(bf, "w", encoding="utf-8") as fh:
+            fh.write("EXPLICIT FILE BODY")
+        called = []
+        with mock.patch.object(github_client, "_urlopen", lambda *a, **k: called.append(1)), \
+                mock.patch.dict(os.environ, self.ci_env, clear=True):
+            body, source = validate.resolve_ci_pr_body(bf)
+        self.assertEqual(body, "EXPLICIT FILE BODY")
+        self.assertEqual(source, "frozen")
+        self.assertEqual(called, [])
+
+    def test_no_token_skips_fetch(self):
+        env = {k: v for k, v in self.ci_env.items() if k != "GITHUB_TOKEN"}
+        called = []
+        with mock.patch.object(github_client, "_urlopen", lambda *a, **k: called.append(1)), \
+                mock.patch.dict(os.environ, env, clear=True):
+            body, source = validate.resolve_ci_pr_body(None)
+        self.assertEqual(source, "frozen")
+        self.assertEqual(called, [])
+
+    def test_non_pr_event_skips_fetch(self):
+        self._write_event({"action": "push"})   # no pull_request → no number → no fetch
+        called = []
+        with mock.patch.object(github_client, "_urlopen", lambda *a, **k: called.append(1)), \
+                mock.patch.dict(os.environ, self.ci_env, clear=True):
+            _body, source = validate.resolve_ci_pr_body(None)
+        self.assertEqual(source, "frozen")
+        self.assertEqual(called, [])
+
+    def test_event_pr_number_rejects_bad_values(self):
+        for bad in ({"pull_request": {"number": 0}}, {"pull_request": {"number": "42"}},
+                    {"pull_request": {"number": True}}, {"pull_request": {}}, {"action": "x"}):
+            self._write_event(bad)
+            with mock.patch.dict(os.environ, self.ci_env, clear=True):
+                self.assertIsNone(validate._event_pr_number())
+
+    # --- end-to-end through main(), the real GitHub Actions entry point ---
+    def test_main_wires_live_body_into_ctx(self):
+        # main() is what CI actually invokes (`python tools/validate.py --suite CI`); drive it end-to-end and
+        # confirm the live body + provenance land in the ctx it hands run() — the tuple-unpack/ctx assembly no
+        # other test exercises.
+        captured = {}
+        def _capture_run(suite, ctx):
+            captured.update(ctx)
+            return 0
+        with mock.patch.object(github_client, "_urlopen", _urlopen_ok(payload={"body": "LIVE VIA MAIN"})), \
+                mock.patch.object(validate, "run", _capture_run), \
+                mock.patch.dict(os.environ, self.ci_env, clear=True):
+            rc = validate.main(["--suite", "CI"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(captured.get("pr_body"), "LIVE VIA MAIN")
+        self.assertEqual(captured.get("pr_body_source"), "live")
+
+    # --- the load-bearing contract: the LOCAL path makes no network call ---
+    def test_local_ctx_makes_no_network_call(self):
+        called = []
+        with mock.patch.object(github_client, "_urlopen", lambda *a, **k: called.append(1)), \
+                mock.patch.dict(os.environ, self.ci_env, clear=True):
+            ctx = validate.local_ctx()
+        self.assertEqual(called, [])                       # local_ctx never reaches the live fetch
+        self.assertNotIn("pr_body_source", ctx)            # and carries no CI provenance
+        self.assertEqual(ctx["pr_body"], "FROZEN STALE BODY")
+
+    # --- the recovery note is phase-aware: once, only on frozen-fallback WITH findings ---
+    def _presence_rule(self):
+        return {"tier": "hard", "message": "MSG", "target": {"context": "pull-request-body"},
+                "params": {"sections": ["Purpose"]}}
+
+    def _soft_notes(self, findings):
+        return [f for f in findings if f["severity"] == "soft" and "To recover: edit" in f["message"]]
+
+    def test_recovery_note_fires_on_frozen_fallback_failure(self):
+        _passed, findings = validate.kind_presence(
+            self._presence_rule(), {"pr_body": "no purpose section", "pr_body_source": "frozen-fallback"})
+        notes = self._soft_notes(findings)
+        self.assertEqual(len(notes), 1)                    # emitted ONCE, not per missing section
+
+    def test_no_recovery_note_when_live_read_succeeded(self):
+        _passed, findings = validate.kind_presence(
+            self._presence_rule(), {"pr_body": "no purpose section", "pr_body_source": "live"})
+        self.assertEqual(self._soft_notes(findings), [])   # rerun re-reads the live body — no stale-trap warning
+
+    def test_no_recovery_note_when_completeness_passes(self):
+        passed, findings = validate.kind_presence(
+            self._presence_rule(), {"pr_body": "## Purpose\nreal content", "pr_body_source": "frozen-fallback"})
+        self.assertTrue(passed)
+        self.assertEqual(self._soft_notes(findings), [])   # nothing to recover from
+
+    def test_recovery_note_is_soft_and_never_gates(self):
+        # a soft note among hard findings must not change the hard-fired verdict
+        _passed, findings = validate.kind_presence(
+            self._presence_rule(), {"pr_body": "", "pr_body_source": "frozen-fallback"})
+        note = self._soft_notes(findings)[0]
+        self.assertEqual(note["severity"], "soft")
+
+    def test_absent_body_is_witness_deferred_not_a_plain_noop(self):
+        # pr-body-completeness ENFORCES in CI on a real pull request; when there is no body to
+        # evaluate here (a local or non-PR run), it is witness-deferred (StarshipSuperjam/engine-template#761) so
+        # report() lifts it onto the elevated "not verified here" line, never "nothing to do".
+        passed, findings = validate.kind_presence(self._presence_rule(), {"pr_body": None})
+        self.assertTrue(passed)                                # a no-op never gates
+        self.assertEqual(len(findings), 1)
+        self.assertIs(findings[0].get("witness_deferred"), True)
+        self.assertIs(findings[0].get("not_applicable"), True)
 
 
 if __name__ == "__main__":

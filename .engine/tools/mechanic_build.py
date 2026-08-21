@@ -68,16 +68,6 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import checkout_health  # noqa: E402  (the OFFLINE readers + fail-soft health probes; this module adds the gate)
 
-# owner/repo parsed ONLY from a genuine github.com origin. The leading host anchor is load-bearing: `github.com`
-# must be the URL host (after an optional scheme and optional `user@`), never a substring of a look-alike
-# (`notgithub.com`, `github.com.evil.com`) — see the module docstring's HOST ANCHOR note. IGNORECASE folds the
-# literal host (`GitHub.com` == `github.com`, case-insensitive by spec); ASCII keeps that fold ASCII-only, so a
-# Unicode homograph (`gİthub.com`, where U+0130 folds to `i`) cannot satisfy the `github.com` literal and pass
-# this belt as a genuine origin. The flags never touch the structural anchors, so the security boundary is
-# unchanged — no look-alike host is newly accepted; a genuine mixed-case origin that previously mis-classified
-# as `untrusted-host` is now read correctly (StarshipSuperjam/engine-template#625).
-_GITHUB_SLUG_RE = re.compile(r"^(?:(?:https?|ssh)://)?(?:[^@/]+@)?github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$",
-                             re.IGNORECASE | re.ASCII)
 
 # Plain-language refusal messages (operator-facing: name the cause AND the remedy, never the raw token).
 _REFUSALS = {
@@ -103,7 +93,7 @@ _REFUSALS = {
     # `worktree` verb refusals (identity reuses the taxonomy above; these are the workspace-creation reasons):
     "bad-name": (
         "The worktree name is not allowed. Use letters, digits, dot, dash or underscore (no leading dash or "
-        "dot, no path separators, no '..'). Pick a simple name like the issue number and a short slug."),
+        "dot, no path separators, no '..'). Pick a short slug; prefix the issue number only when one exists."),
     "engine-root-unresolved": (
         "Could not resolve this engine's own checkout root, so there is nowhere to home the build worktree. "
         "Run this from inside the engine-mechanic checkout (a normal git working tree)."),
@@ -156,11 +146,16 @@ def _git_origin_url(checkout_path: str | None) -> str | None:
 def _github_slug(url: str | None) -> str | None:
     """owner/repo IF AND ONLY IF `url` is a genuine github.com origin (SSH or HTTPS). None for any other host —
     the host anchor is the security boundary (see the module docstring): a look-alike host must NOT parse to a
-    real slug, because under subprocess-in-place a matched checkout's own `.engine` tools are executed locally."""
+    real slug, because under subprocess-in-place a matched checkout's own `.engine` tools are executed locally.
+    The parse is single-homed in repo_identity (StarshipSuperjam/engine-template#691); the import is LAZY to keep
+    the identity seam off this tool's import surface (the same discipline as the `slug_eq` import in
+    `_classify_origin`). `repo_identity.parse_github_slug` is TOTAL — it never raises — so this fail-closed belt
+    degrades a bad origin to a plain-language DENY, never a traceback; the `if not url` guard is kept as
+    defense-in-depth on that security path."""
     if not url:
         return None
-    m = _GITHUB_SLUG_RE.search(url.strip())
-    return m.group(1) if m else None
+    from repo_identity import parse_github_slug  # lazy: keep the identity seam off any import surface this tool rides
+    return parse_github_slug(url)
 
 
 def _classify_origin(target_slug: str | None, checkout_path: str | None) -> str:
@@ -377,7 +372,7 @@ def main(argv: list | None = None) -> int:
     subs = parser.add_subparsers(dest="verb")
     subs.add_parser("preflight", help="resolve+verify the product checkout; emit its env or refuse fail-closed")
     wt = subs.add_parser("worktree", help="verify, then cut an isolated build worktree; emit its env or refuse")
-    wt.add_argument("name", help="a short name (issue number + slug); becomes the worktree dir and claude/<name>")
+    wt.add_argument("name", help="a short slug (issue-number prefix only when one exists); becomes the worktree dir and claude/<name>")
     args = parser.parse_args(argv)
     if args.verb == "preflight":
         path, slug, refusal = resolve_build_target()

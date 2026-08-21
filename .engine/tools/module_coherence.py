@@ -75,7 +75,8 @@ ENGINE_MANIFEST_REL = ".engine/engine.json"
 
 # FOUNDATION_INFRA — the wholly-engine-owned files that belong to no module's `provides`: the engine
 # manifest, the root CLAUDE.md, the tool-runtime lockfiles, and the engine-owned .github/ control-plane
-# artifacts (the two required-check workflows; the advisory secret-scan workflow + dependabot.yml that
+# artifacts (the two required-check workflows and the head-bound acknowledgment-status workflow; the
+# advisory secret-scan workflow + dependabot.yml that
 # form the git-native security floor; the advisory actionlint
 # workflow that grammar-checks every workflow file; the scheduled audit-prep workflow that runs the
 # engine's self-review; the PR template, the issue templates, and CODEOWNERS
@@ -102,6 +103,7 @@ FOUNDATION_INFRA = (
     #                        in remove_engine (never overlay-replaced / wholesale-deleted — StarshipSuperjam/engine-template#409).
     ".github/workflows/engine-ci.yml",
     ".github/workflows/engine-guard.yml",
+    ".github/workflows/engine-ack-status.yml",
     ".github/workflows/secret-scan.yml",
     ".github/workflows/actionlint.yml",
     ".github/workflows/audit-prep.yml",
@@ -130,7 +132,7 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 
 # OPERATOR_CONFIG — committed operator-authored config the ownership leg must NOT read as orphans: the
 # per-deployment operator policy-override of tunable policy values (.engine/operator-overrides.json, written
-# by /engine-tune) and the per-deployment instance guarded-paths declaration (.engine/operator-guarded-paths.json,
+# by /engine-setup) and the per-deployment instance guarded-paths declaration (.engine/operator-guarded-paths.json,
 # StarshipSuperjam/engine-template#532 — the deployment's own extra product-side paths for the weakening guard to watch, unioned in by
 # weakening_guard.is_guardrail and shape-gated by engine/check/operator-guarded-paths) and the per-deployment
 # local-reference vocabulary (.engine/operator-local-references.json — the references that mean something only
@@ -148,8 +150,22 @@ NAMED_INFRA = {p for p in FOUNDATION_INFRA if p.startswith(".engine/")}
 # not read them as orphans either. (The SEEDED root files — SECURITY.md, README.md — need no carve-out: they
 # live outside .engine/, so the ownership walk never reaches them; they are product territory preserved by the
 # overlay's "never touch product".)
+# ONE exception to "absent in this construction repo" above (StarshipSuperjam/engine-template#943): `.engine/operator-local-references.json`
+# IS committed here, declaring `D-` so the shipped local-reference floor scans engine-template's own traveling
+# surfaces. It stays operator-owned config all the same (in no `provides`, preserved across upgrade), and is
+# retired at first-run (instantiator._FIRST_RUN_ASSET_FILES) so a generated deployment still starts absent — the
+# StarshipSuperjam/engine-template#639 ships-ABSENT steady state holds for every downstream repo; only the engine's own home carries it.
 OPERATOR_CONFIG = {".engine/operator-overrides.json", ".engine/operator-guarded-paths.json",
                    ".engine/operator-local-references.json",
+                   # Per-deployment review-depth EFFORT retune (.engine/operator-review-effort.json, read by
+                   # operator_review_effort.py — StarshipSuperjam/engine-template#677). Preserved by being outside
+                   # every module's `provides`, so a deployment's depth-effort tuning survives an engine update
+                   # while the shipped `review_depths` defaults still upgrade. DELIBERATELY carries NO dedicated
+                   # engine/check/operator-* shape gate, unlike operator-guarded-paths / operator-local-references:
+                   # its reader degrades a malformed slice to the SHIPPED default (the strong anchor), the safe
+                   # direction, so a missing shape check cannot silently weaken review — same rationale as
+                   # operator-overrides.json, which likewise carries none.
+                   ".engine/operator-review-effort.json",
                    ".engine/conduct/operator.md",
                    ".engine/provisioning/conduct-seed.md", ".engine/provisioning/security-seed.md",
                    ".engine/provisioning/readme-seed.md"}
@@ -257,12 +273,16 @@ def _untracked_surface_paths() -> set | None:
     return set(lines) if lines is not None else None
 
 
-def discover_manifests() -> list:
+def discover_manifests(root: str | None = None) -> list:
     """The present module manifests as (relpath, manifest) pairs — installed-means-present,
-    read from the .engine/modules/ directory listing. Sorted by path for stable output."""
+    read from the .engine/modules/ directory listing. Sorted by path for stable output.
+    `root` overrides the tree read (default validate.ROOT) — the seam a derived-committed artifact's
+    negative fixture uses to seed its own module set, so its check stays witnessable in a deployment
+    whose real manifest set is reduced. Every live caller passes nothing and reads the real tree."""
+    base = root or validate.ROOT
     out = []
-    for abs_path in sorted(_glob.glob(os.path.join(validate.ROOT, MODULES_GLOB))):
-        out.append((_rel(abs_path), validate.load_json(abs_path)))
+    for abs_path in sorted(_glob.glob(os.path.join(base, MODULES_GLOB))):
+        out.append((os.path.relpath(abs_path, base).replace(os.sep, "/"), validate.load_json(abs_path)))
     return out
 
 
@@ -287,6 +307,7 @@ def load_engine_manifest():
 home_repository = repo_identity.home_repository
 normalize_slug = repo_identity.normalize_slug
 slug_eq = repo_identity.slug_eq
+is_wellformed_slug = repo_identity.is_wellformed_slug
 is_downstream_copy = repo_identity.is_downstream_copy
 _READ_HOME = repo_identity._READ_HOME
 
@@ -314,7 +335,8 @@ _CI_REQUIRED_INDEXES = frozenset({".engine/knowledge/graph.json", ".engine/self-
 # floors (the root CLAUDE.md/AGENTS.md, which since StarshipSuperjam/engine-template#323 ARE the fenced adopter floor — the separate
 # .deployed.md files retired with the greenfield swap).
 _HOME_TRAVEL_FILES = frozenset({
-    ".engine/pyproject.toml", ".engine/uv.lock", ".engine/suites.json",
+    ".engine/pyproject.toml", ".engine/uv.lock", ".engine/suites.json", ".engine/build-protocol.json",
+    ".engine/build-orchestration-obligations.json",
     ".gitignore", "AGENTS.md", "CLAUDE.md",
 })
 
@@ -588,19 +610,20 @@ def block_eligible_registrations() -> list:
     """The block declarations the block-registry leg governs, ASSEMBLED from each owning system's own
     declaration — hooks names no invariant itself (the block-budget law), so the registry
     is the hooks-owned set (none) PLUS each owning lifecycle system's block: modes' explore write-gate
-    (modes.BLOCK_INVARIANT) and its engine-Issue-conformance reroute (modes.REROUTE_BLOCK_INVARIANT) —
-    both PreToolUse blocks modes' single handler composes, named a member by the
+    (modes.BLOCK_INVARIANT), its engine-Issue-conformance reroute (modes.REROUTE_BLOCK_INVARIANT), and its
+    protected-merge nudge (modes.MERGE_BLOCK_INVARIANT) — three PreToolUse blocks modes' single handler
+    composes, each named a member by the
     block-budget law — and close's findings-disposition gate on Stop (close.BLOCK_INVARIANT). Each entry
     is {event, name, owner, modes}; the leg reads `event` and `modes`. These — NOT bare
     .claude/settings.json hook registrations — are the authoritative "this blocks" source: a wired hook
     command is opaque, so registration alone never implies a block (boot's SessionStart hook is wired yet
-    declares none). So the leg validates three REAL members on block-eligible events (PreToolUse, Stop) →
+    declares none). So the leg validates four REAL members on block-eligible events (PreToolUse, Stop) →
     green; it would fire the moment any owner declared a block on a non-eligible event or without its
     modes. (owes → the module manager: if the block-owner set grows past 2–3 it may refactor this
     consumer-side assembly to a registry-discovery pattern.)"""
     return ([dict(inv) for inv in hooks.BLOCK_ELIGIBLE_INVARIANTS]
             + [dict(modes.BLOCK_INVARIANT), dict(modes.REROUTE_BLOCK_INVARIANT),
-               dict(close.BLOCK_INVARIANT)])
+               dict(modes.MERGE_BLOCK_INVARIANT), dict(close.BLOCK_INVARIANT)])
 
 
 def check_coherence(tier: str = "hard") -> list:

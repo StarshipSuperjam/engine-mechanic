@@ -125,7 +125,7 @@ class TestSync(_Base):
         # itself is a pure no-op; the handler is what surfaces the plain-language setup next step).
         result = ps.sync(force=True, config=None, signals=_signals(), gql=None, items=[])
         self.assertEqual(result["status"], ps.NOT_CONFIGURED)
-        self.assertIn("engine-board-setup", result["message"])
+        self.assertIn("engine-setup", result["message"])
 
     def test_writes_only_engine_fields_on_engine_items(self):
         rec, gql = _gql()
@@ -263,9 +263,9 @@ class TestHookHandler(_Base):
     def test_never_configured_surfaces_the_setup_next_step(self):
         # A never-configured board no-ops for a reason the operator can act on -> disclose the next step,
         # not stay silent (the board-absent case is owed a plain-language next step).
-        out = self._handler({"status": ps.NOT_CONFIGURED, "message": "Run /engine-board-setup to create one"})
+        out = self._handler({"status": ps.NOT_CONFIGURED, "message": "Run /engine-setup to create one"})
         self.assertEqual(out.get("action"), "inject")
-        self.assertIn("engine-board-setup", out.get("context", ""))
+        self.assertIn("engine-setup", out.get("context", ""))
 
     def test_clean_and_skipped_stay_silent(self):
         # A clean sync (the board is the surface) and a debounce skip surface nothing.
@@ -277,6 +277,19 @@ class TestHookHandler(_Base):
 class TestDemo(_Base):
     def test_demo_passes_clean(self):
         self.assertEqual(quiet_call.run(ps._demo), 0)
+
+
+class TestSandboxAwareNoToken(_Base):
+    """StarshipSuperjam/engine-template#808: when no token resolves, the board-sync degrade message carries the
+    single-homed inconclusive note, so a sandboxed read is not reported as a signed-out/expired board."""
+
+    def test_no_token_degrades_with_the_inconclusive_note(self):
+        from unittest import mock
+        with mock.patch.object(ps.boot, "gh_token", return_value=None):
+            result = ps.sync(force=True, config=_config(), signals=_signals(), now=_NOW)
+        self.assertEqual(result["status"], ps.DEGRADED)
+        self.assertIn("does not by itself mean", result["message"])   # the inconclusive #808 note is wired in
+        self.assertIn("sandbox", result["message"])
 
 
 if __name__ == "__main__":

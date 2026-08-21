@@ -37,6 +37,10 @@ on:
         description: "The new version, like 0.1.0. Leave blank to use the smallest version the changes require. A release can only ever go up, never down."
         required: false
         type: string
+      legacy_impact:
+        description: "One-time only: the aggregate release impact (none, patch, minor, or major) for pull requests merged BEFORE the release-impact marker existed. Set this the first time the cut reports undeclared/legacy pull requests; leave blank once every pull request carries its own marker. An out-of-enum value is rejected cleanly by the tool."
+        required: false
+        type: string
 
 # Only the built-in GITHUB_TOKEN's scope is governed here: it pushes the release branch, so it needs
 # contents: write. The pull request is opened with RELEASE_PAT, which carries its OWN scope — so no
@@ -74,7 +78,7 @@ jobs:
           # the merge commit SHA — it needs no local history, so this depth is for the diff here, not the tag.)
           fetch-depth: 0
       - name: Set up uv (pinned)
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.11.8"
       - name: Materialize the engine tool-runtime
@@ -101,9 +105,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # One-time rollout override for the pre-marker tranche (StarshipSuperjam/engine-template#942). Reaches the shell ONLY as a
+          # QUOTED env var, never interpolated into the script body — that quoting is what prevents shell
+          # injection, regardless of the value. The value backstop is release_cut.py's own argparse `choices=`,
+          # which rejects any out-of-enum value and fails the run cleanly.
+          LEGACY_IMPACT: ${{ inputs.legacy_impact }}
         run: |
           set -euo pipefail
-          uv run --directory .engine --frozen -- python tools/release_cut.py propose --json \
+          ARGS=(propose --json)
+          if [ -n "${LEGACY_IMPACT}" ]; then
+            ARGS+=(--legacy-impact "${LEGACY_IMPACT}")
+          fi
+          uv run --directory .engine --frozen -- python tools/release_cut.py "${ARGS[@]}" \
             > "${RUNNER_TEMP}/proposal.json"
       # Record the versions into the manifests (atomic, raise-only — the tool refuses a non-version string and a
       # non-increase). The dispatch input reaches the shell ONLY as a quoted environment variable, never
@@ -174,8 +187,7 @@ jobs:
       - name: Refresh the generated maps to match the new versions
         run: |
           set -euo pipefail
-          uv run --directory .engine --frozen -- python tools/knowledge_gen.py generate
-          uv run --directory .engine --frozen -- python tools/self_map.py generate
+          uv run --directory .engine --frozen -- python tools/derived_state.py regenerate --release
       # Deployment gate (StarshipSuperjam/engine-template#664): prove this release OPERATES and UPGRADES when deployed BEFORE the pull request
       # is written or opened. Placed after the map refresh and before the PR steps, so a red fails the job and
       # NO pull request is ever opened (the branch/commit/push all live in the final step). Fails CLOSED: any
@@ -185,7 +197,7 @@ jobs:
       # signal) yet the gate reported it did not run, that is an origin-signal misdetection and the cut fails
       # closed rather than shipping the engine ungated.
       - name: Verify the release operates, upgrades, and rolls back when deployed
-        timeout-minutes: 60
+        timeout-minutes: 120
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
@@ -270,9 +282,14 @@ jobs:
           # If the PR cannot be opened, the branch is already pushed — name it and give a plain recovery. This is
           # the "present-but-broken" credential case (expired PAT, or missing Pull requests: write), distinct
           # from the "not set up" failure at the first step.
-          if ! gh pr create --base "${{ github.event.repository.default_branch }}" --head "${branch}" \
+          if ! pr_url="$(gh pr create --base "${{ github.event.repository.default_branch }}" --head "${branch}" \
                 --title "Release ${RESOLVED_VERSION}" \
-                --body-file "${RUNNER_TEMP}/pr-body.md"; then
+                --body-file "${RUNNER_TEMP}/pr-body.md")"; then
             echo "::error::The release branch ${branch} was pushed, but the release pull request could not be opened. This usually means the RELEASE_PAT secret is expired or is missing the Pull requests: write permission on this repository. No release was made. Fix the token, delete the branch ${branch}, and run this again."
             exit 1
           fi
+          # Surface the opened pull request where the maintainer looks first — the run page — not only this
+          # step's log (capturing the URL above hid gh's own stdout, so print it here too). One line, a
+          # pointer only: the pull request body itself stays the evidence bundle, authored by the tool.
+          echo "Release pull request opened: ${pr_url}"
+          echo "### Release pull request opened — review and merge to publish: ${pr_url}" >> "${GITHUB_STEP_SUMMARY}"

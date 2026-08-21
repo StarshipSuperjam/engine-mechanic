@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -118,6 +119,49 @@ class TestFailClosed(unittest.TestCase):
 
 
 @unittest.skipUnless(_CONSTRUCTION, _SKIP)
+class TestCompleteSuiteExecution(unittest.TestCase):
+    """The expensive suite has an explicit cut-only budget and a failure that names its active leg."""
+
+    def test_suite_uses_the_30_minute_budget_and_emits_progress_before_spawning(self):
+        with mock.patch("subprocess.run", return_value=_proc(0, "", "")) as run, \
+             mock.patch.object(rg, "_phase") as phase:
+            result = rg._suite_in("/tmp/projection", "operate/default")
+        self.assertTrue(result["passed"])
+        self.assertEqual(run.call_args.kwargs["timeout"], rg._COMPLETE_SUITE_TIMEOUT_SECONDS)
+        phase.assert_called_once_with("operate/default", "run the complete self-test suite")
+
+    def test_timeout_fails_closed_with_the_baseline_and_limit(self):
+        timeout = subprocess.TimeoutExpired(["python", "-m", "unittest"], rg._COMPLETE_SUITE_TIMEOUT_SECONDS)
+        with mock.patch.object(rg, "_run", side_effect=timeout):
+            result = rg._suite_in("/tmp/projection", "upgrade/v0.3.2")
+        self.assertFalse(result["passed"])
+        self.assertIn("upgrade/v0.3.2", result["detail"])
+        self.assertIn("1800 seconds", result["detail"])
+
+    def test_any_phased_timeout_carries_its_exact_leg_and_limit(self):
+        timeout = subprocess.TimeoutExpired(["python"], 600)
+        with mock.patch("subprocess.run", side_effect=timeout):
+            with self.assertRaisesRegex(rg.GateError, "control-plane/v0.3.2: .* timed out after 600 seconds"):
+                rg._run(["python"], timeout=600,
+                        phase=("control-plane/v0.3.2", "repair and verify the Engine-owned safety rule"))
+
+    def test_default_and_declined_profiles_each_receive_a_complete_suite(self):
+        suite_labels = []
+
+        def _suite(_tree, label):
+            suite_labels.append(label)
+            return {"passed": True, "detail": ""}
+
+        with mock.patch.object(rg, "_archive_candidate", side_effect=["/tmp/default", "/tmp/declined"]), \
+             mock.patch.object(rg, "_project_to_deployed", side_effect=[[], ["optional-one"]]), \
+             mock.patch.object(rg, "_validate_in", return_value={"passed": True, "detail": ""}), \
+             mock.patch.object(rg, "_suite_in", side_effect=_suite):
+            result = rg._arm_operates()
+        self.assertTrue(result["passed"])
+        self.assertEqual(suite_labels, ["operate/default", "operate/declined(optional-one)"])
+
+
+@unittest.skipUnless(_CONSTRUCTION, _SKIP)
 class TestInertWhenDeployed(unittest.TestCase):
     """On a non-home checkout the gate is inert (ran=False) and passes — a deployed repo runs the suite in its
     own engine-ci. The workflow, not the tool, decides an engine cut must actually have run."""
@@ -152,10 +196,17 @@ class TestUpgradeArmReporting(unittest.TestCase):
     a real release). It is exercised directly (not through `_upgrade_from`) so the rollback leg stays out of
     scope here; the composed transition is `TestTransitionComposition`."""
 
-    def _drive(self, result_obj=None, rc=0, stdout=None, stderr=""):
+    def _drive(self, result_obj=None, rc=0, stdout=None, stderr="", *, validator=None, suite=None,
+               run_complete_suite=True):
         out = stdout if stdout is not None else ("GATE_RESULT:" + json.dumps(result_obj))
-        with mock.patch.object(rg, "_run", return_value=_proc(rc, out, stderr)):
-            return rg._upgrade_leg("/tmp/proj", "v9.9.9", "/tmp/candidate")
+        validator = validator or {"passed": True, "detail": ""}
+        suite = suite or {"passed": True, "detail": ""}
+        with mock.patch.object(rg, "_run", return_value=_proc(rc, out, stderr)), \
+             mock.patch.object(rg, "_candidate_ref", return_value="v9.9.9"), \
+             mock.patch.object(rg, "_validate_in", return_value=validator), \
+             mock.patch.object(rg, "_suite_in", return_value=suite):
+            return rg._upgrade_leg("/tmp/proj", "v9.9.9", "/tmp/candidate",
+                                   run_complete_suite=run_complete_suite)
 
     def _clean(self, **over):
         base = {"refused": False, "applied": True, "reason": None, "findings": [],
@@ -165,6 +216,28 @@ class TestUpgradeArmReporting(unittest.TestCase):
 
     def test_clean_upgrade_passes(self):
         self.assertTrue(self._drive(self._clean())["passed"])
+
+    def test_structurally_clean_upgrade_with_a_red_validator_blocks(self):
+        res = self._drive(self._clean(), validator={"passed": False, "detail": "validator witness"})
+        self.assertFalse(res["passed"])
+        self.assertIn("validator witness", res["detail"])
+
+    def test_structurally_clean_upgrade_with_red_self_tests_blocks(self):
+        res = self._drive(self._clean(), suite={"passed": False, "detail": "suite witness"})
+        self.assertFalse(res["passed"])
+        self.assertIn("suite witness", res["detail"])
+
+    def test_non_oldest_baseline_retains_validation_without_repeating_the_complete_suite(self):
+        with mock.patch.object(rg, "_run", return_value=_proc(
+                0, "GATE_RESULT:" + json.dumps({"refused": False, "applied": True, "reason": None,
+                                                  "findings": [], "notes": [mm.PRACTICE_RUN_NOTE]}), "")), \
+             mock.patch.object(rg, "_candidate_ref", return_value="v9.9.9"), \
+             mock.patch.object(rg, "_validate_in", return_value={"passed": True, "detail": ""}) as validator, \
+             mock.patch.object(rg, "_suite_in", return_value={"passed": True, "detail": ""}) as suite:
+            result = rg._upgrade_leg("/tmp/proj", "v9.9.9", "/tmp/candidate", run_complete_suite=False)
+        self.assertTrue(result["passed"])
+        validator.assert_called_once()
+        suite.assert_not_called()
 
     def test_hard_finding_blocks(self):
         res = self._drive(self._clean(findings=[{"severity": "hard", "id": "engine/check/knowledge-coverage"}]))
@@ -194,6 +267,43 @@ class TestUpgradeArmReporting(unittest.TestCase):
 
     def test_no_gate_result_marker_blocks(self):
         self.assertFalse(self._drive(stdout="garbage with no marker")["passed"])
+
+    def test_candidate_ref_is_concrete_and_never_the_latest_sentinel(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, ".engine"))
+            with open(os.path.join(d, ".engine", "engine.json"), "w", encoding="utf-8") as fh:
+                json.dump({"engine_release": "0.6.3"}, fh)
+            self.assertEqual(rg._candidate_ref(d), "v0.6.3")
+            with open(os.path.join(d, ".engine", "engine.json"), "w", encoding="utf-8") as fh:
+                json.dump({"engine_release": "latest"}, fh)
+            with self.assertRaises(rg.GateError):
+                rg._candidate_ref(d)
+
+
+@unittest.skipUnless(_CONSTRUCTION, _SKIP)
+class TestControlPlaneLegReporting(unittest.TestCase):
+    """The release matrix's injected GitHub leg accepts only a verified, exact owned-rule transition."""
+
+    def _drive(self, result, writes, *, rc=0, stdout=None):
+        out = stdout if stdout is not None else "CONTROL_PLANE_RESULT:" + json.dumps(
+            {"result": result, "writes": writes})
+        with mock.patch.object(rg, "_run", return_value=_proc(rc, out, "")):
+            return rg._control_plane_leg("/tmp/proj", "v9.9.9", {"rules": []})
+
+    def test_verified_repair_with_the_exact_put_passes(self):
+        result = self._drive({"status": "repaired"},
+                             [{"method": "PUT", "path": "/repos/gate/repo/rulesets/1"}])
+        self.assertTrue(result["passed"])
+
+    def test_unverified_or_misdirected_repair_blocks_the_transition(self):
+        for result, writes in (({"status": "unverified"}, []),
+                               ({"status": "already"}, [{"method": "PUT", "path": "/repos/gate/repo/rulesets/1"}]),
+                               ({"status": "repaired"}, [{"method": "POST", "path": "/repos/gate/repo/rulesets"}])):
+            with self.subTest(status=result["status"], writes=writes):
+                self.assertFalse(self._drive(result, writes)["passed"])
+
+    def test_missing_baseline_floor_fails_closed(self):
+        self.assertFalse(rg._control_plane_leg("/tmp/proj", "v9.9.9", None)["passed"])
 
 
 @unittest.skipUnless(_CONSTRUCTION, _SKIP)
@@ -265,54 +375,76 @@ class TestRollbackLegReporting(unittest.TestCase):
 
 @unittest.skipUnless(_CONSTRUCTION, _SKIP)
 class TestTransitionComposition(unittest.TestCase):
-    """`_upgrade_from` composes the two legs into one transition record. The rollback leg runs ONLY if the
-    upgrade leg passed (a rollback on a half-applied tree would obscure the real upgrade failure), and the
-    rollback child is spawned AFTER the upgrade child (ordering is load-bearing — the overlay must land before
-    the candidate's rollback code is imported)."""
+    """`_upgrade_from` composes the upgrade, owned-rule repair, and rollback legs into one transition record.
+    The rollback leg runs ONLY after both prior legs pass; a rollback on a half-applied tree would obscure the
+    real failure. The rollback child is spawned after the candidate-owned rule repair is verified."""
 
-    def _compose(self, upgrade_leg, rollback_leg):
+    def _compose(self, upgrade_leg, rollback_leg, control_plane_leg=None):
         with mock.patch.object(rg, "_archive_baseline", return_value="/tmp/proj"), \
              mock.patch.object(rg, "_project_to_deployed", return_value=[]), \
              mock.patch.object(rg, "_assert_isolated", return_value=None), \
              mock.patch.object(rg, "_upgrade_leg", side_effect=upgrade_leg) as u, \
+             mock.patch.object(rg, "_control_plane_leg",
+                               side_effect=control_plane_leg or [{"passed": True, "detail": ""}]) as c, \
              mock.patch.object(rg, "_rollback_leg", side_effect=rollback_leg) as r:
             res = rg._upgrade_from("v9.9.9", "/tmp/candidate")
-        return res, u, r
+        return res, u, c, r
 
     def test_both_pass_is_a_passing_transition(self):
-        res, u, r = self._compose([{"passed": True, "detail": ""}], [{"passed": True, "detail": ""}])
+        res, u, c, r = self._compose([{"passed": True, "detail": ""}], [{"passed": True, "detail": ""}])
         self.assertTrue(res["passed"])
         self.assertEqual(res["baseline"], "v9.9.9")
+        self.assertTrue(res["control_plane"]["passed"])
         self.assertTrue(res["rollback"]["passed"])
         self.assertEqual(u.call_count, 1)
+        self.assertEqual(c.call_count, 1)
         self.assertEqual(r.call_count, 1)                       # rollback ran because the upgrade passed
 
     def test_upgrade_failure_skips_the_rollback_leg(self):
         def _boom(*a, **k):
             raise AssertionError("the rollback leg must not run when the upgrade failed")
-        res, u, r = self._compose([{"passed": False, "detail": "upgrade/v9.9.9: red"}], _boom)
+        res, u, c, r = self._compose([{"passed": False, "detail": "upgrade/v9.9.9: red"}], _boom)
         self.assertFalse(res["passed"])
+        self.assertIsNone(res["control_plane"]["passed"])
         self.assertIsNone(res["rollback"]["passed"])           # recorded as not-run, not as a failure
         self.assertIn("not run", res["rollback"]["detail"])
+        self.assertEqual(c.call_count, 0)
         self.assertEqual(r.call_count, 0)                      # the rollback leg was never called
 
+    def test_control_plane_failure_blocks_before_rollback(self):
+        def _boom(*a, **k):
+            raise AssertionError("the rollback leg must not run when repair failed")
+        res, _u, c, r = self._compose([{"passed": True, "detail": "", "baseline_floor": {"rules": []}}],
+                                      _boom,
+                                      control_plane_leg=[{"passed": False,
+                                                          "detail": "control-plane/v9.9.9: repair red"}])
+        self.assertFalse(res["passed"])
+        self.assertFalse(res["control_plane"]["passed"])
+        self.assertIsNone(res["rollback"]["passed"])
+        self.assertEqual(c.call_count, 1)
+        self.assertEqual(r.call_count, 0)
+
     def test_rollback_failure_fails_the_transition(self):
-        res, _u, _r = self._compose([{"passed": True, "detail": ""}],
-                                    [{"passed": False, "detail": "rollback/v9.9.9: partial"}])
+        res, _u, _c, _r = self._compose([{"passed": True, "detail": ""}],
+                                        [{"passed": False, "detail": "rollback/v9.9.9: partial"}])
         self.assertFalse(res["passed"])
         self.assertFalse(res["rollback"]["passed"])
 
-    def test_the_second_spawn_is_the_rollback_child(self):
-        # Prove ordering through the REAL legs (not stubs): the first `_run` argv carries the upgrade driver
-        # (module_manager.upgrade(...)), the second carries the rollback driver (module_manager.rollback(...)).
+    def test_the_second_spawn_is_the_control_plane_then_the_rollback_child(self):
+        # Prove ordering through the REAL legs (not stubs): the first `_run` argv carries the upgrade driver,
+        # the second repairs the Engine-owned rule through the fake transport, then rollback runs last.
         calls = []
 
         def _record(cmd, *a, **k):
             calls.append(cmd)
             if "module_manager.upgrade(" in " ".join(cmd):
                 return _proc(0, "GATE_RESULT:" + json.dumps(
-                    {"refused": False, "applied": True, "reason": None, "findings": [],
-                     "notes": [mm.PRACTICE_RUN_NOTE]}), "")
+                    {"upgrade": {"refused": False, "applied": True, "reason": None, "findings": [],
+                                 "notes": [mm.PRACTICE_RUN_NOTE]}, "baseline_floor": {"rules": []}}), "")
+            if "cp.repair_owned" in " ".join(cmd):
+                return _proc(0, "CONTROL_PLANE_RESULT:" + json.dumps(
+                    {"result": {"status": "repaired"},
+                     "writes": [{"method": "PUT", "path": "/repos/gate/repo/rulesets/1"}]}), "")
             if "module_manager.rollback(" in " ".join(cmd):
                 return _proc(0, "ROLLBACK_RESULT:" + json.dumps(
                     {"state": "staged", "undone": True, "recovery_point": "engine-rescue/x",
@@ -321,12 +453,14 @@ class TestTransitionComposition(unittest.TestCase):
         with mock.patch.object(rg, "_archive_baseline", return_value="/tmp/proj"), \
              mock.patch.object(rg, "_project_to_deployed", return_value=[]), \
              mock.patch.object(rg, "_assert_isolated", return_value=None), \
+             mock.patch.object(rg, "_candidate_ref", return_value="v9.9.9"), \
              mock.patch.object(rg, "_run", side_effect=_record):
             res = rg._upgrade_from("v9.9.9", "/tmp/candidate")
         self.assertTrue(res["passed"])
         drivers = [" ".join(c) for c in calls if "-c" in c]
         self.assertIn("module_manager.upgrade(", drivers[0])   # first driver spawn = the upgrade
-        self.assertIn("module_manager.rollback(", drivers[1])  # second driver spawn = the rollback
+        self.assertIn("cp.repair_owned", drivers[1])            # second driver spawn = owned-only repair
+        self.assertIn("module_manager.rollback(", drivers[2])  # rollback runs only after repair verifies
 
 
 @unittest.skipUnless(_CONSTRUCTION, _SKIP)
@@ -356,8 +490,9 @@ class TestArmUpgradesShape(unittest.TestCase):
                                return_value={"floor": "0.3.2", "baselines": ["v0.3.2", "v0.4.0"],
                                              "excluded": ["v0.1.0"]}), \
              mock.patch.object(rg, "_upgrade_from",
-                               side_effect=lambda tag, cand: {"baseline": tag,
+                               side_effect=lambda tag, cand, **_unused: {"baseline": tag,
                                                               "upgrade": {"passed": True, "detail": ""},
+                                                              "control_plane": {"passed": True, "detail": ""},
                                                               "rollback": {"passed": True, "detail": ""},
                                                               "passed": True}):
             arm = rg._arm_upgrades("/tmp/candidate")
@@ -372,8 +507,9 @@ class TestArmUpgradesShape(unittest.TestCase):
         with mock.patch.object(rg, "_baseline_selection",
                                return_value={"floor": "0.3.2", "baselines": ["v0.3.2"], "excluded": []}), \
              mock.patch.object(rg, "_upgrade_from",
-                               side_effect=lambda tag, cand: {"baseline": tag,
+                               side_effect=lambda tag, cand, **_unused: {"baseline": tag,
                                                               "upgrade": {"passed": True, "detail": ""},
+                                                              "control_plane": {"passed": True, "detail": ""},
                                                               "rollback": {"passed": False,
                                                                            "detail": "rollback/v0.3.2: partial"},
                                                               "passed": False}):
@@ -387,9 +523,11 @@ class TestArmUpgradesShape(unittest.TestCase):
         with mock.patch.object(rg, "_baseline_selection",
                                return_value={"floor": "0.3.2", "baselines": ["v0.3.2"], "excluded": []}), \
              mock.patch.object(rg, "_upgrade_from",
-                               side_effect=lambda tag, cand: {"baseline": tag,
+                               side_effect=lambda tag, cand, **_unused: {"baseline": tag,
                                                               "upgrade": {"passed": False,
                                                                           "detail": "upgrade/v0.3.2: red"},
+                                                              "control_plane": {"passed": None,
+                                                                                "detail": "not run — the upgrade did not complete"},
                                                               "rollback": {"passed": None,
                                                                            "detail": "not run — the upgrade "
                                                                                      "did not complete"},
@@ -398,6 +536,57 @@ class TestArmUpgradesShape(unittest.TestCase):
         self.assertFalse(arm["passed"])
         self.assertEqual(arm["failures"], ["upgrade/v0.3.2: red"])
         self.assertFalse(any("not run" in f for f in arm["failures"]))
+
+    def test_only_the_dynamically_oldest_baseline_receives_the_post_upgrade_suite(self):
+        calls = []
+
+        def _transition(tag, _candidate, *, run_complete_suite):
+            calls.append((tag, run_complete_suite))
+            return {"baseline": tag,
+                    "upgrade": {"passed": True, "detail": ""},
+                    "control_plane": {"passed": True, "detail": ""},
+                    "rollback": {"passed": True, "detail": ""}, "passed": True}
+
+        with mock.patch.object(rg, "_baseline_selection", return_value={
+                "floor": "0.3.2", "baselines": ["v0.3.2", "v0.5.0", "v0.6.2"], "excluded": []}), \
+             mock.patch.object(rg, "_upgrade_from", side_effect=_transition):
+            arm = rg._arm_upgrades("/tmp/candidate")
+        self.assertTrue(arm["passed"])
+        self.assertEqual(calls, [("v0.3.2", True), ("v0.5.0", False), ("v0.6.2", False)])
+
+    def test_missing_or_duplicate_baseline_results_block_the_matrix(self):
+        def _duplicate(_tag, _candidate, **_unused):
+            return {"baseline": "v0.3.2",
+                    "upgrade": {"passed": True, "detail": ""},
+                    "control_plane": {"passed": True, "detail": ""},
+                    "rollback": {"passed": True, "detail": ""}, "passed": True}
+
+        with mock.patch.object(rg, "_baseline_selection", return_value={
+                "floor": "0.3.2", "baselines": ["v0.3.2", "v0.4.0"], "excluded": []}), \
+             mock.patch.object(rg, "_upgrade_from", side_effect=_duplicate):
+            arm = rg._arm_upgrades("/tmp/candidate")
+        self.assertFalse(arm["passed"])
+        self.assertTrue(any("expected a result for v0.4.0" in item for item in arm["failures"]))
+        self.assertTrue(any("duplicate transition" in item for item in arm["failures"]))
+
+    def test_malformed_baseline_result_blocks_the_matrix(self):
+        with mock.patch.object(rg, "_baseline_selection", return_value={
+                "floor": "0.3.2", "baselines": ["v0.3.2"], "excluded": []}), \
+             mock.patch.object(rg, "_upgrade_from", return_value={"baseline": "v0.3.2", "passed": True}):
+            arm = rg._arm_upgrades("/tmp/candidate")
+        self.assertFalse(arm["passed"])
+        self.assertTrue(any("malformed" in item for item in arm["failures"]))
+
+
+@unittest.skipUnless(_CONSTRUCTION, _SKIP)
+class TestReleaseWorkflowBudgets(unittest.TestCase):
+    """The release-cut child budget and both workflow envelopes stay in the declared 30/120-minute contract."""
+
+    def test_release_workflows_allow_the_bounded_gate_to_finish(self):
+        root = Path(validate.ROOT)
+        for rel in (".github/workflows/release.yml", ".github/workflows/release-gate.yml"):
+            self.assertIn("timeout-minutes: 120", (root / rel).read_text(encoding="utf-8"), rel)
+        self.assertEqual(rg._COMPLETE_SUITE_TIMEOUT_SECONDS, 1_800)
 
 
 @unittest.skipUnless(_CONSTRUCTION, _SKIP)
@@ -428,8 +617,9 @@ class TestSummaryMarkdown(unittest.TestCase):
     def test_renders_rows_floor_and_count(self):
         md = rg._summary_md(self._result([
             {"baseline": "v0.3.2", "upgrade": {"passed": True, "detail": "x"},
+             "control_plane": {"passed": True, "detail": "y"},
              "rollback": {"passed": True, "detail": "y"}, "passed": True}]))
-        self.assertIn("| `v0.3.2` | pass | pass |", md)
+        self.assertIn("| `v0.3.2` | pass | pass | pass |", md)
         self.assertIn("floor `0.3.2`", md)
         self.assertIn("1 transition", md)
         self.assertNotIn("qualification", md.lower())
@@ -438,6 +628,7 @@ class TestSummaryMarkdown(unittest.TestCase):
         secret = "/Users/someone/secret/path/traceback"
         md = rg._summary_md(self._result([
             {"baseline": "v0.3.2", "upgrade": {"passed": False, "detail": secret},
+             "control_plane": {"passed": None, "detail": secret},
              "rollback": {"passed": None, "detail": secret}, "passed": False}], passed=False))
         self.assertNotIn(secret, md)                           # detail strings never reach the summary
         self.assertIn("FAIL", md)
