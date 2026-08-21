@@ -456,7 +456,7 @@ Claims from a reference UI are revalidated against its implementation before rel
 | `wires` | generated canonical discovery surfaces plus the chosen cache/ignore wire; no current route while parked |
 | `migrations` | disposable bundles are regenerated; `engine-parts` migration follows the separate compatibility sequence above |
 
-### Operator and automatic workflow routing
+## Operator and automatic workflow routing
 
 **Current disposition: `none` (parked design).** No command, skill, route, schema, module, or automatic hook
 exists for this unbuilt capability. If later accepted, its generated canonical entry must work from a cold
