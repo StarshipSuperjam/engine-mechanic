@@ -129,9 +129,13 @@ forward-looking retrieval**. The genuine contributions are two: (a) the repo-nat
 model** — committed-files, degradable, GitHub-template, non-engineer-operated — which the SDK/research
 field is not addressing; and (b) specific **integration choices** that depart from the cited patterns:
 the push-not-pull scent ([D-029](adr/0029-cognitive-substrate-is-one-workflow-a-2-store-1-register-1-c.md)) and observe-don't-predict, usage-derived salience
-([D-030](adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md)). This lineage vocabulary is maintainer-layer framing only — like
-"microkernel-inspired" ([D-025](adr/0025-fault-containment-is-earned-at-the-seams-not-conferred-by-mo.md)) it must never surface in operator-facing surfaces or
-runtime narration. See `risks.md` and the relevant system docs.
+([D-030](adr/0030-memory-ledger-canonical-observe-don-t-predict-capture-lexica.md)). This lineage vocabulary remains maintainer-layer framing during normal Engine operation — like
+"microkernel-inspired" ([D-025](adr/0025-fault-containment-is-earned-at-the-seams-not-conferred-by-mo.md)) it does not enter deployed runtime narration or become an
+operator-facing operating taxonomy. The bounded exception is pre-adoption marketing: the template README and
+banner may concisely name CoALA as direct inspiration for the cognitive functions and value proposition,
+without claiming that the Engine implements CoALA as a specification or publishing a detailed mapping
+([D-338](adr/0338-allow-concise-coala-lineage-in-pre-adoption-marketing.md)). See `risks.md` and the relevant
+system docs.
 
 ### The governance grammar
 

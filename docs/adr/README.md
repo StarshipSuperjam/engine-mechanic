@@ -349,3 +349,4 @@ Every decision behind the product spec, one file per decision, carried whole fro
 | 0335 | [Separate module distribution, applicability, and activation into independent axes](0335-separate-module-distribution-applicability-and-activation.md) | 2026-08-10 |
 | 0336 | [Route operator and model workflows through generated canonical surfaces](0336-route-operator-and-model-workflows-through-generated-canonical-surfaces.md) | 2026-08-14 |
 | 0337 | [Preserve the product-system explorer design for late v1](0337-preserve-the-product-system-explorer-design-for-late-v1.md) | 2026-08-19 |
+| 0338 | [Allow concise CoALA lineage in pre-adoption marketing](0338-allow-concise-coala-lineage-in-pre-adoption-marketing.md) | 2026-08-21 |
