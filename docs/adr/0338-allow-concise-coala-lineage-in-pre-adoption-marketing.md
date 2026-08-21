@@ -6,7 +6,7 @@ engine_record: true
 # Allow concise CoALA lineage in pre-adoption marketing
 
 *Decided 2026-08-21 by the operator while settling the Engine landing-page refresh. This decision narrows the
-operator-surface leak guard in [decision 0033](0033-resolve-re-lock-cognitive-architecture-coala-integration-ch.md);
+operator-surface leak guard in [decision 0033](0033-ground-the-cognitive-substrate-in-established-standards-line.md);
 it does not revise the Engine's cognitive architecture or make CoALA an implementation specification.*
 
 ## The decision
