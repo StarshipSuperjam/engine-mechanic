@@ -952,8 +952,7 @@
           "contract:eADR-0039-whole-module-removal-reconcile",
           "contract:eADR-0040-guardrail-ack-two-tier",
           "contract:eADR-0041-build-coordinator-behavior",
-          "contract:eADR-0042-multi-writer-integration",
-          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
+          "contract:eADR-0042-multi-writer-integration"
         ]
       },
       "slug": "contract-frontmatter",
@@ -1021,8 +1020,7 @@
           "contract:eADR-0039-whole-module-removal-reconcile",
           "contract:eADR-0040-guardrail-ack-two-tier",
           "contract:eADR-0041-build-coordinator-behavior",
-          "contract:eADR-0042-multi-writer-integration",
-          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
+          "contract:eADR-0042-multi-writer-integration"
         ]
       },
       "slug": "contract-shape",
@@ -1091,8 +1089,7 @@
           "contract:eADR-0039-whole-module-removal-reconcile",
           "contract:eADR-0040-guardrail-ack-two-tier",
           "contract:eADR-0041-build-coordinator-behavior",
-          "contract:eADR-0042-multi-writer-integration",
-          "contract:instance.engine-mechanic-eADR-0001-reference-containment"
+          "contract:eADR-0042-multi-writer-integration"
         ]
       },
       "slug": "contract-threshold",
@@ -5842,23 +5839,6 @@
       "source": {
         "fingerprint": "sha256:2f531e5d35cb08af7da295ca030cea0f1fa2c6ee42b7a341c85b554974936f9e",
         "path": ".engine/contracts/eADR-0042-multi-writer-integration.md"
-      },
-      "status": "accepted",
-      "type": "contract"
-    },
-    {
-      "id": "contract:instance.engine-mechanic-eADR-0001-reference-containment",
-      "name": ".engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md",
-      "owner": "deployment",
-      "predicates": {
-        "governed_by": [
-          "schema:contract.v1"
-        ]
-      },
-      "slug": "instance.engine-mechanic-eADR-0001-reference-containment",
-      "source": {
-        "fingerprint": "sha256:4395a71f66b2e1b368ff68dc003e8094437d22f430a046db1eb4e230a0374351",
-        "path": ".engine/contracts/instance/engine-mechanic-eADR-0001-reference-containment.md"
       },
       "status": "accepted",
       "type": "contract"
